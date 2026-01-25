@@ -140,7 +140,16 @@ class RSSPullService:
     async def _do_pull_internal(self, sub: RSSSubscription) -> bool:
         """实际的 HTTP 请求逻辑"""
         try:
-            async with aiohttp.ClientSession() as session:
+            from core.container import container
+            session = container.http_session
+            if not session or session.closed:
+                # Fallback if container session is not ready (e.g. standalone tests)
+                session = aiohttp.ClientSession()
+                should_close = True
+            else:
+                should_close = False
+
+            try:
                 headers = {}
                 if sub.last_etag: headers['If-None-Match'] = sub.last_etag
                 if sub.last_modified: headers['If-Modified-Since'] = sub.last_modified
@@ -193,6 +202,9 @@ class RSSPullService:
                     else:
                         logger.debug(f"[RSS Pull] 无新内容 (Latest: {last_published})")
                         return False
+            finally:
+                if should_close:
+                    await session.close()
         except Exception as e:
             raise e # 抛出给上层 breaker 捕获
 

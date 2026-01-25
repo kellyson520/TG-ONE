@@ -3,7 +3,6 @@ import os
 import re
 from sqlalchemy import select
 
-from managers.unified_forward_manager import get_forward_manager
 from models.models import Chat, ForwardRule
 from utils.processing.auto_delete import reply_and_delete
 from utils.helpers.common import get_main_module, get_user_id

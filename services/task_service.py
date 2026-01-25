@@ -174,6 +174,75 @@ class TaskService:
             return {'success': False, 'error': str(e), 'failed_ids': []}
 
 
+    async def schedule_delete(
+        self,
+        message: Any,
+        delay_seconds: float,
+        task_id: Optional[str] = None,
+        max_retries: int = 3,
+    ) -> str:
+        """安排消息删除任务 - 持久化版本"""
+        if delay_seconds == -1:
+            return ""
+
+        if task_id is None:
+            import time
+            task_id = f"delete_{id(message)}_{time.time()}"
+
+        payload = {
+            "action": "delete",
+            "chat_id": message.chat_id,
+            "message_ids": [message.id],
+            "max_retries": max_retries,
+            "task_id": task_id,
+        }
+
+        from datetime import datetime, timedelta
+        execute_time = datetime.now() + timedelta(seconds=delay_seconds)
+
+        await container.task_repo.push(
+            task_type="message_delete",
+            payload=payload,
+            priority=5,
+            scheduled_at=execute_time,
+        )
+
+        logger.info(f"已安排持久化删除任务: {task_id}, 延迟: {delay_seconds}s")
+        return task_id
+
+    async def cancel_task(self, task_id: str) -> bool:
+        """取消指定任务"""
+        if not task_id:
+            return False
+
+        try:
+            async with container.db.session() as session:
+                from sqlalchemy import select
+                from datetime import datetime
+                
+                stmt = select(TaskQueue).where(
+                    TaskQueue.task_data.like(f"%{task_id}%"),
+                    TaskQueue.status == "pending",
+                )
+                result = await session.execute(stmt)
+                tasks = result.scalars().all()
+
+                if not tasks:
+                    return False
+
+                for task in tasks:
+                    task.status = "completed"
+                    task.completed_at = datetime.utcnow()
+                
+                await session.commit()
+                return True
+        except Exception as e:
+            logger.error(f"取消任务失败: {task_id}, 错误: {e}")
+            return False
+
+# 全局任务管理服务实例
 task_service = TaskService()
+# [Compatibility Alias]
+message_task_manager = task_service
 
 

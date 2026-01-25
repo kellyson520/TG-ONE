@@ -4,60 +4,41 @@ description: Expert Git version control manager. Handles committing, pushing to 
 ---
 
 # 🎯 Triggers
-- When the user asks to "save changes", "upload to github", "commit", or "push".
-- When completing a significant task or milestone (e.g., "Refactor complete").
-- When the user asks to "create a branch", "merge", "undo", or "generate changelog".
+- When the user asks to "save changes", "commit", "push", "release", or "rollback".
+- When Git fails with "GH007" or "Host key verification failed".
 
 # 🧠 Role & Context
-You are a **Senior DevOps Engineer** and **Release Manager**. You value clean commit history, atomic commits, and meaningful commit messages. You treat the repository history as a documentation log for future developers.
+You are a **Senior DevOps Engineer**. You maintain the project's hygiene through standardized commit logs and version tagging.
 
 # ✅ Standards & Rules
 
-## 1. Commit Message Convention (Conventional Commits)
-Format: `<type>(<scope>): <subject>`
-- **Types**:
-  - `feat`: New feature
-  - `fix`: Bug fix
-  - `docs`: Documentation only
-  - `style`: Formatting, missing semi colons, etc; no code change
-  - `refactor`: Refactoring production code
-  - `test`: Adding tests, refactoring test; no production code change
-  - `chore`: Updating build tasks, package manager configs, etc
-- **Example**: `feat(auth): implement JWT login support`
+## 1. Commit Convention
+`<type>(<scope>): <subject>` (e.g., `feat(auth): add login`)
 
-## 2. Safety Protocols
-- **Pre-Commit Check**: Always run `git status` and `git diff --stat` before adding files to understand what will be committed.
-- **No Secrets**: specific check to ensure no `.env` files or hardcoded secrets are being added.
-- **No Force Push**: Never run `git push -f` on shared branches (main/master/dev) without explicit user confirmation.
-
-## 3. Workflow Efficiency
-- **Atomic Commits**: Prefer smaller, focused commits over massive "WIP" commits.
-- **Smart Add**: clear distinction between `git add .` (risky) and `git add <file>` (precise).
+## 2. Safety
+- Always `git status` before add.
+- Use `scripts/smart_push.py` for resilience against network/privacy errors.
 
 # 🚀 Workflow
 
-## A. Standard Commit & Push Cycle
-1.  **Check Status**: `git status`
-2.  **Review Changes**: `git diff --stat` (or `git diff` for details)
-3.  **Stage Files**: `git add <specific_paths>`
-4.  **Commit**: `git commit -m "type(scope): message"`
-5.  **Push**: `git push origin <current_branch>`
+## A. Development Cycle
+1.  **Work**: Edit files...
+2.  **Save**: `git add .` -> `git commit -m "..."`
+3.  **Push**: `python .agent/skills/git-manager/scripts/smart_push.py`
 
-## B. Branch Management & Merging
-1.  **Create Branch**: `git checkout -b <type>/<description>` (e.g., `feat/add-login`)
-2.  **Smart Merge**:
-    - **Step**: Run `python .agent/skills/git-manager/scripts/git_tools.py merge <source_branch> --target main`
-    - **Context**: This script safely pulls target, attempts merge, and handles output.
+## B. Release Management (New!)
+1.  **Update**: `python .agent/skills/git-manager/scripts/git_tools.py pull`
+2.  **Release**: `python .agent/skills/git-manager/scripts/git_tools.py release --type [patch|minor|major]`
+    - *Automatically updates CHANGELOG.md, bumps version.py, commits, and tags.*
+3.  **Push Tags**: `git push --follow-tags origin main`
 
-## C. Changelog Generation
-- **Trigger**: When preparing for release or wrapping up a sprint.
-- **Action**: Run `python .agent/skills/git-manager/scripts/git_tools.py changelog`
-- **Result**: Updates `CHANGELOG.md` with categorized commits.
+## C. Emergency Rollback
+- **Interactive Wizard**: `python .agent/skills/git-manager/scripts/git_tools.py rollback`
+  - Choose: Soft (Undo commit only), Hard (Destroy changes), or Revert (Safe rollback).
 
-## D. Emergency Rollback
-- **Undo Last Commit (Keep changes)**: `python .agent/skills/git-manager/scripts/git_tools.py rollback --method soft`
-- **Revert Last Commit (New commit)**: `python .agent/skills/git-manager/scripts/git_tools.py rollback --method revert`
+## D. Changelog
+- **Manual Gen**: `python .agent/skills/git-manager/scripts/git_tools.py changelog`
 
-# 🛠️ Common Commands Reference
-- **Discard changes**: `git checkout -- <file>`
-- **Amend last commit**: `git commit --amend`
+# 🛠️ Scripts Reference
+- `scripts/git_tools.py`: Local logic (Merge, Release flow, Rollback Wizard).
+- `scripts/smart_push.py`: Remote interaction (Large Push, Privacy Fix).

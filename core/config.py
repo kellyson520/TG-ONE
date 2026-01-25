@@ -322,40 +322,7 @@ class Settings(BaseSettings):
             )
             raise SystemExit(1)
     
-    async def load_dynamic_config(self) -> None:
-        """从数据库加载动态配置，覆盖现有配置"""
-        try:
-            # 延迟导入以避免循环依赖
-            from services.config_service import config_service
-            
-            # 从数据库加载所有配置项
-            db_configs = await config_service.get_all()
-            
-            # 更新配置项
-            for key, value in db_configs.items():
-                if hasattr(self, key):
-                    # 获取字段类型并尝试转换值
-                    field_type = self.model_fields[key].annotation
-                    try:
-                        # 根据字段类型转换值
-                        if field_type == bool:
-                            converted_value = str(value).strip().lower() in ('1','true','yes','on')
-                        elif field_type == int:
-                            converted_value = int(value)
-                        elif field_type == float:
-                            converted_value = float(value)
-                        elif field_type == Path:
-                            converted_value = Path(value)
-                        else:
-                            converted_value = value
-                        
-                        # 更新配置值
-                        setattr(self, key, converted_value)
-                        logger.debug(f"从数据库加载配置项: {key} = {converted_value}")
-                    except Exception as e:
-                        logger.warning(f"转换配置项 {key} 值失败: {e}")
-        except Exception as e:
-            logger.warning(f"从数据库加载动态配置失败: {e}")
+
 
 # 单例模式获取配置 - 使用lru_cache确保全局只有一个实例
 @lru_cache()

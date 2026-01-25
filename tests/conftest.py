@@ -112,6 +112,12 @@ mock_settings.REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 config_mock = MagicMock()
 config_mock.settings = mock_settings
+try:
+    # 尝试获取真实的 Settings 类以供单元测试使用
+    import core.config as real_config
+    config_mock.Settings = real_config.Settings
+except Exception:
+    pass
 sys.modules["core.config"] = config_mock
 
 # Mock 暂时不需要测试且存在导入错误的业务模块

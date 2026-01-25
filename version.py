@@ -12,3 +12,6 @@ UPDATE_INFO = """
 **更新日志**
 - v1.0.0: Initial release.
 """
+
+def get_version():
+    return VERSION

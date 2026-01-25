@@ -12,7 +12,6 @@ from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
 from middlewares.download import DownloadMiddleware
 from middlewares.sender import SenderMiddleware
-from middlewares.sender import SenderMiddleware
 from middlewares.filter import FilterMiddleware
 from services.db_buffer import GroupCommitCoordinator
 # 引入全局数据库单例获取函数
@@ -22,7 +21,6 @@ from core.database import Database
 import os
 import asyncio
 from pathlib import Path
-from models.models import get_async_engine
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,6 +32,9 @@ class Container:
         engine = get_async_engine()
         self.db = Database(engine=engine) 
         logger.info(f"Container connected to shared database engine: {engine.url}")
+
+        # Initialize global HTTP Session (Infrastructure Pooling)
+        self.http_session = None
         
         # 初始化事件总线
         self.bus = EventBus()
@@ -44,6 +45,8 @@ class Container:
         self.rule_repo = RuleRepository(self.db)
         self.stats_repo = StatsRepository(self.db)
         self.user_repo = UserRepository(self.db)
+        from repositories.dedup_repo import DedupRepository
+        self.dedup_repo = DedupRepository(self.db)
         self.audit_repo = AuditRepository(self.db)
         logger.info("Repositories initialized")
 
@@ -74,10 +77,30 @@ class Container:
         dedup_service.set_coordinator(self.group_commit_coordinator)
         logger.info("Deduplication service initialized with GroupCommit Support")
         
+        # 初始化状态服务 (Refactored from managers.state_manager)
+        from services.state_service import state_service
+        self.state_service = state_service
+        logger.info("StateService initialized")
+
+        # 初始化媒体处理服务 (Refactored from managers.media_group_manager)
+        from services.media_service import media_service, processed_group_cache
+        self.media_service = media_service
+        self.media_group_cache = processed_group_cache
+        logger.info("MediaService and MediaGroupCache initialized")
+
+        # 初始化转发服务 (Refactored from managers.unified_forward_manager)
+        from services.forward_service import forward_service
+        self.forward_service = forward_service
+        logger.info("ForwardService initialized")
+
+        # 初始化远程配置同步服务 (Refactored from ufb/)
+        from services.remote_config_sync_service import remote_config_sync_service
+        self.remote_config_sync_service = remote_config_sync_service
+        logger.info("RemoteConfigSyncService initialized")
+        
         # 初始化聊天信息服务
         from services.chat_info_service import chat_info_service
         chat_info_service.set_db(self.db)
-        self.chat_info_service = chat_info_service
         self.chat_info_service = chat_info_service
         logger.info("ChatInfoService initialized")
         
@@ -160,6 +183,12 @@ class Container:
             raise RuntimeError("Clients not initialized. Call init_with_client() first.")
             
         logger.info("🚀 Starting all services...")
+
+        # Initialize global HTTP session
+        import aiohttp
+        if self.http_session is None or self.http_session.closed:
+            self.http_session = aiohttp.ClientSession()
+            logger.info("Global HTTP Session initialized")
         
         # 使用 asyncio.create_task 启动并由 Container 持有引用
         self.services.append(asyncio.create_task(self.worker.start(), name="Worker"))
@@ -170,7 +199,6 @@ class Container:
         # 启动 StatsRepository 的缓冲刷新任务 (H.5)
         await self.stats_repo.start()
         
-        # 启动背压队列服务
         # 启动背压队列服务
         await self.queue_service.start()
         
@@ -220,8 +248,6 @@ class Container:
         if self.queue_service:
             logger.info("Stopping MessageQueueService...")
             await self.queue_service.stop()
-            logger.info("Stopping MessageQueueService...")
-            await self.queue_service.stop()
             
         # 停止 Group Commit Coordinator
         if self.group_commit_coordinator:
@@ -235,6 +261,11 @@ class Container:
             logger.info("Bloom Filter saved")
         except Exception as e:
             logger.error(f"Failed to save Bloom Filter: {e}")
+            
+        # Close HTTP Session
+        if self.http_session and not self.http_session.closed:
+            await self.http_session.close()
+            logger.info("Global HTTP Session closed")
 
         # 4. 等待所有后台任务结束
         # cancel 掉还在运行的 task (如 scheduler 的无限循环)
@@ -295,4 +326,19 @@ class Container:
             logger.error(f"Batch ingestion failed: {e}", exc_info=True)
 
 
-container = Container()
+
+_container = None
+
+def get_container() -> Container:
+    """获取全局容器单例 (极致惰性执行)"""
+    global _container
+    if _container is None:
+        _container = Container()
+    return _container
+
+# 暂时保留全局变量以保持向后兼容，但通过 get_container() 代理 (不推荐直接使用)
+class ContainerProxy:
+    def __getattr__(self, name):
+        return getattr(get_container(), name)
+    
+container = ContainerProxy()

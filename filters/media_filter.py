@@ -12,7 +12,7 @@ from sqlalchemy import text
 from utils.helpers.common import get_db_ops
 from enums.enums import AddMode
 from utils.network.telegram_api_optimizer import api_optimizer
-from managers.media_group_manager import get_media_group_manager, extract_message_signature
+from services.media_service import media_service, extract_message_signature
 logger = logging.getLogger(__name__)
 
 class MediaFilter(BaseFilter):
@@ -66,7 +66,7 @@ class MediaFilter(BaseFilter):
         total_media_count = 0
         blocked_media_count = 0
         try:
-            manager = get_media_group_manager()
+            manager = media_service
             messages = []
             if manager:
                 messages = await manager.get_media_group_messages(event.chat_id, event.message.id, event.message.grouped_id)

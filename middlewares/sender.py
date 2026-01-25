@@ -165,8 +165,8 @@ class SenderMiddleware(Middleware):
 
                 if group_id:
                      # 删除媒体组
-                    from managers.media_group_manager import get_media_group_manager
-                    media_manager = get_media_group_manager()
+                    from services.media_service import media_service
+                    media_manager = media_service
                     if media_manager:
                         if await media_manager.delete_media_group(chat_id, ctx.message_id, int(group_id)):
                             logger.info(f"🗑️ [Cleanup] Deleted source media group {group_id}")

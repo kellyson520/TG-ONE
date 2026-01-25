@@ -93,16 +93,15 @@ class SenderFilter(BaseFilter):
                     # 使用统一媒体组管理器获取消息
                     message_ids = []
                     try:
-                        from managers.media_group_manager import get_media_group_manager
-                        media_manager = get_media_group_manager()
+                        from services.media_service import media_service
                         
-                        if media_manager:
-                            # 使用统一媒体组管理器
-                            messages = await media_manager.get_media_group_messages(
+                        if media_service:
+                            # 使用媒体服务获取
+                            messages = await media_service.get_media_group_messages(
                                 event.chat_id, event.message.id, event.message.grouped_id
                             )
                             message_ids = [msg.id for msg in messages]
-                            logger.info(f"媒体组管理器找到 {len(message_ids)} 条媒体组消息")
+                            logger.info(f"媒体服务找到 {len(message_ids)} 条媒体组消息")
                         else:
                             # 降级到传统方法
                             logger.warning("媒体组管理器未初始化，使用传统方法")
@@ -175,13 +174,15 @@ class SenderFilter(BaseFilter):
         # 记录媒体签名（作为发送成功的凭证），便于后续去重
         try:
             if hasattr(context, 'dup_signatures') and context.dup_signatures:
-                from models.models import AsyncSessionManager
-                from utils.db.db_operations import DBOperations
-                async with AsyncSessionManager() as session:
-                    db_ops = await DBOperations.create()
-                    target_chat_id_str = str(context.rule.target_chat.telegram_chat_id)
-                    for sig, mid in set(context.dup_signatures):
-                        await db_ops.add_media_signature(session, target_chat_id_str, sig, mid)
+                from services.dedup_service import dedup_service
+                target_chat_id = int(context.rule.target_chat.telegram_chat_id)
+                # Note: This is a bit low-level, but consistent with current refactor
+                for sig, mid in set(context.dup_signatures):
+                    await dedup_service.repo.add_or_update(
+                        chat_id=str(target_chat_id),
+                        signature=sig,
+                        message_id=mid
+                    )
         except Exception as e:
             logger.warning(f'纯转发后记录媒体签名失败: {str(e)}')
     

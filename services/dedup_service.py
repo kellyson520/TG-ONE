@@ -20,6 +20,14 @@ class DedupService:
         """初始化去重服务"""
         self.db = db
         self.coordinator = None
+        self._repo = None
+
+    @property
+    def repo(self):
+        if self._repo is None:
+            from core.container import container
+            self._repo = container.dedup_repo
+        return self._repo
 
     def set_coordinator(self, coordinator):
         """注入 GroupCommitCoordinator"""
@@ -306,18 +314,16 @@ class DedupService:
                         await self.coordinator.buffer.add(new_signature)
                         logger.debug(f"Buffered signature for DB: {sig} in {chat_id}")
                     else:
-                        # Fallback to sync commit
-                        async with self.db.session() as session:
-                            new_signature = MediaSignature(
-                                chat_id=str(chat_id),
-                                signature=sig,
-                                file_id=str(file_id.id),
-                                content_hash=content_hash,
-                                media_type=media_type
-                            )
-                            session.add(new_signature)
-                            await session.commit()
-                            logger.debug(f"Recorded signature in database: {sig} in {chat_id}")
+                        # Use Repository for sync/immediate commit
+                        await self.repo.add_or_update(
+                            chat_id=str(chat_id),
+                            signature=sig,
+                            file_id=str(file_id.id),
+                            content_hash=content_hash,
+                            media_type=media_type,
+                            message_id=message_obj.id
+                        )
+                        logger.debug(f"Recorded signature via Repo: {sig} in {chat_id}")
         except Exception as e:
             logger.error(f"Failed to record signature: {e}")
     

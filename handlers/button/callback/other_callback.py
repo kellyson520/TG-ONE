@@ -342,7 +342,7 @@ async def callback_confirm_delete_duplicates(event, rule_id, session, message, d
         from models.models import ForwardRule, MediaSignature
         from utils.db.db_operations import DBOperations
         from utils.helpers.common import get_main_module
-        from managers.media_group_manager import extract_message_signature
+        from services.media_service import extract_message_signature
         from telethon import Button as _Btn
         import asyncio
 

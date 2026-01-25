@@ -4,10 +4,8 @@ from utils.helpers.common import get_sender_info,check_keywords, get_main_module
 from filters.base_filter import BaseFilter
 from enums.enums import ForwardMode
 
-from utils.db.db_operations import DBOperations
 from utils.network.telegram_api_optimizer import api_optimizer
 from utils.core.error_handler import handle_errors, log_execution
-from utils.db.db_context import safe_db_operation
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +28,6 @@ class KeywordFilter(BaseFilter):
         message_text = context.message_text
         event = context.event
 
-        # 1. 修复：获取单例的 DB 操作实例
-        try:
-            # 必须使用 await DBOperations.create() 获取单例
-            db_ops = await DBOperations.create()
-        except Exception as e:
-            logger.error(f"获取数据库实例失败，跳过过滤: {e}")
-            # 数据库挂了建议放行或阻断，视业务需求而定，这里暂且放行以便降级处理
-            return True 
 
         # 智能去重检查：使用新的智能去重系统
         if getattr(rule, 'enable_dedup', False):
@@ -222,13 +212,12 @@ class KeywordFilter(BaseFilter):
         user_client = main.user_client
         
         if context.event.message.grouped_id:
-            # 使用统一媒体组管理器删除媒体组
-            from managers.media_group_manager import get_media_group_manager
-            media_manager = get_media_group_manager()
+            # 使用统一媒体组服务删除媒体组
+            from services.media_service import media_service
             
-            if media_manager:
-                # 使用统一媒体组管理器删除
-                success = await media_manager.delete_media_group(
+            if media_service:
+                # 使用媒体服务删除
+                success = await media_service.delete_media_group(
                     context.event.chat_id, context.event.message.id, context.event.message.grouped_id
                 )
                 if not success:
@@ -309,7 +298,7 @@ class KeywordFilter(BaseFilter):
             delay_seconds: 延迟秒数
         """
         try:
-            from utils.processing.message_task_manager import message_task_manager
+            from services.task_service import message_task_manager
             await message_task_manager.schedule_delete(message, delay_seconds)
         except ImportError:
             # 兜底：使用原有方式

@@ -129,13 +129,18 @@ class EventBus:
     
     async def _broadcast_event(self, event_type: str, data: Any):
         """广播事件到 WebSocket"""
-        try:
-            from web_admin.routers.websocket_router import broadcast_event
-            await broadcast_event(event_type, data)
-        except ImportError:
-            pass  # WebSocket 路由器未初始化
-        except Exception as e:
-            logger.debug(f"Event broadcast failed: {e}")
+        if hasattr(self, '_broadcaster') and self._broadcaster:
+            try:
+                if asyncio.iscoroutinefunction(self._broadcaster):
+                    await self._broadcaster(event_type, data)
+                else:
+                    self._broadcaster(event_type, data)
+            except Exception as e:
+                logger.debug(f"Event broadcast failed: {e}")
+
+    def set_broadcaster(self, broadcaster: Callable):
+        """设置广播器的回调"""
+        self._broadcaster = broadcaster
     
     def set_log_enabled(self, enabled: bool):
         """启用/禁用事件日志"""

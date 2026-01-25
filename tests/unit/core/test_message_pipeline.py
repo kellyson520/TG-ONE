@@ -69,10 +69,12 @@ async def test_pipeline_flow(mock_client, mock_message, mock_rule):
 
     
     # Mock Dedup Service (Global instance)
-    with patch('middlewares.dedup.dedup_service') as mock_dedup_service:
+    with patch('middlewares.dedup.dedup_service') as mock_dedup_service, \
+         patch('utils.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
+        mock_display_name.return_value = "TestChat"
         # Scenario 1: Not Duplicate -> Should Forward
-        mock_dedup_service.is_duplicate = AsyncMock(return_value=False)
-        mock_dedup_service.record_message = AsyncMock() # Mock write back
+        mock_dedup_service.check_and_lock = AsyncMock(return_value=(False, None))
+        mock_dedup_service.rollback = AsyncMock()
         
         # Build Pipeline
         pipeline = Pipeline()
@@ -89,7 +91,7 @@ async def test_pipeline_flow(mock_client, mock_message, mock_rule):
         # Assertions
         mock_rule_repo.get_rules_for_source_chat.assert_called_with(111)
         # Dedup check should be called for target 222
-        mock_dedup_service.is_duplicate.assert_called_with(222, mock_message)
+        mock_dedup_service.check_and_lock.assert_called_with(222, mock_message)
         
         # Sender should send
         # Since logic in SenderMiddleware uses forward_messages_queued or send_message/file
@@ -115,9 +117,11 @@ async def test_dedup_filtering(mock_client, mock_message, mock_rule):
         rules=[mock_rule] # Skip loader, inject rule directly
     )
     
-    with patch('middlewares.dedup.dedup_service') as mock_dedup_service:
+    with patch('middlewares.dedup.dedup_service') as mock_dedup_service, \
+         patch('utils.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
+        mock_display_name.return_value = "TestChat"
         # Scenario 2: Is Duplicate -> Should NOT Forward
-        mock_dedup_service.is_duplicate = AsyncMock(return_value=True)
+        mock_dedup_service.check_and_lock = AsyncMock(return_value=(True, "already_exists"))
         
         middleware = DedupMiddleware()
         

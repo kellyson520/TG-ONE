@@ -2,190 +2,250 @@ import argparse
 import subprocess
 import sys
 import re
+import os
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-def run_git(args: List[str]) -> str:
-    """运行 git 命令并返回输出结果。"""
+# --- Configuration & Constants ---
+CHANGELOG_FILE = "CHANGELOG.md"
+VERSION_FILE = "version.py"
+
+# --- Helpers ---
+
+def run_git(args: List[str], check: bool = True) -> str:
+    """Run git command and return output."""
     try:
-        result = subprocess.check_output(["git"] + args, stderr=subprocess.STDOUT, text=True, encoding='utf-8')
-        return result.strip()
+        # Using forcing UTF-8 encoding to avoid Windows encoding issues
+        result = subprocess.run(
+            ["git"] + args, 
+            capture_output=True, 
+            text=True, 
+            encoding='utf-8', 
+            check=check
+        )
+        return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"执行 git 命令出错 {' '.join(args)}: {e.output}")
-        sys.exit(1)
-    except FileNotFoundError:
-        print("错误: 未找到 'git' 命令。请安装 Git 并确保将其添加到 PATH 环境变量中。")
-        sys.exit(1)
+        print(f"❌ Git Error ({' '.join(args)}):")
+        print(e.stderr)
+        if check:
+            sys.exit(1)
+        return ""
 
-def get_current_branch():
+def get_current_branch() -> str:
     return run_git(["rev-parse", "--abbrev-ref", "HEAD"])
 
-def generate_changelog(since_tag: str = None, output_file: str = "CHANGELOG.md"):
-    """
-    基于 Conventional Commits 规范从 git 历史生成变更日志。
-    """
-    range_spec = f"{since_tag}..HEAD" if since_tag else "HEAD"
+def ensure_clean_worktree():
+    """Ensure no uncommitted changes exist."""
+    status = run_git(["status", "--porcelain"])
+    if status:
+        print("❌ 工作区不干净 (Working directory not clean). 请先提交或暂存更改。")
+        sys.exit(1)
+
+def show_git_log(limit: int = 20):
+    """显示最近的 git 提交记录"""
+    print(f"\n📜 最近 {limit} 条提交记录:")
+    try:
+        # Format: hash|time|author|message
+        # %h: short hash, %cd: commit date, %an: author name, %s: subject
+        logs = run_git(["log", f"-n {limit}", "--pretty=format:%h | %cd | %an | %s", "--date=format:%Y-%m-%d %H:%M"], check=False).splitlines()
+        for i, line in enumerate(logs):
+            print(f"[{i}]\t{line}")
+        return logs
+    except Exception as e:
+        print(f"无法获取日志: {e}")
+        return []
+
+# --- Core Functions ---
+
+def pull_changes(branch: str = "main", rebase: bool = True):
+    print(f"⬇️  正在拉取远程更新 (Branch: {branch})...")
+    args = ["pull", "origin", branch]
+    if rebase: args.append("--rebase")
+    try:
+        run_git(args)
+        print("✅ 拉取成功 (Up to date).")
+    except SystemExit:
+        print("⚠️  拉取冲突！请手动解决冲突后运行: git rebase --continue")
+        sys.exit(1)
+
+def bump_version(part: str = "patch"):
+    if not os.path.exists(VERSION_FILE):
+        print(f"⚠️  未找到 {VERSION_FILE}，跳过版本号更新。")
+        return
+
+    with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+        content = f.read()
     
-    # 获取日志格式: hash|author|date|message
-    logs = run_git(["log", range_spec, "--pretty=format:%h|%an|%ad|%s", "--date=short"]).splitlines()
+    match = re.search(r'VERSION\s*=\s*["\'](\d+)\.(\d+)\.(\d+)["\']', content)
+    if not match:
+        print(f"⚠️  无法在 {VERSION_FILE} 中解析版本号。")
+        return
+
+    major, minor, patch = map(int, match.groups())
     
-    categorized: Dict[str, List[str]] = {
-        "feat": [],
-        "fix": [],
-        "perf": [],
-        "refactor": [],
-        "docs": [],
-        "chore": [],
-        "other": []
-    }
+    if part == "major": major += 1; minor = 0; patch = 0
+    elif part == "minor": minor += 1; patch = 0
+    else: patch += 1
+        
+    new_version = f"{major}.{minor}.{patch}"
+    new_content = re.sub(r'VERSION\s*=\s*["\'].*["\']', f'VERSION = "{new_version}"', content)
     
-    # Conventional commit 正则: type(scope): subject 或 type: subject
+    with open(VERSION_FILE, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+        
+    print(f"🔖 版本号已升级: {match.group(0)} -> {new_version}")
+    run_git(["add", VERSION_FILE])
+    run_git(["commit", "-m", f"chore(release): bump version to {new_version}"])
+    run_git(["tag", f"v{new_version}"])
+    print(f"🏷️  已打标签: v{new_version}")
+
+def generate_changelog(since_tag: str = None):
+    try:
+        range_spec = f"{since_tag}..HEAD" if since_tag else "HEAD"
+        logs = run_git(["log", range_spec, "--pretty=format:%h|%an|%ad|%s", "--date=short"], check=False).splitlines()
+    except: logs = []
+
+    categorized: Dict[str, List[str]] = {k: [] for k in ["feat", "fix", "perf", "refactor", "chore", "other"]}
     pattern = re.compile(r"^(\w+)(?:\(([^)]+)\))?:\s*(.+)$")
     
     for line in logs:
         if not line: continue
         parts = line.split("|")
         if len(parts) < 4: continue
-        
-        sha, author, date, msg = parts[0], parts[1], parts[2], parts[3]
+        sha, author, date, msg = parts
         match = pattern.match(msg)
         
-        entry = f"- {sha} {msg} ({author})"
-        
+        # Determine category
+        key = "other"
         if match:
             ctype = match.group(1).lower()
-            if ctype in categorized:
-                # 翻译常见类型为中文显示
-                scope = f"**{match.group(2)}**: " if match.group(2) else ""
-                categorized[ctype].append(f"- {sha} {scope}{match.group(3)} ({author})")
-            else:
-                categorized["other"].append(entry)
-        else:
-            categorized["other"].append(entry)
+            if ctype in categorized: key = ctype
+            elif ctype in ["docs", "style", "test"]: key = "chore"
+        
+        # Display string
+        scope = f"**{match.group(2)}**:" if match and match.group(2) else ""
+        content = match.group(3) if match else msg
+        display = f"- {scope} {content} ({sha}) @{author}"
+        categorized[key].append(display)
 
-    # 构建 Markdown 内容
-    md_lines = [f"## {datetime.now().strftime('%Y-%m-%d')} 更新日志"]
+    # Write
+    today = datetime.now().strftime('%Y-%m-%d')
+    md_lines = [f"\n## 📅 {today} 更新摘要\n"]
+    mapping = [("🚀 新功能", "feat"), ("🐛 修复", "fix"), ("⚡ 性能", "perf"), ("♻️ 重构", "refactor"), ("🔧 工具/文档", "chore"), ("📦 其他", "other")]
     
-    sections = [
-        ("✨ 新功能 (Features)", "feat"),
-        ("🐛 问题修复 (Fixed)", "fix"),
-        ("⚡ 性能优化 (Performance)", "perf"),
-        ("♻️ 代码重构 (Refactoring)", "refactor"),
-        ("📚 文档更新 (Documentation)", "docs"),
-        ("🔧 杂项 (Chores)", "chore"),
-        ("📋 其他变更 (Other Changes)", "other")
-    ]
-    
-    for title, key in sections:
+    has_content = False
+    for title, key in mapping:
         if categorized[key]:
-            md_lines.append(f"\n### {title}")
+            has_content = True
+            md_lines.append(f"### {title}")
             md_lines.extend(categorized[key])
+            md_lines.append("")
+
+    if not has_content:
+        print("⚠️  没有发现新提交，跳过日志。")
+        return
+
+    if os.path.exists(CHANGELOG_FILE):
+        with open(CHANGELOG_FILE, 'r', encoding='utf-8') as f: old = f.read()
+    else: old = "# Change Log\n\n"
+    
+    header_end = old.find("\n\n") + 2
+    if header_end < 2: header_end = 0
+    
+    with open(CHANGELOG_FILE, 'w', encoding='utf-8') as f:
+        f.write(old[:header_end] + "\n".join(md_lines) + old[header_end:])
+        
+    print(f"📝 变更日志已写入: {CHANGELOG_FILE}")
+    run_git(["add", CHANGELOG_FILE])
+
+def rollback_menu():
+    """Interactive Rollback Menu with History View"""
+    print("\n🔙 --- 回滚向导 (Rollback Wizard) ---")
+    print("1. 回滚最近 N 个版本 (By Steps)")
+    print("2. 选择指定历史版本 (By History/Hash)")
+    print("q. 退出 (Quit)")
+    
+    choice = input("👉 请选择: ").strip()
+    if choice == 'q': return
+
+    target_hash = None
+    
+    if choice == '1':
+        steps = input("👉 回滚多少个版本? (默认 1): ").strip() or "1"
+        try:
+            steps_int = int(steps)
+            target_hash = f"HEAD~{steps_int}"
+        except ValueError:
+            print("❌ 无效数字")
+            return
             
-    md_content = "\n".join(md_lines) + "\n\n"
-    
-    try:
-        with open(output_file, "r", encoding="utf-8") as f:
-            existing = f.read()
-    except FileNotFoundError:
-        existing = "# 项目变更日志 (Changelog)\n\n"
+    elif choice == '2':
+        logs = show_git_log(20)
+        sel = input("\n👉 输入目标 Commit Hash (前几位) 或 列表序号 (0-N): ").strip()
+        if not sel: return
         
-    with open(output_file, "w", encoding="utf-8") as f:
-        # 将新日志插入到头部
-        header_match = re.search(r"^# .+\n\n", existing)
-        if header_match:
-            split_pos = header_match.end()
-            f.write(existing[:split_pos] + md_content + existing[split_pos:])
+        if sel.isdigit() and int(sel) < len(logs):
+            # Extract hash from log line: "abc1234 | ..."
+            target_hash = logs[int(sel)].split(" | ")[0]
         else:
-            f.write("# 项目变更日志 (Changelog)\n\n" + md_content + existing)
-        
-    print(f"✅ 变更日志已更新至 {output_file}")
-
-def safe_merge(source_branch: str, target_branch: str = "main", push: bool = False):
-    """
-    安全地将 source_branch 合并入 target_branch。
-    """
-    current = get_current_branch()
+            target_hash = sel
     
-    print(f"🔄 准备合并: {source_branch} -> {target_branch}...")
-    
-    # 1. 更新目标分支
-    run_git(["checkout", target_branch])
-    try:
-        run_git(["pull", "origin", target_branch])
-    except:
-        print(f"⚠️ 警告: 无法拉取 {target_branch}，将以本地版本为准。")
-        
-    # 2. 合并
-    print(f"🔀 正在合并 {source_branch}...")
-    try:
-        # 使用 --no-ff 保证合并历史清晰
-        run_git(["merge", "--no-ff", source_branch, "-m", f"chore(merge): merge branch {source_branch} into {target_branch}"])
-        print("✅ 合并成功。")
-    except Exception:
-        print("❌ 检测到合并冲突！已终止合并。请手动解决冲突。")
-        run_git(["merge", "--abort"])
-        sys.exit(1)
-        
-    # 3. 推送
-    if push:
-        print(f"🚀 正在推送到远端 {target_branch}...")
-        run_git(["push", "origin", target_branch])
-        print("✅ 推送完成。")
-        
-    # 4. 切回原分支
-    run_git(["checkout", current])
-    print(f"🔙 已切回原分支: {current}")
+    if not target_hash:
+        print("❌ 未选择目标")
+        return
 
-def rollback_commit(method: str = "soft", steps: int = 1):
-    """
-    回滚最近的 N 次提交。
-    method: 'soft' (保留暂存区更改), 'hard' (彻底丢弃更改), 'revert' (创建反向提交)
-    """
-    if method == "revert":
-        print(f"🔙 正在创建反向提交 (Revert) 回滚最近 {steps} 次提交...")
-        #构造 commit range
-        if steps == 1:
-            target = "HEAD"
-        else:
-            target = f"HEAD~{steps}..HEAD"
-        run_git(["revert", "--no-edit", target]) 
-        print(f"✅ 已创建 Revert 提交。")
+    print(f"\n🎯 选定目标: {target_hash}")
+    print("----------------------------------------------------------------")
+    print("A. Soft Reset (软重置) -> 回到目标版本，但保留文件变更在暂存区 (适合撤回提交)")
+    print("B. Hard Reset (硬重置) -> 彻底回到目标版本，【删除】之后的所有变更")
+    print("C. Revert (反转提交)   -> 创建新提交以撤销【目标版本】的更改 (适合线上回滚)")
+    print("----------------------------------------------------------------")
+    
+    mode_input = input("👉 请选择模式 (A/B/C): ").lower().strip()
+    
+    if mode_input == 'c': # Revert
+        print(f"🔙 正在撤销 (Revert) 提交 {target_hash}...")
+        run_git(["revert", "--no-edit", target_hash], check=False)
+        print("✅ Revert 完成。")
         
-    elif method in ["soft", "mixed", "hard"]:
-        target = f"HEAD~{steps}"
-        print(f"🔙 正在重置 (Reset --{method}) 到 {target} ...")
-        run_git(["reset", f"--{method}", target])
-        print(f"✅ 回滚完成。当前 HEAD 指向: {run_git(['rev-parse', '--short', 'HEAD'])}")
+    elif mode_input in ['a', 'b']: # Reset
+        mode = "hard" if mode_input == 'b' else "soft"
+        if mode == "hard":
+            ans = input(f"🧨 警告: 这将永久毁灭 {target_hash} 之后的所有修改！确认? (yes/no): ")
+            if ans != "yes": return
+            
+        print(f"🔙 正在重置 (Reset --{mode}) 到 {target_hash}...")
+        run_git(["reset", f"--{mode}", target_hash])
+        print(f"✅ Reset 完成。")
     else:
-        print(f"❌ 未知的回滚模式: {method}")
+        print("❌ 无效选择")
+
+
+# --- Main CLI ---
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Git 辅助工具集")
-    subparsers = parser.add_subparsers(dest="command")
+    parser = argparse.ArgumentParser(description="TG ONE Git Workflow Tools")
+    subparsers = parser.add_subparsers(dest="action")
     
-    # Changelog
-    cl_parser = subparsers.add_parser("changelog", help="生成变更日志")
-    cl_parser.add_argument("--since", help="起始 Tag 或 Commit Hash", default=None)
-    cl_parser.add_argument("--file", help="输出文件名 (默认: CHANGELOG.md)", default="CHANGELOG.md")
+    subparsers.add_parser("pull", help="拉取")
     
-    # Merge
-    mg_parser = subparsers.add_parser("merge", help="分支合并")
-    mg_parser.add_argument("source", help="来源分支名称")
-    mg_parser.add_argument("--target", help="目标分支 (默认: main)", default="main")
-    mg_parser.add_argument("--push", help="合并后是否自动推送", action="store_true")
+    r_parser = subparsers.add_parser("release", help="发布")
+    r_parser.add_argument("--type", default="patch")
     
-    # Rollback
-    rb_parser = subparsers.add_parser("rollback", help="回滚提交")
-    rb_parser.add_argument("--method", choices=["soft", "hard", "revert"], default="soft", help="回滚模式 (soft/hard/revert)")
-    rb_parser.add_argument("--steps", type=int, default=1, help="回滚的提交数量")
-
+    subparsers.add_parser("changelog", help="日志")
+    subparsers.add_parser("rollback", help="回滚")
+    
     args = parser.parse_args()
     
-    if args.command == "changelog":
-        generate_changelog(args.since, args.file)
-    elif args.command == "merge":
-        safe_merge(args.source, args.target, args.push)
-    elif args.command == "rollback":
-        rollback_commit(args.method, args.steps)
+    if args.action == "pull": pull_changes()
+    elif args.action == "changelog": generate_changelog()
+    elif args.action == "rollback": rollback_menu()
+    elif args.action == "release":
+        ensure_clean_worktree()
+        pull_changes()
+        generate_changelog()
+        run_git(["commit", "-m", "docs(changelog): update changelog"], check=False)
+        bump_version(args.type)
+        print("\n🎉 发布完成！请运行: git push --follow-tags origin main")
     else:
         parser.print_help()

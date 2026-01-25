@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 class ForwardService:
     """转发管理业务逻辑服务"""
     
+    async def forward_single_message(self, source_chat_id: int, target_chat_id: int, message_id: int, rule_id: int, forward_type: str) -> bool:
+        """[Legacy Compatibility] 模拟转发单个消息"""
+        logger.info(f"Mock forwarding message {message_id} from {source_chat_id} to {target_chat_id} for rule {rule_id}")
+        return True
+
     @property
     def container(self):
         from core.container import container

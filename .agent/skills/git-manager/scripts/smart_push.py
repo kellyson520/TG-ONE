@@ -1,68 +1,91 @@
+import argparse
 import subprocess
 import sys
-import math
+import re
 
 def run_git(args):
     """Run git command and return output."""
     try:
         return subprocess.check_output(["git"] + args, stderr=subprocess.STDOUT, text=True, encoding='utf-8').strip()
     except subprocess.CalledProcessError as e:
-        print(f"Error running git {' '.join(args)}: {e.output}")
-        raise
+        # Don't exit yet, let caller handle
+        raise e
 
-def batch_push(remote="origin", branch="main", batch_size_mb=50):
-    """
-    Push large repository in batches loosely based on commit history size.
-    Note: Since we only have 1 initial commit with many files, we can't really 'batch' commits.
-    However, we can try to push with increased buffer settings which we already did.
-    
-    If the user meant 'batch add and commit', that would be different.
-    Since the commit is already made, we will focus on maximizing push success probability.
-    """
-    
-    print(f"🚀 Configuring Git for large push (User: 526839739@qq.com)...")
-    
-    # 1. Optimize Configs
+def optimize_configs():
+    """Apply optimizations for large repos and unstable networks."""
     configs = [
         ("http.postBuffer", "524288000"), # 500MB
         ("http.lowSpeedLimit", "0"),
         ("http.lowSpeedTime", "999999"),
-        ("core.compression", "0"), # Speed up packing
+        ("core.compression", "0"),
     ]
-    
+    print("🛠️  Applying Git network optimizations...")
     for key, val in configs:
-        run_git(["config", key, val])
-        
-    print(f"✅ Config optimized. Starting Push...")
+        subprocess.run(["git", "config", key, val], check=False)
+
+def get_noreply_email(username):
+    """Guess GitHub noreply email."""
+    # Common format: username@users.noreply.github.com
+    # (Older accounts use ID+username, but this is a safe default for new pushes)
+    return f"{username}@users.noreply.github.com"
+
+def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
+    optimize_configs()
     
-    # 2. Push with verbose output
+    # 1. Check if we need to fix privacy
+    if privacy_mode:
+        try:
+            user_name = run_git(["config", "user.name"])
+            noreply = get_noreply_email(user_name)
+            print(f"🔒 Ensuring Privacy: Switching email to {noreply}")
+            subprocess.run(["git", "config", "user.email", noreply], check=True)
+            # Try to amend the last commit to match this new email
+            print("✍️  Amending last commit author...")
+            subprocess.run(["git", "commit", "--amend", "--reset-author", "--no-edit"], check=False)
+        except Exception as e:
+            print(f"⚠️ Could not auto-fix privacy: {e}")
+
+    # 2. Push Loop
+    print(f"🚀 Pushing {branch} to {remote}...")
+    cmd = ["git", "push", "-u", remote, branch]
+    if force:
+        cmd.insert(2, "--force")
+
     try:
-        # Using subprocess.run to stream output to console if possible, but here we capture common errors
-        process = subprocess.run(
-            ["git", "push", "-u", remote, branch],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding='utf-8' # Force UTF-8 explicitly
-        )
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
         
-        if process.returncode == 0:
-            print("🎉 Success! Code pushed to GitHub.")
-            print(process.stdout)
+        if proc.returncode == 0:
+            print("✅ Push Successful!")
+            print(proc.stdout)
+            return True
         else:
-            print("❌ Push failed.")
-            print(process.stderr)
+            err = proc.stderr
+            print("❌ Push Failed.")
+            print(err)
             
-            # Smart Retry Logic for common errors
-            if "GH007" in process.stderr:
-                print("\n⚠️  Email Privacy Error Detected.")
-                print("Please verify your email address is allowed in GitHub Settings > Emails.")
-            elif "408" in process.stderr or "RPC failed" in process.stderr:
-                print("\n⚠️  Network Timeout Detected.")
-                print("Tip: Your internet connection might be unstable for large uploads.")
+            # Auto-Diagnosis
+            if "GH007" in err:
+                print("\n🚨 [DIAGNOSIS]: GitHub Blocked Private Email.")
+                print("👉 Recommendation: Rerun with --privacy-fix")
+            elif "408" in err or "RPC failed" in err:
+                print("\n🚨 [DIAGNOSIS]: Network Timeout.")
+                print("👉 Optimization applied. Retry might work.")
+            elif "fast-forward" in err:
+                print("\n🚨 [DIAGNOSIS]: Remote is ahead.")
+                print("👉 Run: git pull --rebase")
+            return False
 
     except Exception as e:
-        print(f"Fatal error: {str(e)}")
+        print(f"🔥 Critical Error: {e}")
+        return False
 
 if __name__ == "__main__":
-    batch_push()
+    parser = argparse.ArgumentParser(description="Smart Push Wrapper")
+    parser.add_argument("--remote", default="origin", help="Remote name")
+    parser.add_argument("--branch", default="main", help="Branch name")
+    parser.add_argument("--privacy-fix", action="store_true", help="Auto-switch to noreply email")
+    parser.add_argument("--force", action="store_true", help="Force push")
+    
+    args = parser.parse_args()
+    
+    smart_push(args.remote, args.branch, args.privacy_fix, args.force)

@@ -55,40 +55,42 @@
 
 ---
 
-## 阶段 2：基础设施抢修与死代码清除 (P0 - Critical)
+## 阶段 2：基础设施抢修与死代码清除 (P0 - Critical) [已完成]
 
 *目标：消除循环依赖，清理物理目录，修复启动流程，建立最基础的架构规范。*
 
-* [ ] **物理目录歼灭战 [P0]**
-* [ ] **删除** `managers/` 及其目录下所有 Legacy 代码。
-* [ ] **删除** `zhuanfaji/` 冗余统计目录。
-* [ ] **删除** `ufb/` 目录，消除磁盘上的孤立 JSON 存储（合并至 `remote_config_sync`）。
+* [x] **20260125_Core_Infrastructure_Cleanup_Phase2 [已完成]**
+
+* [x] **物理目录歼灭战 [P0]**
+* [x] **删除** `managers/` 及其目录下所有 Legacy 代码。
+* [x] **删除** `zhuanfaji/` 冗余统计目录。
+* [x] **删除** `ufb/` 目录，消除磁盘上的孤立 JSON 存储（合并至 `remote_config_sync`）。
 
 
-* [ ] **解耦与依赖治理 [P0]**
-* [ ] 彻底解决 **循环依赖**:
-* [ ] 重构 `core/container.py` 以支持 Provider 模式或 Setter 注入。
-* [ ] 将 `Settings.load_dynamic_config` 逻辑外迁至专门的初始化器。
+* [x] **解耦与依赖治理 [P0]**
+* [x] 彻底解决 **循环依赖**:
+* [x] 重构 `core/container.py` 以支持 Provider 模式或 Setter 注入。
+* [x] 将 `Settings.load_dynamic_config` 逻辑外迁至专门的初始化器。
 
 
-* [ ] **核心链路解耦**:
-* [ ] **重构 `core/event_bus.py**`: 打破循环依赖，移除对 `web_admin` 控制器的任何直接引用。
+* [x] **核心链路解耦**:
+* [x] **重构 `core/event_bus.py**`: 打破循环依赖，移除对 `web_admin` 控制器的任何直接引用。
 
 
 
 
-* [ ] **引导程序重构 (`main.py` 解耦) [P0]**
-* [ ] 创建 `core/bootstrap.py` 负责应用启动序列。
-* [ ] 创建 `core/lifecycle.py` 负责统一的生命周期钩子（Startup/Cleanup）。
-* [ ] 将 **Cron 逻辑** 从 `main.py` 移至专用的 `scheduler/cron_service.py`。
+* [x] **引导程序重构 (`main.py` 解耦) [P0]**
+* [x] 创建 `core/bootstrap.py` 负责应用启动序列。
+* [x] 创建 `core/lifecycle.py` 负责统一的生命周期钩子（Startup/Cleanup）。
+* [x] 将 **Cron 逻辑** 从 `main.py` 移至专用的 `scheduler/cron_service.py`。
 
 
-* [ ] **核心组件合并与服务化**
-* [ ] 将 `StateManager` 逻辑并入 `services/state_service.py`。
-* [ ] 规范化 `ai/` 集成（提供者 -> 服务 -> 接口）。
-* [ ] 统一数据库初始化和访问（`core/database.py` vs `db/`）。
-* [ ] **基础设施池化 [P1]**: 在 `Container` 中初始化全局 `aiohttp.ClientSession` 连接池，供 AI、RSS 及网络服务复用。
-* [ ] **合并数据库管理器**: 审查并清理 `utils/db/` 下冗余的 `database_manager.py` 与 `db_manager.py`，统一归口至 `core/database.py`。
+* [x] **核心组件合并与服务化**
+* [x] 将 `StateManager` 逻辑并入 `services/state_service.py`。
+* [x] 规范化 `ai/` 集成（提供者 -> 服务 -> 接口）。(Pre-existing)
+* [x] 统一数据库初始化和访问（`core/database.py` vs `db/`）。
+* [x] **基础设施池化 [P1]**: 在 `Container` 中初始化全局 `aiohttp.ClientSession` 连接池，供 AI、RSS 及网络服务复用。
+* [x] **合并数据库管理器**: 审查并清理 `utils/db/` 下冗余的 `database_manager.py` 与 `db_manager.py`，统一归口至 `core/database.py`。
 
 
 
