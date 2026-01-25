@@ -1,4 +1,4 @@
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 WELCOME_TEXT = """
 👋 欢迎使用 Telegram 消息转发机器人！
