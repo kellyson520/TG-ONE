@@ -1,8 +1,11 @@
-from sqlalchemy import select, or_, func, desc
+from typing import List, Optional, Any, Dict
+from sqlalchemy import select, or_, func, desc, delete
 from sqlalchemy.orm import selectinload
 from models.models import ForwardRule, ForwardMapping, Chat
 from utils.helpers.id_utils import build_candidate_telegram_ids
 from utils.db.persistent_cache import get_persistent_cache, dumps_json, loads_json
+from schemas.rule import RuleDTO
+from schemas.chat import ChatDTO
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,7 @@ class RuleRepository:
             selectinload(ForwardRule.push_config)
         ]
 
-    async def find_chat(self, chat_id):
+    async def find_chat(self, chat_id) -> ChatDTO:
         """根据telegram_chat_id查找聊天"""
         async with self.db.session() as session:
             # 尝试直接匹配
@@ -43,12 +46,11 @@ class RuleRepository:
             result = await session.execute(stmt)
             chat = result.scalar_one_or_none()
             if chat:
-                logger.debug(f"✅ [find_chat] 直接匹配成功: {chat_id} -> Chat(id={chat.id}, name={chat.name})")
-                return chat
+                logger.debug(f"✅ [find_chat] 直接匹配成功: {chat_id}")
+                return ChatDTO.model_validate(chat)
             
             # 尝试变体匹配
             candidates = build_candidate_telegram_ids(chat_id)
-            logger.debug(f"🔍 [find_chat] 直接匹配失败,尝试候选ID匹配: {chat_id} -> 候选集合={candidates}")
             
             if candidates:
                 stmt = select(Chat).filter(Chat.telegram_chat_id.in_(list(candidates)))
@@ -56,14 +58,19 @@ class RuleRepository:
                 matched_chat = result.scalars().first()
                 
                 if matched_chat:
-                    logger.info(f"✅ [find_chat] 候选ID匹配成功: {chat_id} -> Chat(id={matched_chat.id}, tg_id={matched_chat.telegram_chat_id}, name={matched_chat.name})")
-                else:
-                    logger.debug(f"❌ [find_chat] 所有候选ID均未匹配: {chat_id}, 候选={candidates}")
+                    logger.info(f"✅ [find_chat] 候选ID匹配成功: {chat_id} -> {matched_chat.telegram_chat_id}")
+                    return ChatDTO.model_validate(matched_chat)
                 
-                return matched_chat
+                return None
             return None
 
-    async def get_by_id(self, rule_id: int):
+    async def find_chat_by_id_internal(self, chat_id: int) -> Optional[ChatDTO]:
+        """根据数据库自增ID查找聊天 (Internal View)"""
+        async with self.db.session() as session:
+            chat = await session.get(Chat, chat_id)
+            return ChatDTO.model_validate(chat) if chat else None
+
+    async def get_by_id(self, rule_id: int) -> RuleDTO:
         """根据ID获取规则，包含所有关联数据"""
         async with self.db.session() as session:
             stmt = (
@@ -72,16 +79,17 @@ class RuleRepository:
                 .where(ForwardRule.id == rule_id)
             )
             result = await session.execute(stmt)
-            return result.scalar_one_or_none()
+            obj = result.scalar_one_or_none()
+            return RuleDTO.model_validate(obj) if obj else None
 
-    async def get_rules_for_source_chat(self, chat_id):
+    async def get_rules_for_source_chat(self, chat_id) -> List[RuleDTO]:
         """获取源聊天的规则 (Unified Source of Truth)"""
         # 1. 查内存缓存 (TTLCache)
         cached = self._source_rules_cache.get(chat_id)
         if cached is not None:
             return cached
 
-        # 2. 查持久化缓存 (Redis/File)
+        # 2. 查持久化缓存
         try:
             pc = get_persistent_cache()
             raw = pc.get(f"rules:source:{chat_id}")
@@ -91,115 +99,70 @@ class RuleRepository:
                     async with self.db.session() as session:
                         stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(ForwardRule.id.in_(ids))
                         result = await session.execute(stmt)
-                        rules = result.scalars().all()
+                        orm_rules = result.scalars().all()
+                        rules = [RuleDTO.model_validate(r) for r in orm_rules]
                         self._source_rules_cache[chat_id] = rules
                         return rules
         except Exception:
             pass
 
-        # 3. 查数据库 (完整逻辑)
+        # 3. 查数据库
         async with self.db.session() as session:
-            logger.debug(f"🔍 [get_rules_for_source_chat] 开始查询规则: chat_id={chat_id}")
             source_chat = await self.find_chat(chat_id)
             
-            rules = []
+            rules_orm = []
             if not source_chat:
-                logger.debug(f"⚠️ [get_rules_for_source_chat] 未找到聊天ID {chat_id} 对应的源聊天记录，尝试使用候选ID集合进行回退匹配")
-                # 全量查询后内存过滤
                 stmt = select(ForwardRule).options(*self._get_rule_select_options())
                 result = await session.execute(stmt)
                 all_rules = result.scalars().all()
-                
                 candidates = build_candidate_telegram_ids(chat_id)
-                logger.debug(f"🔍 [get_rules_for_source_chat] 候选ID集合: {candidates}")
-                
                 for r in all_rules:
-                    if not r.enable_rule:
-                        continue
+                    if not r.enable_rule: continue
                     s_tid = getattr(r.source_chat, 'telegram_chat_id', None) if r.source_chat else None
                     if s_tid and s_tid in candidates:
-                        logger.debug(f"✅ [get_rules_for_source_chat] 回退匹配成功: Rule#{r.id}, source_tg_id={s_tid}")
-                        rules.append(r)
+                        rules_orm.append(r)
             else:
-                logger.debug(f"✅ [get_rules_for_source_chat] 找到源聊天: Chat(id={source_chat.id}, tg_id={source_chat.telegram_chat_id}, name={source_chat.name})")
-                # 优先查找多对多映射
-                stmt = select(ForwardMapping).filter(
-                    ForwardMapping.source_chat_id == source_chat.id,
-                    ForwardMapping.enabled == True
-                )
-                result = await session.execute(stmt)
-                mappings = result.scalars().all()
-                
+                stmt = select(ForwardMapping).filter(ForwardMapping.source_chat_id == source_chat.id, ForwardMapping.enabled == True)
+                mappings = (await session.execute(stmt)).scalars().all()
                 if mappings:
                     for m in mappings:
                         if m.rule_id:
-                            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(id=m.rule_id)
-                            result = await session.execute(stmt)
-                            rule = result.scalar_one_or_none()
-                            if rule:
-                                rules.append(rule)
+                             r = await session.get(ForwardRule, m.rule_id, options=self._get_rule_select_options())
+                             if r: rules_orm.append(r)
                         else:
-                            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(
-                                ForwardRule.source_chat_id == source_chat.id,
-                                ForwardRule.target_chat_id == m.target_chat_id
-                            )
-                            result = await session.execute(stmt)
-                            rule = result.scalars().first()
-                            if rule:
-                                rules.append(rule)
+                             stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id, target_chat_id=m.target_chat_id)
+                             r = (await session.execute(stmt)).scalars().first()
+                             if r: rules_orm.append(r)
                 else:
-                    # 使用旧架构查找转发规则
-                    stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(
-                        ForwardRule.source_chat_id == source_chat.id
-                    )
-                    result = await session.execute(stmt)
-                    rules = result.scalars().all()
+                    stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id)
+                    rules_orm = (await session.execute(stmt)).scalars().all()
         
-        # 4. 写缓存 (Both Layers)
+        rules = [RuleDTO.model_validate(r) for r in rules_orm]
         self._source_rules_cache[chat_id] = rules
         try:
             pc = get_persistent_cache()
             pc.set(f"rules:source:{chat_id}", dumps_json([r.id for r in rules]), ttl=30)
-        except Exception:
-            pass
-        
+        except: pass
         return rules
 
     def clear_cache(self, chat_id: int = None):
-        """清理缓存 (Unified)
-        
-        Args:
-            chat_id: 如果指定，仅清理特定聊天的缓存；否则清理所有
-        """
+        """清理缓存"""
         try:
-            # 清理持久化缓存
             pc = get_persistent_cache()
             if chat_id:
-                # 内存缓存
-                if chat_id in self._source_rules_cache:
-                    del self._source_rules_cache[chat_id]
-                if chat_id in self._target_rules_cache:
-                    del self._target_rules_cache[chat_id]
-                
-                # 持久化缓存
+                if chat_id in self._source_rules_cache: del self._source_rules_cache[chat_id]
+                if chat_id in self._target_rules_cache: del self._target_rules_cache[chat_id]
                 pc.delete(f"rules:source:{chat_id}")
                 pc.delete(f"rules:target:{chat_id}")
             else:
-                # 内存缓存
                 self._source_rules_cache.clear()
                 self._target_rules_cache.clear()
-                # 持久化缓存清理比较复杂，通常 relying on TTL is fine or specific key deletion
-        except Exception as e:
-            logger.warning(f"Failed to clear cache: {e}")
+        except: pass
 
-    async def get_rules_for_target_chat(self, chat_id):
-        """获取目标聊天的规则 (Unified Source of Truth)"""
-        # 1. 查内存缓存
+    async def get_rules_for_target_chat(self, chat_id) -> List[RuleDTO]:
+        """获取目标聊天的规则"""
         cached = self._target_rules_cache.get(chat_id)
-        if cached is not None:
-            return cached
-
-        # 2. 查持久化缓存
+        if cached is not None: return cached
         try:
             pc = get_persistent_cache()
             raw = pc.get(f"rules:target:{chat_id}")
@@ -208,114 +171,134 @@ class RuleRepository:
                 if ids:
                     async with self.db.session() as session:
                         stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(ForwardRule.id.in_(ids))
-                        result = await session.execute(stmt)
-                        rules = result.scalars().all()
+                        orm_rules = (await session.execute(stmt)).scalars().all()
+                        rules = [RuleDTO.model_validate(r) for r in orm_rules]
                         self._target_rules_cache[chat_id] = rules
                         return rules
-        except Exception:
-            pass
+        except: pass
 
-        # 3. 查数据库
         async with self.db.session() as session:
             target_chat = await self.find_chat(chat_id)
-            
-            if not target_chat:
-                rules = []
-            else:
-                stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(
-                    ForwardRule.target_chat_id == target_chat.id
-                )
-                result = await session.execute(stmt)
-                rules = result.scalars().all()
-            
-        # 4. 写缓存
+            rules_orm = []
+            if target_chat:
+                stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(target_chat_id=target_chat.id)
+                rules_orm = (await session.execute(stmt)).scalars().all()
+            rules = [RuleDTO.model_validate(r) for r in rules_orm]
+
         self._target_rules_cache[chat_id] = rules
         try:
             pc = get_persistent_cache()
             pc.set(f"rules:target:{chat_id}", dumps_json([r.id for r in rules]), ttl=30)
-        except Exception:
-            pass
-            
+        except: pass
         return rules
 
-    async def get_all_rules_with_chats(self):
-        """获取所有规则，包括关联的聊天"""
+    async def get_full_rule_orm(self, rule_id: int) -> Optional[ForwardRule]:
+        """获取完整的ForwardRule ORM对象 (仅限Service内部使用)"""
         async with self.db.session() as session:
-            stmt = select(ForwardRule).options(*self._get_rule_select_options())
-            result = await session.execute(stmt)
-            rules = result.scalars().all()
-            return rules
+            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(id=rule_id)
+            return (await session.execute(stmt)).scalar_one_or_none()
 
-    async def get_rules_related_to_chat(self, chat_id):
-        """获取与聊天相关的规则"""
+    async def get_rule_by_source_target(self, source_chat_id: int, target_chat_id: int) -> Optional[RuleDTO]:
         async with self.db.session() as session:
-            candidate_tg_ids = build_candidate_telegram_ids(chat_id)
-            candidate_list = list(candidate_tg_ids)
+            stmt = select(ForwardRule).filter_by(source_chat_id=source_chat_id, target_chat_id=target_chat_id)
+            obj = (await session.execute(stmt)).scalar_one_or_none()
+            return RuleDTO.model_validate(obj) if obj else None
 
-            stmt = select(Chat).filter(Chat.telegram_chat_id.in_(candidate_list))
-            result = await session.execute(stmt)
-            internal_row = result.scalars().first()
-            internal_id = internal_row.id if internal_row else None
-
-            if internal_id is not None:
-                stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(
-                    or_(ForwardRule.source_chat_id == internal_id,
-                        ForwardRule.target_chat_id == internal_id)
-                ).order_by(ForwardRule.id)
-                result = await session.execute(stmt)
-                rules = result.scalars().all()
-            else:
-                # 内存过滤 (回退)
-                stmt = select(ForwardRule).options(*self._get_rule_select_options()).order_by(ForwardRule.id)
-                result = await session.execute(stmt)
-                all_rules = result.scalars().all()
-                rules = []
-                for r in all_rules:
-                    s_tid = getattr(r.source_chat, 'telegram_chat_id', None) if r.source_chat else None
-                    t_tid = getattr(r.target_chat, 'telegram_chat_id', None) if r.target_chat else None
-                    if (s_tid and s_tid in candidate_tg_ids) or (t_tid and t_tid in candidate_tg_ids):
-                        rules.append(r)
-
-            return rules
-
-    async def get_all(self, page: int = 1, size: int = 50):
-        """标准分页查询，替代 Web Admin 中的手写 SQL"""
+    async def create_rule_orm(self, **kwargs) -> ForwardRule:
         async with self.db.session() as session:
-            # 1. 获取总数
-            count_stmt = select(func.count(ForwardRule.id))
-            total = (await session.execute(count_stmt)).scalar() or 0
+            rule = ForwardRule(**kwargs)
+            session.add(rule)
+            await session.commit()
+            await session.refresh(rule)
+            return rule
 
-            # 2. 获取数据 (带预加载)
+    async def delete_all_rules(self) -> int:
+        async with self.db.session() as session:
+            stmt = delete(ForwardRule)
+            res = await session.execute(stmt)
+            await session.commit()
+            return res.rowcount
+
+    async def get_rule_count(self) -> int:
+        async with self.db.session() as session:
+            stmt = select(func.count(ForwardRule.id))
+            return (await session.execute(stmt)).scalar() or 0
+
+    async def save_rule_orm(self, rule: ForwardRule) -> ForwardRule:
+        async with self.db.session() as session:
+            session.add(rule)
+            await session.commit()
+            await session.refresh(rule)
+            return rule
+
+    async def delete_orphan_chats(self, chat_ids: List[int]) -> int:
+        async with self.db.session() as session:
+            deleted_count = 0
+            for cid in chat_ids:
+                chat = await session.get(Chat, cid)
+                if chat:
+                    await session.delete(chat)
+                    deleted_count += 1
+            await session.commit()
+            return deleted_count
+
+    async def get_all_chat_ids(self) -> List[int]:
+        async with self.db.session() as session:
+            stmt = select(Chat.id)
+            return [r[0] for r in (await session.execute(stmt)).all()]
+
+    async def count_rule_refs_for_chat(self, chat_id: int) -> Dict[str, int]:
+        async with self.db.session() as session:
+            stmt_s = select(func.count(ForwardRule.id)).filter_by(source_chat_id=chat_id)
+            stmt_t = select(func.count(ForwardRule.id)).filter_by(target_chat_id=chat_id)
+            return {
+                'as_source': (await session.execute(stmt_s)).scalar() or 0,
+                'as_target': (await session.execute(stmt_t)).scalar() or 0
+            }
+
+    async def get_chats_using_add_id(self, tg_chat_id: str) -> List[ChatDTO]:
+        async with self.db.session() as session:
+            stmt = select(Chat).filter_by(current_add_id=tg_chat_id)
+            return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]
+
+    async def get_all(self, page: int = 1, size: int = 10) -> Any:
+        """分页获取所有规则"""
+        async with self.db.session() as session:
+            total_stmt = select(func.count(ForwardRule.id))
+            total_res = await session.execute(total_stmt)
+            total = total_res.scalar() or 0
+            
             stmt = (
                 select(ForwardRule)
                 .options(*self._get_rule_select_options())
-                .order_by(ForwardRule.id.desc()) # 默认倒序
+                .order_by(ForwardRule.id.desc())
                 .offset((page - 1) * size)
                 .limit(size)
             )
             result = await session.execute(stmt)
-            items = result.scalars().all()
-            
-            return items, total
+            orm_rules = result.scalars().all()
+            return [RuleDTO.model_validate(r) for r in orm_rules], total
 
     async def toggle_rule(self, rule_id: int) -> bool:
-        """切换规则开关"""
+        """切换规则启用状态"""
         async with self.db.session() as session:
-            stmt = select(ForwardRule).filter_by(id=rule_id)
-            result = await session.execute(stmt)
-            rule = result.scalar_one_or_none()
-            if rule:
-                rule.enable_rule = not rule.enable_rule
-                await session.commit()
-                # 清除缓存，确保下次获取最新数据
-                self.clear_cache()
-                return rule.enable_rule
-            return None
+            rule = await session.get(ForwardRule, rule_id)
+            if not rule:
+                raise ValueError("Rule not found")
+            rule.enable_rule = not rule.enable_rule
+            new_status = rule.enable_rule
+            await session.commit()
+            self.clear_cache()
+            return new_status
 
-    async def get_all_chats(self):
-        """获取所有聊天列表"""
+    async def update_chat_current_add_id(self, chat_id: int, add_id: Optional[str]):
+        async with self.db.session() as session:
+            chat = await session.get(Chat, chat_id)
+            if chat:
+                chat.current_add_id = add_id
+                await session.commit()
+
+    async def get_all_chats(self) -> List[ChatDTO]:
         async with self.db.session() as session:
             stmt = select(Chat).order_by(Chat.id.asc())
-            result = await session.execute(stmt)
-            chats = result.scalars().all()
-            return chats
+            return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]

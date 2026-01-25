@@ -106,6 +106,22 @@ version: 1.1
     - 严禁在模块顶级直接定义 `db = Database()` 或 `container = Container()`。
     - 对高资源消耗的对象（如 AI 模型、Bloom Filter 数组）必须实现 Lazy Loading，仅在首次调用业务方法时初始化。
 
+## 11. 跨平台兼容性 (Cross-Platform Compatibility)
+- **Unix-isms**: 避免使用 `grep`, `rm -rf`, `export` 等仅 Unix 可用的命令。
+- **Encoding**: Windows 默认编码非 UTF-8，读写文件必须显式指定 `encoding='utf-8'`。
+- **Path**: 使用 `os.path.join` 或 `pathlib`，严禁硬编码 `/` 或 `\`。
+- **PowerShell**: 终端命令必须兼容 PowerShell (例如使用 `Select-String` 替代 `grep`)。
+
+## 12. 遗留系统重构工作流 (Legacy Refactoring Workflow)
+1. **Model Splitting**: 将上帝 `models.py` 拆分为 `models/{domain}.py`。
+2. **Repository Creation**: 创建 `repositories/{domain}_repo.py` 并封装 CRUD。
+3. **DTO Definition**: 定义 `schemas/{domain}.py` (Pydantic)。
+4. **Service Extraction**: 
+    - 创建 `services/{domain}_service.py`。
+    - 迁移 `utils/` 下的业务逻辑。
+    - 迁移 `handlers/` 下的 DB 操作。
+5. **Facade Implementation**: 对于复杂服务，使用 Facade/Logic/CRUD 三层拆分。
+
 
 # 🚀 Workflow
 1. **Analyze**: 识别当前变更涉及的架构层级。

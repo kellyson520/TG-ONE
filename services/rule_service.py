@@ -59,11 +59,13 @@ async def _find_chat_async(session, chat_id):
     return None
 
 
+from schemas.rule import RuleDTO
+
 class RuleQueryService:
     """转发规则查询服务 (Proxy to RuleRepository)"""
     
     @staticmethod
-    async def get_rules_for_source_chat(chat_id: int) -> List[ForwardRule]:
+    async def get_rules_for_source_chat(chat_id: int) -> List[RuleDTO]:
         """获取源聊天的转发规则"""
         logger.info(f"🔍 [规则服务] 获取源聊天规则: 聊天ID={chat_id}")
         from core.container import container
@@ -72,7 +74,7 @@ class RuleQueryService:
         return rules
 
     @staticmethod
-    async def get_rules_for_target_chat(chat_id: int) -> List[ForwardRule]:
+    async def get_rules_for_target_chat(chat_id: int) -> List[RuleDTO]:
         """获取目标聊天的转发规则"""
         logger.info(f"🔍 [规则服务] 获取目标聊天规则: 聊天ID={chat_id}")
         from core.container import container
@@ -127,51 +129,19 @@ class RuleQueryService:
             return None
 
     @staticmethod
-    async def get_all_rules_with_chats() -> List[ForwardRule]:
+    async def get_all_rules_with_chats() -> List[RuleDTO]:
         try:
             from core.container import container
-            async with container.db.session() as session:
-                stmt = select(ForwardRule).options(*_get_rule_select_options())
-                result = await session.execute(stmt)
-                rules = result.scalars().all()
-                return rules
+            return await container.rule_repo.get_all_rules_with_chats()
         except Exception as e:
             logger.error(f"获取所有转发规则失败: {str(e)}", exc_info=True)
             return []
 
     @staticmethod 
-    async def get_rules_related_to_chat(chat_id: int) -> List[ForwardRule]:
+    async def get_rules_related_to_chat(chat_id: int) -> List[RuleDTO]:
         try:
             from core.container import container
-            async with container.db.session() as session:
-                candidate_tg_ids = build_candidate_telegram_ids(chat_id)
-                candidate_list = list(candidate_tg_ids)
-
-                stmt = select(Chat).filter(Chat.telegram_chat_id.in_(candidate_list))
-                result = await session.execute(stmt)
-                internal_row = result.scalars().first()
-                internal_id = internal_row.id if internal_row else None
-
-                if internal_id is not None:
-                    stmt = select(ForwardRule).options(*_get_rule_select_options()).filter(
-                        or_(ForwardRule.source_chat_id == internal_id,
-                            ForwardRule.target_chat_id == internal_id)
-                    ).order_by(ForwardRule.id)
-                    result = await session.execute(stmt)
-                    rules = result.scalars().all()
-                else:
-                    # 内存过滤 (回退)
-                    stmt = select(ForwardRule).options(*_get_rule_select_options()).order_by(ForwardRule.id)
-                    result = await session.execute(stmt)
-                    all_rules = result.scalars().all()
-                    rules = []
-                    for r in all_rules:
-                        s_tid = getattr(r.source_chat, 'telegram_chat_id', None) if r.source_chat else None
-                        t_tid = getattr(r.target_chat, 'telegram_chat_id', None) if r.target_chat else None
-                        if (s_tid and s_tid in candidate_tg_ids) or (t_tid and t_tid in candidate_tg_ids):
-                            rules.append(r)
-
-                return rules
+            return await container.rule_repo.get_rules_related_to_chat(chat_id)
         except Exception as e:
             logger.error(f"获取聊天相关规则失败: {str(e)}", exc_info=True)
             return []

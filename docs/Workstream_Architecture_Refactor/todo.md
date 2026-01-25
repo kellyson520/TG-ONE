@@ -100,31 +100,31 @@
 
 *目标：严禁 ORM 模型泄露，强制 DTO 转换，拆分上帝类。*
 
-* [ ] **Repository 纯净化与强制使用 [P0]**
-* [ ] **定义 DTO/Schemas 层**: 使用 Pydantic 或 Dataclasses。
-* [ ] **重构 `RuleRepository**`: 确保返回 `RuleDTO`、`ChatDTO`（领域模型）而非 `ForwardRule` ORM 对象。
-* [ ] **重构 `UserRepository**`: 确保返回 `UserDTO` 而非 `User` ORM 对象。
-* [ ] **重构 `RuleManagementService**`: 所有 DB 操作必须走 Repo；消除复杂 alias 混用逻辑。
-* [ ] **层级解耦**: 严禁 Repository 直接调用 Service，严禁 Utils 载入领域模型。
+* [x] **Repository 纯净化与强制使用 [P0]** (部分完成：Handler层已隔离，Service层仍有部分直接DB访问)
+* [ ] **定义 DTO/Schemas 层**: 使用 Pydantic 或 Dataclasses (DTOs存在但未全面强制).
+* [ ] **重构 `RuleRepository**`: 确保返回 `RuleDTO`、`ChatDTO`（领域模型）而非 `ForwardRule` ORM 对象.
+* [ ] **重构 `UserRepository**`: 确保返回 `UserDTO` 而非 `User` ORM 对象.
+* [x] **重构 `RuleManagementService**`: 分层完成，Facade/Logic/CRUD 分离.
+* [ ] **层级解耦**: 严禁 Repository 直接调用 Service，严禁 Utils 载入领域模型 (Utils 仍有残留).
 
 
-* [ ] **数据库持久化治理 [P0]**
-* [ ] **引入 Alembic** 或标准迁移框架，废除 `models.py` 内部的 `migrate_db` 硬编码逻辑。
-* [ ] **拆分模型层**: 将 `models/models.py` 拆分为 `models/rule.py`, `models/chat.py`, `models/user.py` 等。
+* [x] **数据库持久化治理 [P0]**
+* [x] **引入 Alembic** (已初始化并生成首个迁移).
+* [x] **拆分模型层**: 将 `models/models.py` 拆分为 `models/rule.py`, `models/chat.py`, `models/user.py` 等。
 
 
-* [ ] **上帝文件拆分 (按职责完整性) [P0/P1]**
-* [ ] **拆解 `command_handlers.py**` (2445行) [P0]:
-* [ ] 分解为：媒体指令、规则指令、系统管理指令、管理员专属指令。
-* [ ] **核心审计**: 移除 Handler 内部的所有 `session.execute` 调用，强制通过 `RuleManagementService` 执行业务。
+* [x] **上帝文件拆分 (按职责完整性) [P0/P1]**
+* [x] **拆解 `command_handlers.py**` (2445行) [P0]:
+* [x] 分解为：媒体指令、规则指令、系统管理指令、管理员专属指令。
+* [x] **核心审计**: 移除 Handler 内部的所有 `session.execute` 调用，强制通过 `RuleManagementService` 执行业务。
 
 
-* [ ] **拆解 `rule_management_service.py**` (72KB):
-* [ ] 分离为 `RuleCRUDService`、`RuleLogicService`、`RuleConfigService`。
+* [x] **拆解 `rule_management_service.py**` (72KB):
+* [x] 分离为 `RuleCRUDService`、`RuleLogicService`、`RuleConfigService` (Facade/Logic/CRUD).
 
 
 * [ ] **`utils/helpers/common.py` (716 行) [P0]**:
-* [ ] 业务逻辑全量下沉进入相关 Service；彻底移除 `is_admin` 等函数中的越权 DB 操作。
+* [ ] 业务逻辑全量下沉进入相关 Service；彻底移除 `is_admin` 等函数中的越权 DB 操作 (Audit found: `is_admin` and `check_and_clean_chats` use DB).
 
 
 

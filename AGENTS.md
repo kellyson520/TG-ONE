@@ -143,6 +143,12 @@ Invoke: Bash("openskills read <skill-name>")
 <location>project</location>
 </skill>
 
+<skill>
+<name>windows-platform-adapter</name>
+<description>Expert knowledge for developing python applications on Windows/PowerShell environments. Handles shell differences, encoding issues, and file system quirks.</description>
+<location>project</location>
+</skill>
+
 </available_skills>
 <!-- SKILLS_TABLE_END -->
 

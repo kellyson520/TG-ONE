@@ -123,21 +123,11 @@ async def is_admin(event, client=None):
         # 2. 检查数据库User表中是否绑定了该Telegram ID且是管理员
         try:
             from core.container import container
-            from models.models import User
             
-            async with container.db.session() as session:
-                from sqlalchemy import select
-                stmt = select(User).filter(
-                    User.telegram_id == str(user_id),
-                    User.is_admin == True,
-                    User.is_active == True
-                )
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-                
-                if user:
-                    logger.debug(f"用户 {user_id} 在数据库管理员列表中")
-                    return True
+            user = await container.user_repo.get_admin_by_telegram_id(str(user_id))
+            if user:
+                logger.debug(f"用户 {user_id} 在数据库管理员列表中")
+                return True
         except Exception as db_e:
             logger.warning(f"检查数据库管理员失败: {str(db_e)}")
         
@@ -276,88 +266,16 @@ async def get_sender_info(event, rule_id):
 async def check_and_clean_chats(rule=None):
     """
     检查并清理不再与任何规则关联的聊天记录
-
+    
     Args:
         rule: 被删除的规则对象（可选），如果提供则从中获取聊天ID
-
+        
     Returns:
         int: 删除的聊天记录数量
     """
-    deleted_count = 0
-
     try:
         from core.container import container
-
-        async with container.db.session() as session:
-            from sqlalchemy import func, select
-            from models.models import Chat, ForwardRule
-
-            # 获取所有聊天ID
-            chat_ids_to_check = set()
-
-            # 如果提供了规则，先检查这些受影响的聊天
-            if rule:
-                if rule.source_chat_id:
-                    chat_ids_to_check.add(rule.source_chat_id)
-                if rule.target_chat_id:
-                    chat_ids_to_check.add(rule.target_chat_id)
-            else:
-                # 如果没有提供规则，则获取所有聊天
-                result = await session.execute(select(Chat.id))
-                all_chats = result.all()
-                chat_ids_to_check = set(chat[0] for chat in all_chats)
-
-            # 对每个聊天ID进行检查
-            for chat_id in chat_ids_to_check:
-                # 检查此聊天是否还被任何规则引用
-                result = await session.execute(
-                    select(func.count(ForwardRule.id)).filter(
-                        ForwardRule.source_chat_id == chat_id
-                    )
-                )
-                as_source = result.scalar()
-
-                result = await session.execute(
-                    select(func.count(ForwardRule.id)).filter(
-                        ForwardRule.target_chat_id == chat_id
-                    )
-                )
-                as_target = result.scalar()
-
-                # 如果聊天不再被任何规则引用
-                if as_source == 0 and as_target == 0:
-                    chat = await session.get(Chat, chat_id)
-                    if chat:
-                        # 获取telegram_chat_id以便日志记录
-                        telegram_chat_id = chat.telegram_chat_id
-                        name = chat.name or "未命名聊天"
-
-                        # 清理所有引用此聊天作为current_add_id的记录
-                        result = await session.execute(
-                            select(Chat).filter(Chat.current_add_id == telegram_chat_id)
-                        )
-                        chats_using_this = result.scalars().all()
-
-                        for other_chat in chats_using_this:
-                            other_chat.current_add_id = None
-                            logger.info(
-                                f"清除聊天 {other_chat.name} 的current_add_id设置"
-                            )
-
-                        # 删除聊天记录
-                        await session.delete(chat)
-                        logger.info(
-                            f"删除未使用的聊天: {name} (ID: {telegram_chat_id})"
-                        )
-                        deleted_count += 1
-
-            # 如果有删除操作，提交更改
-            if deleted_count > 0:
-                await session.commit()
-                logger.info(f"共清理了 {deleted_count} 个未使用的聊天记录")
-
-            return deleted_count
-
+        return await container.rule_mgmt_service.cleanup_orphan_chats(rule)
     except Exception as e:
         logger.error(f"检查和清理聊天记录时出错: {str(e)}")
         return 0

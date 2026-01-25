@@ -4,6 +4,7 @@
 """
 import sys
 import os
+import logging
 
 # 确保项目根目录在 sys.path 最前面
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -137,7 +138,6 @@ for module in [
 # ============================================================
 import asyncio
 import pytest
-import logging
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["APP_ENV"] = "testing"

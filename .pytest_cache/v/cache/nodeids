@@ -18,6 +18,10 @@
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_already_list",
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_comma",
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_json",
+  "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_find_chat",
+  "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_get_all_standard_pagination",
+  "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_get_rules_for_source_chat",
+  "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_toggle_rule",
   "tests/unit/services/test_dedup_service.py::TestDedupService::test_clear_all_cache",
   "tests/unit/services/test_dedup_service.py::TestDedupService::test_get_dedup_config",
   "tests/unit/services/test_dedup_service.py::TestDedupService::test_is_duplicate",
@@ -35,5 +39,9 @@
   "tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_create_rule",
   "tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_get_rule_list",
   "tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_toggle_boolean_setting",
+  "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_cache_logic",
+  "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_for_source_chat_basic",
+  "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_with_mapping",
+  "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_id_variant_matching",
   "tests/unit/test_simple.py::test_pass"
 ]

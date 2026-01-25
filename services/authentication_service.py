@@ -19,13 +19,15 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+from schemas.user import UserAuthDTO, UserDTO
+
 class AuthenticationService:
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
+    async def authenticate_user(self, username: str, password: str) -> Optional[UserAuthDTO]:
         """Validate credentials and return user model."""
         logger.info(f"🔐 [Auth] 用户认证请求: 用户名={username}")
         
         from core.container import container
-        user = await container.user_repo.get_user_by_username(username)
+        user = await container.user_repo.get_user_for_auth(username)
         
         if not user:
             logger.warning(f"⚠️ [Auth] 用户认证失败: 用户名不存在，用户名={username}")
@@ -180,7 +182,7 @@ class AuthenticationService:
             await session.execute(stmt)
             await session.commit()
 
-    async def get_user_from_token(self, token: str) -> Optional[User]:
+    async def get_user_from_token(self, token: str) -> Optional[UserDTO]:
         """Decode access token and return User object."""
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -288,7 +290,7 @@ class AuthenticationService:
     async def verify_2fa_login(self, user_id: int, token: str) -> bool:
         """Verify TOTP token for login."""
         from core.container import container
-        user = await container.user_repo.get_user_by_id(user_id)
+        user = await container.user_repo.get_user_auth_by_id(user_id)
         
         if not user or not user.is_2fa_enabled or not user.totp_secret:
             return False

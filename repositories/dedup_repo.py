@@ -1,7 +1,8 @@
-import logging
 from typing import List, Optional, Tuple
+import logging
 from sqlalchemy import select
 from models.models import MediaSignature
+from schemas.media import MediaSignatureDTO
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -12,14 +13,15 @@ class DedupRepository:
     def __init__(self, db):
         self.db = db
 
-    async def find_by_signature(self, chat_id: str, signature: str) -> Optional[MediaSignature]:
+    async def find_by_signature(self, chat_id: str, signature: str) -> Optional[MediaSignatureDTO]:
         """根据签名查找"""
         async with self.db.session() as session:
             stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
             result = await session.execute(stmt)
-            return result.scalar_one_or_none()
+            obj = result.scalar_one_or_none()
+            return MediaSignatureDTO.model_validate(obj) if obj else None
 
-    async def find_by_file_id_or_hash(self, chat_id: str, file_id: str = None, content_hash: str = None) -> Optional[MediaSignature]:
+    async def find_by_file_id_or_hash(self, chat_id: str, file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
         """优先使用 file_id 查找，其次使用 content_hash"""
         async with self.db.session() as session:
             if file_id:
@@ -30,7 +32,7 @@ class DedupRepository:
                 result = await session.execute(stmt)
                 rec = result.scalar_one_or_none()
                 if rec:
-                    return rec
+                    return MediaSignatureDTO.model_validate(rec)
             
             if content_hash:
                 stmt = select(MediaSignature).filter(
@@ -40,7 +42,7 @@ class DedupRepository:
                 result = await session.execute(stmt)
                 rec = result.scalar_one_or_none()
                 if rec:
-                    return rec
+                    return MediaSignatureDTO.model_validate(rec)
             
             return None
 
@@ -85,7 +87,7 @@ class DedupRepository:
                 await session.rollback()
                 return False
 
-    async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignature]:
+    async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignatureDTO]:
         """获取重复媒体记录"""
         async with self.db.session() as session:
             stmt = select(MediaSignature).filter(
@@ -94,7 +96,8 @@ class DedupRepository:
             ).order_by(MediaSignature.count.desc()).limit(limit)
             
             result = await session.execute(stmt)
-            return result.scalars().all()
+            objs = result.scalars().all()
+            return [MediaSignatureDTO.model_validate(o) for o in objs]
 
     async def delete_by_chat(self, chat_id: str) -> int:
         """删除特定聊天的所有去重记录"""
