@@ -1,0 +1,85 @@
+# Expand Project Test Coverage
+
+## 🎯 Objective
+全面提升 TG ONE 项目的测试覆盖率。在已有的 Service 层测试基础上，扩展至 Repository 层、Handler 层以及 Web Admin 路由层，确保核心业务链条的稳健性。
+
+## 📝 Todo List
+- [x] **Assessment**
+    - [x] Run `python .agent/skills/full-system-verification/scripts/verify_system.py unit` to get baseline.
+    - [x] Scan `repositories/` for missing tests.
+    - [x] Scan `handlers/` for missing tests.
+    - [x] Scan `web_admin/routers/` for missing tests.
+- [x] **Implementation: Frontend-Backend Unified Interface**
+    - [x] Refactor `rules.html` to use `apiManager`.
+    - [x] Refactor `dashboard.html` to use `apiManager`.
+    - [x] Refactor `logs.html` to use `apiManager`.
+    - [x] Refactor `users.html` to use `apiManager`.
+    - [x] Refactor `tasks.html` to use `apiManager`.
+    - [x] Refactor `audit_logs.html` to use `apiManager`.
+    - [x] Standardize all pages with `notificationManager` and `loadingManager`.
+- [x] **Implementation: Repository Tests**
+    - [x] Add tests for `UserRepository`.
+    - [x] Add tests for `TaskRepository`.
+    - [x] Add tests for `AuditRepository`.
+- [x] **Implementation: Handler Tests**
+    - [x] Verify existing `CommandHandlers` tests.
+    - [x] Add tests for `PromptHandlers`.
+    - [x] Add tests for `AdvancedMediaHandlers`.
+- [x] **Implementation: Router Tests (Phase 1)**
+    - [x] Add tests for `AuthRouter`.
+    - [x] Add tests for `RuleRouter`.
+- [ ] **Implementation: Router Tests (Phase 2)**
+    - [ ] Add tests for `StatsRouter`.
+    - [ ] Add tests for `SettingsRouter`.
+    - [ ] Add tests for `SecurityRouter`.
+    - [ ] Add tests for `WebSocketRouter`.
+    - [ ] Add tests for `SimulatorRouter`.
+- [ ] **Implementation: Middleware Tests**
+    - [ ] Add tests for `TraceMiddleware`.
+    - [ ] Add tests for `IPGuardMiddleware`.
+    - [ ] Add tests for `CSRFMiddleware`.
+- [ ] **Implementation: Security Module Tests**
+    - [ ] Add tests for `RateLimiter`.
+    - [ ] Add tests for `PasswordValidator`.
+    - [ ] Add tests for `CSRF` utilities.
+    - [ ] Add tests for `JWT` token handling.
+    - [ ] Add tests for `ActiveSessionService`.
+- [ ] **Implementation: Filter Tests**
+    - [ ] Add tests for message filters.
+    - [ ] Add tests for media filters.
+- [ ] **Implementation: Listener Tests**
+    - [ ] Add tests for event listeners.
+    - [ ] Add tests for message listeners.
+- [ ] **Implementation: Utils Tests (Critical)**
+    - [x] Add tests for `db_operations.py`.
+    - [x] Add tests for `forward_recorder.py`.
+    - [x] Add tests for `unified_sender.py`.
+    - [x] Add tests for `id_utils.py`.
+    - [x] Add tests for `common.py` helpers.
+    - [x] Add tests for `realtime_stats.py`.
+    - [x] Add tests for `bot_heartbeat.py`.
+- [ ] **Implementation: Utils Tests (Processing)**
+    - [ ] Add tests for `smart_dedup.py`.
+    - [ ] Add tests for `bloom_filter.py`.
+    - [ ] Add tests for `ac_automaton.py`.
+    - [ ] Add tests for `simhash.py`.
+- [ ] **Implementation: Utils Tests (Network)**
+    - [ ] Add tests for `rate_limiter_pool.py`.
+    - [ ] Add tests for `flood_wait_handler.py`.
+    - [ ] Add tests for `network_monitor.py`.
+- [ ] **Implementation: Integration Tests (End-to-End)**
+    - [ ] Add E2E tests for complete message forwarding flow.
+    - [ ] Add E2E tests for rule CRUD with media filtering.
+    - [ ] Add E2E tests for user authentication and session management.
+    - [ ] Add E2E tests for statistics collection and reporting.
+- [x] **Phase 1 Verification**
+    - [x] Run full system verification.
+    - [x] Achieve > 70% coverage on core modules (Target).
+- [ ] **Phase 2 Verification**
+    - [ ] Run comprehensive test suite.
+    - [ ] Achieve > 85% coverage on all modules (Stretch Goal).
+    - [ ] Generate coverage report with detailed metrics.
+
+## 📊 Status
+- [x] Phase 1 Completed (Repository, Handler, Core Router Tests)
+- [ ] Phase 2 In Progress (Extended Coverage)

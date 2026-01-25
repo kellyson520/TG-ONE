@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>TG Forwarder RSS 订阅管理</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #2c3e50;
+        }
+
+        .navbar {
+            background: rgba(0, 0, 0, 0.3) !important;
+            backdrop-filter: blur(10px);
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.19);
+            background: rgba(255, 255, 255, 0.95);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/rss/dashboard">TG Forwarder RSS</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link active" href="/rss/subscriptions/page">外部订阅管理</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss/dashboard">内部 Feed 管理</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4 text-white">
+            <h2>外部 RSS 订阅列表</h2>
+            <button class="btn btn-light" onclick="openModal()">
+                <i class="bi bi-plus-circle"></i> 新增订阅
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>URL</th>
+                            <th>目标 ID</th>
+                            <th>状态</th>
+                            <th>间隔 (当前/Min/Max)</th>
+                            <th>上次检查</th>
+                            <th>最新文章</th>
+                            <th>失败</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sub-table-body">
+                        <!-- Content rendered by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit/Create Modal -->
+    <div class="modal fade" id="subModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">RSS 订阅配置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="subForm">
+                        <input type="hidden" id="subId">
+                        <div class="mb-3">
+                            <label class="form-label">RSS URL</label>
+                            <input type="url" class="form-control" id="subUrl" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">目标 Chat ID</label>
+                            <input type="text" class="form-control" id="subTarget" required>
+                            <div class="form-text">可以是频道 Username (@channel) 或 ID</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">关联规则 ID (可选)</label>
+                            <input type="number" class="form-control" id="subRuleId">
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <label class="form-label">最小间隔 (s)</label>
+                                <input type="number" class="form-control" id="subMin" value="60">
+                            </div>
+                            <div class="col">
+                                <label class="form-label">最大间隔 (s)</label>
+                                <input type="number" class="form-control" id="subMax" value="3600">
+                            </div>
+                        </div>
+                        <div class="mt-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="subActive" checked>
+                            <label class="form-check-label">启用</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSubscription()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let subModal;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            subModal = new bootstrap.Modal(document.getElementById('subModal'));
+            loadSubscriptions();
+        });
+
+        async function loadSubscriptions() {
+            try {
+                const res = await fetch('/rss/api/subscriptions/');
+                const data = await res.json();
+                const tbody = document.getElementById('sub-table-body');
+                tbody.innerHTML = '';
+
+                data.forEach(sub => {
+                    const row = `
+                        <tr>
+                            <td>${sub.id}</td>
+                            <td><a href="${sub.url}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">${sub.url}</a></td>
+                            <td>${sub.target_chat_id}</td>
+                             <td>
+                                <span class="badge bg-${sub.is_active ? 'success' : 'secondary'}">
+                                    ${sub.is_active ? 'Active' : 'Paused'}
+                                </span>
+                            </td>
+                            <td>${sub.current_interval}s <span class="text-muted small">(${sub.min_interval}-${sub.max_interval})</span></td>
+                            <td>${formatDate(sub.last_checked)}</td>
+                            <td>${formatDate(sub.latest_post_date)}</td>
+                             <td>
+                                ${sub.fail_count > 0 ? `<span class="badge bg-danger">${sub.fail_count}</span>` : '0'}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editSub(${sub.id})"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-outline-info" onclick="refreshSub(${sub.id})" title="立即刷新"><i class="bi bi-arrow-clockwise"></i></button>
+                                    <button class="btn btn-outline-danger" onclick="deleteSub(${sub.id})"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (e) {
+                alert('加载失败: ' + e);
+            }
+        }
+
+        async function saveSubscription() {
+            const id = document.getElementById('subId').value;
+            const payload = {
+                url: document.getElementById('subUrl').value,
+                target_chat_id: document.getElementById('subTarget').value,
+                rule_id: document.getElementById('subRuleId').value || null,
+                min_interval: parseInt(document.getElementById('subMin').value),
+                max_interval: parseInt(document.getElementById('subMax').value),
+                is_active: document.getElementById('subActive').checked
+            };
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/rss/api/subscriptions/${id}` : '/rss/api/subscriptions/';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    subModal.hide();
+                    loadSubscriptions();
+                } else {
+                    alert('保存失败');
+                }
+            } catch (e) {
+                alert('Error: ' + e);
+            }
+        }
+
+        function openModal() {
+            document.getElementById('subForm').reset();
+            document.getElementById('subId').value = '';
+            subModal.show();
+        }
+
+        async function editSub(id) {
+            // Find data (optimized: fetch again or use cache, here lazy fetch from list logic if stored, but let's just fetch list again or row)
+            // Simplified: we rely on data existing in table or fetch single.
+            // Let's just quick fetch list again to find it for now.
+            const res = await fetch('/rss/api/subscriptions/');
+            const data = await res.json();
+            const sub = data.find(s => s.id === id);
+
+            if (sub) {
+                document.getElementById('subId').value = sub.id;
+                document.getElementById('subUrl').value = sub.url;
+                document.getElementById('subTarget').value = sub.target_chat_id;
+                document.getElementById('subRuleId').value = sub.rule_id;
+                document.getElementById('subMin').value = sub.min_interval;
+                document.getElementById('subMax').value = sub.max_interval;
+                document.getElementById('subActive').checked = sub.is_active;
+                subModal.show();
+            }
+        }
+
+        async function deleteSub(id) {
+            if (!confirm('确定删除?')) return;
+            await fetch(`/rss/api/subscriptions/${id}`, { method: 'DELETE' });
+            loadSubscriptions();
+        }
+
+        async function refreshSub(id) {
+            await fetch(`/rss/api/subscriptions/${id}/refresh`, { method: 'POST' });
+            alert('刷新请求已发送');
+            setTimeout(loadSubscriptions, 2000);
+        }
+
+        function formatDate(isoStr) {
+            if (!isoStr) return '-';
+            return new Date(isoStr).toLocaleString();
+        }
+    </script>
+</body>
+
+</html>

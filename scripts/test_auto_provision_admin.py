@@ -1,0 +1,33 @@
+import os
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from web_admin.app import app
+from models.models import get_session, User
+
+
+def run():
+    username = os.getenv('WEB_ADMIN_USERNAME') or ''
+    password = os.getenv('WEB_ADMIN_PASSWORD') or ''
+    assert username and password, 'WEB_ADMIN_USERNAME/WEB_ADMIN_PASSWORD must be set'
+
+    with get_session() as s:
+        u = s.query(User).filter(User.username == username).first()
+        if u:
+            s.delete(u)
+            s.commit()
+
+    client = app.test_client()
+    r = client.post('/login', json={'username': username, 'password': password}, headers={'Accept': 'application/json'})
+    print('Login POST:', r.status_code, r.get_json(silent=True))
+    assert r.status_code == 200, 'Auto-provision login should succeed'
+
+    with get_session() as s:
+        u2 = s.query(User).filter(User.username == username).first()
+        assert u2 is not None and bool(u2.is_admin), 'Admin user should be created'
+    print('Admin auto-provision verified')
+
+
+if __name__ == '__main__':
+    run()

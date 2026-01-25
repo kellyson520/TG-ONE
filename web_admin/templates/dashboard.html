@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}系统仪表板 - Forwarder Pro{% endblock %}
+{% block content %}
+
+<!-- 指标概览 -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-3 col-md-6">
+        <div class="glass-card metric-card primary">
+            <div class="metric-label">今日转发</div>
+            <div class="metric-value" id="todayForwards">0</div>
+            <div class="small text-muted"><i class="bi bi-arrow-up text-success"></i> 环比上升 --%</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="glass-card metric-card success">
+            <div class="metric-label">活跃规则</div>
+            <div class="metric-value" id="activeRules">0</div>
+            <div class="small text-muted">总规则: <span id="totalRules">0</span></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="glass-card metric-card warning">
+            <div class="metric-label">去重缓存</div>
+            <div class="metric-value" id="dedupCache">0</div>
+            <div class="small text-muted">占用空间: <span id="dedupSaved">0 MB</span></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="glass-card metric-card info">
+            <div class="metric-label">系统状态</div>
+            <div class="mt-2 mb-2">
+                <span class="badge-soft badge-soft-success" id="systemStatus">运行中</span>
+            </div>
+            <div class="small text-muted">在线时长: <span id="uptime">--</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- 转发趋势图 -->
+    <div class="col-lg-8">
+        <div class="glass-card">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-graph-up text-primary me-2"></i>流量动态</h6>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary active">7天</button>
+                    <button class="btn btn-outline-primary">30天</button>
+                </div>
+            </div>
+            <div id="trafficChart" style="height: 320px;"></div>
+        </div>
+    </div>
+
+    <!-- 侧边工具栏 -->
+    <div class="col-lg-4">
+        <div class="glass-card mb-4" style="height: auto;">
+            <h6 class="mb-3 fw-bold"><i class="bi bi-lightning-charge text-warning me-2"></i>快速操作</h6>
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary-gradient" onclick="location.href='/rules'">
+                    <i class="bi bi-plus-circle me-1"></i> 新建转发规则
+                </button>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button class="btn btn-light w-100" onclick="location.href='/logs'">日志</button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-light w-100" onclick="location.href='/settings'">设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <h6 class="mb-3 fw-bold"><i class="bi bi-cpu text-danger me-2"></i>资源利用率</h6>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>CPU</span><span id="res-cpu">0%</span>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar" id="bar-cpu" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>Memory</span><span id="res-mem">0%</span>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar bg-info" id="bar-mem" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="border-top pt-2 mt-3 small text-muted">
+                <div>数据库大小: <span id="db-size">--</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 活动日志 -->
+<div class="row">
+    <div class="col-12">
+        <div class="glass-card">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-activity text-info me-2"></i>实时动态</h6>
+                <button class="btn btn-sm btn-link text-muted" onclick="fetchLogsTail()">刷新</button>
+            </div>
+            <div class="activity-log" id="activityLog" style="max-height: 300px; overflow-y: auto;">
+                <div class="text-center py-4 text-muted">正在同步数据...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/libs/echarts/echarts.min.js"></script>
+<script>
+    let trafficChart;
+
+    function initCharts() {
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        trafficChart = echarts.init(document.getElementById('trafficChart'));
+
+        const option = {
+            grid: { left: '3%', right: '4%', bottom: '3%', top: '5%', containLabel: true },
+            xAxis: {
+                type: 'category',
+                data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                axisLine: { lineStyle: { color: isDark ? 'rgba(255,255,255,0.1)' : '#eee' } }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5' } }
+            },
+            series: [{
+                data: [120, 200, 150, 80, 70, 110, 130],
+                type: 'line',
+                smooth: true,
+                symbol: 'none',
+                lineStyle: { width: 4, color: '#6366F1' },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(99, 102, 241, 0.2)' },
+                        { offset: 1, color: 'rgba(99, 102, 241, 0)' }
+                    ])
+                }
+            }]
+        };
+        trafficChart.setOption(option);
+    }
+
+    async function loadStats() {
+        try {
+            const res = await apiManager.getStatsOverview();
+            if (res.success) {
+                updateDashboardUI(res.data);
+            }
+        } catch (e) {
+            console.debug('Overview sync delayed');
+        }
+    }
+
+    function updateDashboardUI(data) {
+        if (data.forward_stats) {
+            updateElement('todayForwards', Utils.formatNumber(data.forward_stats.total_forwards || 0));
+        }
+        if (data.overview) {
+            updateElement('activeRules', data.overview.active_rules || 0);
+            updateElement('totalRules', data.overview.total_rules || 0);
+        }
+        if (data.dedup_stats) {
+            updateElement('dedupCache', Utils.formatNumber(data.dedup_stats.cached_signatures || 0));
+            updateElement('dedupSaved', (data.dedup_stats.saved_size_mb || 0).toFixed(1) + ' MB');
+        }
+    }
+
+    function updateElement(id, text) {
+        const el = document.getElementById(id);
+        if (el && el.textContent !== String(text)) {
+            el.textContent = text;
+            el.classList.add('text-primary');
+            setTimeout(() => el.classList.remove('text-primary'), 500);
+        }
+    }
+
+    async function updateResources() {
+        try {
+            const res = await apiManager.getStatsSystemResources();
+            if (res.success) {
+                updateResourceUI(res.data);
+            }
+        } catch (e) {
+            console.debug('Resource monitoring sync withheld');
+        }
+    }
+
+    function updateResourceUI(data) {
+        if (!data) return;
+
+        updateElement('res-cpu', data.cpu_percent.toFixed(1) + '%');
+        updateStyle('bar-cpu', 'width', data.cpu_percent + '%');
+
+        updateElement('res-mem', data.memory_percent.toFixed(1) + '%');
+        updateStyle('bar-mem', 'width', data.memory_percent + '%');
+
+        updateElement('db-size', data.db_size_mb.toFixed(1) + ' MB');
+    }
+
+    function updateStyle(id, prop, value) {
+        const el = document.getElementById(id);
+        if (el) el.style[prop] = value;
+    }
+
+    async function fetchLogsTail() {
+        try {
+            const res = await apiManager.tailLog({ lines: 10 });
+            if (res.success && res.logs) {
+                const container = document.getElementById('activityLog');
+                container.innerHTML = res.logs.map(log => `
+                    <div class="log-entry ${log.includes('ERROR') ? 'error' : log.includes('WARN') ? 'warning' : 'success'} small">
+                        ${log}
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            console.debug('Tail log sync delayed');
+        }
+    }
+
+    // ========== WebSocket 逻辑 ==========
+
+    let wsConnected = false;
+    let pollingIntervals = [];
+
+    function initWebSocket() {
+        if (!window.wsManager) {
+            console.warn('[Dashboard] WebSocket not available, using polling fallback');
+            startPolling();
+            return;
+        }
+
+        wsManager.connect();
+
+        wsManager.onConnect(() => {
+            wsConnected = true;
+            console.log('[Dashboard] WebSocket connected');
+
+            wsManager.subscribe('stats', handleStatsUpdate);
+            wsManager.subscribe('system', handleSystemEvent);
+            wsManager.subscribe('logs', handleLogMessage);
+
+            stopPolling();
+        });
+
+        wsManager.onDisconnect(() => {
+            wsConnected = false;
+            console.log('[Dashboard] WebSocket disconnected, switching to polling');
+            startPolling();
+        });
+    }
+
+    function handleStatsUpdate(message) {
+        if (message.type === 'stats_update' && message.data) {
+            updateDashboardUI(message.data);
+        }
+    }
+
+    function handleSystemEvent(message) {
+        if (message.type === 'system_event' && message.event === 'RESOURCE_UPDATE') {
+            updateResourceUI(message.data);
+        }
+    }
+
+    function handleLogMessage(message) {
+        if (message.type === 'log') {
+            prependActivityLog(message);
+        }
+    }
+
+    function prependActivityLog(msg) {
+        const container = document.getElementById('activityLog');
+        if (!container) return;
+
+        const timestamp = new Date().toLocaleTimeString();
+        let typeClass = 'success';
+        if (msg.level === 'ERROR') typeClass = 'error';
+        else if (msg.level === 'WARNING') typeClass = 'warning';
+
+        const html = `
+            <div class="log-entry ${typeClass} small">
+                <span class="opacity-50 me-1">[${timestamp}]</span> ${safeHtml(msg.message)}
+            </div>
+        `;
+
+        container.insertAdjacentHTML('afterbegin', html);
+
+        if (container.children.length > 20) {
+            container.removeChild(container.lastElementChild);
+        }
+    }
+
+    function safeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    let pollingTimer = null;
+
+    function startPolling() {
+        if (pollingIntervals.length > 0) return;
+
+        console.debug('[Dashboard] Scheduling fallback polling...');
+        pollingTimer = setTimeout(() => {
+            console.log('[Dashboard] Starting fallback polling now');
+            pollingIntervals.push(setInterval(loadStats, 60000));      // 30s -> 60s
+            pollingIntervals.push(setInterval(updateResources, 10000)); // 5s -> 10s
+            pollingIntervals.push(setInterval(fetchLogsTail, 15000));   // 10s -> 15s
+
+            // Initial load
+            loadStats();
+            updateResources();
+        }, 5000); // 5s delay before starting polling to allow WS reconnect
+    }
+
+    function stopPolling() {
+        if (pollingTimer) {
+            clearTimeout(pollingTimer);
+            pollingTimer = null;
+        }
+        pollingIntervals.forEach(clearInterval);
+        pollingIntervals = [];
+        console.debug('[Dashboard] Polling stopped');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initCharts();
+        loadStats();
+        updateResources();
+        fetchLogsTail();
+        initWebSocket();
+
+        window.addEventListener('resize', () => trafficChart && trafficChart.resize());
+    });
+
+    window.addEventListener('beforeunload', () => {
+        stopPolling();
+        if (wsConnected && window.wsManager) {
+            wsManager.unsubscribe('stats', handleStatsUpdate);
+            wsManager.unsubscribe('system', handleSystemEvent);
+            wsManager.unsubscribe('logs', handleLogMessage);
+        }
+    });
+</script>
+{% endblock %}

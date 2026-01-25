@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - Forwarder Pro</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="{{ static_with_hash('css/main.css') }}" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .login-card-luxury {
+      width: 100%;
+      max-width: 440px;
+      padding: 3rem;
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .brand-icon {
+      width: 64px;
+      height: 64px;
+      background: var(--primary-gradient);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      color: white;
+      font-size: 2rem;
+      box-shadow: var(--shadow-md);
+    }
+  </style>
+</head>
+
+<body data-theme="dark">
+  <div class="glass-card login-card-luxury">
+    <div class="text-center mb-5">
+      <div class="brand-icon">
+        <i class="bi bi-shield-lock-fill"></i>
+      </div>
+      <h3 class="fw-bold mb-2">Forwarder Pro</h3>
+      <p class="text-muted small">安全登录您的 Telegram 转发管理系统</p>
+    </div>
+
+    <form id="loginForm">
+      {{ csrf_token_input(request) }}
+
+      <div id="credentials-section">
+        <div class="mb-4">
+          <label class="form-label small fw-bold text-muted">用户名</label>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-person"></i></span>
+            <input type="text" id="username" class="form-control border-start-0 ps-0" placeholder="Username" required
+              autofocus>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label small fw-bold text-muted">密码</label>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-key"></i></span>
+            <input type="password" id="password" class="form-control border-start-0 ps-0 border-end-0"
+              placeholder="Password" required>
+            <button class="btn btn-outline-secondary border-start-0 border-secondary-subtle bg-transparent"
+              type="button" id="togglePassword">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="remember">
+            <label class="form-check-label small" for="remember">记住我</label>
+          </div>
+          <a href="#" class="small text-decoration-none">忘记密码？</a>
+        </div>
+      </div>
+
+      <div id="2fa-section" style="display: none;" class="mb-4">
+        <label class="form-label small fw-bold text-muted">双重验证码</label>
+        <div class="input-group">
+          <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-shield-check"></i></span>
+          <input type="text" id="2fa_code" class="form-control border-start-0 ps-0" placeholder="6 位验证码" maxlength="6">
+        </div>
+        <p class="text-muted extra-small mt-2">请输入验证 App 中的 6 位数字代码</p>
+        <input type="hidden" id="pre_auth_token">
+      </div>
+
+      <button type="submit" class="btn btn-primary-gradient w-100 py-2 fw-bold" id="loginButton">
+        立即登录
+      </button>
+    </form>
+
+    {% if allow_register %}
+    <div class="text-center mt-4 pt-3 border-top border-light">
+      <span class="text-muted small">还没有账号？</span>
+      <a href="/register" class="small fw-bold text-decoration-none ms-1">立即注册</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginButton = document.getElementById('loginButton');
+    const togglePassword = document.getElementById('togglePassword');
+    const passInput = document.getElementById('password');
+
+    togglePassword.addEventListener('click', () => {
+      const type = passInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passInput.setAttribute('type', type);
+      togglePassword.querySelector('i').classList.toggle('bi-eye');
+      togglePassword.querySelector('i').classList.toggle('bi-eye-slash');
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const preAuthToken = document.getElementById('pre_auth_token').value;
+
+      loginButton.disabled = true;
+      loginButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在验证...';
+
+      try {
+        if (preAuthToken) {
+          const code = document.getElementById('2fa_code').value;
+          const res = await fetch('/api/auth/login/2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pre_auth_token: preAuthToken, token: code })
+          });
+          if (res.ok) window.location.href = '/';
+          else throw new Error('验证码无效');
+        } else {
+          const username = document.getElementById('username').value;
+          const password = passInput.value;
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+
+          if (res.status === 202 && data.status === '2fa_required') {
+            document.getElementById('credentials-section').style.display = 'none';
+            document.getElementById('2fa-section').style.display = 'block';
+            document.getElementById('pre_auth_token').value = data.pre_auth_token;
+            document.getElementById('2fa_code').focus();
+            loginButton.textContent = '验证并登录';
+          } else if (res.ok) {
+            window.location.href = '/';
+          } else {
+            throw new Error(data.detail || '用户名或密码错误');
+          }
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        loginButton.disabled = false;
+        if (!document.getElementById('pre_auth_token').value) {
+          loginButton.textContent = '立即登录';
+        } else {
+          loginButton.textContent = '验证并登录';
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>

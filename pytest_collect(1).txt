@@ -1,0 +1,666 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\lihuo\Desktop\??\TG ONE
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 261 items / 1 error
+
+<Dir TG ONE>
+  <Package tests>
+    <Package compatibility>
+      <Module test_uvloop.py>
+        <Coroutine test_uvloop_compatibility>
+          Test basic compatibility of uvloop if installed.
+          This test attempts to import uvloop and verify it can be set as the policy.
+        <Coroutine test_sqlalchemy_uvloop_compat>
+          Test SQLAlchemy Async engine compatibility with uvloop
+    <Dir integration>
+      <Module test_active_session.py>
+        <Coroutine test_session_management>
+          Integration test for ActiveSessionService.
+          Task 2.2: Session Management & Device Parsing.
+      <Module test_audit_api.py>
+        <Coroutine test_get_audit_logs>
+        <Coroutine test_audit_logs_unauthorized>
+        <Coroutine test_audit_logs_forbidden>
+      <Module test_auth.py>
+        <Coroutine test_auth_auto_refresh>
+          Test that deps.py automatically refreshes access token if expired but refresh token is valid.
+          Integration test for Task 2.1: Authentication Hardening (Refresh Token).
+      <Module test_auth_api.py>
+        <Coroutine test_root_redirect>
+          ????????
+        <Coroutine test_login_page_loads>
+          ????????? CSRF Cookie ??
+      <Module test_bot_commands_optimization.py>
+        <Coroutine test_db_optimize_command>
+        <Coroutine test_logs_command>
+      <Module test_csrf.py>
+        <Coroutine test_csrf_protection_flow>
+          Integration test for Global CSRF Protection.
+          Task 2.3: CSRF Protection.
+      <Module test_db_archive_recovery.py>
+        <Coroutine test_archive_recovery_on_failure>
+          ?????????? SQLite ???? (???????)
+      <Module test_logs_api.py>
+        <Coroutine test_list_log_files>
+        <Coroutine test_tail_log>
+        <Coroutine test_download_log>
+      <Module test_message_flow.py>
+        ????: ?????? (Message Logic Integration)
+        ???????????????????????????????
+        <Coroutine test_integration_flow_success>
+          ????????:
+          Rule(Keyword 'test') -> Message('test') -> Filter Matches -> Client.forward -> DB Record
+        <Coroutine test_integration_flow_filtered>
+          ???????:
+          Rule(Keyword 'magic') -> Message('boring') -> Filter Block -> No Client Call
+        <Coroutine test_integration_flow_fallback>
+          ??????:
+          ????????????????? _fallback_process_forward_rule ????
+        <Coroutine test_integration_flow_album>
+          ?????(Album)??:
+          ???? grouped_id ?????????
+      <Module test_notification_flow.py>
+        <Coroutine test_notification_flow>
+          Test that events trigger admin notifications
+      <Module test_rule_import_export.py>
+        <Coroutine test_rule_export_import>
+          Test Export and Import of Rules
+      <Module test_security_phase3_api.py>
+        <Coroutine test_full_2fa_flow>
+        <Coroutine test_ip_guard_integration_mocked>
+          Test that IPGuardMiddleware correctly blocks requests when service denies access.
+      <Module test_stats_api.py>
+        <Coroutine test_get_system_resources>
+        <Coroutine test_get_stats_series>
+        <Coroutine test_get_stats_fragment>
+      <Module test_stats_persistence.py>
+        <Coroutine test_stats_buffering_and_flush>
+          Test StatsRepository buffering and flushing mechanism
+      <Module test_user_api.py>
+        <Coroutine test_list_users_unauthorized>
+        <Coroutine test_user_management_flow>
+        <Coroutine test_regular_user_forbidden>
+      <Module test_web_full_link.py>
+        <Coroutine test_web_full_link_rule_cycle>
+          Scenario A: Rule Config Cycle
+          Web Create -> DB Verify -> Mock Handler -> Web Verify Log
+      <Module test_web_system_config.py>
+        <Coroutine test_system_config_cycle>
+          Scenario B: System Configuration and Hot Reload
+          1. Web: Update system config (allow_registration).
+          2. Store: DB update.
+          3. Web: Get config verify consistency.
+    <Dir stress>
+      <Module test_db_boom.py>
+        <Class TestDBBoom>
+          <Function test_archive_force_boom>
+            Populate DB with significant data -> Force Archive -> Verify Vacuum
+    <Dir unit>
+      <Dir core>
+        <Module test_container.py>
+          Core Container ??
+          ?????????????
+          <Class TestContainer>
+            ?? Container ????
+            <Function test_container_initialization>
+              ???????
+            <Function test_container_has_repositories>
+              ??????????
+            <Coroutine test_container_lifecycle>
+              ??????????
+          <Class TestEventBus>
+            ??????
+            <Coroutine test_event_bus_subscribe_and_publish>
+              ?????????
+          <Class TestPipeline>
+            ????????
+            <Coroutine test_pipeline_add_middleware>
+              ??????????
+            <Coroutine test_pipeline_execute>
+              ??????
+        <Module test_logging_logic.py>
+          <Class TestLoggingModels>
+            <Function test_error_log_creation>
+            <Function test_rule_log_creation>
+      <Dir handlers>
+        <Module test_bot_handler.py>
+          Bot Handler ???? (bot_handler.py)
+          ???????????????????
+          <Class TestBotHandler>
+            <Coroutine test_handle_command_not_admin>
+              ??????????
+            <Coroutine test_handle_command_dispatch_start>
+              ?? /start ????
+            <Coroutine test_handle_command_dispatch_with_args>
+              ??????? /add keyword
+            <Coroutine test_handle_link_dispatch>
+              ??????
+        <Module test_callback_handlers.py>
+          Callback Handler ????
+          ???????????????
+          <Class TestCallbackHandlers>
+            ????????????????
+            <Coroutine test_handle_callback_new_menu>
+              ??????????
+            <Coroutine test_handle_callback_media>
+              ?????????
+            <Coroutine test_callback_settings_success>
+              ???????? (callback_settings)
+            <Coroutine test_callback_rule_settings>
+              ?????????? (callback_rule_settings)
+            <Coroutine test_callback_delete>
+              ?????? (callback_delete)
+          <Class TestOtherCallback>
+            ???????? (other_callback.py)
+            <Coroutine test_handle_other_callback_close>
+              ?? close_settings ??
+            <Coroutine test_callback_dedup_scan_now>
+              ?????? (callback_dedup_scan_now)
+          <Class TestMediaCallback>
+            ???????? (media_callback.py)
+            <Coroutine test_handle_media_callback_main>
+              ???????????
+          <Class TestAdminCallback>
+            ????????? (admin_callback.py)
+            <Coroutine test_handle_admin_callback_forbidden>
+              ??????????
+            <Coroutine test_handle_admin_callback_main>
+              ??????????
+            <Coroutine test_handle_admin_callback_db_health>
+              ???????????
+            <Coroutine test_handle_admin_callback_system_status>
+              ????????
+        <Module test_command_handlers.py>
+          Command Handlers ????
+          ?? Telegram ??????????
+          <Class TestBasicCommands>
+            ???????/start, /help, /changelog
+            <Coroutine test_start_command>
+              ?? /start ????????
+            <Coroutine test_help_command>
+              ?? /help ????????
+            <Coroutine test_changelog_command>
+              ?? /changelog ????????
+          <Class TestKeywordCommands>
+            ?????????
+            <Coroutine test_add_keyword_no_args>
+              ?? /add ??????????
+            <Coroutine test_add_keyword_success>
+              ?? /add ??????
+          <Class TestRuleCommands>
+            ????????
+            <Coroutine test_bind_command_no_args>
+              ?? /bind ??????????
+            <Coroutine test_bind_command_success>
+              ?? /bind ????
+          <Class TestSettingsCommands>
+            ?????????
+            <Coroutine test_settings_command>
+              ?? /settings ???????
+          <Class TestReplaceCommands>
+            ????????
+            <Coroutine test_replace_command_no_args>
+              ?? /replace ??????????
+          <Class TestDedupCommands>
+            ????????
+            <Coroutine test_dedup_enable_command_no_rule>
+              ?? /dedup ?????????
+            <Coroutine test_dedup_enable_command_success>
+              ?? /dedup ????
+          <Class TestMediaSettingsCommands>
+            ??????????
+            <Coroutine test_set_duration_command_no_args>
+              ?? /set_duration ????????
+            <Coroutine test_set_resolution_command_no_args>
+              ?? /set_resolution ????????
+            <Coroutine test_set_size_command_no_args>
+              ?? /set_size ????????
+          <Class TestUtilityFunctions>
+            ?????????????
+            <Function test_parse_size_to_kb>
+              ????????
+          <Class TestClearCommands>
+            ??????
+            <Coroutine test_clear_all_command>
+              ?? /clear_all ??
+          <Class TestRemoveCommands>
+            ??????
+            <Coroutine test_remove_keyword_command>
+              ?? /remove_keyword ??
+            <Coroutine test_remove_replace_command>
+              ?? /remove_replace ??
+          <Class TestListCommands>
+            ????????
+            <Coroutine test_list_keyword>
+              ?? /list_keyword
+            <Coroutine test_list_replace>
+              ?? /list_replace
+          <Class TestMaintenanceCommands>
+            <Coroutine test_db_info_command>
+            <Coroutine test_system_status_command>
+          <Class TestUFBCommands>
+            <Coroutine test_ufb_bind_command_success>
+            <Coroutine test_ufb_item_change_command>
+          <Class TestAdminCommands>
+            <Coroutine test_admin_panel_command>
+          <Class TestExportImportCommands>
+            <Coroutine test_export_replace_command>
+            <Coroutine test_import_replace_command>
+          <Class TestMediaActionCommands>
+            <Coroutine test_handle_download_command>
+            <Coroutine test_handle_dedup_scan_command>
+        <Module test_user_handler.py>
+          User Handler ???? (user_handler.py)
+          ?????????????????????
+          <Class TestUserHandler>
+            <Coroutine test_process_forward_rule_basic_flow>
+              ????????????? (Happy Path)
+            <Coroutine test_process_forward_rule_custom_config>
+              ??????????
+            <Coroutine test_process_forward_rule_fallback_flow>
+              ???????? (Fallback)
+            <Coroutine test_fallback_logic_execution>
+              ?? _fallback_process_forward_rule ??????
+      <Dir listeners>
+        <Module test_message_listener.py>
+          <Coroutine test_user_message_listener_normal_flow>
+          <Coroutine test_user_message_listener_manual_download>
+          <Coroutine test_user_message_listener_manual_download_invalid_input>
+      <Dir models>
+        <Module test_user.py>
+          <Coroutine test_create_user>
+            ??????
+      <Dir repositories>
+        <Module test_rule_repo.py>
+          <Class TestRuleRepository>
+            <Coroutine test_find_chat>
+            <Coroutine test_get_rules_for_source_chat>
+            <Coroutine test_toggle_rule>
+            <Coroutine test_get_all_standard_pagination>
+        <Module test_stats_repo.py>
+          <Class TestStatsRepository>
+            <Coroutine test_log_action>
+            <Coroutine test_increment_stats_new_and_update>
+            <Coroutine test_get_error_logs_pagination>
+        <Module test_task_repo.py>
+          <Class TestTaskRepository>
+            <Coroutine test_push_and_deduplication>
+            <Coroutine test_fetch_next_order_and_status>
+            <Coroutine test_complete_and_fail>
+            <Coroutine test_fail_or_retry>
+            <Coroutine test_rescue_stuck_tasks>
+        <Module test_user_repo.py>
+          <Class TestUserRepository>
+            <Coroutine test_create_and_get_user>
+            <Coroutine test_get_all_users>
+            <Coroutine test_update_user_status>
+            <Coroutine test_delete_user>
+            <Coroutine test_get_user_count>
+      <Package security>
+        <Module test_csrf.py>
+          <Class TestCSRFValidation>
+            <Coroutine test_safe_methods_bypass>
+            <Coroutine test_missing_cookie>
+            <Coroutine test_header_validation_success>
+            <Coroutine test_form_validation_success>
+            <Coroutine test_token_mismatch>
+            <Coroutine test_new_token_in_scope>
+        <Module test_password_validator.py>
+          <Class TestPasswordValidator>
+            <Function test_validate_empty>
+            <Function test_validate_length>
+            <Function test_validate_requirements>
+            <Function test_calculate_strength>
+            <Function test_punishment_repeat_chars>
+            <Function test_punishment_common_patterns>
+            <Function test_get_password_strength_api>
+        <Module test_rate_limiter.py>
+          <Class TestLoginRateLimiter>
+            <Function test_record_failure_and_lockout>
+            <Function test_is_locked_case_insensitivity>
+            <Function test_record_success_clears_attempts>
+            <Function test_manual_unlock>
+            <Function test_get_lockout_info>
+            <Function test_time_window_cleanup>
+            <Function test_auto_unlock_after_duration>
+      <Dir services>
+        <Module test_access_control_service.py>
+          <Coroutine test_check_ip_access_default_allow>
+            If no rules exist, default to allow.
+          <Coroutine test_check_ip_access_blocked>
+            If IP is in blacklist, deny.
+          <Coroutine test_check_ip_access_not_in_whitelist>
+            If a whitelist exists and IP is not in it, deny.
+          <Coroutine test_add_rule_new>
+            Test adding a new rule.
+          <Coroutine test_delete_rule_success>
+            Test deleting an existing rule.
+        <Module test_analytics_service.py>
+          <Coroutine test_get_analytics_overview>
+          <Coroutine test_get_system_status>
+          <Coroutine test_get_performance_metrics>
+        <Module test_audit_service.py>
+          <Coroutine test_audit_log_creation>
+            ??????????
+          <Coroutine test_get_logs>
+            ????????
+        <Module test_authentication_service.py>
+          <Coroutine test_authenticate_user_success>
+          <Coroutine test_authenticate_user_fail_password>
+          <Coroutine test_create_tokens>
+          <Coroutine test_refresh_access_token>
+          <Coroutine test_generate_2fa_secret>
+          <Coroutine test_verify_and_enable_2fa_success>
+          <Coroutine test_verify_2fa_login_success>
+          <Coroutine test_disable_2fa>
+        <Module test_config_service.py>
+          <Class TestConfigService>
+            <Coroutine test_set_and_get_db>
+            <Coroutine test_get_data_types>
+            <Coroutine test_fallback_logic>
+            <Coroutine test_subscribe_changes>
+            <Coroutine test_get_sync>
+        <Module test_dedup_service.py>
+          <Class TestDedupService>
+            <Coroutine test_get_dedup_config>
+            <Coroutine test_update_config>
+            <Coroutine test_toggle_feature>
+            <Coroutine test_set_time_window>
+            <Coroutine test_clear_all_cache>
+            <Coroutine test_record_signature>
+            <Coroutine test_is_duplicate>
+        <Module test_exception_handler.py>
+          GlobalExceptionHandler ????
+          
+          ??:
+          - ????
+          - ?????????
+          - ????
+          - ????
+          
+          ???: 2026-01-11
+          Phase G.2 ??
+          <Class TestGlobalExceptionHandler>
+            GlobalExceptionHandler ????
+            <Function test_init>
+              ?????
+            <Function test_compute_exception_hash>
+              ????????
+            <Coroutine test_handle_exception_first_time>
+              ????????
+            <Coroutine test_handle_exception_aggregation>
+              ??????
+            <Coroutine test_create_task_success>
+              ?????? - ????
+            <Coroutine test_create_task_with_exception>
+              ?????? - ????
+            <Coroutine test_task_cancellation>
+              ??????
+            <Function test_add_callback>
+              ??????
+            <Function test_remove_callback>
+              ??????
+            <Coroutine test_invoke_callbacks>
+              ??????
+            <Function test_get_stats>
+              ??????
+            <Function test_task_wrapper_decorator>
+              ??????????
+          <Class TestExceptionAggregate>
+            ExceptionAggregate ????
+            <Function test_init>
+              ?????
+            <Function test_increment>
+              ??????
+        <Module test_forward_service.py>
+          <Class TestForwardService>
+            <Coroutine test_get_forward_stats_empty>
+            <Coroutine test_get_forward_stats_with_data>
+            <Coroutine test_get_forward_rules>
+            <Coroutine test_create_forward_rule>
+            <Coroutine test_update_delete_forward_rule>
+        <Module test_recovery_codes.py>
+          Recovery Codes ????
+          
+          ?? authentication_service ???????:
+          - ?????
+          - ????
+          - ?????
+          - ????
+          
+          ???: 2026-01-11
+          Phase B.1: Recovery Codes
+          <Class TestRecoveryCodes>
+            Recovery Codes ????
+            <Function test_generate_recovery_codes_format>
+              ?????????
+            <Function test_generate_recovery_codes_uniqueness>
+              ????????
+            <Function test_hash_recovery_codes_structure>
+              ?????????
+            <Function test_hash_recovery_codes_consistency>
+              ???????
+            <Coroutine test_generate_recovery_codes_integration>
+              ????????????
+            <Coroutine test_verify_recovery_code_success>
+              ?????????
+            <Coroutine test_verify_recovery_code_already_used>
+              ????????
+            <Coroutine test_verify_recovery_code_invalid>
+              ???????
+            <Coroutine test_get_recovery_codes_status>
+              ?????????
+            <Coroutine test_get_recovery_codes_status_no_codes>
+              ????????? (????)
+        <Module test_rule_management_service.py>
+          <Class TestRuleManagementService>
+            <Coroutine test_get_rule_list>
+            <Coroutine test_create_rule>
+            <Coroutine test_add_delete_keywords>
+        <Module test_rule_service.py>
+          <Class TestRuleQueryService>
+            <Coroutine test_get_rules_for_source_chat_basic>
+            <Coroutine test_get_rules_with_mapping>
+            <Coroutine test_cache_logic>
+            <Coroutine test_id_variant_matching>
+        <Module test_session_service.py>
+          <Class TestSessionService>
+            <Coroutine test_get_history_task_status_no_task>
+            <Coroutine test_get_history_task_status_running>
+            <Coroutine test_get_selected_rule_success>
+            <Coroutine test_get_selected_rule_none>
+            <Coroutine test_update_time_range>
+            <Coroutine test_get_delay_settings>
+            <Coroutine test_start_history_task_no_selection>
+            <Coroutine test_start_history_task_success>
+            <Function test_calculate_estimated_time>
+        <Module test_task_service.py>
+          <Class TestTaskService>
+            <Coroutine test_list_tasks_empty>
+            <Coroutine test_list_tasks_with_data>
+            <Coroutine test_get_task_detail>
+            <Coroutine test_get_recent_failed_samples>
+      <Module test_imports_check.py>
+        <Function test_critical_module_imports>
+          Test that critical modules can be imported without errors (Circular Import checks).
+          This test ensures that the refactoring to fix circular imports remains effective.
+      <Dir utils>
+        <Dir db>
+          <Module test_archive_store.py>
+            <Class TestArchiveStore>
+              <Function test_write_parquet_basic>
+                Test basic writing of rows to parquet
+              <Function test_query_parquet_duckdb>
+                Test querying the archive
+              <Function test_compact_small_files>
+                Test compacting small files
+              <Function test_write_chunking>
+                Test that large datasets are chunked
+            <Class TestArchiveErrorRecovery>
+              <Function test_write_io_error_cleanup>
+                Test that temporary files are cleaned up if writing fails
+          <Module test_backup.py>
+            <Class TestBackup>
+              <Function test_backup_success_sqlite_api>
+              <Function test_backup_fallback_copy>
+              <Function test_rotate_backups>
+        <Module test_core_utils.py>
+          Utils ??????
+          ?? logger_utils, error_handler ?????
+          <Class TestLoggerUtils>
+            ??????
+            <Function test_get_logger>
+              ???? logger
+            <Function test_logger_with_different_names>
+              ??????? logger
+          <Class TestErrorHandler>
+            ?????????
+            <Coroutine test_handle_errors_decorator_success>
+              ?? handle_errors ??? - ????
+            <Coroutine test_handle_errors_decorator_with_exception>
+              ?? handle_errors ??? - ????
+          <Class TestConstants>
+            ??????
+            <Function test_temp_dir_exists>
+              ?? TEMP_DIR ????
+            <Function test_version_constants>
+              ????????
+          <Class TestSettings>
+            ??????
+            <Function test_settings_import>
+              ????????
+            <Function test_settings_has_database_url>
+              ????????? URL
+        <Module test_processing_utils.py>
+          Utils ??????
+          ?? content_filter, replace_engine ?????
+          <Class TestReplaceEngine>
+            ????????
+            <Function test_simple_text_replacement>
+              ????????
+            <Function test_regex_replacement>
+              ?????????
+          <Class TestContentFilter>
+            ???????
+            <Function test_keyword_filter>
+              ???????
+            <Function test_regex_filter>
+              ?????????
+          <Class TestAutoDelete>
+            ????????
+            <Coroutine test_reply_and_delete_mock>
+              ?? reply_and_delete ?? (Mock)
+          <Class TestCommonHelpers>
+            ????????
+            <Function test_get_db_ops_exists>
+              ?? get_db_ops ????
+            <Coroutine test_get_db_ops_returns_dboperations>
+              ?? get_db_ops ?? DBOperations ??
+      <Package web>
+        <Module test_rule_router.py>
+          Web ?????? - Rule Router
+          
+          ?? rule_router.py ??????
+          <Class TestRuleRouterGetDetail>
+            ?? GET /api/rules/{rule_id} ??
+            <Coroutine test_get_rule_detail_success>
+              ??????????
+            <Coroutine test_get_rule_detail_not_found>
+              ???????
+          <Class TestRuleRouterUpdate>
+            ?? PUT /api/rules/{rule_id} ??
+            <Coroutine test_update_rule_success>
+              ????????
+            <Coroutine test_update_rule_no_changes>
+              ??????
+          <Class TestRuleRouterKeywords>
+            ?????????
+            <Coroutine test_add_keywords_success>
+              ???????
+          <Class TestRuleRouterReplaceRules>
+            ??????????
+            <Coroutine test_add_replace_rules_success>
+              ????????
+        <Module test_system_router.py>
+          Web ?????? - System Router
+          
+          ?? system_router.py ????
+          <Class TestSystemRouterStats>
+            ?? /api/system/stats ??
+            <Coroutine test_get_system_stats_function_exists>
+              ?? get_system_stats ????
+            <Coroutine test_get_config_function_exists>
+              ?? get_config ????
+          <Class TestSystemRouterAuditLogs>
+            ????????
+            <Coroutine test_get_audit_logs_function_exists>
+              ?? get_audit_logs ????
+          <Class TestSystemRouterBackup>
+            ????????
+            <Coroutine test_trigger_backup_function_exists>
+              ?? trigger_backup ????
+            <Coroutine test_list_backups_function_exists>
+              ?? list_backups ????
+          <Class TestSystemRouterSettings>
+            ????????
+            <Coroutine test_get_full_settings_function_exists>
+              ?? get_full_settings ????
+            <Coroutine test_update_settings_function_exists>
+              ?? update_settings ????
+          <Class TestSystemRouterRouter>
+            ??????
+            <Function test_router_prefix>
+              ??????
+            <Function test_router_has_routes>
+              ???????
+        <Module test_websocket_router.py>
+          Web ?????? - WebSocket Router
+          
+          ?? websocket_router.py ????
+          <Class TestConnectionManager>
+            ?? WebSocket ?????
+            <Coroutine test_connect>
+              ??????
+            <Coroutine test_disconnect>
+              ??????
+            <Coroutine test_subscribe>
+              ??????
+            <Coroutine test_unsubscribe>
+              ??????
+            <Coroutine test_send_personal>
+              ????????
+            <Coroutine test_broadcast_all>
+              ?????????
+            <Coroutine test_broadcast_topic>
+              ?????????
+            <Function test_get_stats>
+              ????????
+          <Class TestBroadcastHelpers>
+            ????????
+            <Coroutine test_broadcast_stats_update>
+              ????????
+            <Coroutine test_broadcast_rule_change>
+              ????????
+            <Coroutine test_broadcast_system_event>
+              ????????
+
+=================================== ERRORS ====================================
+____________ ERROR collecting tests/integration/test_rules_api.py _____________
+ImportError while importing test module 'C:\Users\lihuo\Desktop\??\TG ONE\tests\integration\test_rules_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+E:\python\python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\integration\test_rules_api.py:4: in <module>
+    from web_admin.fastapi_app import _issue_token
+E   ImportError: cannot import name '_issue_token' from 'web_admin.fastapi_app' (C:\Users\lihuo\Desktop\??\TG ONE\web_admin\fastapi_app.py)
+=========================== short test summary info ===========================
+ERROR tests/integration/test_rules_api.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+==================== 261 tests collected, 1 error in 1.15s ====================
