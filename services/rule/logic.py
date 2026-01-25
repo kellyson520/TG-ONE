@@ -63,7 +63,7 @@ class RuleLogicService:
                 content=rr.content
             ))
             
-        await self.container.rule_repo.save_rule_orm(target_rule)
+        await self.container.rule_repo.save_rule(target_rule)
         self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'message': 'Rule copied successfully'}
@@ -88,7 +88,7 @@ class RuleLogicService:
         
         is_new = False
         if not existing_rule:
-            await self.container.rule_repo.create_rule_orm(
+            await self.container.rule_repo.create_rule(
                 source_chat_id=source_chat_obj.id,
                 target_chat_id=target_chat_obj.id,
                 enable_rule=True,
@@ -131,7 +131,7 @@ class RuleLogicService:
                 added_count += 1
         
         if added_count > 0:
-            await self.container.rule_repo.save_rule_orm(rule)
+            await self.container.rule_repo.save_rule(rule)
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count}
@@ -148,7 +148,7 @@ class RuleLogicService:
         deleted_count = initial_count - len(rule.keywords)
         
         if deleted_count > 0:
-            await self.container.rule_repo.save_rule_orm(rule)
+            await self.container.rule_repo.save_rule(rule)
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
@@ -225,7 +225,7 @@ class RuleLogicService:
                 added_count += 1
         
         if added_count > 0:
-            await self.container.rule_repo.save_rule_orm(rule)
+            await self.container.rule_repo.save_rule(rule)
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count}
@@ -242,7 +242,7 @@ class RuleLogicService:
         deleted_count = initial_count - len(rule.replace_rules)
         
         if deleted_count > 0:
-            await self.container.rule_repo.save_rule_orm(rule)
+            await self.container.rule_repo.save_rule(rule)
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}

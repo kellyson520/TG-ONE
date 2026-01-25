@@ -204,13 +204,17 @@ class RuleRepository:
             obj = (await session.execute(stmt)).scalar_one_or_none()
             return RuleDTO.model_validate(obj) if obj else None
 
-    async def create_rule_orm(self, **kwargs) -> ForwardRule:
+    async def create_rule(self, **kwargs) -> RuleDTO:
+        """创建规则并返回 DTO"""
         async with self.db.session() as session:
             rule = ForwardRule(**kwargs)
             session.add(rule)
             await session.commit()
             await session.refresh(rule)
-            return rule
+            # 重新加载以包含关联数据
+            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(id=rule.id)
+            obj = (await session.execute(stmt)).scalar_one()
+            return RuleDTO.model_validate(obj)
 
     async def delete_all_rules(self) -> int:
         async with self.db.session() as session:
@@ -224,12 +228,16 @@ class RuleRepository:
             stmt = select(func.count(ForwardRule.id))
             return (await session.execute(stmt)).scalar() or 0
 
-    async def save_rule_orm(self, rule: ForwardRule) -> ForwardRule:
+    async def save_rule(self, rule: ForwardRule) -> RuleDTO:
+        """保存规则 ORM 并返回 DTO"""
         async with self.db.session() as session:
             session.add(rule)
             await session.commit()
             await session.refresh(rule)
-            return rule
+            # 重新加载以确保 DTO 验证通过
+            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(id=rule.id)
+            obj = (await session.execute(stmt)).scalar_one()
+            return RuleDTO.model_validate(obj)
 
     async def delete_orphan_chats(self, chat_ids: List[int]) -> int:
         async with self.db.session() as session:

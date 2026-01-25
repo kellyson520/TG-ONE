@@ -3,13 +3,11 @@ import os
 from unittest.mock import MagicMock, AsyncMock, patch
 from utils.helpers.common import (
     check_keywords,
-    check_keywords_fast,
     is_admin,
     get_user_id,
-    get_admin_list,
-    process_whitelist_mode,
-    process_blacklist_mode
+    get_admin_list
 )
+from services.rule.filter import RuleFilterService
 from enums.enums import ForwardMode
 
 # Mock keyword class
@@ -36,7 +34,7 @@ class TestCommonHelpers:
     
     # --- Keyword Checking Tests ---
 
-    @patch('utils.helpers.common.ACManager')
+    @patch('services.rule.filter.ACManager')
     async def test_check_keywords_fast_plain(self, mock_ac_manager):
         # Mock AC execution to fallback or behave predictably
         mock_ac = MagicMock()
@@ -45,19 +43,19 @@ class TestCommonHelpers:
         
         # Test positive match via AC
         keywords = [MockKeyword("hello")]
-        assert await check_keywords_fast(keywords, "hello there") is True
+        assert await RuleFilterService.check_keywords_fast(keywords, "hello there") is True
 
         # Test fallback manual check (simulate AC error or empty)
         mock_ac_manager.get_automaton.side_effect = Exception("AC Error")
-        assert await check_keywords_fast(keywords, "hello there") is True  # Should fallback to loop
-        assert await check_keywords_fast(keywords, "no match") is False
+        assert await RuleFilterService.check_keywords_fast(keywords, "hello there") is True  # Should fallback to loop
+        assert await RuleFilterService.check_keywords_fast(keywords, "no match") is False
 
     async def test_check_keywords_fast_regex(self):
         keywords = [MockKeyword(r"\d{3}", is_regex=True)]
-        assert await check_keywords_fast(keywords, "abc 123 def") is True
-        assert await check_keywords_fast(keywords, "no numbers") is False
+        assert await RuleFilterService.check_keywords_fast(keywords, "abc 123 def") is True
+        assert await RuleFilterService.check_keywords_fast(keywords, "no numbers") is False
 
-    @patch('utils.helpers.common.ACManager')
+    @patch('services.rule.filter.ACManager')
     async def test_check_keywords_whitelist_mode(self, mock_ac_manager):
         mock_ac_manager.get_automaton.side_effect = Exception("Fallback")
         
@@ -70,7 +68,7 @@ class TestCommonHelpers:
         # No match
         assert await check_keywords(rule, "this is bad") is False
 
-    @patch('utils.helpers.common.ACManager')
+    @patch('services.rule.filter.ACManager')
     async def test_check_keywords_blacklist_mode(self, mock_ac_manager):
         mock_ac_manager.get_automaton.side_effect = Exception("Fallback")
 
@@ -83,7 +81,7 @@ class TestCommonHelpers:
         # No match (should forward)
         assert await check_keywords(rule, "this is good") is True
 
-    @patch('utils.helpers.common.ACManager')
+    @patch('services.rule.filter.ACManager')
     async def test_check_keywords_whitelist_reversed_blacklist(self, mock_ac_manager):
         mock_ac_manager.get_automaton.side_effect = Exception("Fallback")
         
@@ -101,7 +99,7 @@ class TestCommonHelpers:
         # Match only key1 (missing key2)
         assert await check_keywords(rule, "key1 only") is False
 
-    @patch('utils.helpers.common.ACManager')
+    @patch('services.rule.filter.ACManager')
     async def test_check_keywords_blacklist_reversed_whitelist(self, mock_ac_manager):
         mock_ac_manager.get_automaton.side_effect = Exception("Fallback")
         

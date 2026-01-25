@@ -1,12 +1,27 @@
 import argparse
 import subprocess
 import sys
-import re
+import os
+
+def get_git_env():
+    """Ensure Git output is in English for consistency and UTF-8 handling."""
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    # Windows-specific: ensure Python uses UTF-8 for IO
+    env["PYTHONIOENCODING"] = "utf-8"
+    return env
 
 def run_git(args):
     """Run git command and return output."""
     try:
-        return subprocess.check_output(["git"] + args, stderr=subprocess.STDOUT, text=True, encoding='utf-8').strip()
+        # Pass env to force consistent output language
+        return subprocess.check_output(
+            ["git"] + args, 
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            encoding='utf-8',
+            env=get_git_env()
+        ).strip()
     except subprocess.CalledProcessError as e:
         # Don't exit yet, let caller handle
         raise e
@@ -21,7 +36,7 @@ def optimize_configs():
     ]
     print("🛠️  Applying Git network optimizations...")
     for key, val in configs:
-        subprocess.run(["git", "config", key, val], check=False)
+        subprocess.run(["git", "config", key, val], check=False, env=get_git_env())
 
 def get_noreply_email(username):
     """Guess GitHub noreply email."""
@@ -38,10 +53,10 @@ def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
             user_name = run_git(["config", "user.name"])
             noreply = get_noreply_email(user_name)
             print(f"🔒 Ensuring Privacy: Switching email to {noreply}")
-            subprocess.run(["git", "config", "user.email", noreply], check=True)
+            subprocess.run(["git", "config", "user.email", noreply], check=True, env=get_git_env())
             # Try to amend the last commit to match this new email
             print("✍️  Amending last commit author...")
-            subprocess.run(["git", "commit", "--amend", "--reset-author", "--no-edit"], check=False)
+            subprocess.run(["git", "commit", "--amend", "--reset-author", "--no-edit"], check=False, env=get_git_env())
         except Exception as e:
             print(f"⚠️ Could not auto-fix privacy: {e}")
 
@@ -52,7 +67,7 @@ def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
         cmd.insert(2, "--force")
 
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=get_git_env())
         
         if proc.returncode == 0:
             print("✅ Push Successful!")
@@ -64,13 +79,13 @@ def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
             print(err)
             
             # Auto-Diagnosis
-            if "GH007" in err:
+            if "GH007" in err or "privacy" in err.lower():
                 print("\n🚨 [DIAGNOSIS]: GitHub Blocked Private Email.")
                 print("👉 Recommendation: Rerun with --privacy-fix")
             elif "408" in err or "RPC failed" in err:
                 print("\n🚨 [DIAGNOSIS]: Network Timeout.")
                 print("👉 Optimization applied. Retry might work.")
-            elif "fast-forward" in err:
+            elif "fast-forward" in err or "rejected" in err:
                 print("\n🚨 [DIAGNOSIS]: Remote is ahead.")
                 print("👉 Run: git pull --rebase")
             return False
@@ -88,4 +103,9 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    smart_push(args.remote, args.branch, args.privacy_fix, args.force)
+    if args.action is None and len(sys.argv) == 1:
+        # Default behavior if no args
+        smart_push()
+    else:
+        # Actually parse args if provided
+        smart_push(args.remote, args.branch, args.privacy_fix, args.force)

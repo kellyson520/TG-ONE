@@ -43,5 +43,19 @@
   "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_for_source_chat_basic",
   "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_with_mapping",
   "tests/unit/services/test_rule_service.py::TestRuleQueryService::test_id_variant_matching",
-  "tests/unit/test_simple.py::test_pass"
+  "tests/unit/services/test_user_service.py::TestUserService::test_is_admin_channel",
+  "tests/unit/services/test_user_service.py::TestUserService::test_is_admin_db",
+  "tests/unit/services/test_user_service.py::TestUserService::test_is_admin_env",
+  "tests/unit/test_simple.py::test_pass",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_blacklist_mode",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_blacklist_reversed_whitelist",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_fast_plain",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_fast_regex",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_whitelist_mode",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_whitelist_reversed_blacklist",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_get_admin_list_admins_set",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_get_admin_list_fallback_user_id",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_get_user_id",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_is_admin_in_env_list",
+  "tests/unit/utils/test_common.py::TestCommonHelpers::test_is_admin_not_admin"
 ]

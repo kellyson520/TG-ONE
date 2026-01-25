@@ -12,16 +12,27 @@ VERSION_FILE = "version.py"
 
 # --- Helpers ---
 
+def get_git_env():
+    """Ensure Git output is in English for consistency and UTF-8 handling."""
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    env["LANG"] = "en_US.UTF-8"
+    # Windows-specific: ensure Python uses UTF-8 for IO
+    env["PYTHONIOENCODING"] = "utf-8"
+    return env
+
 def run_git(args: List[str], check: bool = True) -> str:
     """Run git command and return output."""
     try:
-        # Using forcing UTF-8 encoding to avoid Windows encoding issues
+        # Force UTF-8 encoding to avoid Windows encoding issues
+        # Also force English output for parsing
         result = subprocess.run(
             ["git"] + args, 
             capture_output=True, 
             text=True, 
             encoding='utf-8', 
-            check=check
+            check=check,
+            env=get_git_env()
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
@@ -46,7 +57,6 @@ def show_git_log(limit: int = 20):
     print(f"\n📜 最近 {limit} 条提交记录:")
     try:
         # Format: hash|time|author|message
-        # %h: short hash, %cd: commit date, %an: author name, %s: subject
         logs = run_git(["log", f"-n {limit}", "--pretty=format:%h | %cd | %an | %s", "--date=format:%Y-%m-%d %H:%M"], check=False).splitlines()
         for i, line in enumerate(logs):
             print(f"[{i}]\t{line}")
@@ -68,7 +78,7 @@ def pull_changes(branch: str = "main", rebase: bool = True):
         print("⚠️  拉取冲突！请手动解决冲突后运行: git rebase --continue")
         sys.exit(1)
 
-def bump_version(part: str = "patch"):
+def bump_version(part: str = "patch", extra_msg: str = None):
     if not os.path.exists(VERSION_FILE):
         print(f"⚠️  未找到 {VERSION_FILE}，跳过版本号更新。")
         return
@@ -94,18 +104,33 @@ def bump_version(part: str = "patch"):
         f.write(new_content)
         
     print(f"🔖 版本号已升级: {match.group(0)} -> {new_version}")
+    
+    # 构造 Rich Commit Message
+    commit_cmd = ["commit", "-m", f"chore(release): bump version to {new_version}"]
+    
+    # 添加额外描述信息 (Rich Context)
+    if extra_msg:
+        commit_cmd.extend(["-m", extra_msg])
+    
     run_git(["add", VERSION_FILE])
-    run_git(["commit", "-m", f"chore(release): bump version to {new_version}"])
-    run_git(["tag", f"v{new_version}"])
+    run_git(commit_cmd)
+    
+    # 构造 Rich Tag Message
+    tag_msg = f"v{new_version} Release"
+    if extra_msg:
+        tag_msg += f"\n\n{extra_msg}"
+        
+    run_git(["tag", "-a", f"v{new_version}", "-m", tag_msg])
     print(f"🏷️  已打标签: v{new_version}")
 
-def generate_changelog(since_tag: str = None):
+def generate_changelog(since_tag: str = None) -> List[str]:
+    """Generates MD changelog and returns the new content lines for context."""
     try:
         range_spec = f"{since_tag}..HEAD" if since_tag else "HEAD"
         logs = run_git(["log", range_spec, "--pretty=format:%h|%an|%ad|%s", "--date=short"], check=False).splitlines()
     except: logs = []
 
-    categorized: Dict[str, List[str]] = {k: [] for k in ["feat", "fix", "perf", "refactor", "chore", "other"]}
+    categorized: Dict[str, List[str]] = {k: [] for k in ["feat", "fix", "perf", "refactor", "chore", "test", "other"]}
     pattern = re.compile(r"^(\w+)(?:\(([^)]+)\))?:\s*(.+)$")
     
     for line in logs:
@@ -120,7 +145,7 @@ def generate_changelog(since_tag: str = None):
         if match:
             ctype = match.group(1).lower()
             if ctype in categorized: key = ctype
-            elif ctype in ["docs", "style", "test"]: key = "chore"
+            elif ctype in ["docs", "style"]: key = "chore"
         
         # Display string
         scope = f"**{match.group(2)}**:" if match and match.group(2) else ""
@@ -128,22 +153,37 @@ def generate_changelog(since_tag: str = None):
         display = f"- {scope} {content} ({sha}) @{author}"
         categorized[key].append(display)
 
-    # Write
+    # Generate MD Content
     today = datetime.now().strftime('%Y-%m-%d')
+    # Title
     md_lines = [f"\n## 📅 {today} 更新摘要\n"]
-    mapping = [("🚀 新功能", "feat"), ("🐛 修复", "fix"), ("⚡ 性能", "perf"), ("♻️ 重构", "refactor"), ("🔧 工具/文档", "chore"), ("📦 其他", "other")]
+    
+    # Summary of changes for commit message
+    summary_lines = []
+    
+    mapping = [
+         ("🚀 新功能", "feat"), 
+         ("🐛 修复", "fix"), 
+         ("⚡ 性能", "perf"), 
+         ("♻️ 重构", "refactor"), 
+         ("🔧 工具/文档", "chore"),
+         ("🧪 测试", "test"), 
+         ("📦 其他", "other")
+    ]
     
     has_content = False
     for title, key in mapping:
         if categorized[key]:
             has_content = True
             md_lines.append(f"### {title}")
-            md_lines.extend(categorized[key])
+            for item in categorized[key]:
+                 md_lines.append(item)
+                 summary_lines.append(f"{title}: {item.split(' @')[0]}") # Simplified for commit msg
             md_lines.append("")
 
     if not has_content:
         print("⚠️  没有发现新提交，跳过日志。")
-        return
+        return []
 
     if os.path.exists(CHANGELOG_FILE):
         with open(CHANGELOG_FILE, 'r', encoding='utf-8') as f: old = f.read()
@@ -157,6 +197,8 @@ def generate_changelog(since_tag: str = None):
         
     print(f"📝 变更日志已写入: {CHANGELOG_FILE}")
     run_git(["add", CHANGELOG_FILE])
+    
+    return summary_lines
 
 def rollback_menu():
     """Interactive Rollback Menu with History View"""
@@ -185,41 +227,31 @@ def rollback_menu():
         if not sel: return
         
         if sel.isdigit() and int(sel) < len(logs):
-            # Extract hash from log line: "abc1234 | ..."
             target_hash = logs[int(sel)].split(" | ")[0]
         else:
             target_hash = sel
     
     if not target_hash:
-        print("❌ 未选择目标")
+        print("❌ 无效目标")
         return
 
     print(f"\n🎯 选定目标: {target_hash}")
-    print("----------------------------------------------------------------")
-    print("A. Soft Reset (软重置) -> 回到目标版本，但保留文件变更在暂存区 (适合撤回提交)")
-    print("B. Hard Reset (硬重置) -> 彻底回到目标版本，【删除】之后的所有变更")
-    print("C. Revert (反转提交)   -> 创建新提交以撤销【目标版本】的更改 (适合线上回滚)")
-    print("----------------------------------------------------------------")
+    mode_input = input("👉 请选择模式 (Soft/Hard/Revert): ").lower().strip()
     
-    mode_input = input("👉 请选择模式 (A/B/C): ").lower().strip()
-    
-    if mode_input == 'c': # Revert
-        print(f"🔙 正在撤销 (Revert) 提交 {target_hash}...")
+    if mode_input.startswith("r"): # Revert
+        print(f"🔙 正在撤销 (Revert) {target_hash}...")
         run_git(["revert", "--no-edit", target_hash], check=False)
         print("✅ Revert 完成。")
         
-    elif mode_input in ['a', 'b']: # Reset
-        mode = "hard" if mode_input == 'b' else "soft"
+    elif mode_input.startswith("h") or mode_input.startswith("s"): # Reset
+        mode = "hard" if mode_input.startswith("h") else "soft"
         if mode == "hard":
-            ans = input(f"🧨 警告: 这将永久毁灭 {target_hash} 之后的所有修改！确认? (yes/no): ")
+            ans = input(f"🧨 警告: 永久毁灭确认? (yes/no): ")
             if ans != "yes": return
             
         print(f"🔙 正在重置 (Reset --{mode}) 到 {target_hash}...")
         run_git(["reset", f"--{mode}", target_hash])
         print(f"✅ Reset 完成。")
-    else:
-        print("❌ 无效选择")
-
 
 # --- Main CLI ---
 
@@ -230,7 +262,8 @@ if __name__ == "__main__":
     subparsers.add_parser("pull", help="拉取")
     
     r_parser = subparsers.add_parser("release", help="发布")
-    r_parser.add_argument("--type", default="patch")
+    r_parser.add_argument("--type", default="patch", help="patch/minor/major")
+    r_parser.add_argument("--msg", "-m", help="Release context message. If not provided, auto-generates from stats.", default=None)
     
     subparsers.add_parser("changelog", help="日志")
     subparsers.add_parser("rollback", help="回滚")
@@ -243,9 +276,22 @@ if __name__ == "__main__":
     elif args.action == "release":
         ensure_clean_worktree()
         pull_changes()
-        generate_changelog()
+        
+        # Generates changelog and gets summary
+        summary = generate_changelog()
+        
+        # Commit Changelog separately
         run_git(["commit", "-m", "docs(changelog): update changelog"], check=False)
-        bump_version(args.type)
+        
+        # Prepare Release Msg
+        release_msg = args.msg
+        if not release_msg and summary:
+             # Auto-compose release message from top 5 changes if not provided
+             # Limit to avoid huge commit messages
+             release_msg = "Updates:\n" + "\n".join(summary[:10])
+             if len(summary) > 10: release_msg += "\n... and more."
+        
+        bump_version(args.type, release_msg)
         print("\n🎉 发布完成！请运行: git push --follow-tags origin main")
     else:
         parser.print_help()

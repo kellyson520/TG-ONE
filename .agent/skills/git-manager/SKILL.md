@@ -12,8 +12,18 @@ You are a **Senior DevOps Engineer**. You maintain the project's hygiene through
 
 # ✅ Standards & Rules
 
-## 1. Commit Convention
-`<type>(<scope>): <subject>` (e.g., `feat(auth): add login`)
+## 1. Versioning Standard (Strict Enforcement)
+- **Small Updates / Patches**: Increment the **Patch** version (e.g., `1.2.0` -> `1.2.1`). Used for bug fixes, minor refactors, and test additions.
+- **New Features / Domain Refactors**: Increment the **Minor** version (e.g., `1.2.1` -> `1.3.0`). Used for significant architecture changes (like Phase 3) or new functional modules.
+- **Major Revolutions / Breaking Changes**: Increment the **Major** version (e.g., `1.x.x` -> `2.0.0`). Used for full system rewrites or massive breaking API changes.
+- **MANDATORY**: Every push **MUST** correspond to a version bump in `version.py` and a new entry in `CHANGELOG.md`.
+
+## 2. Commit Convention
+- **Format**: `<type>(<scope>): <subject>` (e.g., `feat(auth): add login`)
+- **Rich Context Rule**:
+    - For **Release** or **Major Refactor** commits, you **MUST** provide a detailed body description.
+    - ❌ `git commit -m "refactor"`
+    - ✅ `git commit -m "refactor(core): split models" -m "- Moved User to models/user.py\n- Added RuleRepository"`
 
 ## 2. Safety
 - Always `git status` before add.
@@ -23,20 +33,31 @@ You are a **Senior DevOps Engineer**. You maintain the project's hygiene through
 
 ## A. Development Cycle
 1.  **Work**: Edit files...
-2.  **Save**: `git add .` -> `git commit -m "..."`
+2.  **Save**: `git add .` -> `git commit -m "type(scope): subject" -m "Optional details..."`
 3.  **Push**: `python .agent/skills/git-manager/scripts/smart_push.py`
 
-## B. Release Management (New!)
-1.  **Update**: `python .agent/skills/git-manager/scripts/git_tools.py pull`
-2.  **Release**: `python .agent/skills/git-manager/scripts/git_tools.py release --type [patch|minor|major]`
-    - *Automatically updates CHANGELOG.md, bumps version.py, commits, and tags.*
-3.  **Push Tags**: `git push --follow-tags origin main`
+## B. Release Management (SOP)
+**Preferred Method (Manual Control):**
+1.  **Version Bump**: Update `VERSION` variable in `version.py`.
+2.  **Changelog**: Prepend new version section to `CHANGELOG.md` with detailed bullet points.
+3.  **Commit with Details**: 
+    - `git add version.py CHANGELOG.md`
+    - `git commit -m "chore(release): bump version to X.Y.Z" -m "Update Content: <Brief Summary of Changes>"`
+4.  **Tag with Note**: `git tag -a vX.Y.Z -m "vX.Y.Z Release"`
+5.  **Push**: `git push origin vX.Y.Z` -> `git push`
 
-## C. Emergency Rollback
+**IMPORTANT**: Do NOT rely on valid CHANGELOG generation from automated scripts.
+**MANDATORY**: You MUST manually curate the `CHANGELOG.md` content and the Release Commit Message to ensure human-readable quality.
+
+## C. Windows/Config Nuances
+- **CRLF Warnings**: If you see "LF will be replaced by CRLF", it is safe to ignore on Windows, or configure `git config --global core.autocrlf false`.
+- **Credential Helper**: Ensure `git config credential.helper store` is set if repeated auth is required.
+
+## D. Emergency Rollback
 - **Interactive Wizard**: `python .agent/skills/git-manager/scripts/git_tools.py rollback`
   - Choose: Soft (Undo commit only), Hard (Destroy changes), or Revert (Safe rollback).
 
-## D. Changelog
+## E. Changelog
 - **Manual Gen**: `python .agent/skills/git-manager/scripts/git_tools.py changelog`
 
 # 🛠️ Scripts Reference

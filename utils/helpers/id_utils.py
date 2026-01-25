@@ -189,59 +189,6 @@ async def resolve_entity_by_id_variants(
         return None, None
 
 
-def find_chat_by_telegram_id_variants(
-    session: Any, raw_id: Union[int, str]
-) -> Optional[Any]:
-    """在数据库中通过 telegram_chat_id 的多种候选形式查找 Chat 记录。
-
-    Args:
-        session: SQLAlchemy 会话
-        raw_id: Telegram chat 标识（可能为 int 或 str，可能带/不带 -100 前缀）
-
-    Returns:
-        Chat 或 None
-    """
-    try:
-        # 延迟导入避免循环依赖
-        from models.models import Chat as ChatModel
-
-        candidates = list(build_candidate_telegram_ids(raw_id))
-        logger.debug(f"查找聊天记录，候选ID: {candidates}")
-        result = (
-            session.query(ChatModel)
-            .filter(ChatModel.telegram_chat_id.in_(candidates))
-            .first()
-        )
-        if result:
-            logger.debug(f"找到聊天记录: {result.name} (ID: {result.id})")
-        else:
-            logger.debug(f"未找到匹配的聊天记录，原始ID: {raw_id}")
-        return result
-    except ImportError as import_error:
-        logger.error(f"导入模型失败: {str(import_error)}")
-        return None
-    except Exception as e:
-        logger.error(f"查找聊天记录时出错: {str(e)}", exc_info=True)
-        return None
-
-
-@asynccontextmanager
-async def safe_db_session() -> AsyncGenerator[Any, None]:
-    """安全的数据库会话上下文管理器，确保正确关闭连接"""
-    session = None
-    try:
-        # 延迟导入避免循环依赖
-        from models.models import AsyncSessionManager
-
-        async with AsyncSessionManager() as session:
-            logger.debug("创建异步数据库会话")
-            yield session
-    except ImportError as import_error:
-        logger.error(f"导入数据库模型失败: {str(import_error)}")
-        raise
-    except Exception as e:
-        logger.error(f"数据库操作失败: {str(e)}", exc_info=True)
-        raise
 
 # [Added for Scheme 7 Compatibility]
 from telethon import utils as telethon_utils

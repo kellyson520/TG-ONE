@@ -1,6 +1,6 @@
 ﻿import logging
 import re
-from utils.helpers.common import get_sender_info,check_keywords, get_main_module
+from utils.helpers.common import get_sender_info, get_main_module
 from filters.base_filter import BaseFilter
 from enums.enums import ForwardMode
 
@@ -79,9 +79,10 @@ class KeywordFilter(BaseFilter):
         Returns:
             bool: 是否通过关键词检查
         """
+        from services.rule.filter import RuleFilterService
         try:
-            # 优先使用传统方法进行基本检查
-            basic_result = await check_keywords(rule, message_text, event)
+            # 优先使用 Service 进行基本检查
+            basic_result = await RuleFilterService.check_keywords(rule, message_text, event)
             
             # 如果启用了搜索优化且有特殊需求，使用API搜索
             if hasattr(rule, 'enable_search_optimization') and rule.enable_search_optimization:
@@ -92,7 +93,7 @@ class KeywordFilter(BaseFilter):
         except Exception as e:
             logger.error(f"增强关键词检查失败: {str(e)}")
             # 回退到基本检查
-            return await check_keywords(rule, message_text, event)
+            return await RuleFilterService.check_keywords(rule, message_text, event)
     
     async def _optimized_keyword_search(self, rule, message_text, event, basic_result):
         """

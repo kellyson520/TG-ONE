@@ -104,10 +104,14 @@ class Container:
         self.chat_info_service = chat_info_service
         logger.info("ChatInfoService initialized")
         
-        # 初始化 RuleManagementService
-        from services.rule_management_service import RuleManagementService
+        # 初始化规则服务
+        from services.rule.facade import RuleManagementService
+        from services.rule.query import RuleQueryService
+        from services.rule.filter import RuleFilterService
         self.rule_management_service = RuleManagementService()
-        logger.info("RuleManagementService initialized")
+        self.rule_query_service = RuleQueryService()
+        self.rule_filter_service = RuleFilterService()
+        logger.info("Rule services (Management/Query/Filter) initialized")
         
         # 注册事件监听
         self.bus.subscribe("FORWARD_SUCCESS", self._on_stats_update)

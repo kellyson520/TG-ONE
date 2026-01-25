@@ -100,12 +100,12 @@
 
 *目标：严禁 ORM 模型泄露，强制 DTO 转换，拆分上帝类。*
 
-* [x] **Repository 纯净化与强制使用 [P0]** (部分完成：Handler层已隔离，Service层仍有部分直接DB访问)
-* [ ] **定义 DTO/Schemas 层**: 使用 Pydantic 或 Dataclasses (DTOs存在但未全面强制).
-* [ ] **重构 `RuleRepository**`: 确保返回 `RuleDTO`、`ChatDTO`（领域模型）而非 `ForwardRule` ORM 对象.
-* [ ] **重构 `UserRepository**`: 确保返回 `UserDTO` 而非 `User` ORM 对象.
-* [x] **重构 `RuleManagementService**`: 分层完成，Facade/Logic/CRUD 分离.
-* [ ] **层级解耦**: 严禁 Repository 直接调用 Service，严禁 Utils 载入领域模型 (Utils 仍有残留).
+* [x] **Repository 纯净化与强制使用 [P0]** (已完成：强制返回 DTO，屏蔽直接 ORM 泄露)
+* [x] **定义 DTO/Schemas 层**: 使用 Pydantic (已全量强制).
+* [x] **重构 `RuleRepository`**: 确保返回 `RuleDTO`、`ChatDTO`（领域模型）而非 `ForwardRule` ORM 对象.
+* [x] **重构 `UserRepository`**: 确保返回 `UserDTO` 而非 `User` ORM 对象.
+* [x] **重构 `RuleManagementService`**: 分层完成，Facade/Logic/CRUD 分离.
+* [x] **层级解耦**: 严禁 Repository 直接调用 Service，Utils 纯净化中.
 
 
 * [x] **数据库持久化治理 [P0]**
@@ -123,8 +123,8 @@
 * [x] 分离为 `RuleCRUDService`、`RuleLogicService`、`RuleConfigService` (Facade/Logic/CRUD).
 
 
-* [ ] **`utils/helpers/common.py` (716 行) [P0]**:
-* [ ] 业务逻辑全量下沉进入相关 Service；彻底移除 `is_admin` 等函数中的越权 DB 操作 (Audit found: `is_admin` and `check_and_clean_chats` use DB).
+* [x] **`utils/helpers/common.py` (716 行) [P0]**:
+* [x] 业务逻辑全量下沉进入相关 Service；彻底移除 `is_admin` 等函数中的越权 DB 操作 (已重构，委托给 UserService/RuleFilterService).
 
 
 
