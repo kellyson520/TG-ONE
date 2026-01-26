@@ -197,3 +197,50 @@ def extract_message_signature(message) -> Tuple[Optional[str], Optional[Any]]:
 # 全局单例
 media_service = MediaService()
 processed_group_cache = MemoryProcessedGroupCache()
+
+import base64
+import io
+import mimetypes
+
+class AIMediaProcessor:
+    """AI媒体预处理器"""
+    
+    @staticmethod
+    async def load_file_to_memory(file_path: str) -> Optional[Dict[str, str]]:
+        """安全读取本地文件到内存 (Base64)"""
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+            mime_type = mimetypes.guess_type(file_path)[0] or "image/jpeg"
+            return {
+                "data": base64.b64encode(content).decode('utf-8'),
+                "mime_type": mime_type
+            }
+        except Exception as e:
+            logger.error(f"读取文件失败: {e}")
+            return None
+
+    @staticmethod
+    async def download_message_media_to_memory(message) -> Optional[Dict[str, str]]:
+        """下载消息媒体直接到内存"""
+        try:
+            buffer = io.BytesIO()
+            await message.download_media(file=buffer)
+            buffer.seek(0)
+            content = buffer.read()
+            
+            mime_type = "image/jpeg"
+            if getattr(message, 'document', None):
+                mime_type = getattr(message.document, 'mime_type', mime_type)
+                
+            return {
+                "data": base64.b64encode(content).decode('utf-8'),
+                "mime_type": mime_type
+            }
+        except Exception as e:
+            logger.error(f"内存下载失败: {e}")
+            return None
+
+ai_media_processor = AIMediaProcessor()

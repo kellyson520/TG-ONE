@@ -148,14 +148,14 @@
 * [x] `utils/db/` -> `repositories/`: 彻底移除混合在 utils 中的 DB 操作。
 * [x] `utils/network/` -> `services/network/`: 网络请求逻辑升级为服务。
 * [x] `utils/helpers/` -> `core/helpers/`: 真正通用的纯函数。
-* [ ] `config/` (root) -> `core/config/`: 消除根目录冗余。
+* [x] `config/` (root) -> `core/config/`: 消除根目录冗余。
 
 
 * [ ] **Service 与 Util 领域重划**
 * [ ] **`controllers/menu_controller.py` (上帝类治理)**: 业务逻辑剥离至 `services/menu_service.py`。
 * [ ] **`filters/` 逻辑大清洗**:
 * [x] `rss_filter.py`: I/O 逻辑移至 `services/rss_service.py`，移除过滤器内部的媒体下载逻辑。
-* [ ] `ai_filter.py`: 预处理移至 `media_service`，实现 Base64 处理的流式化/熔断保护。
+* [x] `ai_filter.py`: 预处理移至 `media_service`，实现 Base64 处理的流式化/熔断保护。
 * [ ] **实现全动态过滤链 [P1]**: 将 `FilterMiddleware` 改为完全由 `FilterChainFactory` 驱动，根据数据库规则动态组装过滤器，废除硬编码列表。
 
 
