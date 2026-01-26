@@ -2,6 +2,21 @@
 
 ## 📅 2026-01-26 更新摘要
 
+### 🚀 v1.2.2.3: Web Admin Modularization & UI Layer Refactoring (Phase 6)
+- **Web Admin Modernization**:
+    - **Router Splitting**: Extracted `system_router.py` into dedicated `log`, `maintain`, and `stats` routers, improving route management.
+    - **Standardized API**: Enforced `ResponseSchema` across all new routers, ensuring consistent JSON responses (`{success, data, error}`).
+    - **Dependency Injection**: Removed direct key access to `container` in favor of FastAPI `Depends(deps.get_*)`, decoupling the Web layer from Core.
+- **Handler Decomposition**:
+    - **Module Splitting**: Vertical slice of `callback_handlers.py` (900+ lines) into `modules/rule_nav`, `rule_settings`, `rule_actions`, and `sync_settings`.
+    - **Logic Separation**: Handlers now strictly manage flow control, delegating business logic (rule updates, parsing) to Services.
+    - **Bug Fix**: Restored missing `find_chat_by_telegram_id_variants` in `id_utils.py` to support complex chat ID lookups (e.g. -100 prefix handling).
+- **UI Renderer Facade**:
+    - **Refactoring**: Transformed monolithic `MenuRenderer` into a Facade that delegates to specialized renderers (`MainMenu`, `Rule`, `Settings`, `Task`).
+    - **Testability**: Achieved high test coverage for individual renderers (`test_main_menu_renderer`, `test_rule_renderer`).
+- **Frontend Validation**:
+    - **API Compatibility**: Verified frontend `main.js` compatibility with new `ResponseSchema` structure (zero-downtime transition).
+
 ### 🚀 v1.2.2.2: Session & Settings Architecture Finalization (Phase 5)
 - **SessionManager Service Migration**:
     - **Physical Relocation**: Migrated all logic from `handlers/button/session_management.py` to `services/session_service.py`, enforcing proper layering (Services > Handlers).

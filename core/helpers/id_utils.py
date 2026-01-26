@@ -189,6 +189,34 @@ async def resolve_entity_by_id_variants(
         return None, None
 
 
+def find_chat_by_telegram_id_variants(session: Any, raw_id: Union[int, str]) -> Optional[Any]:
+    """
+    根据原始 ID 尝试在数据库中查找聊天(支持多种 ID 变体)
+    
+    Args:
+        session: 数据库会话
+        raw_id: 原始 ID (int, str)
+        
+    Returns:
+        Chat 模型实例 或 None
+    """
+    try:
+        # 延迟导入以避免循环依赖
+        from models.models import Chat
+        from sqlalchemy import select
+        
+        candidates = build_candidate_telegram_ids(raw_id)
+        if not candidates:
+            return None
+            
+        # 查询 telegram_chat_id 在 candidates 中的记录
+        stmt = select(Chat).where(Chat.telegram_chat_id.in_(candidates))
+        result = session.execute(stmt)
+        return result.scalars().first()
+    except Exception as e:
+        logger.error(f"在数据库中查找聊天变体失败 {raw_id}: {e}")
+        return None
+
 
 # [Added for Scheme 7 Compatibility]
 from telethon import utils as telethon_utils

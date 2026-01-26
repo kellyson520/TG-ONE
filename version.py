@@ -1,4 +1,4 @@
-VERSION = "1.2.2.2"
+VERSION = "1.2.2.3"
 
 WELCOME_TEXT = """
 👋 欢迎使用 Telegram 消息转发机器人！
@@ -10,6 +10,7 @@ WELCOME_TEXT = """
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.2.3: 架构重构 (Phase 6) - Web Admin 模块化 (Router/Handler Split)、UI 渲染器重构 (Facade/Strategy Pattern)、前端 API 解耦。
 - v1.2.2.2: 架构重构 (Phase 5) - SessionManager 服务化下沉、ForwardSettings 独立解耦、全链路异步IO合规、静默失败治理完成。
 - v1.2.2.1: 架构重构 (Phase 4) - 动态过滤链、MenuController 治理、RSS 模块归口统一。
 - v1.2.2: 架构重构 (Phase 3+) - 核心流水线集成测试覆盖、模型字段补全、重试机制增强。
