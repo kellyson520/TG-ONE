@@ -21,7 +21,7 @@ def mock_user():
 
 @pytest.mark.asyncio
 async def test_authenticate_user_success(auth_service, mock_user):
-    with patch("core.container.container.user_repo.get_user_by_username", new_callable=AsyncMock) as mock_get_user:
+    with patch("core.container.container.user_repo.get_user_for_auth", new_callable=AsyncMock) as mock_get_user:
         with patch("services.authentication_service.check_password_hash") as mock_check_hash:
             mock_get_user.return_value = mock_user
             mock_check_hash.return_value = True
@@ -35,7 +35,7 @@ async def test_authenticate_user_success(auth_service, mock_user):
 
 @pytest.mark.asyncio
 async def test_authenticate_user_fail_password(auth_service, mock_user):
-     with patch("core.container.container.user_repo.get_user_by_username", new_callable=AsyncMock) as mock_get_user:
+     with patch("core.container.container.user_repo.get_user_for_auth", new_callable=AsyncMock) as mock_get_user:
         with patch("services.authentication_service.check_password_hash") as mock_check_hash:
             mock_get_user.return_value = mock_user
             mock_check_hash.return_value = False
@@ -130,7 +130,7 @@ async def test_verify_2fa_login_success(auth_service, mock_user):
     mock_user.is_2fa_enabled = True
     mock_user.last_otp_token = None  # 初始状态
     
-    with patch("core.container.container.user_repo.get_user_by_id", new_callable=AsyncMock) as mock_get:
+    with patch("core.container.container.user_repo.get_user_auth_by_id", new_callable=AsyncMock) as mock_get:
         with patch("core.container.container.db.session") as mock_session_ctx:
             mock_get.return_value = mock_user
             

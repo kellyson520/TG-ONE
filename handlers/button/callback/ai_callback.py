@@ -7,7 +7,7 @@ from sqlalchemy import select
 from telethon import Button
 from telethon.tl import types
 
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 from models.models import AsyncSessionManager, ForwardRule, RuleSync
 from scheduler.summary_scheduler import SummaryScheduler
 from core.helpers.common import get_ai_settings_text, get_main_module, is_admin

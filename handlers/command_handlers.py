@@ -83,7 +83,7 @@ async def register_handlers(client):
 
     @client.on(events.NewMessage(pattern="/cancel"))
     async def cancel_handler(event):
-        from handlers.button.session_management import session_manager
+        from services.session_service import session_manager
         if event.sender_id in session_manager.user_sessions:
             if event.chat_id in session_manager.user_sessions[event.sender_id]:
                 session_manager.user_sessions[event.sender_id].pop(event.chat_id)

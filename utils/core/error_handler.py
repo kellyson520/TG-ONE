@@ -161,10 +161,10 @@ def log_execution(
                         level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
                     )
                 return result
-            except Exception:
+            except Exception as e:
                 duration = (time.time() - start_time) * 1000
                 func_logger.log(
-                    level, f"[{cid}] {func.__name__} 执行异常, 耗时: {duration:.2f}ms"
+                    level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
                 )
                 raise
 
@@ -195,10 +195,10 @@ def log_execution(
                         level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
                     )
                 return result
-            except Exception:
+            except Exception as e:
                 duration = (time.time() - start_time) * 1000
                 func_logger.log(
-                    level, f"[{cid}] {func.__name__} 执行异常, 耗时: {duration:.2f}ms"
+                    level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
                 )
                 raise
 

@@ -142,7 +142,8 @@ class RuleRepository:
         try:
             pc = get_persistent_cache()
             pc.set(f"rules:source:{chat_id}", dumps_json([r.id for r in rules]), ttl=30)
-        except: pass
+        except Exception as e:
+            logger.debug(f"Failed to update persistent cache: {e}")
         return rules
 
     def clear_cache(self, chat_id: int = None):
@@ -157,7 +158,8 @@ class RuleRepository:
             else:
                 self._source_rules_cache.clear()
                 self._target_rules_cache.clear()
-        except: pass
+        except Exception as e:
+            logger.debug(f"Failed to clear cache: {e}")
 
     async def get_rules_for_target_chat(self, chat_id) -> List[RuleDTO]:
         """获取目标聊天的规则"""
@@ -175,7 +177,8 @@ class RuleRepository:
                         rules = [RuleDTO.model_validate(r) for r in orm_rules]
                         self._target_rules_cache[chat_id] = rules
                         return rules
-        except: pass
+        except Exception as e:
+            logger.debug(f"Persistent cache error: {e}")
 
         async with self.db.session() as session:
             target_chat = await self.find_chat(chat_id)
@@ -189,7 +192,8 @@ class RuleRepository:
         try:
             pc = get_persistent_cache()
             pc.set(f"rules:target:{chat_id}", dumps_json([r.id for r in rules]), ttl=30)
-        except: pass
+        except Exception as e:
+            logger.debug(f"Failed to set persistent cache: {e}")
         return rules
 
     async def get_full_rule_orm(self, rule_id: int) -> Optional[ForwardRule]:

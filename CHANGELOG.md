@@ -2,6 +2,20 @@
 
 ## 📅 2026-01-26 更新摘要
 
+### 🚀 v1.2.2.2: Session & Settings Architecture Finalization (Phase 5)
+- **SessionManager Service Migration**:
+    - **Physical Relocation**: Migrated all logic from `handlers/button/session_management.py` to `services/session_service.py`, enforcing proper layering (Services > Handlers).
+    - **No-Wrapper Architecture**: Eliminated the Facade pattern; `SessionService` is now the single source of truth for session state and history task coordination.
+    - **Tombstone Integration**: Fully implemented state serialization hooks for graceful restarts (zero-downtime upgrades).
+- **ForwardSettings Decoupling**:
+    - **Service Extraction**: Extracted Global Media Settings logic into `services/forward_settings_service.py`.
+    - **Separation of Concerns**: Handlers (`ForwardManager`) now strictly handle UI/Button generation, delegating all DB/Config I/O to the new Service.
+    - **Cache Mechanism**: Implemented write-through caching configuration updates to minimize DB IO.
+- **Stability & Hygiene**:
+    - **Silent Failure Elimination**: Fixed naked `except:` blocks in Network and Dedup services; Enhanced logging observability with `exc_info=True`.
+    - **Async Compliance**: Verified blocking I/O removal across the `handlers` layer.
+    - **Test Coverage**: Added comprehensive unit tests for `SessionService` and `ForwardSettingsService` (covering Backpressure, State Management, and Config Persistence).
+
 ### 🚀 v1.2.2.1: Dynamic Pipeline & Controller Decoupling (Phase 4)
 - **God-Class Decoupling (MenuController)**:
     - Stripped all direct SQLAlchemy dependencies and repository calls from `MenuController`.

@@ -43,7 +43,7 @@ from handlers.button.button_helpers import (
     create_push_config_details_buttons,
     create_push_settings_buttons,
 )
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 
 logger = logging.getLogger(__name__)
 

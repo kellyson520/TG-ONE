@@ -59,7 +59,7 @@ class DedupService:
             }
             
         except Exception as e:
-            logger.error(f"获取去重配置失败: {e}")
+            logger.error(f"获取去重配置失败: {e}", exc_info=True)
             return {
                 'config': {},
                 'stats': {'cached_signatures': 0, 'cached_content_hashes': 0, 'tracked_chats': 0, 'last_cleanup': 0},
@@ -86,7 +86,7 @@ class DedupService:
             }
             
         except Exception as e:
-            logger.error(f"更新去重配置失败: {e}")
+            logger.error(f"更新去重配置失败: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
     async def toggle_feature(self, feature: str, enabled: bool) -> Dict[str, Any]:
@@ -156,7 +156,7 @@ class DedupService:
             }
             
         except Exception as e:
-            logger.error(f"手动清理缓存失败: {e}")
+            logger.error(f"手动清理缓存失败: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
     async def clear_all_cache(self) -> Dict[str, Any]:
@@ -179,7 +179,7 @@ class DedupService:
             }
             
         except Exception as e:
-            logger.error(f"清空缓存失败: {e}")
+            logger.error(f"清空缓存失败: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
     async def reset_to_defaults(self) -> Dict[str, Any]:
@@ -194,7 +194,7 @@ class DedupService:
             }
             
         except Exception as e:
-            logger.error(f"重置配置失败: {e}")
+            logger.error(f"重置配置失败: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
     async def get_hash_examples(self) -> Dict[str, Any]:
@@ -325,7 +325,7 @@ class DedupService:
                         )
                         logger.debug(f"Recorded signature via Repo: {sig} in {chat_id}")
         except Exception as e:
-            logger.error(f"Failed to record signature: {e}")
+            logger.error(f"Failed to record signature: {e}", exc_info=True)
     
     async def commit(self, target_chat_id: int, message_obj):
         """
@@ -337,7 +337,7 @@ class DedupService:
             # 复用现有的 record_signature 逻辑 (写入 DB)
             await self.record_signature(target_chat_id, message_obj)
         except Exception as e:
-            logger.error(f"Error committing dedup signature: {e}")
+            logger.error(f"Error committing dedup signature: {e}", exc_info=True)
 
     # Alias for backward compatibility (Deprecated)
     record_message = commit
@@ -361,7 +361,7 @@ class DedupService:
             
             # 这里可以添加一些额外的去重逻辑，或者记录统计信息
         except Exception as e:
-            logger.error(f"Dedup write-back failed: {e}")
+            logger.error(f"Dedup write-back failed: {e}", exc_info=True)
     
     def set_db(self, db):
         """设置数据库连接"""

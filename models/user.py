@@ -27,7 +27,10 @@ class AuditLog(Base):
     __tablename__ = 'audit_logs'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    username = Column(String, nullable=True)  # 可选：记录操作时的用户名
     action = Column(String, nullable=False, index=True) # login, logout, create_rule, etc.
+    resource_type = Column(String, nullable=True) # rule, user, setting, etc.
+    resource_id = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     details = Column(String, nullable=True)
@@ -40,10 +43,11 @@ class ActiveSession(Base):
     """活跃会话表"""
     __tablename__ = 'active_sessions'
     id = Column(Integer, primary_key=True)
+    session_id = Column(String(64), unique=True, index=True) # 区分不同设备的会话
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    token = Column(String, unique=True, nullable=False, index=True)
-    ip_address = Column(String, nullable=True)
-    user_agent = Column(String, nullable=True)
+    refresh_token_hash = Column(String(128), unique=True, nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
     last_active_at = Column(DateTime, default=datetime.utcnow)

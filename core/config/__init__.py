@@ -17,7 +17,7 @@ def _load_rss_secret_key() -> Optional[str]:
     if not rss_key:
         try:
             # 定位到项目根目录下的 rss/secret.key
-            base_dir = Path(__file__).resolve().parent.parent
+            base_dir = Path(__file__).resolve().parent.parent.parent
             key_file = base_dir / "rss" / "secret.key"
             
             if key_file.exists():
@@ -47,31 +47,31 @@ class Settings(BaseSettings):
     
     # === 项目路径配置 ===
     BASE_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent,
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent,
         description="项目根目录"
     )
     DOWNLOAD_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "downloads",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "downloads",
         env="DOWNLOAD_DIR",
         description="下载文件存储目录"
     )
     SESSION_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "sessions",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "sessions",
         env="SESSION_DIR",
         description="会话文件存储目录"
     )
     TEMP_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "temp",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "temp",
         env="TEMP_DIR",
         description="临时文件存储目录"
     )
     LOG_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "logs",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "logs",
         env="LOG_DIR",
         description="日志文件存储目录"
     )
     DB_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "db",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "db",
         env="DB_DIR",
         description="数据库文件存储目录"
     )
@@ -228,7 +228,7 @@ class Settings(BaseSettings):
     RSS_HOST: str = Field(default="127.0.0.1", env="RSS_HOST")
     RSS_PORT: int = Field(default=8000, env="RSS_PORT")
     RSS_MEDIA_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "rss" / "media",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "rss" / "media",
         env="RSS_MEDIA_DIR"
     )
     WEB_ENABLED: bool = Field(

@@ -192,7 +192,8 @@ class ForwardRecorder:
                         await self._save_record(record, timestamp)
                         await self._update_statistics(record, timestamp)
                     count += 1
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to record batch item: {e}")
                     continue
             return count
         except Exception as e:
@@ -389,7 +390,8 @@ class ForwardRecorder:
         if isinstance(o, bytes):
             try:
                 return o.decode('utf-8', 'replace')
-            except Exception:
+            except Exception as e:
+                logger.debug(f"JSON base64 fallback failed: {e}")
                 return base64.b64encode(o).decode('ascii')
         if isinstance(o, set):
             return list(o)
@@ -428,7 +430,7 @@ class ForwardRecorder:
                     f.write(content + '\n')
             
             # 在线程池中执行文件写入
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, write_file)
         except Exception as e:
             logger.error(f"写入文件失败 {file_path}: {e}")
@@ -444,7 +446,8 @@ class ForwardRecorder:
                 try:
                     with open(stats_file, 'r', encoding='utf-8') as f:
                         stats = json.load(f)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to read stats file: {e}")
                     stats = {}
             
             # 更新统计
@@ -494,7 +497,7 @@ class ForwardRecorder:
                     json.dump(stats, f, ensure_ascii=False, indent=2)
                 os.replace(tmp_path, stats_file)
             
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, write_stats)
             
         except Exception as e:
@@ -555,7 +558,8 @@ class ForwardRecorder:
                         hour_key = f"{dt.hour:02d}"
                         if hour_key in hourly_counts:
                             hourly_counts[hour_key] += 1
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse timestamp in distribusi: {e}")
                         continue
             
             return hourly_counts
@@ -639,7 +643,7 @@ class ForwardRecorder:
                         except json.JSONDecodeError:
                             continue
             
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, read_file)
             
         except Exception as e:

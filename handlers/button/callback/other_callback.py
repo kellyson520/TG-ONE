@@ -11,7 +11,7 @@ from telethon import Button
 from telethon.tl import types
 
 from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 from repositories.db_operations import DBOperations
 from models.models import (
     AsyncSessionManager,

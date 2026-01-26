@@ -43,49 +43,34 @@ def _redact(text: str) -> str:
         for _p, _r in _COMPILED_PATTERNS:
             masked = _p.sub(_r, masked)
         return masked
-    except Exception:
+    except Exception as e:
+        # Fallback to original text on redaction error
         return text
 
 
 class JsonFormatter(logging.Formatter):
-    """JSON 格式化器，支持中文键/是否包含堆栈/自定义时间格式"""
+    """JSON 格式化器"""
 
     def __init__(
-        self, cn_keys: bool = False, include_traceback: bool = True, datefmt: str = None
+        self, include_traceback: bool = True, datefmt: str = None
     ) -> None:
         super().__init__(datefmt=datefmt)
-        self.cn_keys = cn_keys
         self.include_traceback = include_traceback
         self.datefmt = datefmt or "%Y-%m-%dT%H:%M:%S%z"
 
     def format(self, record: logging.LogRecord) -> str:
-        # 中英文键映射
-        if self.cn_keys:
-            k_time = "时间"
-            k_level = "等级"
-            k_logger = "记录器"
-            k_message = "消息"
-            k_process = "进程"
-            k_thread = "线程"
-            k_cid = "关联ID"
-            k_exc = "异常"
-        else:
-            k_time = "timestamp"
-            k_level = "level"
-            k_logger = "logger"
-            k_message = "message"
-            k_process = "process"
-            k_thread = "thread"
-            k_cid = "correlation_id"
-            k_exc = "exc_info"
+        k_time = "timestamp"
+        k_level = "level"
+        k_logger = "logger"
+        k_message = "message"
+        k_process = "process"
+        k_thread = "thread"
+        k_cid = "correlation_id"
+        k_exc = "exc_info"
 
         payload = {
             k_time: self.formatTime(record, self.datefmt),
-            k_level: (
-                getattr(record, "levelname_cn", record.levelname)
-                if self.cn_keys
-                else record.levelname
-            ),
+            k_level: record.levelname,
             k_logger: record.name,
             k_message: _redact(record.getMessage()),
             k_process: record.process,
@@ -96,34 +81,21 @@ class JsonFormatter(logging.Formatter):
         # 增加追踪元数据
         payload["trace_id"] = getattr(record, "correlation_id", "-")
         
-        if self.cn_keys:
-            payload["模块ID"] = getattr(record, "module_id", "-")
-            payload["类ID"] = getattr(record, "class_id", "-")
-            payload["方法"] = record.funcName
-            payload["行号"] = record.lineno
-        else:
-            payload["module_id"] = getattr(record, "module_id", "-")
-            payload["class_id"] = getattr(record, "class_id", "-")
-            payload["func_name"] = record.funcName
-            payload["lineno"] = record.lineno
+        payload["module_id"] = getattr(record, "module_id", "-")
+        payload["class_id"] = getattr(record, "class_id", "-")
+        payload["func_name"] = record.funcName
+        payload["lineno"] = record.lineno
 
         # 附加异常信息
         if record.exc_info:
-            payload[k_exc if self.cn_keys else "exc_info"] = self.formatException(record.exc_info)
+            payload["exc_info"] = self.formatException(record.exc_info)
         
         return json.dumps(payload, ensure_ascii=False)
 
 
 class ColorTextFormatter(logging.Formatter):
-    """中文彩色文本格式化器（可通过 LOG_COLOR 控制是否着色）。"""
+    """标准彩色文本格式化器"""
 
-    _LEVEL_CN = {
-        "DEBUG": "调试",
-        "INFO": "信息",
-        "WARNING": "警告",
-        "ERROR": "错误",
-        "CRITICAL": "严重",
-    }
     _COLORS = {
         "DEBUG": "\x1b[90m",  # 灰
         "INFO": "\x1b[32m",  # 绿
@@ -134,30 +106,16 @@ class ColorTextFormatter(logging.Formatter):
     _RESET = "\x1b[0m"
 
     def __init__(
-        self, use_color: bool = True, datefmt: str | None = None, lang_zh: bool = True
+        self, use_color: bool = True, datefmt: str | None = None
     ) -> None:
-        fmt = (
-            "【%(asctime)s】[%(correlation_id)s]【%(name)s】%(message)s"
-            if lang_zh
-            else "%(asctime)s [%(correlation_id)s][%(name)s] %(message)s"
-        )
+        fmt = "%(asctime)s [%(correlation_id)s][%(levelname)s][%(name)s] %(message)s"
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.use_color = use_color
-        self.lang_zh = lang_zh
 
     def format(self, record: logging.LogRecord) -> str:
-        # 中文等级映射
-        if self.lang_zh:
-            try:
-                record.levelname = self._LEVEL_CN.get(
-                    record.levelname, record.levelname
-                )
-            except Exception:
-                pass
         out = super().format(record)
         if not self.use_color:
             return out
-        # 根据原始英文等级着色（从 levelno 推导）
         try:
             level_en = logging.getLevelName(record.levelno)
             color = self._COLORS.get(level_en)
@@ -217,25 +175,6 @@ class _DropTelethonNoiseFilter(logging.Filter):
             return True
         except Exception:
             return True
-
-
-class _ChineseLevelFilter(logging.Filter):
-    """将 levelname 映射为中文（仅供文本/中文 JSON 使用）"""
-
-    _MAP = {
-        "DEBUG": "调试",
-        "INFO": "信息",
-        "WARNING": "警告",
-        "ERROR": "错误",
-        "CRITICAL": "严重",
-    }
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            record.levelname_cn = self._MAP.get(record.levelname, record.levelname)
-        except Exception:
-            record.levelname_cn = record.levelname
-        return True
 
 
 class _SelectiveFilter(logging.Filter):
@@ -515,98 +454,6 @@ class _ConsolidatedFilter(logging.Filter):
             return True
 
 
-class _MessageLocalizationFilter(logging.Filter):
-    """
-    日志消息本地化过滤器：将常见英文短语/关键词替换为中文。
-    仅对属于指定前缀的 logger 生效，避免误伤三方库。
-
-    环境变量：
-      - LOG_LOCALIZE_MESSAGES=true/false 是否开启
-      - LOG_LOCALIZE_PREFIXES=utils.,controllers.,handlers.,managers.,scheduler.,models.,rss. 逗号分隔
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.enabled = os.getenv("LOG_LOCALIZE_MESSAGES", "").lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        # 若未显式开启，但语言为中文，则默认开启
-        if not self.enabled and os.getenv("LOG_LANGUAGE", "zh").lower() == "zh":
-            self.enabled = True
-
-        raw = os.getenv(
-            "LOG_LOCALIZE_PREFIXES",
-            "utils.,controllers.,handlers.,managers.,scheduler.,models.,rss.",
-        )
-        self.prefixes = [p.strip() for p in raw.split(",") if p.strip()]
-
-        # 轻量替换表（仅覆盖常见词，避免长句误翻）
-        self.replacements = {
-            "initialized": "初始化完成",
-            "initialization": "初始化",
-            "start": "启动",
-            "started": "已启动",
-            "stop": "停止",
-            "stopped": "已停止",
-            "connect": "连接",
-            "connected": "已连接",
-            "disconnect": "断开连接",
-            "disconnected": "已断开",
-            "success": "成功",
-            "failed": "失败",
-            "error": "错误",
-            "warning": "警告",
-            "retry": "重试",
-            "timeout": "超时",
-            "archive": "归档",
-            "compaction": "压实",
-            "bloom": "布隆",
-            "cache": "缓存",
-            "monitor": "监控",
-            "optimize": "优化",
-            "performance": "性能",
-            "metrics": "指标",
-            "query": "查询",
-        }
-
-    def _should_localize(self, name: str) -> bool:
-        for p in self.prefixes:
-            if name.startswith(p):
-                return True
-        return False
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            if not self.enabled:
-                return True
-            name = record.name or ""
-            if not self._should_localize(name):
-                return True
-            # 仅在 msg 为字符串时做简单替换
-            msg = record.getMessage()
-            if not isinstance(msg, str) or not msg:
-                return True
-            # 避免破坏格式化参数，占位符极少出现在我们自定义日志中
-            localized = msg
-            try:
-                for eng, zh in self.replacements.items():
-                    # 小写比较，保留原大小写影响较小
-                    localized = localized.replace(eng, zh)
-                    localized = localized.replace(eng.capitalize(), zh)
-                    localized = localized.replace(eng.upper(), zh)
-            except Exception:
-                pass
-            # 将 record.msg 替换为本地化版本
-            record.msg = localized
-            record.args = None
-            return True
-        except Exception:
-            return True
-
-
 class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
     """确保 logger name 永远是字符串，解决 'A logger name must be a string' 错误"""
     def __call__(self, *args, **kwargs):
@@ -652,9 +499,8 @@ def setup_logging():
             alt_path = Path.cwd() / "env"
             if alt_path.exists():
                 load_dotenv(dotenv_path=str(alt_path), override=True)
-    except Exception:
-        # 保底不抛出
-        pass
+    except Exception as e:
+        print(f"Error loading .env: {e}")
 
     # 设置 structlog 配置
     configure_structlog()
@@ -668,12 +514,8 @@ def setup_logging():
         root_logger.setLevel(logging.INFO)
 
     # 语言与格式
-    lang = os.getenv("LOG_LANGUAGE", "zh").lower()
+    lang = os.getenv("LOG_LANGUAGE", "en").lower() # Default En
     log_format = os.getenv("LOG_FORMAT", "text").lower()
-    cn_keys = (
-        os.getenv("LOG_CN_KEYS", "true").lower() in {"1", "true", "yes", "on"}
-        or lang == "zh"
-    )
     include_tb = os.getenv("LOG_INCLUDE_TRACEBACK", "false").lower() in {
         "1",
         "true",
@@ -685,17 +527,15 @@ def setup_logging():
     for handler in list(root_logger.handlers):
         root_logger.removeHandler(handler)
 
-    # 添加控制台处理器
     console_handler = logging.StreamHandler()
     if log_format == "json":
-        formatter = logging.Formatter("%(message)s")
+        formatter = JsonFormatter(include_traceback=include_tb)
     else:
         use_color = os.getenv("LOG_COLOR", "true").lower() in {"1", "true", "yes", "on"}
-        formatter = ColorTextFormatter(use_color=use_color, lang_zh=(lang == "zh"))
+        formatter = ColorTextFormatter(use_color=use_color)
     console_handler.setFormatter(formatter)
     console_handler.addFilter(_ContextFilter())
     console_handler.addFilter(_ConsolidatedFilter())
-    console_handler.addFilter(_MessageLocalizationFilter())
     root_logger.addHandler(console_handler)
 
     # 添加文件处理器（如果配置了）
@@ -709,13 +549,12 @@ def setup_logging():
             encoding="utf-8",
         )
         if log_format == "json":
-            file_formatter = logging.Formatter("%(message)s")
+            file_formatter = JsonFormatter(include_traceback=include_tb)
         else:
-            file_formatter = ColorTextFormatter(use_color=False, lang_zh=(lang == "zh"))
+            file_formatter = ColorTextFormatter(use_color=False)
         file_handler.setFormatter(file_formatter)
         file_handler.addFilter(_ContextFilter())
         file_handler.addFilter(_ConsolidatedFilter())
-        file_handler.addFilter(_MessageLocalizationFilter())
         root_logger.addHandler(file_handler)
 
     # 降低 Telethon 日志级别（可通过环境变量 TELETHON_LOG_LEVEL 控制，默认 WARNING）
@@ -739,29 +578,29 @@ def setup_logging():
             lvl = lvl.strip().upper()
             if name:
                 logging.getLogger(name).setLevel(getattr(logging, lvl, logging.WARNING))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error setting logger override levels: {e}")
 
-    # 启动时打印一次生效的日志配置（中文）
+    # 启动时打印一次生效的日志配置
     logger = structlog.get_logger()
     try:
         eff = logging.getLevelName(root_logger.level)
         telethon_level = os.getenv("TELETHON_LOG_LEVEL", "WARNING").upper()
         logger.info(
-            "日志系统已初始化",
+            "Log system initialized",
             level=eff,
             env_level=level,
             format=log_format,
             language=lang,
             telethon_level=telethon_level,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error during log startup info: {e}")
 
     # 统一日志推送（如配置）
     try:
         install_log_push_handlers(root_logger)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error installing log push handlers: {e}")
 
     return root_logger

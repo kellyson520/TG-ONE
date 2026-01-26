@@ -79,7 +79,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager
             from services.session_service import session_service
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
             
             # 检查当前会话状态
             user_session = session_manager.user_sessions.get(event.sender_id, {})

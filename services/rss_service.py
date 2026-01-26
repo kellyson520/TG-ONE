@@ -229,7 +229,7 @@ class RssService:
              chat_id = message.chat.id
              # 处理私有群链接逻辑...
              return f"https://t.me/c/{str(chat_id).replace('-100','')}/{message.id}"
-        except:
+        except Exception:
              return ""
 
     async def _send_to_rss_service(self, rule_id, entry_data) -> bool:

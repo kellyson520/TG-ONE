@@ -87,7 +87,7 @@ class SenderMiddleware(Middleware):
                                     p = json.loads(t.task_data)
                                     if p.get('message_id'):
                                         messages_to_forward.append(p.get('message_id'))
-                                except:
+                                except Exception:
                                     pass
                         
                         messages_to_forward.sort()

@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import secrets
 import jwt
-import requests
 import hashlib
 import asyncio
 import traceback
@@ -224,43 +223,18 @@ async def healthz():
 
 @app.get("/readyz")
 async def readyz():
+    """System readiness check for monitoring."""
     try:
-        bt = settings.BOT_TOKEN
-        api_id = settings.API_ID
-        user_id = 0 # Not strictly required in settings as int, usually loaded from session strings or similar.
-        # But settings model has API_ID (int?)
-        # Let's check core/config.py again. API_ID is Optional[int].
-        # In readyz logic: 
-        # api_id = env_config_manager.get_config('API_ID') -> str
-        # user_id = env_config_manager.get_config('USER_ID') -> str. 
-        # settings might not have USER_ID field? 
-        # Check core/config.py -> no USER_ID field.
-        # The env_config_manager reads env variables. USER_ID might be in env but not in Settings model?
-        # If so, I should fallback to os.getenv or env_config_manager for USER_ID if it's not in settings.
-        # However, usage of env_config_manager.get_config is deprecated.
-        # If I look at lines 175-177 in original:
-        # bt = ...get_config('BOT_TOKEN')
-        # api_id = ...('API_ID')
-        # user_id = ...('USER_ID')
-        # I should use os.getenv for USER_ID if it's just an env var not in settings.
-        
-        # Let's use:
-        bt = settings.BOT_TOKEN
-        api_id = settings.API_ID
-        user_id = os.getenv('USER_ID')
-        
-        cfg_ready = bool(str(bt or '').strip()) and bool(str(api_id or '').strip())
-        # Removing user_id check requirement if it's not core setting, or check if it exists.
-        if user_id:
-             cfg_ready = cfg_ready and bool(str(user_id).strip())
-             
+        cfg_ready = bool(settings.BOT_TOKEN) and bool(settings.API_ID)
     except Exception:
         cfg_ready = False
+        
     db_ok = False
     try:
         db_ok = bool(get_db_health().get('connected'))
     except Exception:
         db_ok = False
+        
     st = 'ready' if (cfg_ready and db_ok) else 'not_ready'
     return JSONResponse({'status': st, 'config_ready': cfg_ready, 'db_connected': db_ok})
 
@@ -367,7 +341,7 @@ async def api_visualization_graph(request: Request, user = Depends(login_require
         return JSONResponse({'success': True, 'data': graph_data})
     except Exception as e:
         logger.error(f"获取可视化图谱数据失败: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}), 500
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
 
 # 规则开关路由
 @app.post("/api/rules/{rule_id}/toggle", response_class=JSONResponse)
@@ -409,7 +383,7 @@ async def api_get_error_logs(
         return JSONResponse({'success': True, 'data': {'total': total, 'items': data}})
     except Exception as e:
         logger.error(f"获取错误日志失败: {e}")
-        return JSONResponse({'success': False, 'error': str(e)}), 500
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
 
 @app.get("/api/logs/files", response_class=JSONResponse)
 async def api_list_log_files(request: Request, user = Depends(admin_required)):
@@ -456,13 +430,13 @@ async def api_tail_log(
     try:
         # 安全检查
         if not file.endswith('.log') or '/' in file or '\\' in file:
-            return JSONResponse({'success': False, 'error': '无效的文件名'}), 400
+            return JSONResponse({'success': False, 'error': '无效的文件名'}, status_code=400)
         
         log_dir = settings.LOG_DIR
         file_path = log_dir / file
         
         if not file_path.exists():
-            return JSONResponse({'success': False, 'error': '文件不存在'}), 404
+            return JSONResponse({'success': False, 'error': '文件不存在'}, status_code=404)
             
         # 使用limit覆盖lines参数（兼容前端）
         actual_lines = limit
@@ -479,7 +453,7 @@ async def api_tail_log(
                 lines_data = f.readlines()
                 content = lines_data[-actual_lines:]
         except Exception as e:
-            return JSONResponse({'success': False, 'error': f"读取文件失败: {e}"}), 500
+            return JSONResponse({'success': False, 'error': f"读取文件失败: {e}"}, status_code=500)
         
         # 应用搜索和级别筛选
         filtered_content = content
@@ -500,13 +474,13 @@ async def api_download_log(request: Request, file: str = Query(...), user = Depe
     """下载日志文件"""
     # 安全检查
     if not file.endswith('.log') or '/' in file or '\\' in file:
-        return JSONResponse({'success': False, 'error': '无效的文件名'}), 400
+        return JSONResponse({'success': False, 'error': '无效的文件名'}, status_code=400)
     
     log_dir = settings.LOG_DIR
     file_path = log_dir / file
     
     if not file_path.exists():
-        return JSONResponse({'success': False, 'error': '文件不存在'}), 404
+        return JSONResponse({'success': False, 'error': '文件不存在'}, status_code=404)
         
     return FileResponse(file_path, filename=file)
 

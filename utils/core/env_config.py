@@ -71,7 +71,8 @@ class EnvConfigManager:
             if not self.env_file.exists():
                 try:
                     self.env_file.touch()
-                except Exception:
+                except Exception as e:
+                    logger.error(f"无法创建 .env 文件: {e}")
                     return
 
             # 读取原文件内容

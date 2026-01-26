@@ -314,7 +314,8 @@ async def reload_config(request: Request, user = Depends(admin_required)):
     logger.info(f"[Web-API] 用户 {user.username} ({client_ip}) 正在重新加载动态配置")
     
     try:
-        await settings.load_dynamic_config()
+        from core.config_initializer import load_dynamic_config_from_db
+        await load_dynamic_config_from_db(settings)
         logger.info(f"[Web-API] 用户 {user.username} 动态配置重新加载成功")
         return JSONResponse({'success': True, 'message': '动态配置已重新加载'})
     except Exception as e:

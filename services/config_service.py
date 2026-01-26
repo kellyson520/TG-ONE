@@ -25,13 +25,17 @@ class _AsyncDbProvider:
             t = (cfg.data_type or 'string').lower()
             
             if t == 'integer':
-                try: return int(v)
-                except: return None
+                try:
+                    return int(v)
+                except Exception:
+                    return None
             if t == 'boolean':
                 return str(v).strip().lower() in ('1','true','yes','on')
             if t == 'json':
-                try: return json.loads(v)
-                except: return None
+                try:
+                    return json.loads(v)
+                except Exception:
+                    return None
             return v
 
     async def set(self, key: str, value: Any, data_type: str = 'string', encrypted: bool = False) -> None:
@@ -81,7 +85,8 @@ class _JsonProvider:
             if self.path.exists():
                 data = json.loads(self.path.read_text(encoding='utf-8'))
                 if isinstance(data, dict): self._cache = data
-        except: self._cache = {}
+        except Exception:
+            self._cache = {}
         self._loaded = True
 
     def get(self, key: str) -> Optional[Any]:
@@ -132,7 +137,8 @@ class ConfigService:
                     await cb(key, value)
                 else:
                     cb(key, value)
-            except: pass
+            except Exception:
+                pass
 
     async def get_all(self) -> Dict[str, Any]:
         """获取所有动态配置"""

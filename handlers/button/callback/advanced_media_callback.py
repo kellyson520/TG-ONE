@@ -6,7 +6,7 @@ import logging
 from telethon import Button
 from telethon.tl import types
 
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 from models.models import ForwardRule
 from repositories.db_context import async_db_session
 

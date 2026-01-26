@@ -501,7 +501,7 @@ class AsyncBatchProcessor:
             session.commit()
 
         # 在线程池中执行数据库操作
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         with ThreadPoolExecutor(max_workers=1) as executor:
             if table_name == "media_signatures":
                 await loop.run_in_executor(
@@ -530,7 +530,7 @@ class AsyncBatchProcessor:
                 session.execute(text(sql), params)
                 session.commit()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         with ThreadPoolExecutor(max_workers=1) as executor:
             await loop.run_in_executor(
                 executor, lambda: self._run_with_session(_update_item)
@@ -553,7 +553,7 @@ class AsyncBatchProcessor:
 
             session.commit()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         with ThreadPoolExecutor(max_workers=1) as executor:
             await loop.run_in_executor(
                 executor, lambda: self._run_with_session(_delete_batch)
@@ -635,7 +635,7 @@ class AsyncQueryExecutor:
     async def execute_query(self, query_func: Callable, *args, **kwargs) -> Any:
         """异步执行查询"""
         async with self.semaphore:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 self.executor, query_func, *args, **kwargs
             )

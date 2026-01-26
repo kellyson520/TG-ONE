@@ -76,7 +76,7 @@ class DatabaseOptimizationSuite:
 
             # 2. 启动性能监控
             if self.optimization_config.get("enable_monitoring", True):
-                start_database_monitoring()
+                await start_database_monitoring()
                 logger.info("✓ Performance monitoring enabled")
 
             # 3. 设置分片和分区

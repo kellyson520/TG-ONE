@@ -189,38 +189,35 @@ class DatabaseMonitor:
         self.monitoring = False
         self.monitor_task = None
 
-    def start_monitoring(self, interval: int = 60):
-        """开始监控"""
+    async def start_monitoring(self, interval: int = 60):
+        """开始异步监控"""
         if self.monitoring:
             return
 
         self.monitoring = True
-        self.monitor_task = threading.Thread(
-            target=self._monitoring_loop, args=(interval,), daemon=True
-        )
-        self.monitor_task.start()
-        logger.info("Database monitoring started")
+        logger.info("Database monitoring initiated (Async).")
+        while self.monitoring:
+            try:
+                # 收集指标可能涉及 DB IO，在线程池中执行以避免阻塞 Loop
+                loop = asyncio.get_running_loop()
+                metrics = await loop.run_in_executor(None, self._collect_metrics)
+                
+                with self.lock:
+                    self.metrics_history.append(metrics)
+
+                await asyncio.sleep(interval)
+
+            except asyncio.CancelledError:
+                self.monitoring = False
+                break
+            except Exception as e:
+                logger.error(f"Monitoring collection error: {e}")
+                await asyncio.sleep(interval)
 
     def stop_monitoring(self):
         """停止监控"""
         self.monitoring = False
-        if self.monitor_task:
-            self.monitor_task.join(timeout=5)
         logger.info("Database monitoring stopped")
-
-    def _monitoring_loop(self, interval: int):
-        """监控循环"""
-        while self.monitoring:
-            try:
-                metrics = self._collect_metrics()
-                with self.lock:
-                    self.metrics_history.append(metrics)
-
-                time.sleep(interval)
-
-            except Exception as e:
-                logger.error(f"Monitoring collection error: {e}")
-                time.sleep(interval)
 
     def _collect_metrics(self) -> DatabaseMetrics:
         """收集指标"""
@@ -237,7 +234,7 @@ class DatabaseMonitor:
                         )
                     ).fetchone()
                     db_size = size_result[0] if size_result else 0
-            except:
+            except Exception:
                 pass
 
             # WAL文件大小
@@ -290,7 +287,7 @@ class DatabaseMonitor:
             engine = get_engine()
             pool = engine.pool
             return pool.checkedout() if hasattr(pool, "checkedout") else 0
-        except:
+        except Exception:
             return 0
 
     def _get_cache_hit_ratio(self) -> float:
@@ -302,7 +299,7 @@ class DatabaseMonitor:
                 if stats and stats[0] > 0:
                     return 0.85  # 估算值
                 return 0.0
-        except:
+        except Exception:
             return 0.0
 
     def get_metrics_summary(self, hours: int = 1) -> Dict[str, Any]:
@@ -567,9 +564,9 @@ def query_timing(query_name: str):
         logger.debug(f"Query '{query_name}' took {duration:.3f}s")
 
 
-def start_database_monitoring():
+async def start_database_monitoring():
     """启动数据库监控"""
-    db_monitor.start_monitoring(interval=60)
+    await db_monitor.start_monitoring(interval=60)
     logger.info("Database monitoring services started")
 
 

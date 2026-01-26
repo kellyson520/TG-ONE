@@ -30,7 +30,7 @@ class TraceAnalyzer:
             except ValueError:
                try:
                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-               except:
+               except ValueError:
                    timestamp = None
 
             return {
@@ -66,7 +66,10 @@ class TraceAnalyzer:
                                  "message": line.strip(),
                                  "raw": line.strip()
                              })
-        except Exception:
+        except Exception as e:
+            from utils.core.logger_utils import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Trace analysis failed for {trace_id}: {e}", exc_info=True)
             return []
 
         # Sort

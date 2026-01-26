@@ -256,7 +256,7 @@ class SmartDeduplicator:
             else:
                 logger.warning(f"后台计算哈希返回空: {file_id}")
         except Exception as e:
-            logger.error(f"后台视频处理任务异常: {e}")
+            logger.error(f"后台视频处理任务异常: {e}", exc_info=True)
 
     async def check_duplicate(
         self,
@@ -332,7 +332,8 @@ class SmartDeduplicator:
                         DEDUP_DECISIONS_TOTAL.labels(
                             result="duplicate", method="signature_pcache"
                         ).inc()
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Metrics record failed: {e}")
                         pass
                     return True, "签名重复: persistent cache 命中"
                 logger.debug(f"检查签名重复: {signature}")
@@ -354,7 +355,8 @@ class SmartDeduplicator:
                         from core.helpers.metrics import DEDUP_CHECK_SECONDS
 
                         DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Metrics record failed: {e}")
                         pass
                     return True, f"签名重复: {reason}"
 

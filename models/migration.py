@@ -369,7 +369,8 @@ def migrate_db(engine):
             
             if 'forward_mode' not in forward_rules_columns:
                 try: connection.execute(text("ALTER TABLE forward_rules RENAME COLUMN mode TO forward_mode"))
-                except: pass
+                except Exception:
+                    pass
 
             # 约束更新 (SQLite 特色)
             result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='index' AND name='unique_rule_keyword_is_regex_is_blacklist'"))

@@ -106,7 +106,8 @@ class TaskService:
                 return {'success': False, 'error': '未找到任务'}
             try:
                 data = json.loads(row.task_data) if row.task_data else {}
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[TaskService] Failed to parse task_data: {e}")
                 data = {}
             detail = {
                 'id': row.id,
@@ -150,7 +151,9 @@ class TaskService:
                     failed_list = data.get('failed_ids', [])
                     if isinstance(failed_list, list):
                         failed_ids = failed_list[:limit]
-                except Exception: pass
+                except Exception as e:
+                    logger.debug(f"[TaskService] Parse failed_ids error: {e}")
+                    pass
             return {'success': True, 'failed_ids': failed_ids}
         except Exception as e:
             logger.error(f"获取失败样本失败: {e}")
@@ -176,7 +179,9 @@ class TaskService:
                 if not task: return None
                 task_data = json.loads(task.task_data) if task.task_data else {}
                 return {"task_id": task_data.get("task_id", task_id), "status": task.status, "task_type": task.task_type}
-        except Exception: return None
+        except Exception as e:
+            logger.error(f"[TaskService] get_task_status failed: {e}")
+            return None
 
     async def get_active_tasks_count(self) -> int:
         """获取活跃任务数量"""
@@ -186,7 +191,9 @@ class TaskService:
                 stmt = select(func.count(TaskQueue.id)).where(TaskQueue.status.in_(["pending", "running"]))
                 result = await session.execute(stmt)
                 return result.scalar_one()
-        except Exception: return 0
+        except Exception as e:
+            logger.error(f"[TaskService] get_active_tasks_count failed: {e}")
+            return 0
 
     async def shutdown(self):
         """关闭任务管理器"""

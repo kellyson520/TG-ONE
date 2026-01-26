@@ -393,7 +393,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.execute_delete_all_duplicates(event)
         elif action == "keep_all_duplicates":
             # 实现保留所有重复项
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success, message = await session_manager.delete_duplicate_messages(
                 event, mode="keep"
@@ -410,7 +410,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             try:
                 # new_menu:toggle_select:{signature}
                 signature = extra_data[0] if extra_data else ""
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.toggle_select_signature(event.chat_id, signature)
                 await new_menu_system.show_select_delete_menu(event)
@@ -418,7 +418,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 logger.error(f"切换选择失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
         elif action == "delete_selected_duplicates":
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success, message = await session_manager.delete_duplicate_messages(
                 event, mode="select"
@@ -436,7 +436,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_time_range_selection(event)
         elif action == "session_dedup_time_range":
             # 会话去重的时间范围设置（与删除共享同一页面）
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             session_manager.set_time_picker_context(event.chat_id, "dedup")
             await new_menu_system.show_time_range_selection(event)
@@ -482,7 +482,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_day_picker(event)
         elif action == "select_days" and extra_data and extra_data[0] == "history":
             # 历史时间范围-快速选择天数（与新模块配合，返回历史路径）
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             session_manager.set_time_picker_context(event.chat_id, "history")
             await new_menu_system.show_day_picker(event)
@@ -553,7 +553,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 time_type = extra_data[0]
                 unit = extra_data[1]
                 value = int(extra_data[2])
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_time_component(
                     event.chat_id, time_type, unit, value
@@ -571,7 +571,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_days":
             try:
                 days = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_days(event.chat_id, days)
                 # 返回会话时间范围页
@@ -582,7 +582,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_year":
             try:
                 year = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_year(event.chat_id, year)
                 await event.answer("✅ 已设置年份")
@@ -595,7 +595,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_month":
             try:
                 month = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_month(event.chat_id, month)
                 await event.answer("✅ 已设置月份")
@@ -608,7 +608,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_dom":
             try:
                 dom = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_day_of_month(event.chat_id, dom)
                 await event.answer("✅ 已设置日期")
@@ -621,7 +621,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_history_year":
             try:
                 year = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_year(event.chat_id, year)
                 await event.answer(f"✅ 已设置年份: {year if year > 0 else '不限'}")
@@ -634,7 +634,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "set_history_month":
             try:
                 month = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_month(event.chat_id, month)
                 await event.answer(f"✅ 已设置月份: {month if month > 0 else '不限'}月")
@@ -651,7 +651,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     field = extra_data[1]  # year/month/day/seconds
                     value = int(extra_data[2])
 
-                    from handlers.button.session_management import session_manager
+                    from services.session_service import session_manager
 
                     await session_manager.set_time_field(
                         event.chat_id, side, field, value
@@ -692,7 +692,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("操作失败", alert=True)
         elif action == "set_all_time_zero":
             try:
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 # 将所有时间参数设为0（表示获取全部消息）
                 await session_manager.set_time_field(event.chat_id, "start", "year", 0)
@@ -717,7 +717,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_time_range_selection(event)
         elif action == "save_time_range":
             # 实现保存时间范围
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success = await session_manager.save_time_range_settings(event.chat_id)
             if success:
@@ -727,7 +727,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("❌ 保存失败")
         elif action == "start_delete_messages":
             # 实现开始删除消息
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success, message = await session_manager.delete_session_messages_by_filter(
                 event
@@ -753,7 +753,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("刷新失败", alert=True)
         elif action == "confirm_delete":
             # 二次确认后执行删除
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success, message = await session_manager.delete_session_messages_by_filter(
                 event
@@ -768,7 +768,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_delete_session_messages_menu(event)
         elif action == "pause_delete":
             # 实现暂停删除
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success = await session_manager.pause_delete_task(event.chat_id)
             if success:
@@ -777,7 +777,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("❌ 暂停失败")
         elif action == "stop_delete":
             # 实现停止删除
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             success = await session_manager.stop_delete_task(event.chat_id)
             if success:
@@ -955,7 +955,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "history_dry_run":
             try:
                 # 干跑：仅统计不发送
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 user_id = event.chat_id
                 rule_id = await session_manager.get_selected_rule(user_id)
@@ -1092,7 +1092,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("干跑失败", alert=True)
         elif action == "history_count_videos":
             try:
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 user_id = event.chat_id
                 rule_id = await session_manager.get_selected_rule(user_id)
@@ -1125,7 +1125,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("统计失败", alert=True)
         elif action == "history_quick_stats":
             try:
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 user_id = event.chat_id
                 rule_id = await session_manager.get_selected_rule(user_id)
@@ -1174,7 +1174,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "history_dry_run_no_filter":
             try:
                 # 跳过筛选的干跑测试
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 user_id = event.chat_id
                 rule_id = await session_manager.get_selected_rule(user_id)
@@ -1217,7 +1217,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action.startswith("dry_run_page"):
             try:
                 page = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 items, pg = session_manager.get_dry_run_page(event.chat_id, page)
                 header = f"🧪 干跑分页  第 {pg['page']+1}/{pg['total_pages']} 页  共 {pg['total_items']} 条（估计 {pg['estimated_total']}）\n\n"
@@ -1299,7 +1299,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("加载失败", alert=True)
         elif action == "toggle_auto_refresh":
             try:
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 msg = await event.get_message()
                 enabled = await session_manager.toggle_auto_refresh(
@@ -1324,7 +1324,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 if rid is None:
                     await event.answer("缺少规则ID", alert=True)
                 else:
-                    from handlers.button.session_management import session_manager
+                    from services.session_service import session_manager
 
                     await session_manager.set_selected_rule(event.chat_id, rid)
                 # 选择后进入“历史任务操作子菜单”（下级菜单）
@@ -1451,7 +1451,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action.startswith("set_history_delay"):
             try:
                 seconds = int(extra_data[0]) if extra_data else 0
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 await session_manager.set_history_delay(event.chat_id, seconds)
                 # 设置后回到控制器的延迟设置页，保持返回路径正确
@@ -1467,19 +1467,19 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "current_history_task":
             await new_menu_system.show_current_history_task(event)
         elif action == "pause_history":
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             ok = await session_manager.pause_history_task(event.chat_id)
             await event.answer("⏸️ 已暂停" if ok else "❌ 暂停失败")
             await new_menu_system.show_history_messages(event)
         elif action == "resume_history":
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             ok = await session_manager.resume_history_task(event.chat_id)
             await event.answer("▶️ 已恢复" if ok else "❌ 恢复失败")
             await new_menu_system.show_history_messages(event)
         elif action == "stop_history":
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
 
             ok = await session_manager.stop_history_task(event.chat_id)
             await event.answer("⏹️ 已停止" if ok else "❌ 停止失败")
@@ -1950,7 +1950,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 chat_id = event.chat_id
                 msg = await event.get_message()
                 # 使用 session_manager 替代 state_manager
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 if user_id not in session_manager.user_sessions:
                     session_manager.user_sessions[user_id] = {}
@@ -1976,7 +1976,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 chat_id = event.chat_id
                 msg = await event.get_message()
                 # 使用 session_manager 替代 state_manager
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 if user_id not in session_manager.user_sessions:
                     session_manager.user_sessions[user_id] = {}
@@ -2002,7 +2002,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 chat_id = event.chat_id
                 msg = await event.get_message()
                 # 使用 session_manager 替代 state_manager
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 if user_id not in session_manager.user_sessions:
                     session_manager.user_sessions[user_id] = {}
@@ -2028,7 +2028,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 chat_id = event.chat_id
                 msg = await event.get_message()
                 # 使用 session_manager 替代 state_manager
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 if user_id not in session_manager.user_sessions:
                     session_manager.user_sessions[user_id] = {}
@@ -2201,7 +2201,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("取消失败", alert=True)
         elif action == "cleanup_history_tasks":
             try:
-                from handlers.button.session_management import session_manager
+                from services.session_service import session_manager
 
                 cleaned_count = await session_manager.cleanup_completed_tasks(
                     event.chat_id

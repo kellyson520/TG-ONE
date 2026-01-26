@@ -6,12 +6,9 @@ import traceback
 from datetime import datetime
 
 import logging
-from sqlalchemy import select
 from telethon import Button
 
-from models.models import Chat, ForwardRule, SystemConfiguration
-from repositories.db_context import async_db_session
-from utils.processing.auto_delete import reply_and_delete, respond_and_delete
+from services.forward_settings_service import forward_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -20,211 +17,36 @@ class ForwardManager:
     """转发管理器"""
 
     def __init__(self):
-        self._global_settings = None
-
-    async def _load_global_settings(self):
-        """从数据库加载全局设置"""
-        if self._global_settings is not None:
-            return self._global_settings
-
-        # 默认设置
-        default_settings = {
-            "media_types": {
-                "image": True,
-                "video": True,
-                "audio": True,
-                "voice": True,
-                "document": True,
-            },
-            "allow_text": True,
-            "allow_emoji": True,  # 新增：是否允许表情包
-            # 文本/媒体互斥筛选（均为 False 表示不限）
-            "only_text": False,
-            "only_media": False,
-            "media_extension_enabled": False,
-            "extension_filter_mode": "blacklist",
-            "media_extensions": [],
-            "media_duration_enabled": False,
-            "duration_min_seconds": 0,
-            "duration_max_seconds": 0,
-            "media_size_filter_enabled": False,
-            "media_size_alert_enabled": False,
-            # 新增：媒体大小限制（单位MB）
-            "media_size_limit": 100,
-            # 新增：媒体大小限制（单位KB，优先于MB）
-            "media_size_limit_kb": 0,
-            # 新增：历史筛选关键词
-            "include_keywords": [],
-            "exclude_keywords": [],
-        }
-
-        async with async_db_session() as session:
-            # 从数据库加载设置
-            result = await session.execute(
-                select(SystemConfiguration).filter(
-                    SystemConfiguration.key == "global_media_settings"
-                )
-            )
-            config = result.scalar_one_or_none()
-
-            if config and config.value:
-                import json
-
-                try:
-                    saved_settings = json.loads(config.value)
-                    # 合并默认设置和保存的设置
-                    default_settings.update(saved_settings)
-                except Exception as e:
-                    logger.error(f"解析全局设置失败: {str(e)}")
-
-            self._global_settings = default_settings
-            return self._global_settings
-
-    async def _save_global_settings(self):
-        """保存全局设置到数据库"""
-        if self._global_settings is None:
-            return
-
-        import json
-
-        async with async_db_session() as session:
-            try:
-                # 查询现有配置
-                result = await session.execute(
-                    select(SystemConfiguration).filter(
-                        SystemConfiguration.key == "global_media_settings"
-                    )
-                )
-                config = result.scalar_one_or_none()
-
-                if not config:
-                    config = SystemConfiguration(
-                        key="global_media_settings", data_type="json"
-                    )
-                    session.add(config)
-
-                config.value = json.dumps(self._global_settings)
-                config.updated_at = datetime.now().isoformat()
-                await session.commit()
-
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"保存全局设置失败: {str(e)}")
+        self._global_settings = None # Deprecated, kept for compat if needed, but service handles cache
 
     async def get_global_media_settings(self):
         """获取全局媒体设置"""
-        return await self._load_global_settings()
+        return await forward_settings_service.get_global_media_settings()
 
     async def update_global_media_setting(self, key, value):
         """更新全局媒体设置"""
-        settings = await self._load_global_settings()
-        if key in settings:
-            settings[key] = value
-            # 先保存，再清除缓存，确保落库成功
-            await self._save_global_settings()
-            # 清除缓存，确保下次获取时重新从数据库加载
-            self._global_settings = None
-            return True
-        elif key in settings.get("media_types", {}):
-            settings["media_types"][key] = value
-            # 先保存，再清除缓存，确保落库成功
-            await self._save_global_settings()
-            # 清除缓存，确保下次获取时重新从数据库加载
-            self._global_settings = None
-            return True
-        return False
+        return await forward_settings_service.update_global_media_setting(key, value)
 
     async def set_media_size_limit(self, limit_mb: int):
         """设置媒体大小限制（MB）"""
-        settings = await self._load_global_settings()
-        try:
-            settings["media_size_limit"] = int(limit_mb)
-            # 先保存，再清除缓存
-            await self._save_global_settings()
-            self._global_settings = None
-            return True
-        except Exception as e:
-            logger.error(f"设置媒体大小限制失败: {str(e)}")
-            return False
+        return await forward_settings_service.set_media_size_limit(limit_mb)
 
     async def get_media_extensions_options(self):
         """获取可选的媒体扩展名列表（优先从配置加载）"""
-        try:
-            # 动态加载环境配置中的扩展名
-            from utils.core.settings import load_media_extensions
-
-            options = load_media_extensions()
-            if isinstance(options, list) and options:
-                return options
-        except Exception:
-            pass
-        # 后备静态列表
-        return [
-            "jpg",
-            "jpeg",
-            "png",
-            "gif",
-            "webp",
-            "mp4",
-            "mkv",
-            "mov",
-            "avi",
-            "mp3",
-            "flac",
-            "wav",
-            "ogg",
-            "zip",
-            "rar",
-            "7z",
-            "pdf",
-            "docx",
-        ]
+        return await forward_settings_service.get_media_extensions_options()
 
     async def toggle_media_extension(self, extension: str):
-        """切换某个媒体扩展名是否启用（加入/移除白名单或黑名单列表）"""
-        settings = await self._load_global_settings()
-        extension = (extension or "").lower().strip()
-        if not extension:
-            return None
-        selected = settings.get("media_extensions", [])
-        if extension in selected:
-            selected.remove(extension)
-            # 先保存，再清除缓存
-            await self._save_global_settings()
-            self._global_settings = None
-            return False
-        else:
-            selected.append(extension)
-            # 去重
-            settings["media_extensions"] = sorted(list(set(selected)))
-            # 先保存，再清除缓存
-            await self._save_global_settings()
-            self._global_settings = None
-            return True
+        """切换某个媒体扩展名是否启用"""
+        return await forward_settings_service.toggle_media_extension(extension)
 
     async def toggle_media_type(self, media_type):
         """切换媒体类型状态"""
-        settings = await self._load_global_settings()
-        if media_type in settings["media_types"]:
-            current = settings["media_types"][media_type]
-            new_state = not current
-            settings["media_types"][media_type] = new_state
-            # 先保存，再清除缓存
-            await self._save_global_settings()
-            self._global_settings = None
-            return True
-        return False
+        return await forward_settings_service.toggle_media_type(media_type)
 
     async def toggle_extension_filter_mode(self):
         """切换扩展名过滤模式"""
-        settings = await self._load_global_settings()
-        current = settings["extension_filter_mode"]
-        new_mode = "whitelist" if current == "blacklist" else "blacklist"
-        settings["extension_filter_mode"] = new_mode
-        # 先保存，再清除缓存
-        await self._save_global_settings()
-        self._global_settings = None
-        return new_mode
+        res = await forward_settings_service.toggle_extension_mode()
+        return res.get('new_mode', 'blacklist')
 
     async def get_channel_rules(self):
         """获取频道规则列表"""

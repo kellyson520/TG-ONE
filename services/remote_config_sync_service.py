@@ -163,7 +163,7 @@ class RemoteConfigSyncService:
             try:
                 await self.connect(self.server_url, self.token)
                 break
-            except:
+            except Exception:
                 await asyncio.sleep(10)
 
     async def stop(self):

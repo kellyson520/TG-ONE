@@ -272,7 +272,7 @@ class ForwardService:
     async def start_history_task(self, rule_id: int, time_config: Dict[str, Any], user_id: int) -> Dict[str, Any]:
         """启动历史消息任务"""
         try:
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
             result = await session_manager.start_history_task(user_id, rule_id, time_config)
             return {
                 'success': result.get('success', False),
@@ -287,7 +287,7 @@ class ForwardService:
     async def get_history_task_status(self, user_id: int) -> Dict[str, Any]:
         """获取历史任务状态"""
         try:
-            from handlers.button.session_management import session_manager
+            from services.session_service import session_manager
             progress = await session_manager.get_history_progress(user_id)
             return {
                 'has_task': progress is not None,

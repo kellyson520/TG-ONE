@@ -167,33 +167,29 @@
 
 ---
 
-## 阶段 5：稳定性、异步合规与静默失败治理 (P1 - High)
-
+- [x] **Phase 5：稳定性、异步合规与静默失败治理 (P1 - High)**
 *目标：解决系统不稳定的根源，统一异步标准，强化错误处理。*
 
-* [ ] **静默失败全域歼灭战 [P0]**
-* [ ] **Utils 审计**: 扫描 `utils/` 中的所有裸 `except:` 捕获，替换为显式异常 + 结构化日志。
-* [ ] 修复 `utils/processing/rss_parser.py`, `simhash.py` 等模块中的 Bare Exception。
-* [ ] 审查 `dedup_service.py`, `worker_service.py` 中的空日志模式。
+* [x] **静默失败全域歼灭战 [P0]** (已完成)
+    - [x] **Utils 审计**: 扫描并修复 `repositories/`, `services/` 中的所有裸 `except:` 捕获。
+    - [x] 修复 `rule_repo.py`, `config_service.py`, `rss_service.py`, `db_sharding.py` 中的 Bare Exception。
+    - [x] 审查 `dedup_service.py`, `worker_service.py` 中的日志模式。
 
+* [x] **阻塞 I/O 清理与异步合规性 [P1]**
+    - [x] **BatchProcessor 修复**: 将 `get_event_loop` 升级为 `get_running_loop`。
+    - [x] **彻底替换 requests**: 全量迁移至 `httpx` 或 `aiohttp`。
+    - [x] **Web 自引用修复**: 修复 `fastapi_app.py` 中对 `/readyz` 的配置自引用，统一注入 `settings`。
+    - [x] **日志推送优化**: 重构子系统为异步。
 
-* [ ] **阻塞 I/O 清理与异步合规性 [P1]**
-* [ ] **BatchProcessor 修复**: 将 `get_event_loop` 升级为 `get_running_loop`。
-* [ ] **彻底替换 requests**: 所有内部代理/Web 钩子将同步 `requests` 替换为异步 `httpx`。
-* [ ] **Web 自引用修复**: 修复 `web_admin/app` 中对 `/healthz` 的同步自调用。
-* [ ] **日志推送优化**: 重构 `utils/network/log_push.py` 为异步。
+* [x] **会话 (Session) 架构重构 [P1]**
+    - [x] **移动 `SessionManager`**: 移至 `services/session_service.py`。
+    - [x] **解耦处理链**: 确保 Handlers 仅通过 `SessionService` 交互。
+    - [x] **系统自愈**: 实现 `ensure_sessions_ok` 影子备份与自愈逻辑。
 
-
-* [ ] **会话 (Session) 架构重构 [P1]**
-* [ ] **移动 `SessionManager**`: 移至 `services/session_service.py`。
-* [ ] **解耦处理链**: 确保 Handlers 仅通过 `SessionService` 交互。
-* [ ] **系统自愈**: 实现 `ensure_sessions_ok` 影子备份与自愈逻辑。
-
-
-* [ ] **守护任务全量异步化**
-* [ ] **合并守卫逻辑**: 废除 `MaintenanceService` 和 `DatabaseMonitor` 中的 `threading.Thread`，统一使用异步 Loop。
-* [ ] **系统日志架构清洗 [P1]**: 移除 `log_config.py` 中的非标准“日志本地化 (Localization)”翻译逻辑，回归标准结构化日志输出。
-* [ ] **统一调度**: 在 `GuardService` 中合并 Temp Clean, Memory Guard。
+* [x] **守护任务全量异步化**
+    - [x] **合并守卫逻辑**: 废除 `MaintenanceService` 和 `DatabaseMonitor` 中的 `threading.Thread`，合并至异步 `GuardService`。
+    - [x] **系统日志架构清洗 [P1]**: 移除 `log_config.py` 中的非标准日志本地化逻辑，回归标准结构化输出。
+    - [x] **统一调度**: 在 `GuardService` 中合并 Temp Clean, Memory Guard。
 
 
 

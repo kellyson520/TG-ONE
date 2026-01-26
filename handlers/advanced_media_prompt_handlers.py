@@ -6,7 +6,7 @@
 import logging
 import re
 
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 from models.models import ForwardRule
 from utils.processing.auto_delete import reply_and_delete
 from repositories.db_context import async_db_session

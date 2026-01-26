@@ -5,7 +5,7 @@ import os
 from telethon import Button
 
 from handlers.button.forward_management import forward_manager
-from handlers.button.session_management import session_manager
+from services.session_service import session_manager
 from ui.builders.time_picker import build_numeric_picker_buttons
 
 from ..base import BaseMenu

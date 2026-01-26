@@ -115,7 +115,8 @@ class RSSParser:
                     # 使用 email.utils 解析 RFC 822
                     ts = email.utils.mktime_tz(email.utils.parsedate_tz(pub_date_str))
                     pub_date = datetime.fromtimestamp(ts)
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse RSS2 date '{pub_date_str}': {e}")
                     pass
 
             parsed_feed.entries.append(FeedEntry(
@@ -166,7 +167,8 @@ class RSSParser:
             if updated_str:
                 try:
                     pub_date = datetime.fromisoformat(updated_str.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse Atom date '{updated_str}': {e}")
                     pass
             
             parsed_feed.entries.append(FeedEntry(

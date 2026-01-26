@@ -77,7 +77,7 @@ class TimeBasedPartitioning:
         if isinstance(timestamp, str):
             try:
                 dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            except:
+            except Exception:
                 dt = datetime.utcnow()
         else:
             dt = timestamp
@@ -151,7 +151,7 @@ class DataShardingManager:
             start_time, _ = self.time_partitioner.get_partition_range(partition_key)
             cutoff = datetime.utcnow() - timedelta(days=retention_days)
             return start_time < cutoff
-        except:
+        except Exception:
             return False
 
 
@@ -456,7 +456,7 @@ class PartitionManager:
                         )
                         size = size_result.fetchone()[0]
                         stats["partition_sizes"][partition_key] = size
-                    except:
+                    except Exception:
                         stats["partition_sizes"][partition_key] = 0
 
                 stats["total_partitions"] = len(partition_keys)

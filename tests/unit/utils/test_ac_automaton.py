@@ -173,7 +173,8 @@ class TestACPerformance:
         # 搜索应该很快
         text = "This text contains keyword_500 and keyword_999"
         matches = ac.search(text)
-        assert len(matches) == 2
+        # Matches: keyword_5, keyword_50, keyword_500, keyword_9, keyword_99, keyword_999
+        assert len(matches) == 6
     
     def test_long_text(self):
         """测试长文本"""

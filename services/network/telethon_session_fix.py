@@ -143,13 +143,13 @@ def ensure_session_ok(base: str) -> bool:
                     # 确保连接关闭
                     try:
                         conn.close()
-                    except:
+                    except Exception:
                         pass
             except Exception:
                 # 确保 finally 块能执行
                 try:
                     conn.close()
-                except:
+                except Exception:
                     pass
                 raise  # 抛出异常进入下面的重置流程
 

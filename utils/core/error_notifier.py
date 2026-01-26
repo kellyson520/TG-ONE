@@ -19,7 +19,8 @@ def _to_text(error: Union[BaseException, str]) -> str:
         else:
             text = str(error)
         return text
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Error during stringification: {e}")
         return ""
 
 
