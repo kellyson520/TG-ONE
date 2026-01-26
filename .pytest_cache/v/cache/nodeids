@@ -1,4 +1,7 @@
 [
+  "tests/integration/test_dynamic_filter_chain.py::test_dynamic_chain_ai_enabled",
+  "tests/integration/test_dynamic_filter_chain.py::test_dynamic_chain_basic",
+  "tests/integration/test_dynamic_filter_chain.py::test_dynamic_chain_rss_only",
   "tests/integration/test_pipeline_flow.py::test_pipeline_attribute_fix_verification",
   "tests/integration/test_pipeline_flow.py::test_pipeline_basic_flow",
   "tests/integration/test_pipeline_flow.py::test_pipeline_dedup_block",
@@ -23,6 +26,9 @@
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_already_list",
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_comma",
   "tests/unit/core/test_settings.py::TestSettingsLogic::test_parse_list_fields_json",
+  "tests/unit/filters/test_filter_chain.py::test_filter_chain_interruption",
+  "tests/unit/filters/test_filter_chain.py::test_filter_chain_success_flow",
+  "tests/unit/filters/test_filter_chain.py::test_record_signature",
   "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_find_chat",
   "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_get_all_standard_pagination",
   "tests/unit/repositories/test_rule_repo.py::TestRuleRepository::test_get_rules_for_source_chat",

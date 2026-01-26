@@ -153,10 +153,30 @@ class RuleLogicService:
             
         return {'success': True, 'deleted': deleted_count}
 
-    async def get_keywords(self, rule_id: int, is_blacklist: bool = True) -> List[KeywordDTO]:
+    @handle_errors(default_return={'success': False, 'error': 'Clearing keywords failed'})
+    async def clear_keywords(self, rule_id: int) -> Dict[str, Any]:
+        """清空规则的所有关键字"""
+        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        if not rule:
+            return {'success': False, 'error': 'Rule not found'}
+        
+        initial_count = len(rule.keywords)
+        if initial_count == 0:
+             return {'success': True, 'deleted': 0}
+        
+        rule.keywords.clear()
+        
+        await self.container.rule_repo.save_rule(rule)
+        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        
+        return {'success': True, 'deleted': initial_count}
+
+    async def get_keywords(self, rule_id: int, is_blacklist: Optional[bool] = True) -> List[KeywordDTO]:
         """获取关键字列表"""
         rule_dto = await self.container.rule_repo.get_by_id(rule_id)
         if not rule_dto: return []
+        if is_blacklist is None:
+            return rule_dto.keywords
         return [kw for kw in rule_dto.keywords if kw.is_blacklist == is_blacklist]
 
     async def get_replace_rules(self, rule_id: int) -> List[ReplaceRuleDTO]:
@@ -246,3 +266,21 @@ class RuleLogicService:
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
+
+    @handle_errors(default_return={'success': False, 'error': 'Clearing replace rules failed'})
+    async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
+        """清空规则的所有替换规则"""
+        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        if not rule:
+            return {'success': False, 'error': 'Rule not found'}
+        
+        initial_count = len(rule.replace_rules)
+        if initial_count == 0:
+             return {'success': True, 'deleted': 0}
+
+        rule.replace_rules.clear()
+        
+        await self.container.rule_repo.save_rule(rule)
+        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        
+        return {'success': True, 'deleted': initial_count}

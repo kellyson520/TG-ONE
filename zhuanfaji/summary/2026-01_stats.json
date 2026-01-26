@@ -1,14 +1,14 @@
 {
   "2026-01-26": {
-    "total_forwards": 13,
+    "total_forwards": 17,
     "types": {
-      "text": 13
+      "text": 17
     },
     "rules": {
-      "1": 13
+      "1": 17
     },
     "chats": {
-      "456": 13
+      "456": 17
     },
     "users": {
       "<MagicMock name='mock.sender.id' id='3082140173376'>": 1,
@@ -23,7 +23,11 @@
       "<MagicMock name='mock.sender.id' id='2219655611456'>": 1,
       "<MagicMock name='mock.sender.id' id='2219656367136'>": 1,
       "<MagicMock name='mock.sender.id' id='2185410937920'>": 1,
-      "<MagicMock name='mock.sender.id' id='2185411744096'>": 1
+      "<MagicMock name='mock.sender.id' id='2185411744096'>": 1,
+      "<MagicMock name='mock.sender.id' id='3034158099696'>": 1,
+      "<MagicMock name='mock.sender.id' id='3034238645120'>": 1,
+      "<MagicMock name='mock.sender.id' id='1695318699248'>": 1,
+      "<MagicMock name='mock.sender.id' id='1695399375744'>": 1
     },
     "total_size_bytes": 0,
     "total_duration_seconds": 0

@@ -1,4 +1,4 @@
-VERSION = "1.2.2"
+VERSION = "1.2.2.1"
 
 WELCOME_TEXT = """
 👋 欢迎使用 Telegram 消息转发机器人！
@@ -10,6 +10,7 @@ WELCOME_TEXT = """
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.2.1: 架构重构 (Phase 4) - 动态过滤链、MenuController 治理、RSS 模块归口统一。
 - v1.2.2: 架构重构 (Phase 3+) - 核心流水线集成测试覆盖、模型字段补全、重试机制增强。
 - v1.2.1: Phase 3 完成 - DTO 强制转换、common.py 清理、查询/过滤逻辑分层。
 - v1.2.0: 核心架构重构(Phase 3) - 模型拆分、服务分层、DB迁移引入。

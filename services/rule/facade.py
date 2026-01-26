@@ -47,7 +47,10 @@ class RuleManagementService:
     async def delete_keywords(self, rule_id: int, keywords: List[str]) -> Dict[str, Any]:
         return await self.logic.delete_keywords(rule_id, keywords)
 
-    async def get_keywords(self, rule_id: int, is_blacklist: bool = True) -> List[KeywordDTO]:
+    async def clear_keywords(self, rule_id: int) -> Dict[str, Any]:
+        return await self.logic.clear_keywords(rule_id)
+
+    async def get_keywords(self, rule_id: int, is_blacklist: Optional[bool] = True) -> List[KeywordDTO]:
         return await self.logic.get_keywords(rule_id, is_blacklist)
 
     async def get_replace_rules(self, rule_id: int) -> List[ReplaceRuleDTO]:
@@ -102,5 +105,8 @@ class RuleManagementService:
 
     async def delete_replace_rules(self, rule_id: int, patterns: List[str]) -> Dict[str, Any]:
         return await self.logic.delete_replace_rules(rule_id, patterns)
+
+    async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
+        return await self.logic.clear_replace_rules(rule_id)
 
 rule_management_service = RuleManagementService()

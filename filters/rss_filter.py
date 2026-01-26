@@ -1,6 +1,6 @@
 ﻿import logging
 from filters.base_filter import BaseFilter
-from services.rss_service import rss_service
+from filters.base_filter import BaseFilter
 from utils.core.constants import RSS_ENABLED
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,7 @@ class RSSFilter(BaseFilter):
     
     async def _process(self, context):
         """处理RSS过滤器逻辑"""
+        from services.rss_service import rss_service
         
         if not RSS_ENABLED:
             logger.debug("RSS未启用，跳过RSS处理")

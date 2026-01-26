@@ -2,8 +2,8 @@
 import logging
 from filters.base_filter import BaseFilter
 from core.helpers.common import check_keywords
-from services.media_service import ai_media_processor
-from services.ai_service import ai_service
+from filters.base_filter import BaseFilter
+from core.helpers.common import check_keywords
 from utils.core.constants import DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,9 @@ class AIFilter(BaseFilter):
             return True
 
         try:
+            from services.media_service import ai_media_processor
+            from services.ai_service import ai_service
+
             image_files = []
             
             # 1. 收集媒体 (优先使用已下载文件，其次直接下载到内存)

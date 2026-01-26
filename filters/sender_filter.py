@@ -3,7 +3,6 @@ import os
 from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode
 from telethon.errors import FloodWaitError
-from core.helpers.common import get_main_module
 from utils.core.error_handler import handle_telegram_errors, handle_errors
 from repositories.db_context import safe_db_operation
 
@@ -77,6 +76,7 @@ class SenderFilter(BaseFilter):
         user_client = context.client
         if user_client is None:
             # 尝试从全局获取
+            from core.helpers.common import get_main_module
             main = await get_main_module()
             user_client = getattr(main, 'user_client', None)
             

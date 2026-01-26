@@ -7,6 +7,7 @@ from middlewares.dedup import DedupMiddleware
 from middlewares.filter import FilterMiddleware
 from middlewares.sender import SenderMiddleware
 from models.models import ForwardRule, Chat
+from filters.base_filter import BaseFilter
 from types import SimpleNamespace
 
 # ==============================================================================
@@ -103,31 +104,36 @@ def pipeline_env(mock_client, mock_rule_repo):
     # Sender
     sender = SenderMiddleware(mock_bus)
     
-    # Mock complex filters to avoid environment dependency issues during integration
-    # We focus on the pipeline mechanism: Loader -> Dedup -> Filter Chain -> Sender
+    # [Refactor] Mock container for filters to adapt to dynamic factory system
+    class FilterMockContainer:
+        def __init__(self):
+            self.mocks = {}
+        def __getattr__(self, name):
+            # map 'ai_filter' to 'ai', 'keyword_filter' to 'keyword' etc
+            clean_name = name.replace('_filter', '')
+            if clean_name not in self.mocks:
+                # 必须继承 BaseFilter 以通过 FilterChain.add_filter 的 isinstance 检查
+                class MockF(BaseFilter):
+                    async def _process(self, context):
+                         # 提供具体实现，避免 ABC 实例化错误
+                         return True
+                    
+                    def __init__(self, filter_name):
+                        super().__init__(filter_name)
+                        # 为每个 mock 实例创建一个独立的 _process AsyncMock，方便测试中断言
+                        self._process = AsyncMock(return_value=True)
+                
+                m = MockF(clean_name)
+                self.mocks[clean_name] = m
+            return self.mocks[clean_name]
+
+    mock_container = FilterMockContainer()
     
-    mock_global = MagicMock()
-    mock_global._process = AsyncMock(return_value=True)
-    filter_mw.global_filter = mock_global
-    
-    mock_adv = MagicMock()
-    mock_adv._process = AsyncMock(return_value=True)
-    filter_mw.advanced_media_filter = mock_adv
-    
-    mock_media = MagicMock()
-    mock_media._process = AsyncMock(return_value=True)
-    filter_mw.media_filter = mock_media
-    
-    mock_init = MagicMock()
-    mock_init._process = AsyncMock(return_value=True)
-    filter_mw.init_filter = mock_init
-    
-    mock_kw = MagicMock()
+    # Special setup for keyword filter as per original test expectations
     async def set_should_forward(ctx):
          ctx.should_forward = True
          return True
-    mock_kw._process = AsyncMock(side_effect=set_should_forward)
-    filter_mw.keyword_filter = mock_kw
+    mock_container.keyword_filter._process = AsyncMock(side_effect=set_should_forward)
     
     # Add to pipeline
     pipeline.add(loader)
@@ -135,7 +141,13 @@ def pipeline_env(mock_client, mock_rule_repo):
     pipeline.add(filter_mw)
     pipeline.add(sender)
     
-    return pipeline, loader, dedup, filter_mw, sender, mock_bus
+    # Patch the registry to return our mocks whenever the factory tries to create a filter
+    with patch('filters.registry.FilterRegistry.create_filter', side_effect=lambda name: getattr(mock_container, f"{name}_filter")):
+        # Clear factory cache to ensure it re-creates filters via the patched registry
+        from filters.factory import get_filter_chain_factory
+        get_filter_chain_factory().clear_cache()
+        
+        yield pipeline, loader, dedup, mock_container, sender, mock_bus
 
 # ==============================================================================
 # Integration Tests
@@ -324,17 +336,13 @@ async def test_pipeline_dedup_rollback(pipeline_env, mock_rule_repo, mock_client
         mock_client.send_message.side_effect = Exception("Network Error")
         mock_client.forward_messages.side_effect = Exception("Network Error")
         
-        # Initialize filters
-        mock_init = MagicMock()
-        mock_init._process = AsyncMock(return_value=True)
-        filter_mw.init_filter = mock_init
+        # Initialize filters (Keep using the BaseFilter-compliant mocks from pipeline_env)
+        filter_mw.init_filter._process.return_value = True
         
-        mock_kw = MagicMock()
         async def set_should_forward(ctx):
              ctx.should_forward = True
              return True
-        mock_kw._process = AsyncMock(side_effect=set_should_forward)
-        filter_mw.keyword_filter = mock_kw
+        filter_mw.keyword_filter._process.side_effect = set_should_forward
         
 
 

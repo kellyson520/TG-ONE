@@ -8,7 +8,9 @@ from typing import Optional, List, Dict, Any
 from telethon import Button, events
 
 from services.menu_service import menu_service
-from services.rule_service import RuleQueryService
+from services.rule.facade import rule_management_service
+from services.session_service import session_service
+from services.analytics_service import analytics_service
 # 避免循环引用，这里不直接导入 forward_manager 等，按需导入或使用 container
 
 logger = logging.getLogger(__name__)
@@ -37,11 +39,6 @@ class MenuController:
     async def _send_error(self, event, text: str):
         """统一错误提示"""
         await event.answer(text, alert=True)
-
-    def _get_db_session(self):
-        """获取异步数据库会话"""
-        from models.models import AsyncSessionManager
-        return AsyncSessionManager()
 
     async def show_main_menu(self, event, force_refresh: bool = False):
         """显示主菜单"""
@@ -207,28 +204,23 @@ class MenuController:
     async def show_manage_keywords(self, event, rule_id: int):
         """管理规则关键词"""
         try:
-            async with self._get_db_session() as session:
-                from models.models import Keyword
-                from sqlalchemy import select
-                stmt = select(Keyword).filter_by(rule_id=rule_id)
-                res = await session.execute(stmt)
-                keywords = res.scalars().all()
-                
-                text = f"🔎 **关键词管理** (规则 `{rule_id}`)\n\n"
-                if not keywords:
-                    text += "📭 目前没有任何关键词，所有消息都将放行。"
-                else:
-                    for i, k in enumerate(keywords, 1):
-                        mode = "正则" if k.is_regex else "普通"
-                        type = "黑名单" if k.is_blacklist else "白名单"
-                        text += f"{i}. `{k.keyword}` ({mode}|{type})\n"
-                
-                buttons = [
-                    [Button.inline("➕ 添加关键词", f"new_menu:add_keyword:{rule_id}")],
-                    [Button.inline("🧹 清空关键词", f"new_menu:clear_keywords_confirm:{rule_id}")],
-                    [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
-                ]
-                await self._send_menu(event, "🔎 **关键词管理**", [text], buttons)
+            keywords = await rule_management_service.get_keywords(rule_id, is_blacklist=None)
+            
+            text = f"🔎 **关键词管理** (规则 `{rule_id}`)\n\n"
+            if not keywords:
+                text += "📭 目前没有任何关键词，所有消息都将放行。"
+            else:
+                for i, k in enumerate(keywords, 1):
+                    mode = "正则" if k.is_regex else "普通"
+                    type = "黑名单" if k.is_blacklist else "白名单"
+                    text += f"{i}. `{k.keyword}` ({mode}|{type})\n"
+            
+            buttons = [
+                [Button.inline("➕ 添加关键词", f"new_menu:add_keyword:{rule_id}")],
+                [Button.inline("🧹 清空关键词", f"new_menu:clear_keywords_confirm:{rule_id}")],
+                [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
+            ]
+            await self._send_menu(event, "🔎 **关键词管理**", [text], buttons)
         except Exception as e:
             logger.error(f"显示关键词管理失败: {e}")
             await self._send_error(event, "操作失败")
@@ -286,26 +278,21 @@ class MenuController:
     async def show_manage_replace_rules(self, event, rule_id: int):
         """管理规则替换规则"""
         try:
-            async with self._get_db_session() as session:
-                from models.models import ReplaceRule
-                from sqlalchemy import select
-                stmt = select(ReplaceRule).filter_by(rule_id=rule_id)
-                res = await session.execute(stmt)
-                rules = res.scalars().all()
-                
-                text = f"🔄 **替换规则管理** (规则 `{rule_id}`)\n\n"
-                if not rules:
-                    text += "📭 目前没有任何替换规则。"
-                else:
-                    for i, r in enumerate(rules, 1):
-                        text += f"{i}. `{r.pattern}` ➔ `{r.content}`\n"
-                
-                buttons = [
-                    [Button.inline("➕ 添加替换规则", f"new_menu:add_replace:{rule_id}")],
-                    [Button.inline("🧹 清空替换规则", f"new_menu:clear_replaces_confirm:{rule_id}")],
-                    [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
-                ]
-                await self._send_menu(event, "🔄 **替换规则管理**", [text], buttons)
+            rules = await rule_management_service.get_replace_rules(rule_id)
+            
+            text = f"🔄 **替换规则管理** (规则 `{rule_id}`)\n\n"
+            if not rules:
+                text += "📭 目前没有任何替换规则。"
+            else:
+                for i, r in enumerate(rules, 1):
+                    text += f"{i}. `{r.pattern}` ➔ `{r.content}`\n"
+            
+            buttons = [
+                [Button.inline("➕ 添加替换规则", f"new_menu:add_replace:{rule_id}")],
+                [Button.inline("🧹 清空替换规则", f"new_menu:clear_replaces_confirm:{rule_id}")],
+                [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
+            ]
+            await self._send_menu(event, "🔄 **替换规则管理**", [text], buttons)
         except Exception as e:
             logger.error(f"显示替换规则管理失败: {e}")
             await self._send_error(event, "操作失败")
@@ -431,21 +418,9 @@ class MenuController:
 
     async def _set_user_state(self, event, state: str, rule_id: int, extra: dict = None):
         """统一设置用户会话状态"""
-        from handlers.button.session_management import session_manager
         user_id = event.sender_id
         chat_id = event.chat_id
-        if user_id not in session_manager.user_sessions:
-            session_manager.user_sessions[user_id] = {}
-        
-        session_data = {
-            "state": state,
-            "rule_id": rule_id,
-            "message": {"rule_id": rule_id}
-        }
-        if extra:
-            session_data.update(extra)
-            
-        session_manager.user_sessions[user_id][chat_id] = session_data
+        await session_service.update_user_state(user_id, chat_id, state, rule_id, extra)
 
     async def enter_add_keyword_state(self, event, rule_id: int):
         """进入添加关键词状态"""
@@ -503,10 +478,9 @@ class MenuController:
     async def clear_replaces_do(self, event, rule_id: int):
         """执行清空替换规则"""
         try:
-            from models.models import ReplaceRule, delete
-            async with self._get_db_session() as session:
-                await session.execute(delete(ReplaceRule).filter_by(rule_id=rule_id))
-                await session.commit()
+            await rule_management_service.clear_replace_rules(rule_id)
+            await event.answer("✅ 替换规则已清空")
+            await self.show_manage_replace_rules(event, rule_id)
         except Exception as e:
             await self._send_error(event, f"操作失败: {e}")
 

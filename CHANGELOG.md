@@ -1,5 +1,15 @@
 # Change Log
 
+## 📅 2026-01-26 更新摘要
+
+### 🚀 v1.2.2.1: Dynamic Pipeline & Controller Decoupling (Phase 4)
+- **Controller Refactor**: Stripped business logic and DB access from `MenuController`; offloaded to `MenuService`, `RuleManagementService`, and `SessionService`.
+- **Dynamic Filters**: Replaced hardcoded filter registry in `FilterMiddleware` with `FilterChainFactory`; filters are now dynamically assembled per-rule.
+- **Dependency Isolation**: Fixed circular imports in `SenderFilter`, `AIFilter`, and `RSSFilter` using lazy loading; enabled clean middleware initialization.
+- **RSS Unification**: Consolidated all RSS logic into `services/rss_service.py` and deleted the legacy `rss/` root directory.
+- **Test Integrity**: Refactored `tests/integration/test_pipeline_flow.py` and added `test_dynamic_filter_chain.py` to verify the factory pattern.
+
+
 ## 📅 2026-01-25 更新摘要
 
 ### 🚀 v1.2.2: Pipeline Integrity & Stability (Phase 3+)

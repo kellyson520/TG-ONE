@@ -1,35 +1,33 @@
-# 任务报告: Core Architecture Refactor (Phase 3+)
+# Architecture Refactor Report - Phase 4
 
-## 📅 执行摘要
-- **执行人**: Antigravity Agent
-- **开始时间**: 2026-01-26
-- **版本里程碑**: v1.2.2 (Data Security & Core Pipeline Stability)
+## 1. Executive Summary
+Successful execution of critical refactoring tasks for `MenuController` and Filter System. The system now adheres to strict Domain-Driven Design (DDD) principles with separated concerns, and the Pipeline filtering mechanism is now fully dynamic and data-driven.
 
-## 🎯 核心成就
-1. **模型层修复 (`models/rule.py`)**:
-   - 恢复了 30+ 个在模型拆分过程中遗漏的关键字段（如 RSS 配置、AI 提示词、媒体大小限制）。
-   - 消除了数据持久化风险，确保 ORM 模型与 `RuleDTO` 100% 对齐。
+## 2. Key Achievements
 
-2. **核心流水线稳定性 (`Pipeline/Sender`)**:
-   - **集成测试通过率**: `tests/integration/test_pipeline_flow.py` 中的所有关键场景（Basic Flow, Dedup Block, Attribute Fix, Rollback）通过率达到 100%。
-   - **SenderMiddleware 补全**: 完善了发送器的集成逻辑，修复了上下文属性访问错误。
-   
-3. **弹性与容错**:
-   - **QueueService**: 修复了重试循环中的 naked `raise` 导致异常吞没的问题。
-   - **故障注入验证**: 通过模拟网络错误，验证了 Circuit Breaker 和 Update Rollback 机制的有效性。
+### 2.1 Domain Logic Separation (Menu System)
+- **MenuController Refactor**: Completely stripped business logic and database access from `MenuController`.
+- **Service Layer Implementation**:
+  - `MenuService`: Handles view-model aggregation and statistics.
+  - `RuleManagementService`: Handles Rule CRUD, Keywords, and Replace Rules logic.
+  - `SessionService`: Handles user session state and history tasks.
+- **Outcome**: `MenuController` is now a pure "Controller" responsible only for receiving events and invoking services/renderers.
 
-4. **配置一致性**:
-   - 在 `Settings` 层补全了 `RSS_ENABLED`, `DB_POOL_RECYCLE` 等缺失配置，消除了运行时的 AttributeError。
+### 2.2 Dynamic Filter Pipeline
+- **FilterChainFactory Integration**: Replaced hardcoded filter lists in `FilterMiddleware` with `FilterChainFactory`.
+- **Dynamic Assembly**: Filters are now assembled per-rule based on database configuration (e.g., `enable_ai`, `enable_dedup`).
+- **Context Management**: Enhanced `MessageContext` flow, ensuring consistent context propagation across the pipeline.
+- **Circular Dependency Resolution**: Resolved circular imports in `SenderFilter` and related modules.
 
-## 📊 质量矩阵
-| 指标 | 状态 | 说明 |
-| :--- | :--- | :--- |
-| **集成测试** | ✅ PASS | Pipeline 核心链路验证通过 |
-| **单元测试** | ✅ PASS | Service 层业务逻辑覆盖 |
-| **模型完整性** | ✅ 100% | 字段对齐检查通过 |
-| **启动检查** | ✅ PASS | `python main.py` 启动逻辑无异常 |
+## 3. Technical Changes
+- **File: `controllers/menu_controller.py`**: Removed `sqlalchemy` dependencies, replaced `_get_db_session` with Service calls.
+- **File: `middlewares/filter.py`**: Rewrote to use `filter_factory.create_chain_for_rule(rule)`.
+- **File: `filters/filter_chain.py`**: Added `process_context` to support externally created contexts.
+- **File: `services/rule/logic.py`**: Added `clear_keywords` and `clear_replace_rules` methods.
 
-## ⏭️ 下一步建议
-- **Utils 服务化**: 将 `utils/` 下剩余的业务逻辑（如 RSS 解析、媒体处理）迁移至 `services/`。
-- **Web Admin 重构**: 使用 Pydantic Schema 标准化所有 API 响应。
-- **性能优化**: 针对去重算法进行 SimHash + Bloom Filter 的混合模式调优。
+## 4. Pending / Next Steps
+- **Validation**: While unit tests for `FilterChain` pass partially, full integration tests require environment setup (Mock DB/Redis).
+- **RSS Consolidation**: The RSS module centralization is marked as partially Done in todo, but further cleanup of `rss/` legacy directory is recommended in the next phase.
+
+## 5. Conclusion
+The architecture is now significantly more modular. The removal of the "God Class" implementation in `MenuController` and the "Hardcoded Pipeline" in generic middleware paves the way for easier extensibility (e.g., adding new filters without changing middleware code).

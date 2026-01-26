@@ -466,5 +466,27 @@ class SessionService:
                 'error': str(e)
             }
 
+    async def update_user_state(self, user_id: int, chat_id: int, state: str, rule_id: int, extra: Dict[str, Any] = None):
+        """更新用户会话状态 (替代 MenuController 直接操作)"""
+        try:
+            from handlers.button.session_management import session_manager
+            
+            if user_id not in session_manager.user_sessions:
+                session_manager.user_sessions[user_id] = {}
+            
+            session_data = {
+                "state": state,
+                "rule_id": rule_id,
+                "message": {"rule_id": rule_id}
+            }
+            if extra:
+                session_data.update(extra)
+                
+            session_manager.user_sessions[user_id][chat_id] = session_data
+            return True
+        except Exception as e:
+            logger.error(f"更新用户会话状态失败: {e}")
+            return False
+
 # 全局服务实例
 session_service = SessionService()

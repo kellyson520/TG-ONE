@@ -29,27 +29,26 @@ class FilterChain:
         
     async def process(self, client, event, chat_id, rule):
         """
-        处理消息
+        处理消息 (Legacy helper, creates internal context)
+        """
+        context = MessageContext(client, event, chat_id, rule)
+        return await self.process_context(context)
+
+    async def process_context(self, context: MessageContext) -> bool:
+        """
+        处理消息上下文
         
         Args:
-            client: 机器人客户端
-            event: 消息事件
-            chat_id: 聊天ID
-            rule: 转发规则
+            context: 已初始化的消息上下文
             
         Returns:
-            bool: 表示处理是否成功
+            bool: 是否需继续后续流程 (Success)
         """
-        # 创建消息上下文
-        context = MessageContext(client, event, chat_id, rule)
-        
-        logger.info(f"开始过滤器链处理，共 {len(self.filters)} 个过滤器")
+        logger.info(f"开始过滤器链处理，共 {len(self.filters)} 个过滤器 (TraceID: {getattr(context, 'trace_id', 'N/A')})")
         
         import asyncio
-        # 依次执行每个过滤器，设置超时机制防止阻塞
         for filter_obj in self.filters:
             try:
-                # 为每个过滤器设置10秒超时
                 should_continue = await asyncio.wait_for(
                     filter_obj.process(context),
                     timeout=10.0
@@ -65,6 +64,8 @@ class FilterChain:
                 logger.error(f"过滤器 {filter_obj.name} 处理出错: {str(e)}")
                 context.errors.append(f"过滤器 {filter_obj.name} 错误: {str(e)}")
                 return False
+                
+        return True
         
         # 过滤链全部通过后，若已实际发送，记录媒体签名（用于后续去重，计数累加）
         try:
