@@ -74,8 +74,8 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
-| 20260125_Infras_P2 | 基础设施抢修与死代码清除 (Phase 2) | 2026-01-25 | 进行中 | 5% | [📂 查看](./Workstream_Architecture_Refactor/20260125_Core_Infrastructure_Cleanup_Phase2/todo.md) |
-| 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3) | 2026-01-25 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260125_Data_Security_Core_Refactor_Phase3/todo.md) |
+| 20260125_Infras_P2 | 基础设施抢修与死代码清除 (Phase 2) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./archive/Workstream_Architecture_Refactor/20260125_Core_Infrastructure_Cleanup_Phase2/report.md) |
+| 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3+) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report.md) |
 
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |

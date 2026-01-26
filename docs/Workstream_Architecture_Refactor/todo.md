@@ -146,7 +146,7 @@
 
 * [ ] **目录结构标准化 (大一统)**
 * [x] `utils/db/` -> `repositories/`: 彻底移除混合在 utils 中的 DB 操作。
-* [ ] `utils/network/` -> `services/network/`: 网络请求逻辑升级为服务。
+* [x] `utils/network/` -> `services/network/`: 网络请求逻辑升级为服务。
 * [ ] `utils/helpers/` -> `core/helpers/`: 真正通用的纯函数。
 * [ ] `config/` (root) -> `core/config/`: 消除根目录冗余。
 
@@ -154,7 +154,7 @@
 * [ ] **Service 与 Util 领域重划**
 * [ ] **`controllers/menu_controller.py` (上帝类治理)**: 业务逻辑剥离至 `services/menu_service.py`。
 * [ ] **`filters/` 逻辑大清洗**:
-* [ ] `rss_filter.py`: I/O 逻辑移至 `services/rss_service.py`，移除过滤器内部的媒体下载逻辑。
+* [x] `rss_filter.py`: I/O 逻辑移至 `services/rss_service.py`，移除过滤器内部的媒体下载逻辑。
 * [ ] `ai_filter.py`: 预处理移至 `media_service`，实现 Base64 处理的流式化/熔断保护。
 * [ ] **实现全动态过滤链 [P1]**: 将 `FilterMiddleware` 改为完全由 `FilterChainFactory` 驱动，根据数据库规则动态组装过滤器，废除硬编码列表。
 
@@ -162,7 +162,7 @@
 
 
 * [ ] **RSS 模块归口统一 (`rss/`)**
-* [ ] **整合**: 核心逻辑移至 `services/rss_service.py`；路由移至 `web_admin`；删除冗余的 `rss/` 独立目录。
+* [x] **整合**: 核心逻辑移至 `services/rss_service.py`；路由移至 `web_admin`；删除冗余的 `rss/` 独立目录。
 
 
 
