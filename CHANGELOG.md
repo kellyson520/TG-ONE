@@ -3,11 +3,25 @@
 ## 📅 2026-01-26 更新摘要
 
 ### 🚀 v1.2.2.1: Dynamic Pipeline & Controller Decoupling (Phase 4)
-- **Controller Refactor**: Stripped business logic and DB access from `MenuController`; offloaded to `MenuService`, `RuleManagementService`, and `SessionService`.
-- **Dynamic Filters**: Replaced hardcoded filter registry in `FilterMiddleware` with `FilterChainFactory`; filters are now dynamically assembled per-rule.
-- **Dependency Isolation**: Fixed circular imports in `SenderFilter`, `AIFilter`, and `RSSFilter` using lazy loading; enabled clean middleware initialization.
-- **RSS Unification**: Consolidated all RSS logic into `services/rss_service.py` and deleted the legacy `rss/` root directory.
-- **Test Integrity**: Refactored `tests/integration/test_pipeline_flow.py` and added `test_dynamic_filter_chain.py` to verify the factory pattern.
+- **God-Class Decoupling (MenuController)**:
+    - Stripped all direct SQLAlchemy dependencies and repository calls from `MenuController`.
+    - Offloaded state management to `SessionService` (via `update_user_state`).
+    - Delegated Rule CRUD and logic to `RuleManagementService` (implementing `clear_keywords` and `clear_replace_rules`).
+    - Centralized view-model preparation in `MenuService`.
+- **Full Dynamic Filter Pipeline**:
+    - Replaced hardcoded middleware registry with `FilterChainFactory`.
+    - Enabled per-rule dynamic assembly: Filters are now instantiated on-demand based on DB flags (e.g., `is_ai`, `only_rss`, `enable_delay`).
+    - Added `process_context` to `FilterChain` to support externally injected `MessageContext`.
+- **Circular Dependency & Import Hygiene**:
+    - Resolved critical blocking import loops in `SenderFilter`, `AIFilter`, and `RSSFilter` by pivoting to **Lazy Local Imports**.
+    - Verified clean import tree using the new `scripts/debug_import.py` utility.
+- **RSS Strategy Consolidation**:
+    - Eliminated the redundant legacy `rss/` root directory.
+    - Unified all feed generation and media harvesting into `services/rss_service.py` using `aiohttp` (when available).
+- **Test Matrix & Verification**:
+    - Implemented `tests/integration/test_dynamic_filter_chain.py` verifying assembly logic for Basic, AI, and RSS-only rules.
+    - Refactored legacy `tests/integration/test_pipeline_flow.py` to use `filter_registry_mock` via `unittest.mock.patch`, ensuring support for the new factory architecture.
+
 
 
 ## 📅 2026-01-25 更新摘要
