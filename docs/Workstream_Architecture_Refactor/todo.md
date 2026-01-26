@@ -137,17 +137,17 @@
 
 *目标：将分散在 Utils 的逻辑收归 Service，建立标准化的业务层。*
 
-* [ ] **Utils 层业务逻辑歼灭战**
-* [ ] **解耦数据库**: 彻底移除 `utils/processing/` (如 `smart_dedup.py`, `batch_processor.py`) 对 `sqlalchemy` 的直接引用，通过 Repository 注入。
+* [x] **Utils 层业务逻辑歼灭战**
+* [x] **解耦数据库**: 彻底移除 `utils/processing/` (如 `smart_dedup.py`, `batch_processor.py`) 对 `sqlalchemy` 的直接引用，通过 Repository 注入。(已迁移至 `dedup_service` 和 `task_service`)
 * [x] **业务下沉**: 将 `utils/processing/message_task_manager.py` 迁移至 `services/task_service.py`。
 * [x] **队列服务化**: 将 `utils/processing/forward_queue.py` 升级为 `services/queue_service.py`。
-* [ ] **搜索系统**: 将 `utils/helpers/search_system.py` 升级为 `services/search_service.py`，隔离远程与本地搜索 Provider。
+* [x] **搜索系统**: 将 `utils/helpers/search_system.py` 升级为 `services/search_service.py`，隔离远程与本地搜索 Provider。
 
 
-* [ ] **目录结构标准化 (大一统)**
+* [x] **目录结构标准化 (大一统)**
 * [x] `utils/db/` -> `repositories/`: 彻底移除混合在 utils 中的 DB 操作。
 * [x] `utils/network/` -> `services/network/`: 网络请求逻辑升级为服务。
-* [ ] `utils/helpers/` -> `core/helpers/`: 真正通用的纯函数。
+* [x] `utils/helpers/` -> `core/helpers/`: 真正通用的纯函数。
 * [ ] `config/` (root) -> `core/config/`: 消除根目录冗余。
 
 
