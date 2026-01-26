@@ -9,7 +9,7 @@ import re
 from handlers.button.session_management import session_manager
 from models.models import ForwardRule
 from utils.processing.auto_delete import reply_and_delete
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 

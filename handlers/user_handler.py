@@ -3,16 +3,16 @@ import re
 
 # 导入新的过滤器系统
 from filters.factory import get_filter_chain_factory
-from utils.db.db_operations import DBOperations
+from repositories.db_operations import DBOperations
 from models.models import ForwardMode
-from utils.helpers.common import check_keywords, get_sender_info
+from core.helpers.common import check_keywords, get_sender_info
 
 # 导入统一优化工具
-from utils.db.db_context import async_db_session, db_session, safe_db_operation
+from repositories.db_context import async_db_session, db_session, safe_db_operation
 from utils.core.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
 from utils.forward_recorder import forward_recorder
 from utils.core.logger_utils import get_logger, log_performance, log_user_action
-from utils.helpers.message_utils import get_message_handler
+from core.helpers.message_utils import get_message_handler
 from utils.processing.unified_cache import cached, get_smart_cache
 
 logger = get_logger(__name__)

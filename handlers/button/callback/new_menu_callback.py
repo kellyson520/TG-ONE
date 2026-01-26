@@ -2277,7 +2277,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
 async def handle_toggle_time_window(event, extra_data):
     """切换时间窗口去重开关"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         enable = extra_data[0].lower() == "true" if extra_data else True
         smart_deduplicator.update_config({"enable_time_window": enable})
@@ -2293,7 +2293,7 @@ async def handle_toggle_time_window(event, extra_data):
 async def handle_set_time_window(event, extra_data):
     """设置时间窗口大小"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         hours = int(extra_data[0]) if extra_data else 24
         smart_deduplicator.update_config({"time_window_hours": hours})
@@ -2309,7 +2309,7 @@ async def handle_set_time_window(event, extra_data):
 async def handle_toggle_similarity(event, extra_data):
     """切换相似度检测开关"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         enable = extra_data[0].lower() == "true" if extra_data else True
         smart_deduplicator.update_config({"enable_smart_similarity": enable})
@@ -2325,7 +2325,7 @@ async def handle_toggle_similarity(event, extra_data):
 async def handle_set_similarity(event, extra_data):
     """设置相似度阈值"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         threshold = float(extra_data[0]) if extra_data else 0.85
         smart_deduplicator.update_config({"similarity_threshold": threshold})
@@ -2341,7 +2341,7 @@ async def handle_set_similarity(event, extra_data):
 async def handle_toggle_content_hash(event, extra_data):
     """切换内容哈希去重开关"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         enable = extra_data[0].lower() == "true" if extra_data else True
         smart_deduplicator.update_config({"enable_content_hash": enable})
@@ -2357,7 +2357,7 @@ async def handle_toggle_content_hash(event, extra_data):
 async def handle_set_cleanup_interval(event, extra_data):
     """设置缓存清理间隔"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         interval = int(extra_data[0]) if extra_data else 3600
         smart_deduplicator.update_config({"cache_cleanup_interval": interval})
@@ -2373,7 +2373,7 @@ async def handle_set_cleanup_interval(event, extra_data):
 async def handle_toggle_video_file_id(event, extra_data):
     """切换视频 file_id 判重开关"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         enable = extra_data[0].lower() == "true" if extra_data else True
         smart_deduplicator.update_config({"enable_video_file_id_check": enable})
@@ -2387,7 +2387,7 @@ async def handle_toggle_video_file_id(event, extra_data):
 async def handle_toggle_video_partial(event, extra_data):
     """切换视频部分哈希判重开关"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         enable = extra_data[0].lower() == "true" if extra_data else True
         smart_deduplicator.update_config({"enable_video_partial_hash_check": enable})
@@ -2401,7 +2401,7 @@ async def handle_toggle_video_partial(event, extra_data):
 async def handle_set_video_partial_bytes(event, extra_data):
     """设置视频部分哈希采样字节数"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         part_bytes = int(extra_data[0]) if extra_data else 262144
         if part_bytes < 65536:
@@ -2417,7 +2417,7 @@ async def handle_set_video_partial_bytes(event, extra_data):
 async def handle_manual_cleanup(event):
     """手动清理缓存"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         # 强制清理缓存
         smart_deduplicator.last_cleanup = 0  # 重置清理时间强制触发
@@ -2438,7 +2438,7 @@ async def handle_manual_cleanup(event):
 async def handle_reset_dedup_config(event):
     """重置去重配置"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         # 使用内置的重置方法
         smart_deduplicator.reset_to_defaults()
@@ -2454,7 +2454,7 @@ async def handle_reset_dedup_config(event):
 async def handle_clear_dedup_cache(event):
     """清理去重缓存"""
     try:
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
 
         # 清空所有缓存
         smart_deduplicator.time_window_cache.clear()

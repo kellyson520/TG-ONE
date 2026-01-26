@@ -7,8 +7,8 @@ from typing import List
 
 from core.config import settings
 from scheduler.db_archive_job import archive_once, garbage_collect_once
-from utils.db.archive_store import compact_small_files
-from utils.helpers.metrics import ARCHIVE_RUN_SECONDS, ARCHIVE_RUN_TOTAL
+from repositories.archive_store import compact_small_files
+from core.helpers.metrics import ARCHIVE_RUN_SECONDS, ARCHIVE_RUN_TOTAL
 
 logger = logging.getLogger(__name__)
 

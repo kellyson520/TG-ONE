@@ -11,7 +11,7 @@ import logging
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from models.models import Chat
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 import traceback
 import random
 from utils.core.constants import DEFAULT_TIMEZONE
@@ -113,7 +113,7 @@ class ChatUpdater:
                         # 尝试获取聊天实体
                         try:
                             # 通过统一工具解析实体
-                            from utils.helpers.id_utils import resolve_entity_by_id_variants
+                            from core.helpers.id_utils import resolve_entity_by_id_variants
                             entity, _resolved = await resolve_entity_by_id_variants(self.user_client, chat_id)
                             if entity is None:
                                 logger.warning(f"无法解析聊天实体: {chat_id}")

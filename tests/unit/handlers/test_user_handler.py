@@ -26,7 +26,7 @@ def mock_modules():
         'mock_factory': mock_factory,
         'mock_logger': mock_logger,
         'filters.factory': mock_factory_module,
-        'utils.db.db_operations': MagicMock(),
+        'repositories.db_operations': MagicMock(),
         'utils.processing.unified_cache': mock_unified_cache,
         'utils.core.logger_utils': mock_logger_utils,
         'utils.forward_recorder': MagicMock()

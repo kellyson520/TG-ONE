@@ -2,7 +2,7 @@ from sqlalchemy import text
 from telethon import Button
 
 from models.models import ForwardRule, get_session
-from utils.helpers.common import get_db_ops
+from core.helpers.common import get_db_ops
 from utils.core.constants import *
 from utils.core.settings import (
     load_ai_models,

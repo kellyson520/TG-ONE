@@ -71,7 +71,7 @@ class RuleLogicService:
     @handle_errors(default_return={'success': False, 'error': 'Chat binding failed'})
     async def bind_chat(self, client, source_input: str, target_input: str) -> Dict[str, Any]:
         """一键绑定两个聊天"""
-        from utils.helpers.id_utils import get_or_create_chat_async
+        from core.helpers.id_utils import get_or_create_chat_async
         
         # 1. 寻找或创建目标聊天
         target_name, target_tid, target_chat_obj = await get_or_create_chat_async(client, target_input)

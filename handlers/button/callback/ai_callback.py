@@ -10,7 +10,7 @@ from telethon.tl import types
 from handlers.button.session_management import session_manager
 from models.models import AsyncSessionManager, ForwardRule, RuleSync
 from scheduler.summary_scheduler import SummaryScheduler
-from utils.helpers.common import get_ai_settings_text, get_main_module, is_admin
+from core.helpers.common import get_ai_settings_text, get_main_module, is_admin
 
 from handlers.button.button_helpers import (
     create_ai_settings_buttons,

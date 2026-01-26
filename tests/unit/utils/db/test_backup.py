@@ -2,7 +2,7 @@
 import os
 import sqlite3
 import pytest
-from utils.db import backup
+from repositories import backup
 from unittest.mock import MagicMock, patch
 
 def create_dummy_db(path):
@@ -41,14 +41,14 @@ class TestBackup:
         # But we need it for create_dummy_db? No, that calls real sqlite3.
         # We patch inside the module backup.sqlite3
         
-        with patch('utils.db.backup.sqlite3.connect', side_effect=Exception("API Error")):
+        with patch('repositories.backup.sqlite3.connect', side_effect=Exception("API Error")):
              path = backup.backup_database(db_path, backup_dir)
              
         assert path != ""
         assert os.path.exists(path)
         # Should contain data (copied)
         # We can't use sqlite3 to check since we mocked it?
-        # No, we mocked utils.db.backup.sqlite3.
+        # No, we mocked repositories.backup.sqlite3.
         # We can use real sqlite3 here.
         real_conn = sqlite3.connect(path)
         cur = real_conn.execute("SELECT value FROM test")

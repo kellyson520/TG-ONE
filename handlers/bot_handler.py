@@ -10,7 +10,7 @@ from version import WELCOME_TEXT
 from utils.core.constants import TEMP_DIR
 
 # [Refactor Fix] 修正 utils 导入
-from utils.helpers.common import *
+from core.helpers.common import *
 from utils.media.media import *
 
 # [Refactor Fix] 更新内部模块导入路径

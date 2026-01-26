@@ -16,7 +16,7 @@ class RulesMenu(BaseMenu):
         from sqlalchemy import func, select
         from sqlalchemy.orm import selectinload
         from models.models import ForwardRule
-        from utils.db.db_context import async_db_session
+        from repositories.db_context import async_db_session
 
         page = int(page)
         per_page = 5

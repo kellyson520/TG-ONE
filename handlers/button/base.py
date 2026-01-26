@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime
 from telethon import Button
-from utils.network.telegram_utils import safe_edit
+from services.network.telegram_utils import safe_edit
 
 logger = logging.getLogger(__name__)
 

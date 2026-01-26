@@ -7,9 +7,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 from telethon import Button, events
 
-from handlers.button.new_menu_system import new_menu_system
-from handlers.button.modules.history import history_module
-from services.analytics_service import analytics_service
+from services.menu_service import menu_service
 from services.rule_service import RuleQueryService
 # 避免循环引用，这里不直接导入 forward_manager 等，按需导入或使用 container
 
@@ -19,10 +17,12 @@ class MenuController:
     """菜单控制器类 - 负责协调业务逻辑与UI渲染"""
 
     def __init__(self):
-        # 延迟导入或直接引用，View层使用 new_menu_system
+        # 延迟导入或直接引用
+        from handlers.button.new_menu_system import new_menu_system
         self.view = new_menu_system
         from ui.menu_renderer import MenuRenderer
         self.renderer = MenuRenderer()
+        self.service = menu_service
 
     async def _send_menu(self, event, title: str, body_lines: list, buttons: list, breadcrumb: str = None):
         """统一发送/编辑菜单"""
@@ -44,40 +44,21 @@ class MenuController:
         return AsyncSessionManager()
 
     async def show_main_menu(self, event, force_refresh: bool = False):
-        """显示主菜单 (看板统计 + 功能入口)"""
+        """显示主菜单"""
         try:
-            from utils.helpers.realtime_stats import get_main_menu_stats
-            stats = await get_main_menu_stats(force_refresh=force_refresh)
-            
-            # 使用 Renderer 渲染
+            stats = await self.service.get_main_menu_data(force_refresh=force_refresh)
             render_data = self.renderer.render_main_menu(stats)
-            
-            await self._send_menu(
-                event,
-                title="🏠 **主菜单**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons']
-            )
+            await self._send_menu(event, "🏠 **主菜单**", [render_data['text']], render_data['buttons'])
         except Exception as e:
-            logger.error(f"显示主菜单失败: {e}", exc_info=True)
+            logger.error(f"显示主菜单失败: {e}")
             await self._send_error(event, "看板加载失败")
 
     async def show_forward_hub(self, event):
         """显示转发管理中心"""
         try:
-            from utils.helpers.realtime_stats import realtime_stats_cache
-            stats = await realtime_stats_cache.get_forward_stats()
-            
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_forward_hub({'overview': stats.get('today', {})})
-            
-            await self._send_menu(
-                event,
-                title="🔄 **转发管理中心**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 🔄"
-            )
+            stats = await self.service.get_forward_hub_data()
+            render_data = self.renderer.render_forward_hub(stats)
+            await self._send_menu(event, "🔄 **转发管理中心**", [render_data['text']], render_data['buttons'], "🏠 > 🔄")
         except Exception as e:
             logger.error(f"显示转发中心失败: {e}")
             await self._send_error(event, "转发中心加载失败")
@@ -85,7 +66,7 @@ class MenuController:
     async def show_dedup_hub(self, event):
         """显示智能去重中心"""
         try:
-            from utils.helpers.realtime_stats import realtime_stats_cache
+            from core.helpers.realtime_stats import realtime_stats_cache
             stats = await realtime_stats_cache.get_dedup_stats()
             
             # 使用 Renderer 渲染
@@ -124,19 +105,9 @@ class MenuController:
     async def show_system_hub(self, event):
         """显示系统设置中心"""
         try:
-            from utils.helpers.realtime_stats import realtime_stats_cache
-            system_data = await realtime_stats_cache.get_system_stats()
-            
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_system_hub(system_data)
-            
-            await self._send_menu(
-                event,
-                title="⚙️ **系统设置中心**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > ⚙️"
-            )
+            stats = await self.service.get_system_hub_data()
+            render_data = self.renderer.render_system_hub(stats)
+            await self._send_menu(event, "⚙️ **系统设置中心**", [render_data['text']], render_data['buttons'], "🏠 > ⚙️")
         except Exception as e:
             logger.error(f"显示系统中心失败: {e}")
             await self._send_error(event, "系统中心加载失败")

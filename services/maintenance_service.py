@@ -3,7 +3,7 @@ import time
 import pathlib
 import psutil
 import logging
-from utils.helpers.tombstone import tombstone
+from core.helpers.tombstone import tombstone
 from core.config import settings
 
 logger = logging.getLogger(__name__)

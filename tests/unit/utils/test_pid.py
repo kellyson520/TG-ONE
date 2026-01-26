@@ -1,6 +1,6 @@
 import time
 import pytest
-from utils.network.pid import PIDController
+from services.network.pid import PIDController
 
 def test_pid_basic():
     """测试PID基本响应"""

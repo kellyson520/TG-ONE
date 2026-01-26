@@ -2,7 +2,7 @@
 import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
-from utils.network.api_optimization import TelegramAPIOptimizer
+from services.network.api_optimization import TelegramAPIOptimizer
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import Channel, Chat
 

@@ -1,7 +1,7 @@
 from typing import Optional
 import asyncio
 from services.settings import settings
-from utils.helpers.metrics import ARCHIVE_RUN_SECONDS, ARCHIVE_RUN_TOTAL
+from core.helpers.metrics import ARCHIVE_RUN_SECONDS, ARCHIVE_RUN_TOTAL
 from core.container import container
 
 

@@ -19,8 +19,8 @@ from utils.core.constants import DEFAULT_TIMEZONE,DEFAULT_AI_MODEL,DEFAULT_SUMMA
 from utils.core.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
 from utils.core.logger_utils import get_logger, log_user_action, log_performance
 from utils.processing.unified_cache import cached, get_smart_cache
-from utils.helpers.message_utils import get_message_handler
-from utils.network.timing_wheel import HashedTimingWheel
+from core.helpers.message_utils import get_message_handler
+from services.network.timing_wheel import HashedTimingWheel
 
 logger = get_logger(__name__)
 
@@ -270,7 +270,7 @@ class SummaryScheduler:
     async def _get_messages_with_api_optimization(self, source_chat_id, start_time, end_time, rule_id):
         """使用官方API优化获取消息"""
         try:
-            from utils.network.api_optimization import get_api_optimizer
+            from services.network.api_optimization import get_api_optimizer
             api_optimizer = get_api_optimizer()
             
             if not api_optimizer:

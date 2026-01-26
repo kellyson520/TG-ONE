@@ -1,8 +1,8 @@
 ﻿import logging
 from filters.base_filter import BaseFilter
 from filters.keyword_filter import KeywordFilter
-from utils.helpers.common import check_keywords
-from utils.helpers.common import get_main_module
+from core.helpers.common import check_keywords
+from core.helpers.common import get_main_module
 from ai import get_ai_provider
 from utils.core.constants import DEFAULT_AI_MODEL,DEFAULT_SUMMARY_PROMPT,DEFAULT_AI_PROMPT
 from datetime import datetime, timedelta
@@ -180,7 +180,7 @@ async def _ai_handle(message: str, rule, image_files=None) -> str:
                 client = main.user_client
                 
                 # 获取源聊天和目标聊天ID（使用统一解析）
-                from utils.helpers.id_utils import resolve_entity_by_id_variants
+                from core.helpers.id_utils import resolve_entity_by_id_variants
                 try:
                     _, source_chat_id = await resolve_entity_by_id_variants(client, rule.source_chat.telegram_chat_id)
                     _, target_chat_id = await resolve_entity_by_id_variants(client, rule.target_chat.telegram_chat_id)
@@ -299,7 +299,7 @@ async def _get_chat_messages(client, chat_id, minutes=None, count=None, delay_se
     """
     try:
         # 使用优化的批量消息获取API
-        from utils.network.api_optimization import get_api_optimizer
+        from services.network.api_optimization import get_api_optimizer
         api_optimizer = get_api_optimizer()
         
         limit = count if count else 500  # 设置一个合理的默认值

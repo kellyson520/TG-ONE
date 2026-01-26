@@ -14,8 +14,8 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.models import get_session, ForwardRule, Chat, MediaSignature, ForwardLog, SearchResult
-from utils.db_field_utils import fix_datetime_fields, validate_datetime_fields
-from utils.db.db_context import db_session
+from repositories_field_utils import fix_datetime_fields, validate_datetime_fields
+from repositories.db_context import db_session
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

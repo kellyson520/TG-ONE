@@ -98,7 +98,7 @@ class InfoFilter(BaseFilter):
                                     ).strip() or "Unknown Channel"
                                 else:
                                     # 批量服务失败，使用实体解析器
-                                    from utils.helpers.entity_optimization import get_entity_resolver
+                                    from core.helpers.entity_optimization import get_entity_resolver
                                     entity_resolver = get_entity_resolver()
                                     
                                     if entity_resolver:

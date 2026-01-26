@@ -2,7 +2,7 @@ import traceback
 
 import logging
 from telethon import Button
-from utils.network.router import RadixRouter
+from services.network.router import RadixRouter
 
 from models.models import (
     AsyncSessionManager,
@@ -19,10 +19,10 @@ from models.models import (
 from utils.core.constants import RSS_HOST, RSS_PORT
 
 # [Refactor Fix] 更新 common 路径
-from utils.helpers.common import check_and_clean_chats
+from core.helpers.common import check_and_clean_chats
 
 # [Refactor Fix] 更新 id_utils 路径
-from utils.helpers.id_utils import find_chat_by_telegram_id_variants
+from core.helpers.id_utils import find_chat_by_telegram_id_variants
 
 # [Refactor Fix] 更新 auto_delete 路径
 from utils.processing.auto_delete import reply_and_delete, respond_and_delete
@@ -162,7 +162,7 @@ logger = logging.getLogger(__name__)
 async def callback_switch(event, rule_id, session, message, data):
     """处理切换源聊天的回调"""
     from core.container import container
-    from utils.helpers.id_utils import find_chat_by_telegram_id_variants
+    from core.helpers.id_utils import find_chat_by_telegram_id_variants
 
     # 内部执行逻辑
     async def _do(s):
@@ -220,7 +220,7 @@ async def callback_switch(event, rule_id, session, message, data):
 async def callback_settings(event, rule_id, session, message, data):
     """处理显示设置的回调"""
     from core.container import container
-    from utils.helpers.id_utils import find_chat_by_telegram_id_variants
+    from core.helpers.id_utils import find_chat_by_telegram_id_variants
 
     async def _do(s):
         current_chat = await event.get_chat()
@@ -265,7 +265,7 @@ async def callback_settings(event, rule_id, session, message, data):
 async def callback_delete(event, rule_id, session, message, data):
     """处理删除规则的回调"""
     from core.container import container
-    from utils.helpers.common import check_and_clean_chats
+    from core.helpers.common import check_and_clean_chats
 
     async def _do(s):
         from models.models import ForwardRule
@@ -316,7 +316,7 @@ async def callback_page(event, rule_id, session, message, data):
         try:
             page_number, command = rule_id.split(":")
             page = int(page_number)
-            from utils.helpers.id_utils import find_chat_by_telegram_id_variants
+            from core.helpers.id_utils import find_chat_by_telegram_id_variants
 
             current_chat = await event.get_chat()
             current_chat_db = await s.execute(

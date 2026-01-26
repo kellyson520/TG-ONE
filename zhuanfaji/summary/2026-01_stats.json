@@ -1,0 +1,31 @@
+{
+  "2026-01-26": {
+    "total_forwards": 13,
+    "types": {
+      "text": 13
+    },
+    "rules": {
+      "1": 13
+    },
+    "chats": {
+      "456": 13
+    },
+    "users": {
+      "<MagicMock name='mock.sender.id' id='3082140173376'>": 1,
+      "<MagicMock name='mock.sender.id' id='3082141178176'>": 1,
+      "<MagicMock name='mock.sender.id' id='3082141627600'>": 1,
+      "<MagicMock name='mock.sender.id' id='2136208427728'>": 1,
+      "<MagicMock name='mock.sender.id' id='2128201108176'>": 1,
+      "<MagicMock name='mock.sender.id' id='2491247215680'>": 1,
+      "<MagicMock name='mock.sender.id' id='2491248171328'>": 1,
+      "<MagicMock name='mock.sender.id' id='2159936586816'>": 1,
+      "<MagicMock name='mock.sender.id' id='2159937326112'>": 1,
+      "<MagicMock name='mock.sender.id' id='2219655611456'>": 1,
+      "<MagicMock name='mock.sender.id' id='2219656367136'>": 1,
+      "<MagicMock name='mock.sender.id' id='2185410937920'>": 1,
+      "<MagicMock name='mock.sender.id' id='2185411744096'>": 1
+    },
+    "total_size_bytes": 0,
+    "total_duration_seconds": 0
+  }
+}

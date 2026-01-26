@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from utils.db.db_operations import DBOperations
+from repositories.db_operations import DBOperations
 from models.models import MediaExtensions, PushConfig, RuleSync, RSSConfig, MediaSignature
 
 @pytest.mark.asyncio

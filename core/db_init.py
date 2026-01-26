@@ -15,7 +15,7 @@ async def init_db_tables(db_url: str):
     
     # [Pre-flight] 执行数据库健康检查与修复
     try:
-        from utils.db.health_check import check_and_fix_dbs_at_startup
+        from repositories.health_check import check_and_fix_dbs_at_startup
         check_and_fix_dbs_at_startup()
     except Exception as e:
         logger.warning(f"Database health check skipped or failed: {e}")

@@ -180,7 +180,7 @@ class OptimizedChatUpdater:
             logger.info(f"批量处理聊天更新: {len(chat_ids)} 个聊天")
             
             # 使用API优化器批量获取聊天统计
-            from utils.network.api_optimization import get_api_optimizer
+            from services.network.api_optimization import get_api_optimizer
             api_optimizer = get_api_optimizer()
             
             if api_optimizer:
@@ -276,7 +276,7 @@ class OptimizedChatUpdater:
                 chat_ids = [chat.telegram_chat_id for chat in chats if chat.telegram_chat_id]
                 
                 # 使用API优化器批量获取统计
-                from utils.network.api_optimization import get_api_optimizer
+                from services.network.api_optimization import get_api_optimizer
                 api_optimizer = get_api_optimizer()
                 
                 if api_optimizer and chat_ids:

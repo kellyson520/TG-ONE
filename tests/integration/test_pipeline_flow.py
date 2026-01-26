@@ -5,6 +5,7 @@ from core.pipeline import Pipeline, MessageContext
 from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
 from middlewares.filter import FilterMiddleware
+from middlewares.sender import SenderMiddleware
 from models.models import ForwardRule, Chat
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ from types import SimpleNamespace
 # ==============================================================================
 
 def create_mock_message(id=1, text="Hello", chat_id=123, grouped_id=None):
+    from datetime import datetime
     msg = MagicMock()
     msg.id = id
     msg.text = text
@@ -20,7 +22,7 @@ def create_mock_message(id=1, text="Hello", chat_id=123, grouped_id=None):
     msg.chat_id = chat_id
     msg.grouped_id = grouped_id
     msg.media = None
-    msg.date = None
+    msg.date = datetime.now()
     return msg
 
 def create_mock_rule(id=1, source_id=123, target_id=456, enable_dedup=False):
@@ -49,7 +51,18 @@ def create_mock_rule(id=1, source_id=123, target_id=456, enable_dedup=False):
     # Enum mocks
     from enums.enums import MessageMode, PreviewMode
     rule.message_mode = MessageMode.MARKDOWN
+    # Defaults for new columns
     rule.is_preview = PreviewMode.ON
+    rule.only_rss = False
+    rule.is_replace = False
+    rule.is_ai = False
+    rule.enable_comment_button = False
+    rule.enable_delay = False
+    rule.is_original_sender = True
+    rule.is_original_link = False
+    rule.is_original_time = False
+    rule.force_pure_forward = False
+    rule.is_history = False
     
     return rule
 
@@ -72,6 +85,7 @@ def mock_rule_repo():
 @pytest.fixture
 def pipeline_env(mock_client, mock_rule_repo):
     """Setup a pipeline environment with mocked dependencies"""
+    mock_bus = AsyncMock()
     
     # 1. Pipeline
     pipeline = Pipeline()
@@ -80,11 +94,14 @@ def pipeline_env(mock_client, mock_rule_repo):
     # Loader
     loader = RuleLoaderMiddleware(mock_rule_repo)
     
-    # Dedup (Patching the global service import)
+    # Dedup
     dedup = DedupMiddleware()
     
     # Filter
     filter_mw = FilterMiddleware()
+    
+    # Sender
+    sender = SenderMiddleware(mock_bus)
     
     # Mock complex filters to avoid environment dependency issues during integration
     # We focus on the pipeline mechanism: Loader -> Dedup -> Filter Chain -> Sender
@@ -116,8 +133,9 @@ def pipeline_env(mock_client, mock_rule_repo):
     pipeline.add(loader)
     pipeline.add(dedup)
     pipeline.add(filter_mw)
+    pipeline.add(sender)
     
-    return pipeline, loader, dedup, filter_mw
+    return pipeline, loader, dedup, filter_mw, sender, mock_bus
 
 # ==============================================================================
 # Integration Tests
@@ -131,7 +149,7 @@ async def test_pipeline_basic_flow(pipeline_env, mock_rule_repo, mock_client):
     import logging
     logging.basicConfig(level=logging.DEBUG)
     
-    pipeline, _, _, filter_mw = pipeline_env
+    pipeline, _, _, filter_mw, _, _ = pipeline_env
     
     # Setup Data
     msg = create_mock_message(id=100, text="Test Message")
@@ -142,8 +160,8 @@ async def test_pipeline_basic_flow(pipeline_env, mock_rule_repo, mock_client):
     
     # Mock Dedup Service, DBOperations, and SenderFilter util
     with patch('middlewares.dedup.dedup_service') as mock_dedup_svc, \
-         patch('utils.db.db_operations.DBOperations') as mock_db_ops_cls, \
-         patch('utils.helpers.id_utils.resolve_entity_by_id_variants', new_callable=AsyncMock) as mock_resolve:
+         patch('repositories.db_operations.DBOperations') as mock_db_ops_cls, \
+         patch('core.helpers.id_utils.resolve_entity_by_id_variants', new_callable=AsyncMock) as mock_resolve:
         
         mock_dedup_svc.is_duplicate = AsyncMock(return_value=False)
         mock_db_ops = AsyncMock()
@@ -170,10 +188,10 @@ async def test_pipeline_basic_flow(pipeline_env, mock_rule_repo, mock_client):
         assert ctx.is_terminated is False
         assert len(ctx.rules) == 1
         
-        assert mock_client.send_message.call_count >= 1
-        args, _ = mock_client.send_message.call_args
+        assert mock_client.forward_messages.call_count >= 1
+        args, kwargs = mock_client.forward_messages.call_args
         assert args[0] == 456 # Target ID
-        assert "Test Message" in args[1]
+        assert args[1] == [100] # Message IDs
 
 
 @pytest.mark.asyncio
@@ -181,7 +199,7 @@ async def test_pipeline_dedup_block(pipeline_env, mock_rule_repo, mock_client):
     """
     Test Case 2: Dedup Block
     """
-    pipeline, _, _, _ = pipeline_env
+    pipeline, _, _, _, _, _ = pipeline_env
     
     msg = create_mock_message(id=101)
     rule = create_mock_rule(id=2, enable_dedup=True)
@@ -190,7 +208,7 @@ async def test_pipeline_dedup_block(pipeline_env, mock_rule_repo, mock_client):
     
     with patch('middlewares.dedup.dedup_service') as mock_dedup_svc:
         # Simulate Duplicate
-        mock_dedup_svc.check_and_record = AsyncMock(return_value=(True, "Simulated Dup"))
+        mock_dedup_svc.check_and_lock = AsyncMock(return_value=(True, "Simulated Dup"))
         
         ctx = MessageContext(
             client=mock_client,
@@ -218,7 +236,7 @@ async def test_pipeline_attribute_fix_verification(pipeline_env, mock_rule_repo,
     Test Case 3: Verify 'original_message_text' exists in context
     (Regresson Test for the Attribute Error)
     """
-    pipeline, _, _, filter_mw = pipeline_env
+    pipeline, _, _, filter_mw, _, _ = pipeline_env
     
     msg = create_mock_message(text="Original Text")
     rule = create_mock_rule()
@@ -255,7 +273,7 @@ async def test_pipeline_no_rules_flow(pipeline_env, mock_rule_repo, mock_client)
     """
     Test Case 4: No Rules Found
     """
-    pipeline, _, _, _ = pipeline_env
+    pipeline, _, _, _, _, _ = pipeline_env
     
     mock_rule_repo.get_rules_for_source_chat.return_value = []
     
@@ -278,7 +296,7 @@ async def test_pipeline_dedup_rollback(pipeline_env, mock_rule_repo, mock_client
     """
     Test Case 5: Dedup Rollback on Failure
     """
-    pipeline, _, _, filter_mw = pipeline_env
+    pipeline, _, _, filter_mw, _, _ = pipeline_env
     
     # Setup Data
     msg = create_mock_message(id=200, text="Rollback Test")
@@ -289,11 +307,11 @@ async def test_pipeline_dedup_rollback(pipeline_env, mock_rule_repo, mock_client
     
     # Mock Dedup Service and DBOperations
     with patch('middlewares.dedup.dedup_service') as mock_dedup_svc, \
-         patch('utils.db.db_operations.DBOperations') as mock_db_ops_cls, \
-         patch('utils.helpers.id_utils.resolve_entity_by_id_variants', new_callable=AsyncMock) as mock_resolve:
+         patch('repositories.db_operations.DBOperations') as mock_db_ops_cls, \
+         patch('core.helpers.id_utils.resolve_entity_by_id_variants', new_callable=AsyncMock) as mock_resolve:
         
         # Mock Check Logic: First time NOT duplicate
-        mock_dedup_svc.check_and_record = AsyncMock(return_value=(False, "Mock"))
+        mock_dedup_svc.check_and_lock = AsyncMock(return_value=(False, "Mock"))
         mock_dedup_svc.rollback = AsyncMock()
         
         mock_db_ops = AsyncMock()
@@ -304,6 +322,7 @@ async def test_pipeline_dedup_rollback(pipeline_env, mock_rule_repo, mock_client
 
         # Mock Client Failure
         mock_client.send_message.side_effect = Exception("Network Error")
+        mock_client.forward_messages.side_effect = Exception("Network Error")
         
         # Initialize filters
         mock_init = MagicMock()

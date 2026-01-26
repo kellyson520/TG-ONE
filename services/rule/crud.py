@@ -156,7 +156,7 @@ class RuleCRUDService:
         """创建新规则"""
         # Logic remains largely same but ensures cleanup
         # This writes to DB, so Repo should handle validation
-        from utils.helpers.id_utils import get_display_name_async
+        from core.helpers.id_utils import get_display_name_async
     
         try:
             async with self.container.db.session() as session:

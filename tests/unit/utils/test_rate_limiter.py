@@ -4,7 +4,7 @@
 import pytest
 import asyncio
 import time
-from utils.network.rate_limiter import TokenBucket, RateLimiterManager, RateLimitConfig
+from services.network.rate_limiter import TokenBucket, RateLimiterManager, RateLimitConfig
 
 
 class TestTokenBucket:

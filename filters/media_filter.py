@@ -9,9 +9,9 @@ from enums.enums import PreviewMode
 from models.models import MediaTypes
 from models.models import AsyncSessionManager
 from sqlalchemy import text
-from utils.helpers.common import get_db_ops
+from core.helpers.common import get_db_ops
 from enums.enums import AddMode
-from utils.network.telegram_api_optimizer import api_optimizer
+from services.network.telegram_api_optimizer import api_optimizer
 from services.media_service import media_service, extract_message_signature
 logger = logging.getLogger(__name__)
 

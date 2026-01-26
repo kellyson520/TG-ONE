@@ -5,6 +5,7 @@
 import sys
 import os
 import logging
+from pathlib import Path
 
 # 确保项目根目录在 sys.path 最前面
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -74,7 +75,7 @@ for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "appr
     sys.modules[f"{lib}.fuzz"] = MagicMock()
 
 # Mock 缺失的底层工具 (更新路径以匹配重构后的 fastapi_app.py)
-for m in ["utils.helpers.realtime_stats", "utils.network.bot_heartbeat", "utils.core.env_config"]:
+for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "utils.core.env_config"]:
     sys.modules[m] = unittest.mock.MagicMock()
 
 # Mock decorator 类的工具
@@ -100,7 +101,14 @@ mock_settings.DEFAULT_SUMMARY_TIME = "20:00"
 mock_settings.DB_POOL_SIZE = 5
 mock_settings.DB_MAX_OVERFLOW = 10
 mock_settings.DB_ECHO = False
-from pathlib import Path
+mock_settings.DB_POOL_TIMEOUT = 30
+mock_settings.DB_POOL_RECYCLE = 3600
+mock_settings.DB_POOL_PRE_PING = True
+mock_settings.DB_PATH = "db/test_forward.db"
+mock_settings.RSS_ENABLED = False
+mock_settings.RSS_MEDIA_DIR = Path("./temp_rss_media")
+mock_settings.USER_MESSAGE_DELETE_ENABLE = False
+mock_settings.BOT_MESSAGE_DELETE_TIMEOUT = 300
 mock_settings.DB_DIR = Path("./temp_test_db")
 if not mock_settings.DB_DIR.exists():
     mock_settings.DB_DIR.mkdir(parents=True, exist_ok=True)

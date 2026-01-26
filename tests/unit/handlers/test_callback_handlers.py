@@ -41,7 +41,7 @@ class TestCallbackHandlers:
     async def test_callback_settings_success(self, mock_event):
         """测试显示规则列表 (callback_settings)"""
         with patch('core.container.container') as mock_container, \
-             patch('utils.helpers.id_utils.find_chat_by_telegram_id_variants') as mock_find_chat:
+             patch('core.helpers.id_utils.find_chat_by_telegram_id_variants') as mock_find_chat:
             
             from handlers.button.callback.callback_handlers import callback_settings
             
@@ -142,7 +142,7 @@ class TestOtherCallback:
         with patch('handlers.button.callback.other_callback.AsyncSessionManager') as mock_sm, \
              patch('handlers.button.callback.other_callback.DBOperations') as mock_db_ops, \
              patch('handlers.button.callback.other_callback.respond_and_delete') as mock_respond, \
-             patch('utils.helpers.common.get_main_module', new_callable=AsyncMock) as mock_get_mm:
+             patch('core.helpers.common.get_main_module', new_callable=AsyncMock) as mock_get_mm:
 
             from handlers.button.callback.other_callback import callback_dedup_scan_now
             from models.models import ForwardRule

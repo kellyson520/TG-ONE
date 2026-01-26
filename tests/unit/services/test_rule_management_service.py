@@ -36,7 +36,7 @@ class TestRuleManagementService:
         mock_client = AsyncMock()
         
         # We need to mock get_or_create_chat_async since it interacts with client
-        with patch("utils.helpers.id_utils.get_or_create_chat_async") as mock_get_chat:
+        with patch("core.helpers.id_utils.get_or_create_chat_async") as mock_get_chat:
             # Setup mocks to return chat name, id, obj
             # Scenario: Bind existing Source "S" to existing Target "T"
             c1 = Chat(id=1, telegram_chat_id="1001", name="Source")

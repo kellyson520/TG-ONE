@@ -14,7 +14,7 @@ class TestAutoDeleteTools:
         mock_msg = MagicMock()
         event.reply.return_value = mock_msg
         
-        with patch("utils.processing.message_task_manager.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
+        with patch("services.task_service.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
             await reply_and_delete(event, "Test text", 5)
             
             event.reply.assert_called_with("Test text")
@@ -25,7 +25,7 @@ class TestAutoDeleteTools:
         mock_msg = MagicMock()
         event.respond.return_value = mock_msg
         
-        with patch("utils.processing.message_task_manager.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
+        with patch("services.task_service.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
             await respond_and_delete(event, "Test text", 10)
             
             event.respond.assert_called_with("Test text")
@@ -36,7 +36,7 @@ class TestAutoDeleteTools:
         mock_msg = MagicMock()
         client.send_message.return_value = mock_msg
         
-        with patch("utils.processing.message_task_manager.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
+        with patch("services.task_service.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
             await send_message_and_delete(client, -1001, "Hello", 0)
             
             client.send_message.assert_called_with(-1001, "Hello")
@@ -46,7 +46,7 @@ class TestAutoDeleteTools:
         event = AsyncMock()
         event.reply.return_value = MagicMock()
         
-        with patch("utils.processing.message_task_manager.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
+        with patch("services.task_service.message_task_manager.schedule_delete", new_callable=AsyncMock) as mock_sched:
             await reply_and_delete(event, "Keep forever", -1)
             
             mock_sched.assert_not_called()

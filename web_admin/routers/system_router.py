@@ -16,7 +16,7 @@ from services.system_service import guard_service
 from services.audit_service import audit_service
 from web_admin.security.deps import admin_required, login_required
 from utils.core.env_config import env_config_manager
-from utils.db.archive_manager import get_archive_manager
+from repositories.archive_manager import get_archive_manager
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ async def get_system_stats(user = Depends(login_required)):
     try:
         from core.container import container
         from services.forward_service import forward_service
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
         
         # 1. 规则统计
         total_rules = 0
@@ -562,7 +562,7 @@ async def list_backups(user = Depends(admin_required)):
 @router.post("/backups/trigger", response_class=JSONResponse)
 async def trigger_backup(user = Depends(admin_required)):
     """手动触发数据库备份"""
-    from utils.db.backup import backup_database, rotate_backups
+    from repositories.backup import backup_database, rotate_backups
     try:
         path = backup_database()
         if path:
@@ -815,7 +815,7 @@ async def api_stats_fragment(request: Request, user = Depends(login_required)):
         
         # 获取去重统计
         try:
-            from utils.processing.smart_dedup import smart_deduplicator
+            from services.dedup.engine import smart_deduplicator
             dedup_stats = smart_deduplicator.get_stats()
             dedup_cache_size = dedup_stats.get('cached_signatures', 0) + dedup_stats.get('cached_content_hashes', 0)
         except Exception:

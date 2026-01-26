@@ -1,10 +1,10 @@
 import pytest
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
-from utils.network.bot_heartbeat import get_heartbeat, update_heartbeat, start_heartbeat, HEARTBEAT_KEY
+from services.network.bot_heartbeat import get_heartbeat, update_heartbeat, start_heartbeat, HEARTBEAT_KEY
 
 class TestBotHeartbeat:
-    @patch('utils.network.bot_heartbeat.get_persistent_cache')
+    @patch('services.network.bot_heartbeat.get_persistent_cache')
     def test_get_heartbeat_empty(self, mock_get_cache):
         # Mock Cache
         mock_cache = MagicMock()
@@ -16,7 +16,7 @@ class TestBotHeartbeat:
         assert hb.get("age_seconds") is None
         assert hb.get("ts", 0) == 0
 
-    @patch('utils.network.bot_heartbeat.get_persistent_cache')
+    @patch('services.network.bot_heartbeat.get_persistent_cache')
     def test_get_heartbeat_valid(self, mock_get_cache):
         # Mock Cache
         mock_cache = MagicMock()
@@ -24,7 +24,7 @@ class TestBotHeartbeat:
         # Ensure 'ts' is present and serialized correctly if using json.loads?
         # The code uses loads_json helper, we should assume it works or Mock it too?
         # Let's rely on loads_json from persistent_cache usually wrapping json.loads
-        # But wait, utils.network.bot_heartbeat imports loads_json. 
+        # But wait, services.network.bot_heartbeat imports loads_json. 
         # So we should probably mocking loads_json or providing valid JSON string if loads_json calls json.loads
         
         import json
@@ -32,12 +32,12 @@ class TestBotHeartbeat:
         mock_cache.get.return_value = json.dumps(payload)
         mock_get_cache.return_value = mock_cache
         
-        with patch('utils.network.bot_heartbeat.loads_json', side_effect=json.loads):
+        with patch('services.network.bot_heartbeat.loads_json', side_effect=json.loads):
             hb = get_heartbeat()
             assert hb["status"] == "ok"
             assert 9.9 < hb["age_seconds"] < 10.1
 
-    @patch('utils.network.bot_heartbeat.get_persistent_cache')
+    @patch('services.network.bot_heartbeat.get_persistent_cache')
     def test_update_heartbeat(self, mock_get_cache):
         mock_cache = MagicMock()
         mock_get_cache.return_value = mock_cache
@@ -55,7 +55,7 @@ class TestBotHeartbeat:
         assert "ts" in data
 
     @pytest.mark.asyncio
-    @patch('utils.network.bot_heartbeat.update_heartbeat')
+    @patch('services.network.bot_heartbeat.update_heartbeat')
     async def test_start_heartbeat_connected(self, mock_update, event_loop):
         mock_bot = MagicMock()
         mock_bot.is_connected = MagicMock(return_value=True) # Ensure it's treated as boolean or invoke-able?
@@ -79,7 +79,7 @@ class TestBotHeartbeat:
         assert calls[0][0][0] == "running"
 
     @pytest.mark.asyncio
-    @patch('utils.network.bot_heartbeat.update_heartbeat')
+    @patch('services.network.bot_heartbeat.update_heartbeat')
     async def test_start_heartbeat_disconnected(self, mock_update):
         mock_bot = MagicMock()
         mock_bot.is_connected = False
@@ -94,7 +94,7 @@ class TestBotHeartbeat:
         assert calls[0][0][0] == "stopped"
 
     @pytest.mark.asyncio
-    @patch('utils.network.bot_heartbeat.update_heartbeat')
+    @patch('services.network.bot_heartbeat.update_heartbeat')
     async def test_start_heartbeat_api_error(self, mock_update):
         mock_bot = MagicMock()
         mock_bot.is_connected = True

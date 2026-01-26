@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 from unittest.mock import MagicMock, patch
 
 import duckdb
-from utils.db import archive_store
+from repositories import archive_store
 
 # Check if DuckDB is mocked by conftest.py
 IS_DUCKDB_MOCKED = isinstance(duckdb, MagicMock) or hasattr(duckdb, 'DEFAULT_REPOSITORY') # MagicMock traits

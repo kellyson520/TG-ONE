@@ -35,7 +35,7 @@ class UserService:
 
         # 1. 检查环境变量配置的管理员列表
         import os
-        from utils.helpers.common import get_admin_list
+        from core.helpers.common import get_admin_list
         try:
             bot_admins = get_admin_list()
             if telegram_id in bot_admins:
@@ -58,7 +58,7 @@ class UserService:
             message = event.message
             if message.is_channel and not message.is_group:
                 try:
-                    from utils.helpers.common import get_channel_admins
+                    from core.helpers.common import get_channel_admins
                     if not client:
                         client = self.container.user_client
                         
@@ -91,7 +91,7 @@ class UserService:
         """处理用户信息过滤与前缀添加"""
         try:
             from services.batch_user_service import get_batch_user_service
-            from utils.helpers.common import get_sender_info
+            from core.helpers.common import get_sender_info
             
             batch_service = get_batch_user_service()
 

@@ -9,7 +9,7 @@ import time
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 from utils.unified_sender import UnifiedSender
-from utils.processing.forward_queue import _flood_wait_until
+from services.queue_service import _flood_wait_until
 
 class MockFloodWaitError(Exception):
     def __init__(self, seconds):

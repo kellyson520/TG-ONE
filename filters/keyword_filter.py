@@ -1,10 +1,10 @@
 ﻿import logging
 import re
-from utils.helpers.common import get_sender_info, get_main_module
+from core.helpers.common import get_sender_info, get_main_module
 from filters.base_filter import BaseFilter
 from enums.enums import ForwardMode
 
-from utils.network.telegram_api_optimizer import api_optimizer
+from services.network.telegram_api_optimizer import api_optimizer
 from utils.core.error_handler import handle_errors, log_execution
 
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ class KeywordFilter(BaseFilter):
         Returns:
             bool: 是否为重复消息
         """
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
         
         # 智能去重配置
         rule_config = {
@@ -277,7 +277,7 @@ class KeywordFilter(BaseFilter):
         """
         target_chat_id_raw = getattr(rule.target_chat, 'telegram_chat_id', None)
         if target_chat_id_raw is not None:
-            from utils.helpers.id_utils import resolve_entity_by_id_variants
+            from core.helpers.id_utils import resolve_entity_by_id_variants
             main = await get_main_module()
             bot_client = main.bot_client
             

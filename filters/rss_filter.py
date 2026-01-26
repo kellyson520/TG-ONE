@@ -16,7 +16,7 @@ from filters.base_filter import BaseFilter
 import uuid
 from utils.core.constants import TEMP_DIR, RSS_MEDIA_DIR, get_rule_media_dir,RSS_HOST,RSS_PORT,RSS_ENABLED
 from models.models import AsyncSessionManager
-from utils.helpers.common import get_db_ops
+from core.helpers.common import get_db_ops
 
 logger = logging.getLogger(__name__)
 

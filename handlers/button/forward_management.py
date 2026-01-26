@@ -10,7 +10,7 @@ from sqlalchemy import select
 from telethon import Button
 
 from models.models import Chat, ForwardRule, SystemConfiguration
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 from utils.processing.auto_delete import reply_and_delete, respond_and_delete
 
 logger = logging.getLogger(__name__)

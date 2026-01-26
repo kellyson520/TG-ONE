@@ -5,9 +5,9 @@ from sqlalchemy import select
 
 from models.models import Chat, ForwardRule
 from utils.processing.auto_delete import reply_and_delete
-from utils.helpers.common import get_main_module, get_user_id
+from core.helpers.common import get_main_module, get_user_id
 from utils.core.constants import TEMP_DIR
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 from utils.forward_recorder import forward_recorder
 
 logger = logging.getLogger(__name__)

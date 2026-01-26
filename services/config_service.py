@@ -89,7 +89,7 @@ class _JsonProvider:
         return self._cache.get(key)
 
 class ConfigService:
-    def __init__(self, json_path: str = './config/settings.json'):
+    def __init__(self, json_path: str = './core/config/settings.json'):
         self.db = _AsyncDbProvider()
         self.json = _JsonProvider(json_path)
         # 内存缓存，减少DB调用

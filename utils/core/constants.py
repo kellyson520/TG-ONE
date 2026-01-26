@@ -18,7 +18,7 @@ RSS_BASE_URL = os.environ.get("RSS_BASE_URL", None)
 # RSS媒体文件的基础URL，用于生成媒体链接，如果未设置，则使用请求的URL
 RSS_MEDIA_BASE_URL = os.getenv("RSS_MEDIA_BASE_URL", "")
 
-RSS_ENABLED = os.getenv("RSS_ENABLED", "false")
+RSS_ENABLED = os.getenv("RSS_ENABLED", "false").lower() in ("true", "1", "yes")
 
 RULES_PER_PAGE = int(os.getenv("RULES_PER_PAGE", 20))
 

@@ -3,9 +3,9 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any
 
-from utils.helpers.realtime_stats import realtime_stats_cache
-from utils.network.bot_heartbeat import get_heartbeat
-from utils.processing.smart_dedup import smart_deduplicator
+from core.helpers.realtime_stats import realtime_stats_cache
+from services.network.bot_heartbeat import get_heartbeat
+from services.dedup.engine import smart_deduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ class AnalyticsService:
         """获取性能指标和资源占用"""
         try:
             # 获取实时统计数据
-            from utils.helpers.realtime_stats import realtime_stats_cache
+            from core.helpers.realtime_stats import realtime_stats_cache
 
             # 获取系统资源统计
             system_stats = await realtime_stats_cache.get_system_stats(

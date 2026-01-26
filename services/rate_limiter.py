@@ -1,10 +1,10 @@
 from typing import Optional
-from utils.network.rate_limiter import LeakyBucket, RateLimiterPool, RateLimitConfig, Priority
+from services.network.rate_limiter import LeakyBucket, RateLimiterPool, RateLimitConfig, Priority
 import logging
 
 logger = logging.getLogger(__name__)
 
-# [Consolidation] 现在基于 utils.network.rate_limiter
+# [Consolidation] 现在基于 services.network.rate_limiter
 # 保持 RateLimiterPool 的直接暴露以兼容旧代码
 
 # 额外添加 services 层的特有配置或初始化逻辑（如有）

@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 
 from telethon import events
 from core.container import container
-from utils.helpers.tombstone import tombstone
-from utils.helpers.time_range import format_time_range_display, parse_time_range_to_dates
+from core.helpers.tombstone import tombstone
+from core.helpers.time_range import format_time_range_display, parse_time_range_to_dates
 from models.models import TaskQueue
 
 logger = logging.getLogger(__name__)

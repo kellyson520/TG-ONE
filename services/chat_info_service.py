@@ -4,7 +4,7 @@ from typing import Union, Optional, Dict
 from datetime import datetime
 from sqlalchemy import select
 from models.models import Chat
-from utils.helpers.id_utils import resolve_entity_by_id_variants
+from core.helpers.id_utils import resolve_entity_by_id_variants
 from telethon import utils as telethon_utils
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class ChatInfoService:
             return None
         
         try:
-            from utils.helpers.id_utils import build_candidate_telegram_ids
+            from core.helpers.id_utils import build_candidate_telegram_ids
             candidates = list(build_candidate_telegram_ids(chat_id))
             
             async with self.db.session() as session:
@@ -90,7 +90,7 @@ class ChatInfoService:
             return
         
         try:
-            from utils.helpers.id_utils import normalize_chat_id
+            from core.helpers.id_utils import normalize_chat_id
             norm_id = normalize_chat_id(chat_id)
             
             async with self.db.session() as session:

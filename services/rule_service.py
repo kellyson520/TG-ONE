@@ -11,4 +11,4 @@ class RuleQueryService(NewService):
 
 # For those who might import specific module contents or attempt to patch them
 from services.rule.query import *
-from utils.db.persistent_cache import get_persistent_cache
+from repositories.persistent_cache import get_persistent_cache

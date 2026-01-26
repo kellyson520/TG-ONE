@@ -2,7 +2,7 @@
 from filters.base_filter import BaseFilter 
 from filters.context import MessageContext 
 from models.models import MediaSignature 
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class FilterChain:
         # 过滤链全部通过后，若已实际发送，记录媒体签名（用于后续去重，计数累加）
         try:
             if getattr(context, 'forwarded_messages', None) and hasattr(context, 'dup_signatures') and context.dup_signatures:
-                from utils.db.db_operations import DBOperations
+                from repositories.db_operations import DBOperations
                 async with async_db_session() as session:
                     try:
                         db_ops = await DBOperations.create()

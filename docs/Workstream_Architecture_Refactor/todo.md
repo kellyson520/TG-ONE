@@ -110,7 +110,8 @@
 
 * [x] **数据库持久化治理 [P0]**
 * [x] **引入 Alembic** (已初始化并生成首个迁移).
-* [x] **拆分模型层**: 将 `models/models.py` 拆分为 `models/rule.py`, `models/chat.py`, `models/user.py` 等。
+* [x] **拆分模型层**: 将 `models/models.py` 拆分为 `models/rule.py`, `models/chat.py`, `models/user.py` 等。(已修复 `ForwardRule` 字段缺失问题)
+* [x] **集成测试修复**: 通道流水线 (Pipeline) 及 转发逻辑 (Sender) 端到端测试全部通过。
 
 
 * [x] **上帝文件拆分 (按职责完整性) [P0/P1]**

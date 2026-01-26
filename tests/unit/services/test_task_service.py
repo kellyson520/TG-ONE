@@ -27,11 +27,7 @@ class TestTaskService:
                 "filtered": 2,
                 "failed": 0,
                 "total": 12
-            }),
-            forwarded_count=10,
-            filtered_count=2,
-            failed_count=0,
-            total_count=12
+            })
         )
         task2 = TaskQueue(
             task_type="other",

@@ -5,7 +5,7 @@
 import logging
 from telethon import Button
 from ..base import BaseMenu
-from utils.processing.smart_dedup import smart_deduplicator
+from services.dedup.engine import smart_deduplicator
 
 logger = logging.getLogger(__name__)
 

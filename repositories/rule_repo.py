@@ -2,8 +2,8 @@ from typing import List, Optional, Any, Dict
 from sqlalchemy import select, or_, func, desc, delete
 from sqlalchemy.orm import selectinload
 from models.models import ForwardRule, ForwardMapping, Chat
-from utils.helpers.id_utils import build_candidate_telegram_ids
-from utils.db.persistent_cache import get_persistent_cache, dumps_json, loads_json
+from core.helpers.id_utils import build_candidate_telegram_ids
+from repositories.persistent_cache import get_persistent_cache, dumps_json, loads_json
 from schemas.rule import RuleDTO
 from schemas.chat import ChatDTO
 import logging

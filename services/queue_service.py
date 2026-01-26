@@ -3,7 +3,8 @@ import logging
 from typing import Any, Callable, Awaitable, List
 from core.config import settings
 from utils.core.log_config import trace_id_var
-from utils.network.pid import PIDController
+from services.network.pid import PIDController
+from services.network.circuit_breaker import CircuitBreaker
 import uuid
 import time
 
@@ -134,3 +135,82 @@ class MessageQueueService:
             except Exception as e:
                 logger.error(f"Worker-{worker_id} crashed loop: {e}", exc_info=True)
                 await asyncio.sleep(1) # Prevent busy loop on crash
+
+from typing import Union
+
+class TelegramQueueService:
+    """Telegram API 限流与并发管理服务"""
+    
+    def __init__(self):
+        import os
+        self._global_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_GLOBAL", "50"))
+        self._global_sem = asyncio.Semaphore(self._global_limit)
+        self._target_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_PER_TARGET", "2"))
+        self._pair_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_PER_PAIR", "1"))
+        self._target_semaphores = {}
+        self._pair_semaphores = {}
+        self._flood_wait_until = {}
+        self._global_next_at = 0.0
+        self._target_next_at = {}
+        self._pair_next_at = {}
+        self._telegram_breaker = CircuitBreaker(name="telegram_api_global", failure_threshold=10, recovery_timeout=60.0)
+
+    def _get_target_sem(self, target_key: str):
+        if target_key not in self._target_semaphores:
+            self._target_semaphores[target_key] = asyncio.Semaphore(self._target_limit)
+        return self._target_semaphores[target_key]
+
+    def _get_pair_sem(self, pair_key: str):
+        if pair_key not in self._pair_semaphores:
+            self._pair_semaphores[pair_key] = asyncio.Semaphore(self._pair_limit)
+        return self._pair_semaphores[pair_key]
+
+    async def run_guarded_operation(self, target_chat_id, source_chat_id, operation_name, func, handle_flood_wait_sleep=True):
+        target_key = str(target_chat_id)
+        pair_key = f"{source_chat_id}->{target_chat_id}" if source_chat_id else f"bot->{target_chat_id}"
+        async def _run_with_retry():
+            backoff = [0.0, 0.7, 1.5]
+            last_exc = None
+            for delay in backoff:
+                if delay > 0: await asyncio.sleep(delay)
+                try:
+                    now = time.time()
+                    wait = max(0, self._global_next_at - now, self._target_next_at.get(target_key, 0) - now, self._pair_next_at.get(pair_key, 0) - now)
+                    if wait > 0: await asyncio.sleep(wait)
+                    result = await func()
+                    self._update_next_at(target_key, pair_key)
+                    return result
+                except Exception as e:
+                    last_exc = e
+                    from telethon.errors import FloodWaitError
+                    if isinstance(e, FloodWaitError):
+                        self._handle_flood_wait(target_key, pair_key, e.seconds)
+                        raise
+                    continue
+            if last_exc:
+                raise last_exc
+        async with self._global_sem:
+            async with self._get_target_sem(target_key):
+                async with self._get_pair_sem(pair_key):
+                    if handle_flood_wait_sleep:
+                        until = self._flood_wait_until.get(target_key, 0)
+                        if time.time() < until: await asyncio.sleep(until - time.time())
+                    return await self._telegram_breaker.call(_run_with_retry)
+
+    def _update_next_at(self, target_key, pair_key):
+        now = time.time()
+        self._global_next_at = now + 0.01
+        self._target_next_at[target_key] = now + 0.25
+        self._pair_next_at[pair_key] = now + 0.1
+
+    def _handle_flood_wait(self, target_key, pair_key, seconds):
+        import random
+        self._flood_wait_until[target_key] = time.time() + float(seconds) * random.uniform(0.8, 1.2)
+
+telegram_queue_service = TelegramQueueService()
+async def send_message_queued(client, target_chat_id, message, **kwargs):
+    return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendMsg", lambda: client.send_message(target_chat_id, message, **kwargs))
+async def send_file_queued(client, target_chat_id, file, **kwargs):
+    return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendFile", lambda: client.send_file(target_chat_id, file, **kwargs))
+async def forward_messages_queued(client, source_chat_id, target_chat_id, messages, **kwargs):
+    return await telegram_queue_service.run_guarded_operation(target_chat_id, source_chat_id, "Forward", lambda: client.forward_messages(target_chat_id, messages, from_peer=source_chat_id, **kwargs))

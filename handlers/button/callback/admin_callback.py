@@ -18,7 +18,7 @@ from handlers.command_handlers import (
 from models.models import AsyncSessionManager
 
 
-from utils.helpers.common import is_admin
+from core.helpers.common import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +275,7 @@ async def callback_admin_stats(event, rule_id, session, message, data):
             MediaSignature,
             get_session,
         )
-        from utils.network.api_optimization import get_api_optimizer
+        from services.network.api_optimization import get_api_optimizer
         from utils.processing.hll import GlobalHLL
 
         session = get_session()

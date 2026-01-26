@@ -128,6 +128,7 @@ Create `source.md` in the skill directory with:
 
 ---
 
+
 ### Phase 3: Skill Creation (if not found)
 
 **Goal**: Create a new skill through deep research.
@@ -140,6 +141,11 @@ Steps:
 3. Design the skill structure
 4. Generate SKILL.md following official format
 5. Save to the location user chose in Phase 2
+6. **Auto-Register**: Automatically run the registry update script to add the new skill to AGENTS.md.
+   ```bash
+   python .agent/skills/skill-master/scripts/registry_manager.py
+   ```
+
 
 ---
 
@@ -337,7 +343,31 @@ Report:
 - **Changes**: <summary of skill improvements>
 ```
 
+
 ---
+
+### Phase 8: System Engineering & Registry Management
+
+**Triggers**:
+- User asks to "update skill registry" or "register new skills".
+- User asks for "skill system upgrade" or "maintain skills".
+- **Automatic**: After any Skill Creation (Phase 3) or Skill Improvement (Phase 5).
+
+#### Step 8.1: Update Registry (AGENTS.md)
+Run the automated registry manager which scans `.agent/skills/` and updates the central list.
+
+```bash
+python .agent/skills/skill-master/scripts/registry_manager.py
+```
+
+#### Step 8.2: Skill Health Check (Optional)
+Audit the skills directory for compliance:
+- Check if descriptions are SEO-optimized for the agent router.
+- Ensure `scripts/` are executable.
+- Verify `AGENTS.md` matches `ls .agent/skills`.
+
+---
+
 
 ## State Management
 

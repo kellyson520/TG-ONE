@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
-from utils.helpers.realtime_stats import RealtimeStatsCache, get_main_menu_stats
+from core.helpers.realtime_stats import RealtimeStatsCache, get_main_menu_stats
 
 @pytest.fixture
 def stats_cache():
@@ -19,7 +19,7 @@ class TestRealtimeStats:
         result = await stats_cache.get_forward_stats(force_refresh=False)
         assert result == {'key': 'val'}
 
-    @patch('utils.helpers.realtime_stats.get_persistent_cache')
+    @patch('core.helpers.realtime_stats.get_persistent_cache')
     @patch('services.forward_service.forward_service')
     async def test_get_forward_stats_refresh(self, mock_fw_service, mock_pc_getter, stats_cache):
         # Mock services
@@ -82,7 +82,7 @@ class TestRealtimeStats:
         await stats_cache._notify_update("test_type", {"data": 1})
         callback.assert_called_once_with("test_type", {"data": 1})
 
-    @patch('utils.helpers.realtime_stats.realtime_stats_cache')
+    @patch('core.helpers.realtime_stats.realtime_stats_cache')
     async def test_get_main_menu_stats(self, mock_global_cache):
         mock_global_cache.get_forward_stats = AsyncMock(return_value={'today': {'total': 10}, 'trend': {}})
         mock_global_cache.get_dedup_stats = AsyncMock(return_value={'stats': {'cached': 5}})
@@ -93,7 +93,7 @@ class TestRealtimeStats:
         assert result['dedup']['cached'] == 5
         assert 'last_updated' in result
 
-    @patch('utils.helpers.realtime_stats.realtime_stats_cache')
+    @patch('core.helpers.realtime_stats.realtime_stats_cache')
     async def test_get_main_menu_stats_error_handling(self, mock_global_cache):
         # Simulate exception during gather
         mock_global_cache.get_forward_stats = AsyncMock(side_effect=Exception("DB Error"))

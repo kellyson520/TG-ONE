@@ -90,7 +90,7 @@ class TestCommonHelpers:
     
     def test_get_db_ops_exists(self):
         """测试 get_db_ops 函数存在"""
-        from utils.helpers.common import get_db_ops
+        from core.helpers.common import get_db_ops
         
         assert callable(get_db_ops)
     
@@ -98,7 +98,7 @@ class TestCommonHelpers:
     @pytest.mark.skip(reason="需要完整的数据库环境 - 集成测试场景")
     async def test_get_db_ops_returns_dboperations(self):
         """测试 get_db_ops 返回 DBOperations 实例"""
-        from utils.helpers.common import get_db_ops
+        from core.helpers.common import get_db_ops
         
         db_ops = await get_db_ops()
         

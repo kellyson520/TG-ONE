@@ -6,11 +6,12 @@ class MediaSignature(Base):
     id = Column(Integer, primary_key=True)
     chat_id = Column(String, nullable=False, index=True)
     signature = Column(String, nullable=False, index=True) # Hash of media
-    file_type = Column(String, nullable=True)
-    file_name = Column(String, nullable=True)
-    file_size = Column(Integer, nullable=True)
-    width = Column(Integer, nullable=True)
-    height = Column(Integer, nullable=True)
+    file_id = Column(String, nullable=True) # Telegram file_id
+    content_hash = Column(String, nullable=True) # Perceptual hash or other hash
+    media_type = Column(String, nullable=True)
+    count = Column(Integer, default=1)
+    created_at = Column(String, nullable=True)
+    updated_at = Column(String, nullable=True)
     last_seen = Column(String, nullable=True)
     
     __table_args__ = (

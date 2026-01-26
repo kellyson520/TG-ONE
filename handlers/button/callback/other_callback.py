@@ -12,7 +12,7 @@ from telethon.tl import types
 
 from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
 from handlers.button.session_management import session_manager
-from utils.db.db_operations import DBOperations
+from repositories.db_operations import DBOperations
 from models.models import (
     AsyncSessionManager,
     Chat,
@@ -29,14 +29,14 @@ from utils.processing.auto_delete import (
     respond_and_delete,
     send_message_and_delete,
 )
-from utils.helpers.common import (
+from core.helpers.common import (
     check_and_clean_chats,
     get_db_ops,
     get_media_settings_text,
     is_admin,
 )
 from utils.core.constants import RSS_HOST, RSS_PORT, RULES_PER_PAGE
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 
 from handlers.button.button_helpers import (
     create_media_extensions_buttons,
@@ -184,7 +184,7 @@ async def callback_dedup_scan_now(event, rule_id, session, message, data):
             return
         db_ops = await DBOperations.create()
         # 使用用户客户端以避免机器人在频道/部分群历史读取受限
-        from utils.helpers.common import get_main_module
+        from core.helpers.common import get_main_module
 
         main = await get_main_module()
         user_client = main.user_client
@@ -340,8 +340,8 @@ async def callback_confirm_delete_duplicates(event, rule_id, session, message, d
     """确认删除重复媒体 (实际执行)"""
     try:
         from models.models import ForwardRule, MediaSignature
-        from utils.db.db_operations import DBOperations
-        from utils.helpers.common import get_main_module
+        from repositories.db_operations import DBOperations
+        from core.helpers.common import get_main_module
         from services.media_service import extract_message_signature
         from telethon import Button as _Btn
         import asyncio
@@ -487,7 +487,7 @@ async def callback_handle_ufb_item(event, rule_id, session, message, data):
             return
             
         # 查找规则 (通过 current_add_id 作为 source_chat_telegram_id)
-        from utils.helpers.id_utils import find_chat_by_telegram_id_variants
+        from core.helpers.id_utils import find_chat_by_telegram_id_variants
         source_chat = find_chat_by_telegram_id_variants(session, chat.current_add_id)
         if not source_chat:
             await event.answer("源聊天不存在")

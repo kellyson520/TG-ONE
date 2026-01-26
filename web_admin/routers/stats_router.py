@@ -8,12 +8,12 @@ from sqlalchemy import select
 from core.container import container
 from web_admin.security.deps import login_required
 # from utils.core.env_config import env_config_manager
-from utils.processing.smart_dedup import smart_deduplicator
+from services.dedup.engine import smart_deduplicator
 from services.system_service import guard_service
 from services.forward_service import forward_service
-from utils.helpers.realtime_stats import realtime_stats_cache
+from core.helpers.realtime_stats import realtime_stats_cache
 from utils.processing.unified_cache import get_cache_stats
-from utils.network.bot_heartbeat import get_heartbeat
+from services.network.bot_heartbeat import get_heartbeat
 from models.models import get_db_health, async_get_db_health
 from core.config import settings
 import os

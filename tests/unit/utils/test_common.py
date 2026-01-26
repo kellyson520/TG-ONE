@@ -1,7 +1,7 @@
 import pytest
 import os
 from unittest.mock import MagicMock, AsyncMock, patch
-from utils.helpers.common import (
+from core.helpers.common import (
     check_keywords,
     is_admin,
     get_user_id,
@@ -122,7 +122,7 @@ class TestCommonHelpers:
 
     # --- Admin Check Tests ---
 
-    @patch('utils.helpers.common.get_admin_list')
+    @patch('core.helpers.common.get_admin_list')
     async def test_is_admin_in_env_list(self, mock_get_admins):
         mock_get_admins.return_value = [12345]
         event = MagicMock()
@@ -130,7 +130,7 @@ class TestCommonHelpers:
         
         assert await is_admin(event) is True
 
-    @patch('utils.helpers.common.get_admin_list')
+    @patch('core.helpers.common.get_admin_list')
     @patch('core.container.container.db')
     async def test_is_admin_not_admin(self, mock_db, mock_get_admins):
         mock_get_admins.return_value = [12345]

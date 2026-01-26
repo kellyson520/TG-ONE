@@ -10,7 +10,7 @@ from typing import Any, Optional, Protocol
 from dataclasses import dataclass
 
 from telethon import events
-from utils.helpers.chat_context import extract_chat_context
+from core.helpers.chat_context import extract_chat_context
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 import time
-from utils.network.timing_wheel import HashedTimingWheel
+from services.network.timing_wheel import HashedTimingWheel
 
 @pytest.mark.asyncio
 async def test_timing_wheel_execution():

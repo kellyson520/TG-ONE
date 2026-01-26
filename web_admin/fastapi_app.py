@@ -46,13 +46,16 @@ from web_admin.routers.stats_router import router as stats_router
 from web_admin.routers.websocket_router import router as websocket_router
 from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
-from utils.helpers.realtime_stats import realtime_stats_cache
-from utils.network.bot_heartbeat import get_heartbeat
-from utils.processing.smart_dedup import smart_deduplicator
+from core.helpers.realtime_stats import realtime_stats_cache
+from services.network.bot_heartbeat import get_heartbeat
+from services.dedup.engine import smart_deduplicator
 from utils.forward_recorder import forward_recorder
 # from utils.core.env_config import env_config_manager
 from web_admin.core.templates import templates, STATIC_DIR
 from web_admin.routers.page_router import router as page_router
+from web_admin.rss.routes.rss import router as rss_page_router
+from web_admin.rss.api.endpoints.feed import router as rss_feed_router
+from web_admin.rss.api.endpoints.subscription import router as rss_sub_router
 
 # 安全模块导入 (Phase 1 Security Enhancement)
 from services.audit_service import audit_service
@@ -112,16 +115,14 @@ app.include_router(simulator_router)
 app.include_router(page_router)
 app.include_router(settings_router)
 
-# [Refactor Fix] 统一挂载 RSS 面板
+# RSS 模块路由
+app.include_router(rss_page_router, prefix="/rss", tags=["RSS Pages"])
+app.include_router(rss_feed_router, prefix="/api/rss/feed", tags=["RSS API"])
+app.include_router(rss_sub_router, prefix="/api/rss/sub", tags=["RSS API"])
+
+# RSS 模板路径挂载 (通过设置判断是否启用)
 if settings.RSS_ENABLED:
-    try:
-        from rss.main import app as rss_app
-        app.mount("/rss", rss_app)
-        logger.info("✅ RSS Panel mounted at /rss")
-    except ImportError as e:
-        logger.warning(f"⚠️ RSS Panel mounting failed: {e}")
-    except Exception as e:
-        logger.error(f"❌ Unexpected error during RSS mounting: {e}")
+    logger.info("✅ RSS Features enabled")
 
 @app.exception_handler(PageRedirect)
 async def page_redirect_handler(request: Request, exc: PageRedirect):

@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
 from utils.core.error_handler import handle_errors
 from utils.core.logger_utils import get_logger, log_performance
-from utils.db.persistent_cache import get_persistent_cache
+from repositories.persistent_cache import get_persistent_cache
 
 
 # 实现一个简单的TTLCache类作为临时解决方案

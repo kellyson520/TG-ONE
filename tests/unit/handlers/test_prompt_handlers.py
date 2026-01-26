@@ -66,7 +66,7 @@ async def test_handle_prompt_setting_add_keywords():
     mock_cm.__aenter__.return_value = mock_session
 
     with patch("handlers.prompt_handlers.async_db_session", return_value=mock_cm), \
-         patch("utils.db.db_operations.DBOperations.create", new_callable=AsyncMock) as mock_db_ops, \
+         patch("repositories.db_operations.DBOperations.create", new_callable=AsyncMock) as mock_db_ops, \
          patch("handlers.prompt_handlers.send_message_and_delete") as mock_send_del, \
          patch("handlers.prompt_handlers.get_bot_client", new_callable=AsyncMock, return_value=AsyncMock()):
         

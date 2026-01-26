@@ -3,9 +3,9 @@ import os
 from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode
 from telethon.errors import FloodWaitError
-from utils.helpers.common import get_main_module
+from core.helpers.common import get_main_module
 from utils.core.error_handler import handle_telegram_errors, handle_errors
-from utils.db.db_context import safe_db_operation
+from repositories.db_context import safe_db_operation
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class SenderFilter(BaseFilter):
             logger.error('无法确定目标聊天，取消发送')
             return False
 
-        from utils.helpers.id_utils import resolve_entity_by_id_variants
+        from core.helpers.id_utils import resolve_entity_by_id_variants
         target_chat_id = int(target_chat.telegram_chat_id)
         try:
             entity, resolved_id = await resolve_entity_by_id_variants(client, target_chat_id)
@@ -128,7 +128,7 @@ class SenderFilter(BaseFilter):
                     
                     message_ids.sort()
 
-                from utils.processing.forward_queue import forward_messages_queued
+                from services.queue_service import forward_messages_queued
                 sent = await forward_messages_queued(
                     user_client,
                     source_chat_id=event.chat_id,
@@ -145,7 +145,7 @@ class SenderFilter(BaseFilter):
                 # 记录转发信息
                 await self._record_forward(context, target_chat_id, event.message.id)
             else:
-                from utils.processing.forward_queue import forward_messages_queued
+                from services.queue_service import forward_messages_queued
                 sent = await forward_messages_queued(
                     user_client,
                     source_chat_id=event.chat_id,

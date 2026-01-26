@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Chat, ForwardRule
-from utils.network.api_optimization import get_api_optimizer
-from utils.helpers.entity_validator import get_entity_validator
+from services.network.api_optimization import get_api_optimizer
+from core.helpers.entity_validator import get_entity_validator
 
 logger = logging.getLogger(__name__)
 

@@ -72,7 +72,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
     async def user_message_listener(event):
         """用户消息监听器 - 只写入任务队列"""
         try:
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"📥 [监听器] 收到新消息: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 发送者ID={event.sender_id}, 媒体={bool(event.message.media)}")
             
@@ -106,7 +106,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                     # 清除状态
                     if event.chat_id in user_session:
                         user_session.pop(event.chat_id)
-                    from utils.helpers.id_utils import get_display_name_async
+                    from core.helpers.id_utils import get_display_name_async
                     chat_display = await get_display_name_async(event.chat_id)
                     logger.info(f"🚀 [监听器] 手动下载任务已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级=100")
                 else:
@@ -133,11 +133,11 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             await container.queue_service.enqueue(
                 ("process_message", payload, 0)
             )
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"✅ [监听器] 普通消息已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级=0, 分组ID={event.message.grouped_id}")
         except Exception as e:
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.error(f"❌ [监听器] 消息处理失败: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 错误={str(e)}", exc_info=True)
 
@@ -151,18 +151,18 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             if event.out or event.sender_id == bot_id:
                 return
 
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"🤖 [Bot监听器] 收到Bot命令: 来源={chat_display}({event.chat_id}), 发送者ID={event.sender_id}, 命令={event.text}")
             
             # 机器人命令直接调用处理函数，不写入队列
             from handlers import bot_handler
             await bot_handler.handle_command(bot_client, event)
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"✅ [Bot监听器] Bot命令处理完成: 来源={chat_display}({event.chat_id}), 命令={event.text}")
         except Exception as e:
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.error(f"❌ [Bot监听器] Bot命令处理失败: 来源={chat_display}({event.chat_id}), 命令={event.text}, 错误={str(e)}", exc_info=True)
     

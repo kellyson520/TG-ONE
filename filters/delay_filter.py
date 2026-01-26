@@ -2,7 +2,7 @@
 import asyncio
 from datetime import datetime, timedelta
 from filters.base_filter import BaseFilter
-from utils.helpers.common import get_main_module
+from core.helpers.common import get_main_module
 
 logger = logging.getLogger(__name__)
 

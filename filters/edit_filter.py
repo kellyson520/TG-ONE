@@ -2,7 +2,7 @@
 import os
 from filters.base_filter import BaseFilter
 from enums.enums import HandleMode, PreviewMode
-from utils.helpers.common import get_main_module
+from core.helpers.common import get_main_module
 from telethon.tl.types import Channel
 import traceback
 

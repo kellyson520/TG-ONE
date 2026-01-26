@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Optional, Any, Union, Set
 import asyncio
 from datetime import datetime, timedelta
-from utils.network.api_optimization import get_api_optimizer
+from services.network.api_optimization import get_api_optimizer
 
 logger = logging.getLogger(__name__)
 

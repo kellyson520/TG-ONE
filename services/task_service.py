@@ -55,10 +55,10 @@ class TaskService:
                     'status': r.status,
                     'started_at': r.started_at,
                     'completed_at': r.completed_at,
-                    'forwarded': r.forwarded_count if r.forwarded_count is not None else data.get('forwarded', 0),
-                    'filtered': r.filtered_count if r.filtered_count is not None else data.get('filtered', 0),
-                    'failed': r.failed_count if r.failed_count is not None else data.get('failed', 0),
-                    'total': r.total_count if r.total_count is not None else data.get('total', 0),
+                    'forwarded': getattr(r, 'forwarded_count', data.get('forwarded', 0)),
+                    'filtered': getattr(r, 'filtered_count', data.get('filtered', 0)),
+                    'failed': getattr(r, 'failed_count', data.get('failed', 0)),
+                    'total': getattr(r, 'total_count', data.get('total', 0)),
                 }
                 tasks.append(task_info)
                 
@@ -135,30 +135,14 @@ class TaskService:
         return await self.get_task_detail(task_id=task_id, task_type='history_forward')
 
     async def get_recent_failed_samples(self, limit: int = 20, task_type: Optional[str] = 'history_forward') -> Dict[str, Any]:
-        """获取最近任务的失败样本 (原生异步)
-        
-        Args:
-            limit: 返回的最大失败样本数量
-            task_type: 任务类型，默认history_forward
-            
-        Returns:
-            包含失败样本的字典
-        """
+        """获取最近任务的失败样本 (原生异步)"""
         try:
             async with container.db.session() as session:
-                stmt = (
-                    select(TaskQueue)
-                    .order_by(TaskQueue.id.desc())
-                    .limit(1)
-                )
-                
-                # 根据task_type过滤
+                stmt = select(TaskQueue).order_by(TaskQueue.id.desc()).limit(1)
                 if task_type:
                     stmt = stmt.filter(TaskQueue.task_type == task_type)
-                    
                 result = await session.execute(stmt)
                 row = result.scalar_one_or_none()
-                
             failed_ids: List[int] = []
             if row and row.task_data:
                 try:
@@ -166,12 +150,47 @@ class TaskService:
                     failed_list = data.get('failed_ids', [])
                     if isinstance(failed_list, list):
                         failed_ids = failed_list[:limit]
-                except Exception:
-                    pass
+                except Exception: pass
             return {'success': True, 'failed_ids': failed_ids}
         except Exception as e:
             logger.error(f"获取失败样本失败: {e}")
             return {'success': False, 'error': str(e), 'failed_ids': []}
+
+    async def schedule_custom_task(self, callback_info: Dict, delay_seconds: float, task_id: Optional[str] = None, max_retries: int = 3) -> str:
+        """安排自定义任务"""
+        import time
+        if task_id is None: task_id = f"custom_{time.time()}_{id(callback_info)}"
+        payload = {"action": "custom", "callback_info": callback_info, "max_retries": max_retries, "task_id": task_id}
+        from datetime import datetime, timedelta
+        execute_time = datetime.now() + timedelta(seconds=delay_seconds)
+        await container.task_repo.push(task_type="custom_task", payload=payload, priority=3, scheduled_at=execute_time)
+        return task_id
+
+    async def get_task_status(self, task_id: str) -> Optional[Dict]:
+        """获取任务状态"""
+        try:
+            async with container.db.session() as session:
+                stmt = select(TaskQueue).where(TaskQueue.task_data.like(f"%{task_id}%"))
+                result = await session.execute(stmt)
+                task = result.scalar_one_or_none()
+                if not task: return None
+                task_data = json.loads(task.task_data) if task.task_data else {}
+                return {"task_id": task_data.get("task_id", task_id), "status": task.status, "task_type": task.task_type}
+        except Exception: return None
+
+    async def get_active_tasks_count(self) -> int:
+        """获取活跃任务数量"""
+        try:
+            async with container.db.session() as session:
+                from sqlalchemy import func
+                stmt = select(func.count(TaskQueue.id)).where(TaskQueue.status.in_(["pending", "running"]))
+                result = await session.execute(stmt)
+                return result.scalar_one()
+        except Exception: return 0
+
+    async def shutdown(self):
+        """关闭任务管理器"""
+        logger.info("[TaskService] 消息任务管理服务已关闭")
 
 
     async def schedule_delete(

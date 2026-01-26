@@ -1,5 +1,5 @@
 import pytest
-from utils.network.router import RadixRouter
+from services.network.router import RadixRouter
 
 def test_radix_basic():
     """测试基本路由"""

@@ -41,7 +41,7 @@ async def test_archive_recovery_on_failure(db, monkeypatch):
     
     # 3. Mock write_parquet 抛出异常 + Mock bloom_index 以免报错
     with patch("scheduler.db_archive_job.write_parquet", side_effect=OSError("Disk Full")), \
-         patch("utils.db.bloom_index.bloom.add_batch", return_value=None):
+         patch("repositories.bloom_index.bloom.add_batch", return_value=None):
         # 执行归档
         archive_once()
         

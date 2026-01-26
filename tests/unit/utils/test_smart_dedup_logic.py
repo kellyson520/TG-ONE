@@ -4,7 +4,7 @@ Tests text cleaning, signature generation, and similarity comparison.
 """
 import pytest
 from unittest.mock import MagicMock
-from utils.processing.smart_dedup import SmartDeduplicator
+from services.dedup.engine import SmartDeduplicator
 
 class TestSmartDedupLogic:
     

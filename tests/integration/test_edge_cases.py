@@ -9,7 +9,7 @@ from datetime import datetime
 from core.pipeline import MessageContext, Pipeline
 from middlewares.loader import RuleLoaderMiddleware
 from middlewares.sender import SenderMiddleware
-from utils.processing.forward_queue import FloodWaitException
+from services.queue_service import FloodWaitException
 
 
 class TestEdgeCasesAndExceptions:

@@ -70,7 +70,7 @@ async def test_pipeline_flow(mock_client, mock_message, mock_rule):
     
     # Mock Dedup Service (Global instance)
     with patch('middlewares.dedup.dedup_service') as mock_dedup_service, \
-         patch('utils.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
+         patch('core.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
         mock_display_name.return_value = "TestChat"
         # Scenario 1: Not Duplicate -> Should Forward
         mock_dedup_service.check_and_lock = AsyncMock(return_value=(False, None))
@@ -100,7 +100,7 @@ async def test_pipeline_flow(mock_client, mock_message, mock_rule):
         # should_copy = bool(modified_text) or getattr(rule, 'is_replace', False) or ...
         # Here should_copy is False -> Forward Mode
         
-        # Note: SenderMiddleware calls forward_messages_queued imported from utils.processing.forward_queue
+        # Note: SenderMiddleware calls forward_messages_queued imported from services.queue_service
         # We need to mock that too if we want to verify it called
         
 @pytest.mark.asyncio
@@ -118,7 +118,7 @@ async def test_dedup_filtering(mock_client, mock_message, mock_rule):
     )
     
     with patch('middlewares.dedup.dedup_service') as mock_dedup_service, \
-         patch('utils.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
+         patch('core.helpers.id_utils.get_display_name_async', new_callable=AsyncMock) as mock_display_name:
         mock_display_name.return_value = "TestChat"
         # Scenario 2: Is Duplicate -> Should NOT Forward
         mock_dedup_service.check_and_lock = AsyncMock(return_value=(True, "already_exists"))

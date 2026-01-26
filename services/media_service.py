@@ -33,7 +33,7 @@ class MediaService:
             
         messages = []
         try:
-            from utils.network.api_optimization import get_api_optimizer
+            from services.network.api_optimization import get_api_optimizer
             api_optimizer = get_api_optimizer()
             
             if api_optimizer:

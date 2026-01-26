@@ -38,15 +38,70 @@ class ForwardRule(Base):
     enable_reverse_blacklist = Column(Boolean, default=False)
     enable_reverse_whitelist = Column(Boolean, default=False)
     
-    # 提示词
     ai_prompt = Column(Text, nullable=True)
     summary_prompt = Column(Text, nullable=True)
+    ai_model = Column(String, nullable=True)
     
-    # 额外字段 (为 DTO 补全)
+    # RSS 专用
+    only_rss = Column(Boolean, default=False)
+    
+    # 过滤器相关
+    is_replace = Column(Boolean, default=False)
+    max_media_size = Column(Integer, default=50) # MB
+    enable_media_size_filter = Column(Boolean, default=False)
+    enable_media_type_filter = Column(Boolean, default=False)
+    
+    # 描述与优先级
+    description = Column(String, nullable=True)
+    priority = Column(Integer, default=0)
+    
+    # 指向 DTO 补全的缺失字段
+    is_ufb = Column(Boolean, default=False)
+    ufb_domain = Column(String, nullable=True)
+    ufb_item = Column(String, default='main')
+    message_thread_id = Column(Integer, nullable=True)
+    required_sender_id = Column(String, nullable=True)
+    required_sender_regex = Column(String, nullable=True)
+    is_send_over_media_size_message = Column(Boolean, default=True)
+    enable_extension_filter = Column(Boolean, default=False)
+    extension_filter_mode = Column(String, default='blacklist')
+    is_save_to_local = Column(Boolean, default=False)
+    
+    # 精确媒体过滤
+    enable_duration_filter = Column(Boolean, default=False)
+    min_duration = Column(Integer, default=0)
+    max_duration = Column(Integer, default=0)
+    enable_resolution_filter = Column(Boolean, default=False)
+    min_width = Column(Integer, default=0)
+    max_width = Column(Integer, default=0)
+    min_height = Column(Integer, default=0)
+    max_height = Column(Integer, default=0)
+    enable_file_size_range = Column(Boolean, default=False)
+    min_file_size = Column(Integer, default=0)
+    max_file_size = Column(Integer, default=0)
+    media_allow_text = Column(Boolean, default=False)
+    
+    # 推送与去重增强
+    enable_push = Column(Boolean, default=False)
+    enable_only_push = Column(Boolean, default=False)
+    allow_delete_source_on_dedup = Column(Boolean, default=False)
+    
+    # AI 增强
+    enable_ai_upload_image = Column(Boolean, default=False)
+    summary_time = Column(String, default="08:00")
+    is_keyword_after_ai = Column(Boolean, default=False)
+    is_top_summary = Column(Boolean, default=True)
+    
+    # 额外字段
     userinfo_template = Column(String, default='**{name}**')
     time_template = Column(String, default='{time}')
     original_link_template = Column(String, default='原始连接：{original_link}')
-    add_mode = Column(String, default='blacklist') # Match AddMode.BLACKLIST.value
+    add_mode = Column(String, default='blacklist')
+    unique_key = Column(String, nullable=True)
+    daily_limit = Column(Integer, nullable=True)
+    rate_limit = Column(Integer, nullable=True)
+    webhook_url = Column(String, nullable=True)
+    custom_config = Column(Text, nullable=True)
     
     # 元数据
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())

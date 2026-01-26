@@ -2,6 +2,13 @@
 
 ## 📅 2026-01-25 更新摘要
 
+### 🚀 v1.2.2: Pipeline Integrity & Stability (Phase 3+)
+- **Integration Tests**: Achieved 100% pass rate for Core Pipeline (Loader -> Dedup -> Filter -> Sender) with `pytest tests/integration/test_pipeline_flow.py`.
+- **Model Integrity**: Restored 30+ missing fields in `ForwardRule` ORM model, ensuring exact parity with DTOs and preventing data loss.
+- **Resilience**: Fixed naked `raise` in `QueueService` retry loop; Verified Circuit Breaker and Dedup Rollback mechanisms under simulated network failure.
+- **Config**: Consolidated missing DB/RSS settings into `core.config`.
+- **Testing**: Enhanced mock infrastructure for `mock_client.forward_messages` and `MessageContext` state tracking.
+
 ### 🚀 v1.2.1: Data Security & Core Purge (Phase 3 Completed)
 - **Security**: Established a strict DTO barrier in Repository layer; ORM models are now shielded from Services and Handlers.
 - **Pure Functions**: Monolithic `utils/helpers/common.py` logic migrated to `UserService` and `RuleFilterService`.

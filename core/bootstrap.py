@@ -10,7 +10,7 @@ from core.config_initializer import load_dynamic_config_from_db
 from core.shutdown import get_shutdown_coordinator, register_cleanup
 from listeners import setup_listeners
 from utils.core.logger_utils import get_logger
-from utils.helpers.metrics import set_ready, update_heartbeat
+from core.helpers.metrics import set_ready, update_heartbeat
 from services.system_service import guard_service
 from scheduler.cron_service import cron_service
 from services.exception_handler import exception_handler
@@ -22,7 +22,7 @@ except ImportError:
     send_welcome_message = None
 
 try:
-    from utils.network.bot_heartbeat import start_heartbeat
+    from services.network.bot_heartbeat import start_heartbeat
 except ImportError:
     start_heartbeat = None
 
@@ -120,7 +120,7 @@ class Bootstrap:
     async def _init_optimizations(self):
         # API 优化器
         try:
-            from utils.network.api_optimization import initialize_api_optimizer
+            from services.network.api_optimization import initialize_api_optimizer
             initialize_api_optimizer(self.user_client)
             logger.info("API优化器初始化完成")
         except Exception as e:
@@ -128,7 +128,7 @@ class Bootstrap:
 
         # 实体解析器
         try:
-            from utils.helpers.entity_optimization import initialize_entity_resolver
+            from core.helpers.entity_optimization import initialize_entity_resolver
             initialize_entity_resolver(self.user_client)
             logger.info("实体解析器初始化完成")
         except Exception as e:
@@ -136,7 +136,7 @@ class Bootstrap:
             
         # 事件驱动监控
         try:
-             from utils.helpers.event_optimization import get_event_optimizer, get_event_monitor
+             from core.helpers.event_optimization import get_event_optimizer, get_event_monitor
              event_optimizer = get_event_optimizer()
              event_monitor = get_event_monitor()
              

@@ -1,5 +1,5 @@
 import unittest
-from utils.network.aimd import AIMDScheduler
+from services.network.aimd import AIMDScheduler
 
 class TestAIMDScheduler(unittest.TestCase):
     def setUp(self):

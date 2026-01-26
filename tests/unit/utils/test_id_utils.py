@@ -3,7 +3,7 @@ Unit tests for ID utilities.
 Tests normalization and candidate generation logic for Telegram IDs.
 """
 import pytest
-from utils.helpers.id_utils import normalize_chat_id, build_candidate_telegram_ids
+from core.helpers.id_utils import normalize_chat_id, build_candidate_telegram_ids
 
 class TestIdUtils:
     

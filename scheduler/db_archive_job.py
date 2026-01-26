@@ -4,9 +4,9 @@ import logging
 from typing import List, Dict, Any
 
 from models.models import get_session, get_dedup_session, MediaSignature, ErrorLog, RuleLog, TaskQueue, ChatStatistics, RuleStatistics
-from utils.db.archive_store import write_parquet, compact_small_files
-from utils.helpers.metrics import ARCHIVE_RUN_TOTAL, ARCHIVE_RUN_SECONDS
-from utils.db.bloom_index import bloom
+from repositories.archive_store import write_parquet, compact_small_files
+from core.helpers.metrics import ARCHIVE_RUN_TOTAL, ARCHIVE_RUN_SECONDS
+from repositories.bloom_index import bloom
 from models.models import analyze_database, vacuum_database
 from pathlib import Path
 import shutil
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def _ensure_archive_system():
     """确保归档系统已正确初始化"""
     try:
-        from utils.db.archive_init import init_archive_system
+        from repositories.archive_init import init_archive_system
         if not init_archive_system():
             logger.warning("归档系统初始化失败，可能影响功能")
     except Exception as e:

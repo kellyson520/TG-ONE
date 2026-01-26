@@ -148,7 +148,7 @@ class ForwardService:
                 target_chat = (await session.execute(target_stmt)).scalar_one_or_none()
                 
                 if not source_chat or not target_chat:
-                    from utils.helpers.id_utils import get_display_name_async
+                    from core.helpers.id_utils import get_display_name_async
                     source_display = await get_display_name_async(source_chat_id)
                     target_display = await get_display_name_async(target_chat_id)
                     logger.warning(f"⚠️ [转发服务] 创建规则失败: 源聊天或目标聊天不存在，源={source_display}({source_chat_id}), 目标={target_display}({target_chat_id})")
@@ -169,7 +169,7 @@ class ForwardService:
                 RuleQueryService.invalidate_caches_for_chat(source_chat_id)
                 RuleQueryService.invalidate_caches_for_chat(target_chat_id)
 
-                from utils.helpers.id_utils import get_display_name_async
+                from core.helpers.id_utils import get_display_name_async
                 source_display = await get_display_name_async(source_chat_id)
                 target_display = await get_display_name_async(target_chat_id)
                 logger.info(f"✅ [转发服务] 转发规则创建成功: 规则ID={new_rule.id}, 来源={source_display}({source_chat_id}), 目标={target_display}({target_chat_id})")
@@ -179,7 +179,7 @@ class ForwardService:
                     'message': '转发规则创建成功'
                 }
         except Exception as e:
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             source_display = await get_display_name_async(source_chat_id)
             target_display = await get_display_name_async(target_chat_id)
             logger.error(f"❌ [转发服务] 创建转发规则失败: 来源={source_display}({source_chat_id}), 目标={target_display}({target_chat_id}), 错误={e}")

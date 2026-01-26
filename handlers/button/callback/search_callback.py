@@ -9,9 +9,9 @@ from typing import Any, Dict
 
 from handlers.search_ui_manager import SearchUIManager
 from utils.processing.auto_delete import respond_and_delete
-from utils.helpers.common import get_user_client
+from core.helpers.common import get_user_client
 from utils.core.logger_utils import get_logger
-from utils.helpers.search_system import SearchFilter, SearchType, SortBy, get_search_system
+from core.helpers.search_system import SearchFilter, SearchType, SortBy, get_search_system
 
 logger = get_logger(__name__)
 

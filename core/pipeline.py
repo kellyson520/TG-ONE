@@ -63,7 +63,7 @@ class Pipeline:
         ctx.metadata["trace_id"] = trace_id
 
         try:
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(ctx.chat_id)
             logger.debug(f"🔄 [Pipeline] 开始执行流程，TraceID={trace_id}, 任务ID={short_id(ctx.task_id)}, 来源={chat_display}({ctx.chat_id}), 消息ID={ctx.message_id}")
             

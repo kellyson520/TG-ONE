@@ -8,7 +8,7 @@ from sqlalchemy import select
 from models.models import MediaSignature
 from models.models import MediaSignature
 # [Refactor Fix] 更新 smart_dedup 路径
-from utils.processing.smart_dedup import smart_deduplicator, SmartDeduplicator
+from services.dedup.engine import smart_deduplicator, SmartDeduplicator
 from services.bloom_filter import bloom_filter_service
 
 logger = logging.getLogger(__name__)
@@ -223,7 +223,7 @@ class DedupService:
     async def is_duplicate(self, chat_id: int, message_obj) -> bool:
         """
         检查消息是否重复
-        复用 utils.processing.smart_dedup 中的智能去重逻辑
+        复用 services.dedup.engine 中的智能去重逻辑
         """
         # 0. Bloom Filter Check (Fast Failure)
         signature = smart_deduplicator._generate_signature(message_obj)

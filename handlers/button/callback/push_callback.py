@@ -10,7 +10,7 @@ from telethon import Button
 from telethon.tl import types
 
 from enums.enums import AddMode
-from utils.db.db_operations import DBOperations
+from repositories.db_operations import DBOperations
 from models.models import (
     AsyncSessionManager,
     ForwardRule,
@@ -27,7 +27,7 @@ from utils.processing.auto_delete import (
     respond_and_delete,
     send_message_and_delete,
 )
-from utils.helpers.common import (
+from core.helpers.common import (
     check_and_clean_chats,
     get_db_ops,
     get_media_settings_text,

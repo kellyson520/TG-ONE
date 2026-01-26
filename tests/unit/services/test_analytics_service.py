@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock, PropertyMock
 from services.analytics_service import AnalyticsService
-from utils.helpers.realtime_stats import realtime_stats_cache
+from core.helpers.realtime_stats import realtime_stats_cache
 
 @pytest.fixture
 def analytics_service():
@@ -24,7 +24,7 @@ async def test_get_analytics_overview(analytics_service):
         mock_container_prop.return_value = mock_container
         
         with patch('services.forward_service.forward_service.get_forward_stats', new_callable=AsyncMock) as mock_get_forward_stats, \
-             patch('utils.processing.smart_dedup.smart_deduplicator.get_stats') as mock_get_dedup_stats:
+             patch('services.dedup.engine.smart_deduplicator.get_stats') as mock_get_dedup_stats:
             
             mock_get_forward_stats.return_value = {
                 'today': {'total_forwards': 100}
@@ -44,7 +44,7 @@ async def test_get_analytics_overview(analytics_service):
 async def test_get_system_status(analytics_service):
     with patch('models.models.get_db_health') as mock_db_health, \
          patch('services.analytics_service.get_heartbeat') as mock_heartbeat, \
-         patch('utils.processing.smart_dedup.smart_deduplicator.config', PropertyMock(return_value={'enable_time_window': True})):
+         patch('services.dedup.engine.smart_deduplicator.config', PropertyMock(return_value={'enable_time_window': True})):
         
         mock_db_health.return_value = {'connected': True}
         mock_heartbeat.return_value = {'status': 'running', 'age_seconds': 10}

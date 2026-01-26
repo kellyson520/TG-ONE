@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import duckdb
 from models.models import Base, MediaSignature, ErrorLog
 from scheduler import db_archive_job
-from utils.db import archive_store
+from repositories import archive_store
 
 IS_DUCKDB_MOCKED = isinstance(duckdb, MagicMock) or hasattr(duckdb, 'DEFAULT_REPOSITORY')
 

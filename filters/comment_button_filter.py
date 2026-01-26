@@ -6,7 +6,7 @@ import traceback
 from telethon import Button
 from filters.base_filter import BaseFilter
 from telethon.tl.functions.channels import GetFullChannelRequest
-from utils.helpers.common import get_main_module
+from core.helpers.common import get_main_module
 from difflib import SequenceMatcher
 import traceback
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class CommentButtonFilter(BaseFilter):
                 event = context.event
                 
                 # 获取原始频道实体 - 使用优化方法
-                from utils.helpers.entity_optimization import get_entity_resolver
+                from core.helpers.entity_optimization import get_entity_resolver
                 entity_resolver = get_entity_resolver()
                 
                 if entity_resolver:
@@ -100,7 +100,7 @@ class CommentButtonFilter(BaseFilter):
                     
                     # 获取关联群组实体
                     # 使用实体解析器获取关联群组
-                    from utils.helpers.entity_optimization import get_entity_resolver
+                    from core.helpers.entity_optimization import get_entity_resolver
                     entity_resolver = get_entity_resolver()
                     
                     if entity_resolver:

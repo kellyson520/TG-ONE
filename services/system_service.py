@@ -56,7 +56,7 @@ class SystemService:
         异步执行数据库备份
         """
         try:
-            from utils.db.backup import backup_database as _backup
+            from repositories.backup import backup_database as _backup
             
             # 在线程池中执行同步备份操作
             loop = asyncio.get_running_loop()
@@ -200,7 +200,7 @@ class GuardService:
     async def start_db_health_guard(self):
         """异步数据库健康检查 (Reporting Only)"""
         logger.info("Starting DB health monitor...")
-        from utils.db.health_check import DatabaseHealthManager, settings as db_settings
+        from repositories.health_check import DatabaseHealthManager, settings as db_settings
         
         # 只在启用时运行
         if not db_settings.ENABLE_DB_HEALTH_CHECK:

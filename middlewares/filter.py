@@ -52,7 +52,7 @@ class FilterMiddleware(Middleware):
             ctx: 消息上下文
             next_call: 下一个中间件的调用函数
         """
-        from utils.helpers.id_utils import get_display_name_async
+        from core.helpers.id_utils import get_display_name_async
         chat_display = await get_display_name_async(ctx.chat_id)
         logger.info(f"🔍 [Pipeline-Filter] 开始处理: 任务ID={ctx.task_id}, 来源={chat_display}({ctx.chat_id}), 消息ID={ctx.message_id}")
         

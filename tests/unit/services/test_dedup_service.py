@@ -9,7 +9,7 @@ class TestDedupService:
     @pytest.fixture(autouse=True)
     async def setup_dedup(self):
         # 确保每个测试都重置配置
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
         smart_deduplicator.reset_to_defaults()
         smart_deduplicator.time_window_cache.clear()
         smart_deduplicator.content_hash_cache.clear()
@@ -45,7 +45,7 @@ class TestDedupService:
 
     async def test_clear_all_cache(self):
         # 模拟一些缓存数据
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
         smart_deduplicator.time_window_cache = {1: {"sig1": 123456}}
         
         result = await dedup_service.clear_all_cache()
@@ -77,7 +77,7 @@ class TestDedupService:
         message.file = file_mock
         
         # 模拟 EventBus 调用或者直接调用
-        with patch("utils.processing.smart_dedup.smart_deduplicator._record_message", new_callable=AsyncMock), \
+        with patch("services.dedup.engine.smart_deduplicator._record_message", new_callable=AsyncMock), \
              patch("services.dedup_service.bloom_filter_service"):
             await dedup_service.record_signature(1001, message)
         
@@ -102,13 +102,13 @@ class TestDedupService:
         
         # 2. 记录签名（模拟）
         # 我们直接调用 smart_deduplicator 的方法记录，因为 dedup_service.record_signature 内部逻辑较多
-        from utils.processing.smart_dedup import smart_deduplicator
+        from services.dedup.engine import smart_deduplicator
         await smart_deduplicator._record_message(message, 1001, "sig123", "hash123")
         
         # 3. 再次检查（此时应该基于缓存发现重复）
         # 需要 Mock Bloom Filter，否则会因 Bloom Filter 未命中而直接返回 False
         with patch("services.dedup_service.bloom_filter_service") as mock_bf, \
-             patch("utils.processing.smart_dedup.smart_deduplicator._generate_signature", return_value="sig123"):
+             patch("services.dedup.engine.smart_deduplicator._generate_signature", return_value="sig123"):
             
             mock_bf.__contains__.return_value = True
             

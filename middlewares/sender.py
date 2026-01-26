@@ -1,9 +1,9 @@
 from core.pipeline import Middleware
-from utils.processing.forward_queue import forward_messages_queued 
+from services.queue_service import forward_messages_queued 
 from services.dedup_service import dedup_service
 import logging
 from utils.forward_recorder import forward_recorder
-from utils.helpers.common import get_main_module
+from core.helpers.common import get_main_module
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ class SenderMiddleware(Middleware):
                             forward_kwargs['message_thread_id'] = message_thread_id
                         
                         
-                        from utils.helpers.id_utils import get_display_name_async
+                        from core.helpers.id_utils import get_display_name_async
                         chat_display = await get_display_name_async(ctx.chat_id)
                         logger.info(f"🚀 [发送器] 开始纯转发: 来源={chat_display}({ctx.chat_id}), 目标={target_id}, 消息ID列表={messages_to_forward}")
                         await forward_messages_queued(
@@ -150,8 +150,15 @@ class SenderMiddleware(Middleware):
                         "error": str(e),
                         "ctx_task_id": getattr(ctx, 'task_id', None)
                     }, wait=True)
+                    
+                    if not hasattr(ctx, 'failed_rules'):
+                        ctx.failed_rules = []
+                    ctx.failed_rules.append(rule.id)
 
         # === 循环结束后的收尾工作 ===
+        if forward_rules and len(getattr(ctx, 'failed_rules', [])) >= len(forward_rules):
+            ctx.is_terminated = True
+            logger.warning(f"🚫 [发送器] 所有 {len(forward_rules)} 条转发规则均失败，流程终止")
         
         # [Cleanup] 统一处理源消息删除
         if ctx.metadata.get('delete_source_message'):
@@ -159,7 +166,7 @@ class SenderMiddleware(Middleware):
                 group_id = ctx.metadata.get('delete_group_id')
                 chat_id = ctx.chat_id
                 
-                from utils.helpers.common import get_main_module
+                from core.helpers.common import get_main_module
                 main = await get_main_module()
                 client = main.user_client if (main and hasattr(main, 'user_client')) else ctx.client
 

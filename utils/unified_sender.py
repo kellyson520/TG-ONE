@@ -1,7 +1,7 @@
 
 import logging
 from typing import Union, List, Optional, Any
-from utils.processing.forward_queue import send_message_queued, send_file_queued
+from services.queue_service import send_message_queued, send_file_queued
 
 logger = logging.getLogger(__name__)
 

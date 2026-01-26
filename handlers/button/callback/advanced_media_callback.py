@@ -8,7 +8,7 @@ from telethon.tl import types
 
 from handlers.button.session_management import session_manager
 from models.models import ForwardRule
-from utils.db.db_context import async_db_session
+from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 

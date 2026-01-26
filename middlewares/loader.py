@@ -1,6 +1,6 @@
 from core.pipeline import Middleware
 import logging
-from utils.helpers.id_utils import normalize_chat_id
+from core.helpers.id_utils import normalize_chat_id
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class RuleLoaderMiddleware(Middleware):
         # 复用你现有的缓存查询逻辑
         if logger.isEnabledFor(logging.DEBUG):
             norm_id = normalize_chat_id(ctx.chat_id)
-            from utils.helpers.id_utils import get_display_name_async
+            from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(ctx.chat_id)
             logger.debug(f"🔍 [加载器] 正在加载规则: 来源={chat_display}({ctx.chat_id}) (标准化ID: {norm_id})")
         
@@ -23,7 +23,7 @@ class RuleLoaderMiddleware(Middleware):
         if not ctx.rules:
             # 日志记录：无规则忽略 (降级为DEBUG以减少噪音)
             if logger.isEnabledFor(logging.DEBUG):
-                from utils.helpers.id_utils import get_display_name_async
+                from core.helpers.id_utils import get_display_name_async
                 chat_display = await get_display_name_async(ctx.chat_id)
                 logger.debug(f"⚠️ [加载器] 未找到匹配的转发规则: 来源={chat_display}({ctx.chat_id}) (流程结束)")
             ctx.is_terminated = True

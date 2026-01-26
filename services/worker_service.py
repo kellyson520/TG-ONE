@@ -5,13 +5,13 @@ import random
 import math
 from datetime import datetime, timedelta
 from core.pipeline import MessageContext
-from utils.processing.forward_queue import FloodWaitException
+from services.queue_service import FloodWaitException
 import structlog
 from core.exceptions import TransientError, PermanentError, BusinessLogicError
 from core.config import settings
 
 from utils.core.logger_utils import get_logger, short_id
-from utils.processing.forward_queue import get_messages_queued, send_file_queued
+from services.queue_service import get_messages_queued, send_file_queued
 from filters.delay_filter import RescheduleTaskException
 
 logger = get_logger(__name__)
@@ -58,7 +58,7 @@ class WorkerService:
                     msg_id = payload.get('message_id')
                     
                     # [优化] 获取聊天显示名称
-                    from utils.helpers.id_utils import get_display_name_async
+                    from core.helpers.id_utils import get_display_name_async
                     chat_display = await get_display_name_async(chat_id)
                     
                     log.info(f"🔄 [Worker] 开始处理任务 {short_id(task.id)}: 来源={chat_display}({chat_id}), 消息ID={msg_id}")
@@ -244,7 +244,7 @@ class WorkerService:
                         log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
                         await self.repo.fail(task.id, str(e))
                     else:
-                        from utils.helpers.id_utils import get_display_name_async
+                        from core.helpers.id_utils import get_display_name_async
                         chat_display = await get_display_name_async(chat_id)
                         log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
                         # 记录具体的错误信息到数据库
@@ -257,7 +257,7 @@ class WorkerService:
                 chat_id = payload.get('chat_id') if task and payload else None
                 msg_id = payload.get('message_id') if task and payload else None
                 log_exception = logger.bind(task_id=task_id, task_type=task_type)
-                from utils.helpers.id_utils import get_display_name_async
+                from core.helpers.id_utils import get_display_name_async
                 chat_display = await get_display_name_async(chat_id)
                 log_exception.exception(f"Worker 关键错误: 错误={str(e)}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
                 await asyncio.sleep(1) # 出错后稍作暂停

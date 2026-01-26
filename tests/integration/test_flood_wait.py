@@ -8,7 +8,7 @@ import pytest
 import asyncio
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
-from utils.processing.forward_queue import (
+from services.queue_service import (
     forward_messages_queued, 
     _flood_wait_until
 )
@@ -144,7 +144,7 @@ async def test_batch_forward_fallback(mock_client):
 
     with patch('os.getenv', side_effect=mock_getenv):
         # 模拟 api_optimizer.forward_messages_batch 失败
-        with patch('utils.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
+        with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
             mock_batch.side_effect = Exception("Batch failed")
             
             # 单条转发成功

@@ -17,7 +17,7 @@ trace_id_var = contextvars.ContextVar("trace_id", default="-")
 
 # 导入 settings 以获取项目根目录
 from core.config import settings
-from utils.network.log_push import install_log_push_handlers
+from services.network.log_push import install_log_push_handlers
 
 # Simple redaction keywords
 _REDACT_KEYS = {"token", "apikey", "api_key", "authorization", "password", "secret"}
@@ -328,10 +328,10 @@ class _CategoryFilter(logging.Filter):
         self.map = {
             "db": [
                 "models.",
-                "utils.db_",
+                "repositories_",
                 "utils.query_",
-                "utils.db_optimization_suite",
-                "utils.db_monitor",
+                "repositories_optimization_suite",
+                "repositories_monitor",
                 "scheduler.db_archive_job",
             ],
             "cache": ["utils.unified_cache", "utils.query_optimizer"],
@@ -417,10 +417,10 @@ class _ConsolidatedFilter(logging.Filter):
         self.category_map = {
             "db": [
                 "models.",
-                "utils.db_",
+                "repositories_",
                 "utils.query_",
-                "utils.db_optimization_suite",
-                "utils.db_monitor",
+                "repositories_optimization_suite",
+                "repositories_monitor",
                 "scheduler.db_archive_job",
             ],
             "cache": ["utils.unified_cache", "utils.query_optimizer"],

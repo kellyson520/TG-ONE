@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from handlers.prompt_handlers import handle_prompt_setting
 from handlers import bot_handler
 from core.container import container
-from utils.helpers.metrics import (
+from core.helpers.metrics import (
     MESSAGES_RECEIVED_TOTAL,
     MESSAGE_FAILURES_TOTAL,
 )

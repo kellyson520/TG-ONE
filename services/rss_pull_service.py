@@ -7,9 +7,9 @@ from sqlalchemy import select
 from telethon import TelegramClient
 
 from models.models import AsyncSessionManager, RSSSubscription
-from utils.network.aimd import AIMDScheduler
-from utils.network.timing_wheel import HashedTimingWheel
-from utils.network.circuit_breaker import CircuitBreaker, CircuitOpenException
+from services.network.aimd import AIMDScheduler
+from services.network.timing_wheel import HashedTimingWheel
+from services.network.circuit_breaker import CircuitBreaker, CircuitOpenException
 import aiohttp
 
 logger = logging.getLogger(__name__)

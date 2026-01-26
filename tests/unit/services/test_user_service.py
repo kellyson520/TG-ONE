@@ -56,7 +56,7 @@ class TestUserService:
         # This is the "Bot is authorized in this channel" logic.
         
         mock_get_admins = AsyncMock(return_value=[123, 999])
-        monkeypatch.setattr("utils.helpers.common.get_channel_admins", mock_get_admins)
+        monkeypatch.setattr("core.helpers.common.get_channel_admins", mock_get_admins)
         
         # Request from user 456 (not admin himself, but bot owner 123 is admin of the channel)
         assert await user_service.is_admin(456, event=mock_event) is True

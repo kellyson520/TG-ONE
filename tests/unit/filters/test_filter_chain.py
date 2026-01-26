@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 # Ensure modules are loaded so patch can find them
 import filters.context
-import utils.db.db_context
+import repositories.db_context
 import models.models
 import utils.core.error_handler
 
@@ -14,7 +14,7 @@ import utils.core.error_handler
 # but we want to patch the classes/functions inside them)
 
 with patch("filters.context.MessageContext") as MockCtx, \
-     patch("utils.db.db_context.async_db_session"), \
+     patch("repositories.db_context.async_db_session"), \
      patch("models.models.MediaSignature"), \
      patch("utils.core.error_handler.handle_errors", side_effect=lambda **kw: lambda f: f), \
      patch("utils.core.error_handler.log_execution", side_effect=lambda **kw: lambda f: f):
@@ -42,7 +42,7 @@ class MockFilter(BaseFilter):
 @pytest.fixture
 def mock_db():
     with patch("filters.filter_chain.async_db_session") as db_mock, \
-         patch("utils.db.db_operations.DBOperations") as db_ops_mock:
+         patch("repositories.db_operations.DBOperations") as db_ops_mock:
         
         mock_session = AsyncMock()
         db_mock.return_value.__aenter__.return_value = mock_session
