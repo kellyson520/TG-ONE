@@ -1,5 +1,19 @@
 # Change Log
 
+## 📅 2026-01-27 更新摘要
+
+### 🚀 v1.2.2.4: Critical Encoding Recovery & RSS Module Stabilization
+- **Disaster Recovery (Encoding/Mojibake)**:
+    - **Global Repair**: Systematically repaired widespread Mojibake (Gb18030/UTF-8 mix-ups) across `web_admin/rss/` and `tests/temp/`.
+    - **Dictionary Replacement**: Restored corrupted Chinese literals (e.g., "娣诲姞" -> "添加") using a custom heuristic dictionary.
+    - **Syntax Restoration**: Fixed 50+ lines of `SyntaxError` (unterminated strings) and `IndentationError` caused by binary truncation.
+- **Skill Evolution**:
+    - **Encoding-Fixer 2.1**: Upgraded the `encoding-fixer` skill with new "Smart Reverse" logic to automatically detect and invert UTF-8-as-GBK errors.
+    - **Self-Healing**: Implemented `health_check.py` to recursively validate Python syntax, ensuring zero residual syntax errors in the codebase.
+- **Code Hygiene**:
+    - **Format Compliance**: Enforced `black` formatting across all recovered files to permanently fix indentation artifacts.
+    - **Artifact Cleanup**: Removed all temporary repair scripts (`fix_mojo.py`, `repair_binary.py`) and backup files (`.bak`).
+
 ## 📅 2026-01-26 更新摘要
 
 ### 🚀 v1.2.2.3: Web Admin Modularization & UI Layer Refactoring (Phase 6)

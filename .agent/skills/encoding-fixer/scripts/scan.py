@@ -7,11 +7,20 @@ def is_suspicious(text):
     # Common mojibake patterns
     # "Ã©" is often 'é' from UTF-8 viewed as Latin-1
     suspicious_substrings = ["Ã©", "Ã¤", "Ã¼", "ä¸", "å", "æ", "è", "ï¿½"]
+    # Common GBK Mojibake (UTF-8 bytes viewed as GBK)
+    # 鍘 (History), 锟 (Replacement), 氓 (mang), 锛 (comma), 辎, 锘 (BOM)
+    suspicious_gbk = ["鍘", "锟", "氓", "锛", "辎", "锘"]
+
     
     count = 0
     for s in suspicious_substrings:
         if s in text:
             count += text.count(s)
+            
+    for s in suspicious_gbk:
+        if s in text:
+            count += text.count(s) * 2 # Weight these higher
+
             
     if "ï¿½" in text:
          return True, "Contains Replacement Char (ï¿½)"
@@ -19,6 +28,10 @@ def is_suspicious(text):
     # High frequency of these chars might indicate Mojibake
     if "ä¸" in text and len(text) < 5000:
          return True, "Potential UTF-8 as Latin-1 (ä¸)"
+
+    if any(s in text for s in suspicious_gbk):
+         return True, "Potential UTF-8 as GBK (e.g. 鍘/锟)"
+
 
     if count > 0:
         return True, f"Suspicious chars count: {count}"
