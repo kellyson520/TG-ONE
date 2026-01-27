@@ -63,6 +63,9 @@
 | 20260115_Hygiene_Skill | 实现 workspace-hygiene 技能与根目录清理 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Implement_Workspace_Hygiene_Skill/report.md) |
 | 20260115_DB_Fix_Compression | 修复缺失的数据库压缩字段 (rss_configs/rule_logs/error_logs) | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Fix_Database_Compression_Columns/report.md) |
 | 20260115_DB_Malformed | 修复 Telethon Session 数据库损坏 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Fix_Malformed_Session_Database/report.md) |
+| 20260127_Fix_Encoding | 修复 WebAdmin 文件夹乱码 (Mojibake) | 2026-01-27 | 2026-01-27 | 100% | [[report.md]](./docs/Workstream_Maintenance/20260127_Fix_WebAdmin_Encoding/report.md) |
+| 20260127_Github_CI | 建立标准云端 CI (GitHub Actions) | 2026-01-27 | 2026-01-27 | 100% | [[report.md]](./docs/Workstream_Infrastructure/20260127_Github_CI/report.md) |
+
 
 
 
@@ -77,6 +80,7 @@
 | 20260125_Infras_P2 | 基础设施抢修与死代码清除 (Phase 2) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./archive/Workstream_Architecture_Refactor/20260125_Core_Infrastructure_Cleanup_Phase2/report.md) |
 | 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3+) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report.md) |
 | 20260126_Phase5_Stability | 稳定性、异步合规与静默失败治理 | 2026-01-26 | 进行中 | 5% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Phase5_Stability_Async_Governance/todo.md) |
+| 20260126_Web_Admin_Refactor | Web Admin 与表现层重构 (P1/P2) | 2026-01-26 | 进行中 | 0% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Web_Admin_Refactor_Phase6/todo.md) |
 
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
@@ -138,4 +142,6 @@
 - [x] P4: Web Admin UI 现代化重构 (基本完成，进入细节优化) ✅
 - [x] P5: 机器人菜单 Hub 架构升级与逻辑对齐 ✅
 - [x] P6: Bot 回调签名统一与异常修复 ✅
+- [x] System: Standard Cloud CI (GitHub Actions) ✅
+
 - [x] System: Self-Evolution Mechanism (Skill-Evolution Skill & Mandate) ✅
