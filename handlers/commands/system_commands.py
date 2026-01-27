@@ -3,8 +3,8 @@ from services.rule_management_service import rule_management_service
 from services.system_service import system_service
 from services.db_maintenance_service import db_maintenance_service
 from services.forward_log_writer import forward_log_writer
-from utils.core.logger_utils import get_logger
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.logging import get_logger
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 
 logger = get_logger(__name__)
 

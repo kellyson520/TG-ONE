@@ -48,9 +48,9 @@ class SearchService:
     async def search(self, query: str, search_type: str = "all", page: int = 1) -> Dict[str, Any]:
         """执行综合搜索"""
         try:
-            from core.helpers.search_system import SearchFilter, SearchType
-            st = SearchType.ALL
-            try: st = SearchType(search_type)
+            from core.helpers.search_system import SearchFilter, SearchType as HelperSearchType
+            st = HelperSearchType.ALL
+            try: st = HelperSearchType(search_type)
             except ValueError: pass
             filters = SearchFilter(search_type=st)
             response = await self.search_system.search(query, filters, page)

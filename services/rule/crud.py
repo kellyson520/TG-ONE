@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy import select, func, cast, String, delete
 from sqlalchemy.orm import aliased, selectinload
 
-from utils.core.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors, log_execution
 from models.models import ForwardRule, Chat, Keyword, ReplaceRule
 from schemas.rule import RuleDTO, RuleCreate
 from enums.enums import ForwardMode, AddMode

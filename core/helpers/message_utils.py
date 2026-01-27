@@ -10,7 +10,7 @@ from telethon.errors import FloodWaitError, MessageNotModifiedError
 from telethon.tl.custom import Button
 from typing import Any, Dict, List, Optional, Union
 
-from utils.core.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
+from core.helpers.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
 
 logger = logging.getLogger(__name__)
 

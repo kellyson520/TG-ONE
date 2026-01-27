@@ -1,6 +1,6 @@
 from services.rule_service import RuleQueryService
 from services.rule_management_service import rule_management_service
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 
 async def handle_dedup_enable_command(event, parts):
     """开启/关闭去重 - 使用 RuleManagementService"""

@@ -4,7 +4,7 @@ Unit tests for auto-delete utilities.
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from utils.processing.auto_delete import reply_and_delete, respond_and_delete, send_message_and_delete
+from core.helpers.auto_delete import reply_and_delete, respond_and_delete, send_message_and_delete
 
 @pytest.mark.asyncio
 class TestAutoDeleteTools:

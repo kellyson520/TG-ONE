@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from telethon import Button
 from ..base import BaseMenu
+from core.config import settings
 
 try:
     import psutil
@@ -176,7 +177,7 @@ class SystemMenu(BaseMenu):
 
             log_size_str, error_count, warning_count, info_count = "未知", 0, 0, 0
             try:
-                log_dir = os.getenv("LOG_DIR", "logs")
+                log_dir = settings.LOG_DIR
                 total_log_size = 0
                 if os.path.isdir(log_dir):
                     for name in os.listdir(log_dir):
@@ -246,7 +247,7 @@ class SystemMenu(BaseMenu):
                                 logger.debug(f"[SystemMenu] Cleanup temp error: {e}")
                                 continue
             try:
-                log_dir = os.getenv("LOG_DIR", "logs")
+                log_dir = settings.LOG_DIR
                 if os.path.exists(log_dir):
                     for f in os.listdir(log_dir):
                         if f.endswith(".log.old") or f.endswith(".log.1"):
@@ -291,7 +292,7 @@ class SystemMenu(BaseMenu):
         """查看最近日志"""
         try:
             import os
-            log_dir = os.getenv("LOG_DIR", "logs")
+            log_dir = settings.LOG_DIR
             log_file = os.path.join(log_dir, "app.log") # 简化逻辑
             if os.path.exists(log_file):
                 with open(log_file, "r", encoding="utf-8", errors="ignore") as f:

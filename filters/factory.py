@@ -205,14 +205,46 @@ class FilterChainFactory:
         """
         chain = FilterChain()
         
+        # 定义已知可并发执行的只读过滤器组
+        # 这些过滤器应当只读 Context，不修改影响后续流程的关键数据（如 message_text）
+        PARALLEL_CANDIDATES = {'keyword', 'media', 'advanced_media', 'rss', 'info'}
+        
+        parallel_buffer = []
+        
         for filter_name in enabled_filters:
             filter_instance = self._registry.create_filter(filter_name)
-            if filter_instance:
+            if not filter_instance:
+                logger.warning(f"无法创建过滤器: {filter_name}")
+                continue
+
+            # 只有当过滤器属于白名单，且之前的节点也是并发节点时，才加入buffer
+            # (这里只要当前是 candidates 之一，就可以尝试归并到 buffer)
+            if filter_name in PARALLEL_CANDIDATES:
+                parallel_buffer.append(filter_instance)
+            else:
+                # 遇到非并发节点，先提交之前的并发组
+                if parallel_buffer:
+                    if len(parallel_buffer) > 1:
+                        chain.add_parallel_group(parallel_buffer)
+                        logger.debug(f"添加并发过滤器组: {[f.name for f in parallel_buffer]}")
+                    else:
+                        chain.add_filter(parallel_buffer[0])
+                        logger.debug(f"添加过滤器到链: {parallel_buffer[0].name}")
+                    parallel_buffer = []
+                
+                # 添加当前顺序节点
                 chain.add_filter(filter_instance)
                 logger.debug(f"添加过滤器到链: {filter_name}")
+                
+        # 提交剩余的并发组
+        if parallel_buffer:
+            if len(parallel_buffer) > 1:
+                chain.add_parallel_group(parallel_buffer)
+                logger.debug(f"添加并发过滤器组: {[f.name for f in parallel_buffer]}")
             else:
-                logger.warning(f"无法创建过滤器: {filter_name}")
-        
+                chain.add_filter(parallel_buffer[0])
+                logger.debug(f"添加过滤器到链: {parallel_buffer[0].name}")
+            
         return chain
     
     def clear_cache(self) -> None:

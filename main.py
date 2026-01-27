@@ -22,7 +22,7 @@ else:
 
 from telethon import TelegramClient
 from core.config import settings
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

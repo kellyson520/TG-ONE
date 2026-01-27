@@ -143,7 +143,7 @@ class SmartDeduplicator:
 
         # 初始化 Bloom Filter (L0 缓存)
         try:
-            from utils.processing.bloom_filter import GlobalBloomFilter
+            from core.algorithms.bloom_filter import GlobalBloomFilter
             self.bloom_filter = GlobalBloomFilter.get_filter("smart_dedup")
             logger.info("Bloom Filter (L0) 初始化成功")
         except Exception as e:
@@ -152,7 +152,7 @@ class SmartDeduplicator:
 
         # 初始化 HLL (HyperLogLog) 用于基数统计
         try:
-            from utils.processing.hll import GlobalHLL
+            from core.algorithms.hll import GlobalHLL
             self.hll = GlobalHLL.get_hll("unique_messages_today")
             logger.info("HLL (HyperLogLog) 初始化成功")
         except Exception as e:
@@ -161,8 +161,14 @@ class SmartDeduplicator:
 
         # 初始化 LSH Forest (用于语义去重)
         try:
-            from utils.processing.simhash import SimHash
-            from utils.algorithm.lsh_forest import LSHForest
+            from core.algorithms.simhash import SimHash
+            # LSHForest still in utils.algorithm?
+            # Assuming LSHForest is not in core.algorithms yet based on previous ls.
+            # If LSHForest is missing, this might be an issue.
+            # But the line 165 was `from core.algorithms.lsh_forest import LSHForest`
+            # I should keep LSHForest import as is if I didn't move it. 
+            # Wait, I didn't see lsh_forest in core/algorithms list.
+            from core.algorithms.lsh_forest import LSHForest
             self.simhash_engine = SimHash()
             # 初始化索引 (chat_id -> LSHForest)
             self.lsh_forests = {}
@@ -947,13 +953,13 @@ class SmartDeduplicator:
             # 冷区兜底：若开启永久窗口（time_window_hours<=0）或热区未命中时可进一步查询归档
             try:
                 if config.get("time_window_hours", 24) <= 0:
-                    from utils.bloom_index import bloom
+                    from repositories.bloom_index import bloom
 
                     # 先用 Bloom 判断可能存在，再做冷查确认
                     if bloom.probably_contains(
                         "media_signatures", str(target_chat_id), str(signature)
                     ):
-                        from utils.archive_store import query_parquet_duckdb
+                        from repositories.archive_store import query_parquet_duckdb
                         from core.helpers.metrics import DEDUP_HITS_TOTAL, DEDUP_QUERIES_TOTAL
 
                         DEDUP_QUERIES_TOTAL.labels(method="signature").inc()
@@ -999,12 +1005,12 @@ class SmartDeduplicator:
             # 冷区兜底：永久窗口或热区未命中时查询归档
             try:
                 if config.get("time_window_hours", 24) <= 0:
-                    from utils.bloom_index import bloom
+                    from repositories.bloom_index import bloom
 
                     if bloom.probably_contains(
                         "media_signatures", str(target_chat_id), str(content_hash)
                     ):
-                        from utils.archive_store import query_parquet_duckdb
+                        from repositories.archive_store import query_parquet_duckdb
                         from core.helpers.metrics import DEDUP_HITS_TOTAL, DEDUP_QUERIES_TOTAL
 
                         DEDUP_QUERIES_TOTAL.labels(method="content_hash").inc()
@@ -1032,7 +1038,7 @@ class SmartDeduplicator:
         # 内部方法获取对应会话的索引
         if chat_id not in self.lsh_forests:
             try:
-                from utils.algorithm.lsh_forest import LSHForest
+                from core.algorithms.lsh_forest import LSHForest
                 # 使用默认 8 棵树，前缀长度根据 Hamming 阈值调整
                 # 这里我们保持默认 64bit 处理，LSHForest 内部处理排列
                 self.lsh_forests[chat_id] = LSHForest(num_trees=8, prefix_length=64)

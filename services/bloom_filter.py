@@ -1,10 +1,10 @@
-from utils.processing.bloom_filter import BloomFilter
+from core.algorithms.bloom_filter import BloomFilter
 import logging
 import os
 
 logger = logging.getLogger(__name__)
 
-# [Consolidation] 现在直接基于 utils.processing.bloom_filter
+# [Consolidation] 现在直接基于 core.algorithms.bloom_filter
 # 保持单例导出以简化旧代码集成
 
 # 配置默认存放路径

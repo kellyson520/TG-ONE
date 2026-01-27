@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy import text
-from utils.processing.auto_delete import respond_and_delete
+from core.helpers.auto_delete import respond_and_delete
 from core.helpers.common import check_and_clean_chats
 from models.models import ForwardRule
 from core.container import container

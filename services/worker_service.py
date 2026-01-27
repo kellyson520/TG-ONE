@@ -10,7 +10,7 @@ import structlog
 from core.exceptions import TransientError, PermanentError, BusinessLogicError
 from core.config import settings
 
-from utils.core.logger_utils import get_logger, short_id
+from core.logging import get_logger, short_id
 from services.queue_service import get_messages_queued, send_file_queued
 from filters.delay_filter import RescheduleTaskException
 
@@ -30,242 +30,333 @@ class WorkerService:
         self.sleep_increment = 0.1  # 每次增加的休眠时间
 
     async def start(self):
+        """启动 Worker 服务 (动态并发池)"""
         self.running = True
-        logger.info("worker_started")
+        logger.info(f"WorkerService 启动 (Min: {settings.WORKER_MIN_CONCURRENCY}, Max: {settings.WORKER_MAX_CONCURRENCY})")
+        
+        self.workers = {} # task -> worker_id
+        
+        # 启动初始 Workers
+        for i in range(settings.WORKER_MIN_CONCURRENCY):
+            self._spawn_worker()
+            
+        # 启动弹性伸缩监控
+        self._monitor_task = asyncio.create_task(self._monitor_scaling(), name="worker_scaling_monitor")
+        
+        # 保持主任务运行（用于接收停止信号）
+        while self.running:
+            await asyncio.sleep(1)
+
+    def _spawn_worker(self):
+        """Spawn a new worker"""
+        if len(self.workers) >= settings.WORKER_MAX_CONCURRENCY:
+            return
+
+        worker_id = f"worker-{short_id(None, 4)}"
+        task = asyncio.create_task(self._worker_loop(worker_id), name=worker_id)
+        self.workers[task] = worker_id
+        logger.debug(f"Spawned worker {worker_id} (Total: {len(self.workers)})")
+        task.add_done_callback(lambda t: self.workers.pop(t, None))
+
+    async def _kill_worker(self):
+        """Kill an idle worker (approximate)"""
+        if len(self.workers) <= settings.WORKER_MIN_CONCURRENCY:
+            return
+
+        # Simple kill: Cancel the last added task
+        # Improvement: Cancel idle workers?
+        # For now, just pop one randomly or last
+        task = list(self.workers.keys())[-1]
+        worker_id = self.workers[task]
+        task.cancel()
+        logger.debug(f"Scaling down: Cancelled worker {worker_id}")
+
+    async def _monitor_scaling(self):
+        """Monitor queue depth and scale workers"""
+        while self.running:
+            try:
+                await asyncio.sleep(10) # 每10秒检查一次
+                
+                status = await self.repo.get_queue_status()
+                pending = status.get('active_queues', 0)
+                current_workers = len(self.workers)
+                
+                # Scaling Logic
+                # 如果 pending > current_workers * 2，扩容
+                # 如果 pending == 0，缩容
+                
+                if pending > current_workers * 2 and current_workers < settings.WORKER_MAX_CONCURRENCY:
+                    scale_up = min(settings.WORKER_MAX_CONCURRENCY - current_workers, math.ceil(pending / 2))
+                    logger.info(f"Scaling UP: Pending={pending}, Workers={current_workers} -> +{scale_up}")
+                    for _ in range(scale_up):
+                        self._spawn_worker()
+                        
+                elif pending == 0 and current_workers > settings.WORKER_MIN_CONCURRENCY:
+                    logger.info(f"Scaling DOWN: Pending=0, Workers={current_workers} -> -1")
+                    await self._kill_worker()
+                    
+            except Exception as e:
+                logger.error(f"Scaling monitor error: {e}")
+                await asyncio.sleep(5)
+
+    async def _worker_loop(self, worker_id: str):
+        """单个 Worker 的工作循环"""
+        logger.debug(f"[{worker_id}] Loop Started")
+        
         while self.running:
             task = None
             try:
-                task = await self.repo.fetch_next()
+                # 获取任务
+                # 注意：Worker cancel 时，这里可能会抛出 CancelledError
+                try:
+                     task = await self.repo.fetch_next()
+                except asyncio.CancelledError:
+                     logger.debug(f"[{worker_id}] Cancelled during fetch")
+                     raise
+
                 if not task:
-                    # 没任务时，逐渐增加休眠时间 (0.1s -> 2s)
-                    # 避免死循环查询数据库，降低 CPU 和 DB 负载
+                    # 没任务时，增加休眠
                     await self._adaptive_sleep() 
                     continue
                 
                 self._reset_sleep() # 有任务，重置休眠
                 
+                # ----------------- Worker Logic Copied & Adapted -----------------
                 # 确保连接正常，防止 Telethon 断连导致处理失败
                 await self._ensure_connected()
                 
                 # [关键] 绑定上下文：此后该循环内的所有日志都会自动带上 task_id
-                log = logger.bind(task_id=task.id, task_type=task.task_type)
-                log.info("task_processing_start")
+                log = logger.bind(worker_id=worker_id, task_id=task.id, task_type=task.task_type)
                 
-                # === 上下文还原 (Hydration) ===
-                try:
-                    payload = json.loads(task.task_data)
-                    chat_id = payload.get('chat_id')
-                    msg_id = payload.get('message_id')
-                    
-                    # [优化] 获取聊天显示名称
-                    from core.helpers.id_utils import get_display_name_async
-                    chat_display = await get_display_name_async(chat_id)
-                    
-                    log.info(f"🔄 [Worker] 开始处理任务 {short_id(task.id)}: 来源={chat_display}({chat_id}), 消息ID={msg_id}")
-                    grouped_id = payload.get('grouped_id') # 获取 grouped_id
-                    
-                    if not chat_id or not msg_id:
-                        log.error("task_invalid_payload", task_data=task.task_data)
-                        await self.repo.fail(task.id, "Invalid Payload")
-                        continue
+                # Worker Logic (Simplified for integration)
+                await self._process_task_safely(task, log)
+                # -----------------------------------------------------------------
 
-                    # === 媒体组聚合逻辑 ===
-                    group_tasks = []
-                    if grouped_id:
-                        # 尝试获取同组的其他任务
-                        group_tasks = await self.repo.fetch_group_tasks(grouped_id, task.id)
-                        if group_tasks:
-                            log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
-                    
-                    # 收集所有相关任务（当前任务 + 同组任务）
-                    all_related_tasks = [task] + group_tasks
-                    all_message_ids = [msg_id]
-                    
-                    # 解析同组任务的 message_id
-                    if group_tasks:
-                        for t in group_tasks:
-                            try:
-                                p = json.loads(t.task_data)
-                                if p.get('message_id'):
-                                    all_message_ids.append(p.get('message_id'))
-                            except Exception as ex:
-                                logger.warning(f"Failed to parse group task data: {ex}")
-                                pass
-                    
-                    # 关键点：从 Telethon 获取真实消息对象 (批量获取)
-                    # 如果消息已过期或被删，这里会返回 None
-                    messages = await get_messages_queued(self.client, chat_id, ids=all_message_ids)
-                    
-                    # 过滤掉 None (有些消息可能已被删)
-                    valid_messages = []
-                    if isinstance(messages, list):
-                        valid_messages = [m for m in messages if m]
-                    elif messages:
-                         valid_messages = [messages]
-
-                    if not valid_messages:
-                        log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
-                        # 消息不存在，标记为失败
-                        await self.repo.fail(task.id, "Source message not found")
-                        for t in group_tasks:
-                            await self.repo.fail(t.id, "Source message not found (Group)")
-                        continue
-                    
-                    primary_message = valid_messages[0]
-                    log.info(f"📥 [Worker] 成功获取消息对象: ID={primary_message.id}, 内容预览={primary_message.text[:20] if primary_message.text else 'No Text'}")
-                    
-                    # === 进入处理管道 ===
-                    if task.task_type == "process_message":
-                        # 走完整管道
-                        ctx = MessageContext(
-                            client=self.client,
-                            task_id=task.id,
-                            chat_id=chat_id,
-                            message_id=msg_id,
-                            message_obj=primary_message,
-                            # 注入媒体组信息
-                            is_group=bool(grouped_id),
-                            group_messages=valid_messages if grouped_id else [],
-                            related_tasks=group_tasks
-                        )
-                        # 执行管道 (Middleware Chain)
-                        try:
-                            await self.pipeline.execute(ctx)
-                        except FloodWaitException as e:
-                            # 捕获FloodWaitException，将其转化为我们定义的 TransientError
-                            await self._retry_group(all_related_tasks, e, log)
-                            continue
-                        except TransientError as e:
-                            # 处理自定义瞬态错误
-                            await self._retry_group(all_related_tasks, e, log)
-                            continue
-                        except PermanentError as e:
-                            # 处理自定义永久错误
-                            log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                            await self.repo.fail(task.id, str(e))
-                            for t in group_tasks:
-                                await self.repo.fail(t.id, str(e))
-                            continue
-                    
-                    elif task.task_type == "download_file":
-                        # 直接调用下载服务，绕过 RuleLoader 和 Filter
-                        # 这是一个"特权"任务
-                        if not self.downloader:
-                            log.error("downloader_not_initialized")
-                            await self.repo.fail(task.id, "Downloader not initialized")
-                            continue
-                        
-                        sub_folder = str(chat_id)
-                        try:
-                            await self.downloader.push_to_queue(primary_message, sub_folder)
-                        except FloodWaitException as e:
-                            # 捕获FloodWaitException，将其转化为我们定义的 TransientError
-                            await self._retry_task(task, e, log)
-                            continue
-                        except TransientError as e:
-                            # 处理自定义瞬态错误
-                            await self._retry_task(task, e, log)
-                            continue
-                        except PermanentError as e:
-                            # 处理自定义永久错误
-                            log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                            await self.repo.fail(task.id, str(e))
-                            continue
-                    
-                    elif task.task_type == "manual_download":
-                        # 处理手动下载任务，直接调用DownloadService
-                        # 可以指定一个特殊的下载目录，如 "./downloads/manual"
-                        if not self.downloader:
-                            log.error("downloader_not_initialized")
-                            await self.repo.fail(task.id, "Downloader not initialized")
-                            continue
-                        
-                        # 使用"manual"作为子文件夹，区分手动下载和自动下载
-                        try:
-                            path = await self.downloader.push_to_queue(
-                                primary_message, 
-                                sub_folder="manual"
-                            )
-                            log.info("manual_download_completed", path=path)
-                            
-                            # [Scheme 7 Feature] 如果有目标ID，则执行转发
-                            target_id = payload.get('target_chat_id')
-                            if target_id:
-                                try:
-                                    await send_file_queued(
-                                        self.client,
-                                        target_id,
-                                        path,
-                                        caption=primary_message.text or ""
-                                    )
-                                    log.info(f"manual_forward_completed", target_id=target_id)
-                                except Exception as e:
-                                    log.error(f"manual_forward_failed", target_id=target_id, error=str(e))
-                                    # 注意：这里我们只记录错误，不抛出异常，因为下载已经成功了
-                        except FloodWaitException as e:
-                            # 捕获FloodWaitException，使用统一的重试逻辑
-                            await self._retry_task(task, e, log)
-                            continue
-                        except TransientError as e:
-                            # 处理自定义瞬态错误
-                            await self._retry_task(task, e, log)
-                            continue
-                        except PermanentError as e:
-                            # 处理自定义永久错误
-                            log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                            await self.repo.fail(task.id, str(e))
-                            continue
-                    
-                    # === 任务成功 ===
-                    await self.repo.complete(task.id)
-                    log.info("task_completed")
-
-                except Exception as e:
-                    if isinstance(e, RescheduleTaskException):
-                         # [非阻塞延迟处理]
-                         # 捕获 RescheduleTaskException，将任务以指定延迟重新放入队列
-                         log.info("task_delay_requested", delay_seconds=e.delay_seconds)
-                         
-                         next_run = datetime.utcnow() + timedelta(seconds=e.delay_seconds)
-                         await self.repo.reschedule(task.id, next_run)
-                         
-                         # 如果有同组任务，也一起延迟
-                         if group_tasks:
-                             for t in group_tasks:
-                                 await self.repo.reschedule(t.id, next_run)
-                         continue
-                         
-                    if isinstance(e, (FloodWaitException, TransientError)):
-                        # 捕获FloodWaitException或TransientError，使用统一的重试逻辑
-                        log.warning(f"任务遇到瞬态错误，将重试: 类型={type(e).__name__}, 错误={str(e)}")
-                        await self._retry_task(task, e, log)
-                    elif isinstance(e, PermanentError):
-                        # 处理自定义永久错误
-                        log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
-                        await self.repo.fail(task.id, str(e))
-                    else:
-                        from core.helpers.id_utils import get_display_name_async
-                        chat_display = await get_display_name_async(chat_id)
-                        log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
-                        # 记录具体的错误信息到数据库
-                        await self.repo.fail(task.id, f"Unhandled: {str(e)}")
-
+            except asyncio.CancelledError:
+                logger.debug(f"[{worker_id}] Cancelled")
+                break
             except Exception as e:
-                # 外层循环保护，防止 Worker 因为 DB 连接等严重错误崩溃退出
-                task_id = task.id if task else None
-                task_type = task.task_type if task else '未知'
-                chat_id = payload.get('chat_id') if task and payload else None
-                msg_id = payload.get('message_id') if task and payload else None
-                log_exception = logger.bind(task_id=task_id, task_type=task_type)
+                logger.error(f"[{worker_id}] Loop Error: {e}")
+                await asyncio.sleep(1)
+
+    async def _process_task_safely(self, task, log):
+        """处理单个任务的安全封装"""
+        try:
+            payload = json.loads(task.task_data)
+            chat_id = payload.get('chat_id')
+            msg_id = payload.get('message_id')
+            
+            # [优化] 获取聊天显示名称
+            from core.helpers.id_utils import get_display_name_async
+            chat_display = await get_display_name_async(chat_id)
+            
+            log.info(f"🔄 [Worker] 开始处理任务 {short_id(task.id)}: 来源={chat_display}({chat_id}), 消息ID={msg_id}")
+            grouped_id = payload.get('grouped_id') # 获取 grouped_id
+            
+            if not chat_id or not msg_id:
+                log.error("task_invalid_payload", task_data=task.task_data)
+                await self.repo.fail(task.id, "Invalid Payload")
+                return
+
+            # === 媒体组聚合逻辑 ===
+            group_tasks = []
+            if grouped_id:
+                # 尝试获取同组的其他任务
+                group_tasks = await self.repo.fetch_group_tasks(grouped_id, task.id)
+                if group_tasks:
+                    log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
+            
+            # 收集所有相关任务（当前任务 + 同组任务）
+            all_related_tasks = [task] + group_tasks
+            all_message_ids = [msg_id]
+            
+            # 解析同组任务的 message_id
+            if group_tasks:
+                for t in group_tasks:
+                    try:
+                        p = json.loads(t.task_data)
+                        if p.get('message_id'):
+                            all_message_ids.append(p.get('message_id'))
+                    except Exception as ex:
+                        logger.warning(f"Failed to parse group task data: {ex}")
+                        pass
+            
+            # 关键点：从 Telethon 获取真实消息对象 (批量获取)
+            # 如果消息已过期或被删，这里会返回 None
+            messages = await get_messages_queued(self.client, chat_id, ids=all_message_ids)
+            
+            # 过滤掉 None (有些消息可能已被删)
+            valid_messages = []
+            if isinstance(messages, list):
+                valid_messages = [m for m in messages if m]
+            elif messages:
+                    valid_messages = [messages]
+
+            if not valid_messages:
+                log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
+                # 消息不存在，标记为失败
+                await self.repo.fail(task.id, "Source message not found")
+                for t in group_tasks:
+                    await self.repo.fail(t.id, "Source message not found (Group)")
+                return
+            
+            primary_message = valid_messages[0]
+            log.info(f"📥 [Worker] 成功获取消息对象: ID={primary_message.id}, 内容预览={primary_message.text[:20] if primary_message.text else 'No Text'}")
+            
+            # === 进入处理管道 ===
+            if task.task_type == "process_message":
+                # 走完整管道
+                ctx = MessageContext(
+                    client=self.client,
+                    task_id=task.id,
+                    chat_id=chat_id,
+                    message_id=msg_id,
+                    message_obj=primary_message,
+                    # 注入媒体组信息
+                    is_group=bool(grouped_id),
+                    group_messages=valid_messages if grouped_id else [],
+                    related_tasks=group_tasks
+                )
+                # 执行管道 (Middleware Chain)
+                try:
+                    await self.pipeline.execute(ctx)
+                except FloodWaitException as e:
+                    # 捕获FloodWaitException，将其转化为我们定义的 TransientError
+                    await self._retry_group(all_related_tasks, e, log)
+                    return
+                except TransientError as e:
+                    # 处理自定义瞬态错误
+                    await self._retry_group(all_related_tasks, e, log)
+                    return
+                except PermanentError as e:
+                    # 处理自定义永久错误
+                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
+                    await self.repo.fail(task.id, str(e))
+                    for t in group_tasks:
+                        await self.repo.fail(t.id, str(e))
+                    return
+            
+            elif task.task_type == "download_file":
+                # 直接调用下载服务，绕过 RuleLoader 和 Filter
+                # 这是一个"特权"任务
+                if not self.downloader:
+                    log.error("downloader_not_initialized")
+                    await self.repo.fail(task.id, "Downloader not initialized")
+                    return
+                
+                sub_folder = str(chat_id)
+                try:
+                    await self.downloader.push_to_queue(primary_message, sub_folder)
+                except FloodWaitException as e:
+                    # 捕获FloodWaitException，将其转化为我们定义的 TransientError
+                    await self._retry_task(task, e, log)
+                    return
+                except TransientError as e:
+                    # 处理自定义瞬态错误
+                    await self._retry_task(task, e, log)
+                    return
+                except PermanentError as e:
+                    # 处理自定义永久错误
+                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
+                    await self.repo.fail(task.id, str(e))
+                    return
+            
+            elif task.task_type == "manual_download":
+                # 处理手动下载任务，直接调用DownloadService
+                # 可以指定一个特殊的下载目录，如 "./downloads/manual"
+                if not self.downloader:
+                    log.error("downloader_not_initialized")
+                    await self.repo.fail(task.id, "Downloader not initialized")
+                    return
+                
+                # 使用"manual"作为子文件夹，区分手动下载和自动下载
+                try:
+                    path = await self.downloader.push_to_queue(
+                        primary_message, 
+                        sub_folder="manual"
+                    )
+                    log.info("manual_download_completed", path=path)
+                    
+                    # [Scheme 7 Feature] 如果有目标ID，则执行转发
+                    target_id = payload.get('target_chat_id')
+                    if target_id:
+                        try:
+                            await send_file_queued(
+                                self.client,
+                                target_id,
+                                path,
+                                caption=primary_message.text or ""
+                            )
+                            log.info(f"manual_forward_completed", target_id=target_id)
+                        except Exception as e:
+                            log.error(f"manual_forward_failed", target_id=target_id, error=str(e))
+                            # 注意：这里我们只记录错误，不抛出异常，因为下载已经成功了
+                except FloodWaitException as e:
+                    # 捕获FloodWaitException，使用统一的重试逻辑
+                    await self._retry_task(task, e, log)
+                    return
+                except TransientError as e:
+                    # 处理自定义瞬态错误
+                    await self._retry_task(task, e, log)
+                    return
+                except PermanentError as e:
+                    # 处理自定义永久错误
+                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
+                    await self.repo.fail(task.id, str(e))
+                    return
+            
+            # === 任务成功 ===
+            await self.repo.complete(task.id)
+            log.info("task_completed")
+
+        except Exception as e:
+            if isinstance(e, RescheduleTaskException):
+                    # [非阻塞延迟处理]
+                    # 捕获 RescheduleTaskException，将任务以指定延迟重新放入队列
+                    log.info("task_delay_requested", delay_seconds=e.delay_seconds)
+                    
+                    next_run = datetime.utcnow() + timedelta(seconds=e.delay_seconds)
+                    await self.repo.reschedule(task.id, next_run)
+                    
+                    # 如果有同组任务，也一起延迟
+                    if group_tasks and 'group_tasks' in locals():
+                        for t in group_tasks:
+                            await self.repo.reschedule(t.id, next_run)
+                    return
+                    
+            if isinstance(e, (FloodWaitException, TransientError)):
+                # 捕获FloodWaitException或TransientError，使用统一的重试逻辑
+                log.warning(f"任务遇到瞬态错误，将重试: 类型={type(e).__name__}, 错误={str(e)}")
+                await self._retry_task(task, e, log)
+            elif isinstance(e, PermanentError):
+                # 处理自定义永久错误
+                log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
+                await self.repo.fail(task.id, str(e))
+            else:
                 from core.helpers.id_utils import get_display_name_async
                 chat_display = await get_display_name_async(chat_id)
-                log_exception.exception(f"Worker 关键错误: 错误={str(e)}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
-                await asyncio.sleep(1) # 出错后稍作暂停
+                log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
+                # 记录具体的错误信息到数据库
+                await self.repo.fail(task.id, f"Unhandled: {str(e)}")
+
+    # ... Helper methods stay same ...
 
     async def stop(self):
         """优雅停止 Worker"""
         logger.info("worker_stopping")
         self.running = False
+        if getattr(self, '_monitor_task', None):
+            self._monitor_task.cancel()
+        
+        # Cancel all workers
+        for task in list(self.workers.keys()):
+            task.cancel()
+        
+        if self.workers:
+            await asyncio.gather(*self.workers.keys(), return_exceptions=True)
+            
+        logger.info("worker_stopped_completely")
+
 
     async def _adaptive_sleep(self):
         """自适应休眠：如果没有任务，逐步增加休眠时间，减少资源消耗"""

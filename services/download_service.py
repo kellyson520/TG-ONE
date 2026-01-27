@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
-from utils.media.media import download_media_with_retry
+from core.helpers.media.media import download_media_with_retry
 from core.config import settings
 
 logger = logging.getLogger(__name__)

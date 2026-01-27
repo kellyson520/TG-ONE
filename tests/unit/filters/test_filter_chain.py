@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import filters.context
 import repositories.db_context
 import models.models
-import utils.core.error_handler
+import core.helpers.error_handler
 
 # Patch dependencies BEFORE importing module under test 
 # (although since we just imported them, they are already loaded, 
@@ -16,8 +16,8 @@ import utils.core.error_handler
 with patch("filters.context.MessageContext") as MockCtx, \
      patch("repositories.db_context.async_db_session"), \
      patch("models.models.MediaSignature"), \
-     patch("utils.core.error_handler.handle_errors", side_effect=lambda **kw: lambda f: f), \
-     patch("utils.core.error_handler.log_execution", side_effect=lambda **kw: lambda f: f):
+     patch("core.helpers.error_handler.handle_errors", side_effect=lambda **kw: lambda f: f), \
+     patch("core.helpers.error_handler.log_execution", side_effect=lambda **kw: lambda f: f):
     
     from filters.filter_chain import FilterChain
     from filters.base_filter import BaseFilter

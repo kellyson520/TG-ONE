@@ -11,7 +11,7 @@ from core.config import settings
 from services.config_service import config_service
 from services.settings_applier import settings_applier
 from web_admin.security.deps import admin_required
-from utils.core.env_config import env_config_manager
+from core.helpers.env_config import env_config_manager
 
 logger = logging.getLogger(__name__)
 

@@ -27,9 +27,9 @@ def mock_modules():
         'mock_logger': mock_logger,
         'filters.factory': mock_factory_module,
         'repositories.db_operations': MagicMock(),
-        'utils.processing.unified_cache': mock_unified_cache,
-        'utils.core.logger_utils': mock_logger_utils,
-        'utils.forward_recorder': MagicMock()
+        'core.cache.unified_cache': mock_unified_cache,
+        'core.logging': mock_logger_utils,
+        'core.helpers.forward_recorder': MagicMock()
     }
     with patch.dict('sys.modules', mocks):
         yield mocks

@@ -4,7 +4,7 @@ from filters.base_filter import BaseFilter
 from core.helpers.common import check_keywords
 from filters.base_filter import BaseFilter
 from core.helpers.common import check_keywords
-from utils.core.constants import DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
+from core.constants import DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
 
 logger = logging.getLogger(__name__)
 

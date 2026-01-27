@@ -125,7 +125,7 @@ class TestDBBoom:
              # Return a fake path so archive logic thinks it succeeded and proceeds to delete DB rows
              patches.append(patch('scheduler.db_archive_job.write_parquet', return_value="/fake/path"))
              # Wait, if we patch write_parquet in schedular/db_archive_job.py, it works.
-             # But db_archive_job imports it as: from utils.archive_store import write_parquet
+             # But db_archive_job imports it as: from repositories.archive_store import write_parquet
              pass
 
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_vacuum, \

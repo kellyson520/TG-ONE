@@ -10,7 +10,7 @@ from telethon.errors import FloodWaitError, RPCError
 from telethon.tl.types import Dialog
 from typing import AsyncGenerator, List, Optional
 
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

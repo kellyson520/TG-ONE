@@ -179,7 +179,7 @@ async def download_trace_report(
     下载指定 Trace ID 的分析报告
     """
     try:
-        from utils.core.trace_analyzer import TraceAnalyzer
+        from core.helpers.trace_analyzer import TraceAnalyzer
         
         log_path = Path(settings.LOG_DIR) / "app.log"
         analyzer = TraceAnalyzer(str(log_path))

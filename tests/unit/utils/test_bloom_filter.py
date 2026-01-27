@@ -2,7 +2,7 @@
 布隆过滤器单元测试
 """
 import pytest
-from utils.processing.bloom_filter import BloomFilter, GlobalBloomFilter
+from core.algorithms.bloom_filter import BloomFilter, GlobalBloomFilter
 
 
 class TestBloomFilter:

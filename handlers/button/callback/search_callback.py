@@ -8,9 +8,9 @@ from telethon import events
 from typing import Any, Dict
 
 from handlers.search_ui_manager import SearchUIManager
-from utils.processing.auto_delete import respond_and_delete
+from core.helpers.auto_delete import respond_and_delete
 from core.helpers.common import get_user_client
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 from core.helpers.search_system import SearchFilter, SearchType, SortBy, get_search_system
 
 logger = get_logger(__name__)

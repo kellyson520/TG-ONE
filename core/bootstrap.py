@@ -9,7 +9,7 @@ from core.container import container
 from core.config_initializer import load_dynamic_config_from_db
 from core.shutdown import get_shutdown_coordinator, register_cleanup
 from listeners import setup_listeners
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 from core.helpers.metrics import set_ready, update_heartbeat
 from services.system_service import guard_service
 from scheduler.cron_service import cron_service
@@ -229,12 +229,8 @@ class Bootstrap:
         self.coordinator.register_cleanup(_disconnect_clients, priority=3, timeout=5.0, name="telegram_clients")
 
     async def _post_startup(self):
-        # 注册机器人命令
-        try:
-             from utils.core.command_utils import register_bot_commands
-             await register_bot_commands(self.bot_client)
-        except Exception as e:
-             logger.error(f"注册命令失败: {e}")
+        # TODO: Implement unified bot command registration if needed
+        pass
              
         # RSS 面板日志
         if settings.RSS_ENABLED:

@@ -170,7 +170,7 @@ class RSSPullService:
                     text = await resp.text()
                     
                     # 使用 RSSParser 解析
-                    from utils.processing.rss_parser import rss_parser
+                    from core.parsers.rss_parser import rss_parser
                     parsed_feed = rss_parser.parse(text)
                     
                     if not parsed_feed or not parsed_feed.entries:

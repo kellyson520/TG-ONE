@@ -12,7 +12,7 @@ class TestLoggerUtils:
     
     def test_get_logger(self):
         """测试获取 logger"""
-        from utils.core.logger_utils import get_logger
+        from core.logging import get_logger
         
         logger = get_logger("test_module")
         
@@ -25,7 +25,7 @@ class TestLoggerUtils:
     
     def test_logger_with_different_names(self):
         """测试不同名称的 logger"""
-        from utils.core.logger_utils import get_logger
+        from core.logging import get_logger
         
         logger1 = get_logger("module1")
         logger2 = get_logger("module2")
@@ -47,7 +47,7 @@ class TestErrorHandler:
     @pytest.mark.asyncio
     async def test_handle_errors_decorator_success(self):
         """测试 handle_errors 装饰器 - 成功情况"""
-        from utils.core.error_handler import handle_errors
+        from core.helpers.error_handler import handle_errors
         
         @handle_errors(default_return="error")
         async def test_func():
@@ -59,7 +59,7 @@ class TestErrorHandler:
     @pytest.mark.asyncio
     async def test_handle_errors_decorator_with_exception(self):
         """测试 handle_errors 装饰器 - 异常情况"""
-        from utils.core.error_handler import handle_errors
+        from core.helpers.error_handler import handle_errors
         
         @handle_errors(default_return="error_occurred")
         async def test_func():
@@ -74,7 +74,7 @@ class TestConstants:
     
     def test_temp_dir_exists(self):
         """测试 TEMP_DIR 常量存在"""
-        from utils.core.constants import TEMP_DIR
+        from core.constants import TEMP_DIR
         
         assert TEMP_DIR is not None
         assert isinstance(TEMP_DIR, str) or hasattr(TEMP_DIR, '__fspath__')
@@ -82,7 +82,7 @@ class TestConstants:
     def test_version_constants(self):
         """测试版本相关常量"""
         try:
-            from utils.core.constants import VERSION
+            from core.constants import VERSION
             assert VERSION is not None
         except ImportError:
             # VERSION 可能在 version.py 中

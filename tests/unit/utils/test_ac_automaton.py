@@ -2,7 +2,7 @@
 AC自动机单元测试
 """
 import pytest
-from utils.processing.ac_automaton import ACAutomaton, ACManager
+from core.algorithms.ac_automaton import ACAutomaton, ACManager
 
 
 class TestACAutomaton:

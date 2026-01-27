@@ -13,8 +13,8 @@ def mock_modules():
         'handlers.command_handlers': MagicMock(),
         'handlers.link_handlers': MagicMock(),
         'handlers.button.callback.callback_handlers': MagicMock(),
-        'utils.core.constants': MagicMock(),
-        'utils.media.media': MagicMock()
+        'core.constants': MagicMock(),
+        'core.helpers.media.media': MagicMock()
     }
     with patch.dict('sys.modules', mocks):
         yield mocks

@@ -2,7 +2,7 @@ from core.pipeline import Middleware
 from services.queue_service import forward_messages_queued 
 from services.dedup_service import dedup_service
 import logging
-from utils.forward_recorder import forward_recorder
+from core.helpers.forward_recorder import forward_recorder
 from core.helpers.common import get_main_module
 
 
@@ -55,7 +55,7 @@ class SenderMiddleware(Middleware):
                             final_text = modified_text or ctx.message_obj.text or ""
                         
                         # Refactored to use UnifiedSender
-                        from utils.unified_sender import UnifiedSender
+                        from core.helpers.unified_sender import UnifiedSender
                         sender = UnifiedSender(ctx.client)
                         
                         send_kwargs = {

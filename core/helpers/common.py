@@ -5,8 +5,8 @@ import re
 from telethon.tl.types import ChannelParticipantsAdmins
 
 from enums.enums import ForwardMode
-from utils.core.constants import AI_SETTINGS_TEXT, MEDIA_SETTINGS_TEXT
-from utils.processing.auto_delete import reply_and_delete
+from core.constants import AI_SETTINGS_TEXT, MEDIA_SETTINGS_TEXT
+from core.helpers.auto_delete import reply_and_delete
 
 logger = logging.getLogger(__name__)
 

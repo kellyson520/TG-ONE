@@ -14,15 +14,15 @@ from telethon.tl.types import InputPeerChannel, InputPeerChat, InputPeerUser
 from typing import Any, Dict, List, Optional, Union
 
 from core.helpers.entity_validator import get_entity_validator
-from utils.core.error_handler import handle_errors
-from utils.core.logger_utils import get_logger, log_performance
-from utils.processing.unified_cache import cached, get_smart_cache
+from core.helpers.error_handler import handle_errors
+from core.logging import get_logger, log_performance
+from core.cache.unified_cache import cached, get_smart_cache
 
 logger = get_logger(__name__)
 
-# 控制API相关日志输出的环境变量
-API_LOG_LEVEL = os.getenv("API_LOG_LEVEL", "WARNING").upper()
-ENABLE_API_DEBUG = os.getenv("ENABLE_API_DEBUG", "false").lower() == "true"
+from core.config import settings
+API_LOG_LEVEL = settings.API_LOG_LEVEL.upper()
+ENABLE_API_DEBUG = settings.ENABLE_API_DEBUG
 
 
 class TelegramAPIOptimizer:

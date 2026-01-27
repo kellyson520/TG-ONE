@@ -3,7 +3,7 @@ import os
 from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode
 from telethon.errors import FloodWaitError
-from utils.core.error_handler import handle_telegram_errors, handle_errors
+from core.helpers.error_handler import handle_telegram_errors, handle_errors
 from repositories.db_context import safe_db_operation
 
 logger = logging.getLogger(__name__)
@@ -477,7 +477,7 @@ class SenderFilter(BaseFilter):
     async def _record_forward(self, context, target_chat_id, message_id):
         """记录转发信息"""
         try:
-            from utils.forward_recorder import forward_recorder
+            from core.helpers.forward_recorder import forward_recorder
             rule = context.rule
             event = context.event
             

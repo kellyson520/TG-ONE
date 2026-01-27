@@ -1,7 +1,7 @@
 ﻿import logging
 from filters.base_filter import BaseFilter
 from filters.base_filter import BaseFilter
-from utils.core.constants import RSS_ENABLED
+from core.constants import RSS_ENABLED
 
 logger = logging.getLogger(__name__)
 

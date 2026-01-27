@@ -14,7 +14,7 @@ from models.models import Chat
 from repositories.db_context import async_db_session
 import traceback
 import random
-from utils.core.constants import DEFAULT_TIMEZONE
+from core.constants import DEFAULT_TIMEZONE
 logger = logging.getLogger(__name__)
 
 class ChatUpdater:

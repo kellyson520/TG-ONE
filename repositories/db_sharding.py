@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from models.models import get_engine, get_session
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

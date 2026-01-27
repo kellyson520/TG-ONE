@@ -8,7 +8,7 @@ import pytest
 import time
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
-from utils.unified_sender import UnifiedSender
+from core.helpers.unified_sender import UnifiedSender
 from services.queue_service import _flood_wait_until
 
 class MockFloodWaitError(Exception):

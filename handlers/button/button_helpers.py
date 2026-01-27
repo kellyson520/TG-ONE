@@ -3,8 +3,8 @@ from telethon import Button
 
 from models.models import ForwardRule, get_session
 from core.helpers.common import get_db_ops
-from utils.core.constants import *
-from utils.core.settings import (
+from core.constants import *
+from core.config.settings_loader import (
     load_ai_models,
     load_delay_times,
     load_max_media_size,

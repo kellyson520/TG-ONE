@@ -59,7 +59,7 @@ class AnalyticsService:
             # 4. 获取 HLL 独立消息估计
             hll_stats = {'unique_messages_estimate': 0}
             try:
-                from utils.processing.hll import GlobalHLL
+                from core.algorithms.hll import GlobalHLL
                 hll = GlobalHLL.get_hll("unique_messages_today")
                 hll_stats = {'unique_messages_estimate': hll.count()}
             except Exception as e:

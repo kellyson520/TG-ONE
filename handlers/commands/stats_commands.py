@@ -1,6 +1,6 @@
-from utils.core.logger_utils import get_logger
-from utils.processing.auto_delete import respond_and_delete, reply_and_delete
-from utils.forward_recorder import forward_recorder
+from core.logging import get_logger
+from core.helpers.auto_delete import respond_and_delete, reply_and_delete
+from core.helpers.forward_recorder import forward_recorder
 import shlex
 
 logger = get_logger(__name__)

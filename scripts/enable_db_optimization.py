@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from repositories.db_optimization_suite import initialize_database_optimization, run_database_optimization_check
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

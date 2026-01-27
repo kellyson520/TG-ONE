@@ -2,7 +2,7 @@ from fastapi import Request
 import uuid
 import time
 import logging
-from utils.core.log_config import trace_id_var
+from core.context import trace_id_var
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 

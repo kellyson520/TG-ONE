@@ -122,6 +122,15 @@ class Settings(BaseSettings):
         env="DB_PATH",
         description="SQLite 数据库文件相对路径"
     )
+
+    # === Web Admin Defaults ===
+    WEB_ADMIN_USERNAME: Optional[str] = Field(default=None, env="WEB_ADMIN_USERNAME")
+    WEB_ADMIN_PASSWORD: Optional[str] = Field(default=None, env="WEB_ADMIN_PASSWORD")
+    COOKIE_SECURE: bool = Field(default=False, env="COOKIE_SECURE")
+    
+    # === API Optimization ===
+    API_LOG_LEVEL: str = Field(default="WARNING", env="API_LOG_LEVEL")
+    ENABLE_API_DEBUG: bool = Field(default=False, env="ENABLE_API_DEBUG")
     
     # === Worker 重试策略 ===
     RETRY_BASE_DELAY: float = Field(
@@ -293,6 +302,18 @@ class Settings(BaseSettings):
         default=[],
         env="ADMIN_IDS",
         description="管理员 Telegram ID 列表，用于接收系统通知"
+    )
+    
+    # === Worker 动态池配置 ===
+    WORKER_MIN_CONCURRENCY: int = Field(
+        default=2,
+        env="WORKER_MIN_CONCURRENCY",
+        description="Worker 最小并发数"
+    )
+    WORKER_MAX_CONCURRENCY: int = Field(
+        default=10,
+        env="WORKER_MAX_CONCURRENCY",
+        description="Worker 最大并发数"
     )
 
     # 模型配置 - Pydantic v2 语法

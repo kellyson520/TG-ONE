@@ -5,7 +5,7 @@ from filters.base_filter import BaseFilter
 from enums.enums import ForwardMode
 
 from services.network.telegram_api_optimizer import api_optimizer
-from utils.core.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors, log_execution
 
 logger = logging.getLogger(__name__)
 

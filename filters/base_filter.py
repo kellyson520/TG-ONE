@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from models.models import MediaSignature
 from repositories.db_context import async_safe_db_operation, safe_db_operation, async_db_session
-from utils.core.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors, log_execution
 
 
 logger = logging.getLogger(__name__)

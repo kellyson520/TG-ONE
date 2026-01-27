@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import the new utility
-from utils.core.trace_analyzer import TraceAnalyzer
+from core.helpers.trace_analyzer import TraceAnalyzer
 
 LOG_DIR = os.getenv("LOG_DIR", "logs")
 LOG_FILE = Path(LOG_DIR) / "app.log"

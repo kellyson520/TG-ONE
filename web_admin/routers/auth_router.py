@@ -22,7 +22,6 @@ from werkzeug.security import check_password_hash
 from web_admin.security.rate_limiter import get_rate_limiter
 from web_admin.security.password_validator import PasswordValidator, get_password_strength
 from services.system_service import system_service
-import os
 import re
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -127,8 +126,9 @@ async def login(
     # Fallback: Environment Admin Check (if DB empty or specific env set)
     if not user:
         # Check env (copied from fastapi_app.py)
-        env_u = os.getenv('WEB_ADMIN_USERNAME') or ''
-        env_p = os.getenv('WEB_ADMIN_PASSWORD') or ''
+        # Check env (copied from fastapi_app.py)
+        env_u = settings.WEB_ADMIN_USERNAME or ''
+        env_p = settings.WEB_ADMIN_PASSWORD or ''
         if username == env_u and password == env_p and env_u and env_p:
             # Create/Get user logic could be complex here, assuming authenticate_user handles db users.
             # If env user matches, we might just proceed or create it on the fly.
@@ -207,7 +207,7 @@ async def login(
     access_token, refresh_token = await authentication_service.create_session(user.id, ip, ua)
     
     # Set cookies for web access
-    secure = str(os.getenv('COOKIE_SECURE', '')).lower() in ('1','true','yes')
+    secure = settings.COOKIE_SECURE
     max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
 

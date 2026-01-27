@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime
 
-from utils.core.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors, log_execution
 from enums.enums import ForwardMode, AddMode
 from schemas.sub_rules import KeywordDTO, ReplaceRuleDTO
 

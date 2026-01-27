@@ -1,10 +1,10 @@
 ﻿import logging
 import os
 import asyncio
-from utils.media import get_media_size
-from utils.core.constants import TEMP_DIR
+from core.helpers.media import get_media_size
+from core.constants import TEMP_DIR
 from filters.base_filter import BaseFilter
-from utils.media import get_max_media_size
+from core.helpers.media import get_max_media_size
 from enums.enums import PreviewMode
 from models.models import MediaTypes
 from models.models import AsyncSessionManager

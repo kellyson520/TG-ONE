@@ -63,7 +63,7 @@ class TelegramPushHandler(logging.Handler):
         cid = getattr(record, "correlation_id", None)
         # 获取 Trace ID (如果存在于 trace_id_var)
         try:
-            from utils.core.log_config import trace_id_var
+            from core.context import trace_id_var
             cid = cid or trace_id_var.get()
         except ImportError:
             pass

@@ -3,8 +3,8 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Any, Callable, Dict, Optional
-from utils.core.log_config import trace_id_var
-from utils.core.logger_utils import short_id
+from core.context import trace_id_var
+from core.logging import short_id
 
 logger = logging.getLogger(__name__)
 

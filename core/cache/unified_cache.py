@@ -15,8 +15,8 @@ import json
 import time
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
-from utils.core.error_handler import handle_errors
-from utils.core.logger_utils import get_logger, log_performance
+from core.helpers.error_handler import handle_errors
+from core.logging import get_logger, log_performance
 from repositories.persistent_cache import get_persistent_cache
 
 

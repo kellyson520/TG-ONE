@@ -6,10 +6,10 @@ from sqlalchemy import select
 from .button import button_helpers
 from repositories.db_operations import DBOperations
 from models.models import ForwardRule, Keyword, PushConfig, ReplaceRule, RuleSync
-from utils.core.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors, log_execution
 from repositories.db_context import async_db_session, db_session, safe_db_operation
 from core.helpers.common import get_ai_settings_text, get_bot_client, get_main_module
-from utils.processing.auto_delete import (
+from core.helpers.auto_delete import (
     async_delete_user_message,
     send_message_and_delete,
 )

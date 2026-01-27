@@ -20,8 +20,8 @@ from sqlalchemy.engine import Engine
 from typing import Any, Callable, Dict, List, Optional
 
 from models.models import get_engine, get_session
-from utils.core.logger_utils import get_logger
-from utils.processing.unified_cache import get_smart_cache
+from core.logging import get_logger
+from core.cache.unified_cache import get_smart_cache
 
 logger = get_logger(__name__)
 

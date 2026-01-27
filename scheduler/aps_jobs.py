@@ -19,7 +19,7 @@ def setup_apscheduler() -> Optional[object]:
     except Exception:
         return None
     from scheduler.db_archive_job import archive_once, garbage_collect_once
-    from utils.archive_store import compact_small_files
+    from repositories.archive_store import compact_small_files
     sch = AsyncIOScheduler()
     async def maintenance_job():
         if settings.auto_archive_enabled:

@@ -2,7 +2,7 @@
 SimHash单元测试
 """
 import pytest
-from utils.processing.simhash import SimHash, SimHashIndex
+from core.algorithms.simhash import SimHash, SimHashIndex
 
 
 class TestSimHash:

@@ -1,7 +1,7 @@
 import logging
 from telethon import events
-from utils.core.logger_utils import get_logger
-from utils.processing.auto_delete import reply_and_delete
+from core.logging import get_logger
+from core.helpers.auto_delete import reply_and_delete
 
 logger = get_logger(__name__)
 

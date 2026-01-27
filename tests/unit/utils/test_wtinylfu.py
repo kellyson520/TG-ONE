@@ -1,6 +1,6 @@
 import pytest
 import time
-from utils.processing.wtinylfu import WTinyLFU
+from core.cache.wtinylfu import WTinyLFU
 
 def test_wtinylfu_basics():
     cache = WTinyLFU(max_size=10)

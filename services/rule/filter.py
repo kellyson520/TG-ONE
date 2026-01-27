@@ -2,7 +2,7 @@ import logging
 import re
 from typing import List, Optional, Any
 from enums.enums import ForwardMode
-from utils.processing.ac_automaton import ACManager
+from core.algorithms.ac_automaton import ACManager
 
 logger = logging.getLogger(__name__)
 

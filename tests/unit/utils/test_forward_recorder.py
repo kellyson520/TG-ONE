@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock
 from datetime import datetime
-from utils.forward_recorder import ForwardRecorder
+from core.helpers.forward_recorder import ForwardRecorder
 
 @pytest.fixture
 def temp_recorder(tmp_path):

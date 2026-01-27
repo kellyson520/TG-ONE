@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from utils.unified_sender import UnifiedSender
+from core.helpers.unified_sender import UnifiedSender
 
 @pytest.mark.asyncio
 async def test_unified_sender_text():

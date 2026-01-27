@@ -2,7 +2,7 @@
 HyperLogLog单元测试
 """
 import pytest
-from utils.processing.hll import HyperLogLog, GlobalHLL
+from core.algorithms.hll import HyperLogLog, GlobalHLL
 
 
 class TestHyperLogLog:

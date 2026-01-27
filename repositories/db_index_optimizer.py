@@ -9,7 +9,7 @@ from sqlalchemy import Index, inspect, text
 from typing import Any, Dict, List, Optional, Tuple
 
 from models.models import get_engine, get_session
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

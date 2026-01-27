@@ -2,9 +2,9 @@ import shlex
 from telethon import Button
 import logging
 from sqlalchemy import select
-from utils.core.logger_utils import get_logger, log_performance, log_user_action
-from utils.core.error_handler import handle_errors
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.logging import get_logger, log_performance, log_user_action
+from core.helpers.error_handler import handle_errors
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 from services.rule_management_service import rule_management_service
 from services.rule_service import RuleQueryService
 from enums.enums import AddMode
@@ -161,7 +161,7 @@ async def _parse_keywords(message_text, command, parts, event):
                 return [args_text]
     except Exception as e:
         logger.error(f"解析参数失败: {e}")
-        from utils.processing.auto_delete import reply_and_delete
+        from core.helpers.auto_delete import reply_and_delete
         await reply_and_delete(event, "参数格式错误：请确认引号是否正确配对")
         return []
 
@@ -173,7 +173,7 @@ async def _add_keywords_to_rule(keywords, command, event):
     from services.rule_service import RuleQueryService
     from services.rule_management_service import rule_management_service
 
-    from utils.processing.auto_delete import reply_and_delete
+    from core.helpers.auto_delete import reply_and_delete
 
     async with container.db.session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)

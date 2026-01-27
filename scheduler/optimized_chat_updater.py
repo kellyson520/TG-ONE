@@ -17,7 +17,7 @@ from telethon import TelegramClient
 from models.models import Chat
 import traceback
 import random
-from utils.core.constants import DEFAULT_TIMEZONE
+from core.constants import DEFAULT_TIMEZONE
 from typing import List, Dict, Any, Optional, Set
 
 logger = logging.getLogger(__name__)

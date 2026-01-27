@@ -8,9 +8,9 @@ import asyncio
 import time
 from typing import List, Dict, Any, Optional, Tuple
 from telethon import TelegramClient
-from utils.core.logger_utils import get_logger
-from utils.core.error_handler import handle_errors, handle_telegram_errors
-from utils.core.constants import TEMP_DIR, PROCESSED_GROUP_TTL_SECONDS, PROCESSED_GROUP_MAX
+from core.logging import get_logger
+from core.helpers.error_handler import handle_errors, handle_telegram_errors
+from core.constants import TEMP_DIR, PROCESSED_GROUP_TTL_SECONDS, PROCESSED_GROUP_MAX
 
 logger = get_logger(__name__)
 

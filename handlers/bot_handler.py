@@ -7,11 +7,11 @@ from telethon import events
 from telethon.tl.types import ChannelParticipantsAdmins
 from version import WELCOME_TEXT
 
-from utils.core.constants import TEMP_DIR
+from core.constants import TEMP_DIR
 
 # [Refactor Fix] 修正 utils 导入
 from core.helpers.common import *
-from utils.media.media import *
+from core.helpers.media.media import *
 
 # [Refactor Fix] 更新内部模块导入路径
 from .button.callback.callback_handlers import handle_callback
@@ -29,7 +29,7 @@ load_dotenv()
 async def handle_command(client, event):
     """处理机器人命令"""
     import uuid
-    from utils.core.log_config import trace_id_var
+    from core.context import trace_id_var
     
     # 注入 Trace ID
     trace_id = str(uuid.uuid4())
@@ -201,7 +201,7 @@ async def handle_command(client, event):
 async def callback_handler(event):
     """回调处理器入口"""
     import uuid
-    from utils.core.log_config import trace_id_var
+    from core.context import trace_id_var
     
     # 注入 Trace ID
     trace_id = str(uuid.uuid4())

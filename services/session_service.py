@@ -357,7 +357,7 @@ class SessionService:
 
     async def _run_history_task(self, user_id: int, rule_id: int, time_config: Dict, cancel_event: asyncio.Event):
         """历史任务执行循环 - 增强版"""
-        from utils.history import (
+        from core.helpers.history import (
             HistoryTaskProgress,
             BackpressureController,
             ErrorHandler,

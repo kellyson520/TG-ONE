@@ -1,6 +1,6 @@
 from telethon import Button
 
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 
 
 async def show_list(event, item_type, items, format_func, title, page=1):

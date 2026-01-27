@@ -18,7 +18,7 @@ def repair_bloom_index() -> bool:
     """修复Bloom索引系统"""
     try:
         logger.debug("开始修复Bloom索引系统")
-        from utils.bloom_index import BLOOM_ROOT, bloom
+        from repositories.bloom_index import BLOOM_ROOT, bloom
 
         logger.info("开始修复Bloom索引系统...")
 
@@ -78,7 +78,7 @@ def repair_archive_directories() -> bool:
     """修复归档目录结构"""
     try:
         logger.debug("开始修复归档目录结构")
-        from utils.archive_store import ARCHIVE_ROOT
+        from repositories.archive_store import ARCHIVE_ROOT
 
         logger.info("开始修复归档目录结构...")
 
@@ -182,7 +182,7 @@ def force_rebuild_system() -> bool:
         # 4. 测试归档写入
         try:
             logger.debug("测试归档写入")
-            from utils.archive_store import write_parquet
+            from repositories.archive_store import write_parquet
 
             test_data = [
                 {
@@ -226,8 +226,8 @@ def clean_corrupted_files() -> int:
     logger.debug("开始清理损坏的归档文件")
     cleaned = 0
     try:
-        from utils.archive_store import ARCHIVE_ROOT
-        from utils.bloom_index import BLOOM_ROOT
+        from repositories.archive_store import ARCHIVE_ROOT
+        from repositories.bloom_index import BLOOM_ROOT
 
         # 清理可能损坏的parquet文件
         for root_dir in [ARCHIVE_ROOT, BLOOM_ROOT]:

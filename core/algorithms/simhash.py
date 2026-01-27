@@ -144,3 +144,8 @@ class SimHashIndex:
                 self.buckets[i][key].discard((obj_id, val))
                 if not self.buckets[i][key]:
                     del self.buckets[i][key]
+
+# Helper function for backward compatibility and ease of use
+def compute_simhash(text: str, f: int = 64) -> int:
+    """计算 SimHash 指纹 (快捷函数)"""
+    return SimHash(f).build_fingerprint(text)

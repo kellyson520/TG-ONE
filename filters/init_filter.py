@@ -7,8 +7,8 @@ except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
 import asyncio
-from utils.core.constants import TEMP_DIR
-from utils.media import get_max_media_size
+from core.constants import TEMP_DIR
+from core.helpers.media import get_max_media_size
 from models.models import get_session, MediaSignature
 
 from filters.base_filter import BaseFilter

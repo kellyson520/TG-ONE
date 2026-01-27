@@ -22,7 +22,7 @@ from models.models import (
     RuleSync,
     get_session,
 )
-from utils.processing.auto_delete import (
+from core.helpers.auto_delete import (
     reply_and_delete,
     respond_and_delete,
     send_message_and_delete,
@@ -33,7 +33,7 @@ from core.helpers.common import (
     get_media_settings_text,
     is_admin,
 )
-from utils.core.constants import PUSH_SETTINGS_TEXT, RSS_HOST, RSS_PORT, RULES_PER_PAGE
+from core.constants import PUSH_SETTINGS_TEXT, RSS_HOST, RSS_PORT, RULES_PER_PAGE
 
 from handlers.button.button_helpers import (
     create_media_extensions_buttons,

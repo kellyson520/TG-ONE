@@ -5,7 +5,7 @@
 import logging
 from filters.base_filter import BaseFilter
 from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeAudio, DocumentAttributeAnimated
-from utils.media import get_media_size
+from core.helpers.media import get_media_size
 
 logger = logging.getLogger(__name__)
 

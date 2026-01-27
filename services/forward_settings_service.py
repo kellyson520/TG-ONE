@@ -223,7 +223,7 @@ class ForwardSettingsService:
     async def get_media_extensions_options(self) -> List[str]:
         """获取可选的媒体扩展名列表（优先从配置加载）"""
         try:
-            from utils.core.settings import load_media_extensions
+            from core.config.settings_loader import load_media_extensions
             options = load_media_extensions()
             if isinstance(options, list) and options:
                 return options

@@ -2,8 +2,8 @@ import os
 from telethon import Button
 
 from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
-from utils.core.constants import RSS_ENABLED, UFB_ENABLED
-from utils.core.settings import load_ai_models
+from core.constants import RSS_ENABLED, UFB_ENABLED
+from core.config.settings_loader import load_ai_models
 
 AI_MODELS = load_ai_models()
 

@@ -6,7 +6,7 @@ import asyncio
 import logging
 from telethon import Button
 
-from utils.processing.auto_delete import reply_and_delete
+from core.helpers.auto_delete import reply_and_delete
 
 from handlers.command_handlers import (
     handle_db_backup_command,
@@ -224,7 +224,7 @@ async def callback_admin_cleanup_temp(event, rule_id, session, message, data):
 
         import os
 
-        from utils.core.constants import TEMP_DIR
+        from core.constants import TEMP_DIR
 
         progress_msg = await event.edit("🧹 正在清理临时文件...")
 
@@ -276,7 +276,7 @@ async def callback_admin_stats(event, rule_id, session, message, data):
             get_session,
         )
         from services.network.api_optimization import get_api_optimizer
-        from utils.processing.hll import GlobalHLL
+        from core.algorithms.hll import GlobalHLL
 
         session = get_session()
         api_optimizer = get_api_optimizer()

@@ -1,6 +1,6 @@
 from telethon import Button
-from utils.core.logger_utils import get_logger
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.logging import get_logger
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 from services.config_service import config_service
 
 logger = get_logger(__name__)

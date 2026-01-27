@@ -75,7 +75,7 @@ for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "appr
     sys.modules[f"{lib}.fuzz"] = MagicMock()
 
 # Mock 缺失的底层工具 (更新路径以匹配重构后的 fastapi_app.py)
-for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "utils.core.env_config"]:
+for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "core.helpers.env_config"]:
     sys.modules[m] = unittest.mock.MagicMock()
 
 # Mock decorator 类的工具
@@ -87,7 +87,7 @@ def mock_decorator(*args, **kwargs):
 mock_err = unittest.mock.MagicMock()
 mock_err.handle_errors = mock_decorator
 mock_err.log_execution = mock_decorator
-sys.modules["utils.error_handler"] = mock_err
+sys.modules["core.helpers.error_handler"] = mock_err
 
 # ============================================================
 # PHASE 2: Mock 核心配置 (settings)
@@ -135,8 +135,8 @@ for module in [
     "services.worker_service", 
     "scheduler.summary_scheduler",
     "scheduler.optimized_chat_updater",
-    "utils.media.media",
-    "utils.tombstone"
+    "core.helpers.media.media",
+    "core.helpers.tombstone"
 ]:
     if module not in sys.modules:
         sys.modules[module] = MagicMock()

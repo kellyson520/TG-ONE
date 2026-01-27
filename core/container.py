@@ -1,19 +1,16 @@
 from core.event_bus import EventBus
 from core.pipeline import Pipeline
-from repositories.task_repo import TaskRepository
-from repositories.rule_repo import RuleRepository
-from repositories.stats_repo import StatsRepository
-from repositories.user_repo import UserRepository
-from repositories.audit_repo import AuditRepository
-from services.download_service import DownloadService
-from services.worker_service import WorkerService
-from services.queue_service import MessageQueueService
+# Heavy imports moved to cached_properties for Lazy Loading
+# from repositories... 
+# from services...
+
 from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
 from middlewares.download import DownloadMiddleware
 from middlewares.sender import SenderMiddleware
 from middlewares.filter import FilterMiddleware
-from services.db_buffer import GroupCommitCoordinator
+# from services.db_buffer import GroupCommitCoordinator -> moved to property
+
 # 引入全局数据库单例获取函数
 from models.models import get_async_engine 
 # 引入 Database 类（我们需要稍微改造它以接受现有的 engine）
@@ -22,6 +19,7 @@ import os
 import asyncio
 from pathlib import Path
 import logging
+from functools import cached_property
 
 logger = logging.getLogger(__name__)
 
@@ -40,88 +38,180 @@ class Container:
         self.bus = EventBus()
         logger.info("EventBus initialized")
         
-        # 初始化仓库 (复用统一的 db 实例)
-        self.task_repo = TaskRepository(self.db)
-        self.rule_repo = RuleRepository(self.db)
-        self.stats_repo = StatsRepository(self.db)
-        self.user_repo = UserRepository(self.db)
-        from repositories.dedup_repo import DedupRepository
-        self.dedup_repo = DedupRepository(self.db)
-        self.audit_repo = AuditRepository(self.db)
-        logger.info("Repositories initialized")
-
-        # 初始化 Group Commit Coordinator (Buffer)
-        # 传递 self.db.session (async context manager) 作为 factory
-        self.group_commit_coordinator = GroupCommitCoordinator(self.db.session)
-        logger.info("GroupCommitCoordinator initialized")
-
-        # 初始化 Rate Limiter Pool
-        from services.rate_limiter import RateLimiterPool
-        self.rate_limiter_pool = RateLimiterPool
-        logger.info("RateLimiterPool initialized with presets")
-
-        # 初始化 Metrics Collector
-        from services.metrics_collector import metrics_collector
-        self.metrics_collector = metrics_collector
-        logger.info("MetricsCollector initialized")
-
-        # 初始化背压队列服务 (Ingestion Buffer)
-        self.queue_service = MessageQueueService(max_size=1000)
-        # 设置队列消费者：将内存队列中的任务写入数据库
-        self.queue_service.set_processor(self._process_ingestion_queue)
-        logger.info("MessageQueueService initialized")
+        # 服务列表，用于统一管理生命周期
+        self.services = []
         
-        # 初始化去重服务
-        from services.dedup_service import dedup_service
-        dedup_service.set_db(self.db)
-        dedup_service.set_coordinator(self.group_commit_coordinator)
-        logger.info("Deduplication service initialized with GroupCommit Support")
+        # 服务实例 placeholders (for explicit typing if needed, otherwise rely on properties)
+        # self.downloader = None 
+        # self.worker = None      
+        # self.scheduler = None   
+        # self.chat_updater = None  
+        # self.rss_puller = None  
         
-        # 初始化状态服务 (Refactored from managers.state_manager)
-        from services.state_service import state_service
-        self.state_service = state_service
-        logger.info("StateService initialized")
-
-        # 初始化媒体处理服务 (Refactored from managers.media_group_manager)
-        from services.media_service import media_service, processed_group_cache
-        self.media_service = media_service
-        self.media_group_cache = processed_group_cache
-        logger.info("MediaService and MediaGroupCache initialized")
-
-        # 初始化转发服务 (Refactored from managers.unified_forward_manager)
-        from services.forward_service import forward_service
-        self.forward_service = forward_service
-        logger.info("ForwardService initialized")
-
-        # 初始化远程配置同步服务 (Refactored from ufb/)
-        from services.remote_config_sync_service import remote_config_sync_service
-        self.remote_config_sync_service = remote_config_sync_service
-        logger.info("RemoteConfigSyncService initialized")
-        
-        # 初始化聊天信息服务
-        from services.chat_info_service import chat_info_service
-        chat_info_service.set_db(self.db)
-        self.chat_info_service = chat_info_service
-        logger.info("ChatInfoService initialized")
-        
-        # 初始化规则服务
-        from services.rule.facade import RuleManagementService
-        from services.rule.query import RuleQueryService
-        from services.rule.filter import RuleFilterService
-        self.rule_management_service = RuleManagementService()
-        self.rule_query_service = RuleQueryService()
-        self.rule_filter_service = RuleFilterService()
-        logger.info("Rule services (Management/Query/Filter) initialized")
-        
-        # 注册事件监听
+        # 注册核心事件监听 (延迟到属性访问或 start 时可能更好，但为了保证监听有效性，部分可能需要在 init 或第一次使用时注册)
+        # 这里暂时保留核心的内部监听，外部服务的监听移至 dedicated setup 方法或 lazy property
         self.bus.subscribe("FORWARD_SUCCESS", self._on_stats_update)
         self.bus.subscribe("FORWARD_FAILED", self._on_forward_failed)
-        # [Scheme 7 Standard] 注册去重记录监听器
-        # 只有当消息发送成功后，才将其特征指纹记录到数据库
-        # 避免因发送失败而导致错误地拦截了重试消息
-        from services.dedup_service import dedup_service
-        self.bus.subscribe("FORWARD_SUCCESS", dedup_service.on_forward_success)
-        logger.info("Event listeners registered")
+        
+        # [Scheme 7 Standard] Dedup 监听在访问 dedup_service 时自动注册? 
+        # 为了避免循环依赖和过度 Eager，我们可以在 dedup_service 的 property 中注册
+        
+    # --- Repositories (Lazy) ---
+
+    @property
+    def task_repo(self):
+        if not hasattr(self, '_task_repo'):
+            from repositories.task_repo import TaskRepository
+            self._task_repo = TaskRepository(self.db)
+        return self._task_repo
+
+    @property
+    def rule_repo(self):
+        if not hasattr(self, '_rule_repo'):
+            from repositories.rule_repo import RuleRepository
+            self._rule_repo = RuleRepository(self.db)
+        return self._rule_repo
+
+    @property
+    def stats_repo(self):
+        if not hasattr(self, '_stats_repo'):
+            from repositories.stats_repo import StatsRepository
+            self._stats_repo = StatsRepository(self.db)
+        return self._stats_repo
+
+    @property
+    def user_repo(self):
+        if not hasattr(self, '_user_repo'):
+            from repositories.user_repo import UserRepository
+            self._user_repo = UserRepository(self.db)
+        return self._user_repo
+
+    @property
+    def dedup_repo(self):
+        if not hasattr(self, '_dedup_repo'):
+            from repositories.dedup_repo import DedupRepository
+            self._dedup_repo = DedupRepository(self.db)
+        return self._dedup_repo
+
+    @property
+    def audit_repo(self):
+        if not hasattr(self, '_audit_repo'):
+            from repositories.audit_repo import AuditRepository
+            self._audit_repo = AuditRepository(self.db)
+        return self._audit_repo
+
+    # --- Core Services (Lazy) ---
+
+    @property
+    def group_commit_coordinator(self):
+        if not hasattr(self, '_group_commit_coordinator'):
+            from services.db_buffer import GroupCommitCoordinator
+            self._group_commit_coordinator = GroupCommitCoordinator(self.db.session)
+            logger.info("GroupCommitCoordinator initialized (Lazy)")
+        return self._group_commit_coordinator
+
+    @property
+    def rate_limiter_pool(self):
+        if not hasattr(self, '_rate_limiter_pool'):
+            from services.rate_limiter import RateLimiterPool
+            self._rate_limiter_pool = RateLimiterPool
+        return self._rate_limiter_pool
+
+    @property
+    def metrics_collector(self):
+        if not hasattr(self, '_metrics_collector'):
+            from services.metrics_collector import metrics_collector
+            self._metrics_collector = metrics_collector
+        return self._metrics_collector
+
+    @property
+    def queue_service(self):
+        if not hasattr(self, '_queue_service'):
+            from services.queue_service import MessageQueueService
+            self._queue_service = MessageQueueService(max_size=1000)
+            self._queue_service.set_processor(self._process_ingestion_queue)
+            logger.info("MessageQueueService initialized (Lazy)")
+        return self._queue_service
+
+    @property
+    def dedup_service(self):
+        if not hasattr(self, '_dedup_service'):
+            from services.dedup_service import dedup_service
+            dedup_service.set_db(self.db)
+            dedup_service.set_coordinator(self.group_commit_coordinator)
+            # 延迟注册监听
+            self.bus.subscribe("FORWARD_SUCCESS", dedup_service.on_forward_success)
+            self._dedup_service = dedup_service
+            logger.info("Deduplication service initialized (Lazy)")
+        return self._dedup_service
+
+    @property
+    def state_service(self):
+        if not hasattr(self, '_state_service'):
+            from services.state_service import state_service
+            self._state_service = state_service
+        return self._state_service
+
+    @property
+    def media_service(self):
+        # Returns (media_service, media_group_cache) tuple or just service? 
+        # Original code set both. Accessor usually just needs service.
+        # But for compatibility we might need to expose media_group_cache too.
+        if not hasattr(self, '_media_service'):
+            from services.media_service import media_service, processed_group_cache
+            self._media_service = media_service
+            self._media_group_cache = processed_group_cache
+        return self._media_service
+    
+    @property
+    def media_group_cache(self):
+        if not hasattr(self, '_media_group_cache'):
+            # Trigger init
+            _ = self.media_service
+        return self._media_group_cache
+
+    @property
+    def forward_service(self):
+        if not hasattr(self, '_forward_service'):
+            from services.forward_service import forward_service
+            self._forward_service = forward_service
+        return self._forward_service
+
+    @property
+    def remote_config_sync_service(self):
+        if not hasattr(self, '_remote_config_sync_service'):
+            from services.remote_config_sync_service import remote_config_sync_service
+            self._remote_config_sync_service = remote_config_sync_service
+        return self._remote_config_sync_service
+
+    @property
+    def chat_info_service(self):
+        if not hasattr(self, '_chat_info_service'):
+            from services.chat_info_service import chat_info_service
+            chat_info_service.set_db(self.db)
+            self._chat_info_service = chat_info_service
+        return self._chat_info_service
+
+    @property
+    def rule_management_service(self):
+        if not hasattr(self, '_rule_management_service'):
+            from services.rule.facade import RuleManagementService
+            self._rule_management_service = RuleManagementService()
+        return self._rule_management_service
+
+    @property
+    def rule_query_service(self):
+        if not hasattr(self, '_rule_query_service'):
+            from services.rule.query import RuleQueryService
+            self._rule_query_service = RuleQueryService()
+        return self._rule_query_service
+        
+    @property
+    def rule_filter_service(self):
+        if not hasattr(self, '_rule_filter_service'):
+            from services.rule.filter import RuleFilterService
+            self._rule_filter_service = RuleFilterService()
+        return self._rule_filter_service
         
         # 服务列表，用于统一管理生命周期
         self.services = []

@@ -22,7 +22,7 @@ os.environ["LOG_COLOR"] = "false"
 os.environ["LOG_DIR"] = str(temp_log_dir) # Enable file logging
 os.environ["LOG_LANGUAGE"] = "zh"
 
-from utils.core.log_config import setup_logging
+from core.context import setup_logging
 from core.pipeline import Pipeline, Middleware, MessageContext
 
 # Initialize Logging

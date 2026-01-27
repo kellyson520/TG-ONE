@@ -47,7 +47,7 @@ class MessageContext:
         self.rule = rule
         
         # 生成并记录 Trace ID
-        from utils.core.log_config import trace_id_var
+        from core.context import trace_id_var
         import uuid
         self.trace_id = trace_id_var.get()
         if self.trace_id == "-":

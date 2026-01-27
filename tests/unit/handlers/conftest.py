@@ -21,14 +21,14 @@ mock_aiofiles.open = MagicMock(return_value=AsyncMock())
 sys.modules["aiofiles"] = mock_aiofiles
 
 # Mock 底层工具
-for m in ["utils.realtime_stats", "utils.bot_heartbeat", "utils.forward_recorder", "utils.env_config"]:
+for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "core.helpers.forward_recorder", "core.helpers.env_config"]:
     sys.modules[m] = MagicMock()
 
 # Mock error handler
 mock_err = MagicMock()
 mock_err.handle_errors = lambda *a, **k: (lambda f: f)
 mock_err.log_execution = lambda *a, **k: (lambda f: f)
-sys.modules["utils.error_handler"] = mock_err
+sys.modules["core.helpers.error_handler"] = mock_err
 
 # Mock settings 函数
 _mock_settings = MagicMock()
@@ -37,7 +37,7 @@ _mock_settings.load_delay_times = MagicMock(return_value=[])
 _mock_settings.load_max_media_size = MagicMock(return_value=[])
 _mock_settings.load_media_extensions = MagicMock(return_value=[])
 _mock_settings.load_summary_times = MagicMock(return_value=[])
-sys.modules['utils.core.settings'] = _mock_settings
+sys.modules['core.config.settings_loader'] = _mock_settings
 
 # Mock core.config
 mock_config_settings = MagicMock()
@@ -59,14 +59,14 @@ for module in [
     "services.worker_service", 
     "scheduler.summary_scheduler",
     "scheduler.optimized_chat_updater",
-    "utils.media.media",
+    "core.helpers.media.media",
     "middlewares.loader",
     "middlewares.dedup", 
     "middlewares.download",
     "middlewares.sender",
     "middlewares.filter",
     "middlewares.ai",
-    "utils.tombstone"
+    "core.helpers.tombstone"
 ]:
     if module not in sys.modules:
         sys.modules[module] = MagicMock()

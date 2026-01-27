@@ -1,8 +1,8 @@
 
 import unittest
 import random
-from utils.algorithm.lsh_forest import LSHForest
-from utils.processing.simhash import SimHash
+from core.algorithms.lsh_forest import LSHForest
+from core.algorithms.simhash import SimHash
 
 class TestLSHForest(unittest.TestCase):
     def setUp(self):

@@ -1348,7 +1348,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 limit = int(extra_data[0]) if extra_data else 0
 
                 # 使用配置管理器更新配置
-                from utils.core.env_config import env_config_manager
+                from core.helpers.env_config import env_config_manager
 
                 success = env_config_manager.set_history_message_limit(limit)
 

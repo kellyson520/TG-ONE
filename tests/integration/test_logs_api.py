@@ -47,7 +47,7 @@ def setup_log_files(tmp_path):
     os.environ["LOG_DIR"] = str(tmp_path)
     
     # 2. Mock env_config_manager
-    from utils.core.env_config import env_config_manager
+    from core.helpers.env_config import env_config_manager
     
     def get_config_side_effect(key, default=None):
         if key == "LOG_DIR":

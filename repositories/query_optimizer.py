@@ -16,9 +16,9 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from models.models import get_read_session, get_session
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 from repositories.persistent_cache import get_persistent_cache
-from utils.processing.unified_cache import MultiLevelCache, get_smart_cache
+from core.cache.unified_cache import MultiLevelCache, get_smart_cache
 
 logger = get_logger(__name__)
 

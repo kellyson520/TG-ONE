@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Awaitable, List
 from core.config import settings
-from utils.core.log_config import trace_id_var
+from core.context import trace_id_var
 from services.network.pid import PIDController
 from services.network.circuit_breaker import CircuitBreaker
 import uuid

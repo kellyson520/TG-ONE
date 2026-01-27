@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from models.models import ForwardRule, MediaExtensions, PushConfig, RuleSync, RSSConfig
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

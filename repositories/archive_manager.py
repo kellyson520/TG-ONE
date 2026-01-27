@@ -12,7 +12,7 @@ from models.models import (
 )
 from repositories.archive_store import write_parquet, compact_small_files
 from repositories.archive_init import init_archive_system
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

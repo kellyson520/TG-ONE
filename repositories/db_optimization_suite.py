@@ -32,7 +32,7 @@ from repositories.db_sharding import (
     optimize_query_with_sharding,
     setup_database_sharding,
 )
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 from repositories.query_optimizer import (
     CacheInvalidationManager,
     OptimizedQueries,

@@ -38,18 +38,22 @@ from services.rule_service import RuleQueryService
 from services.authentication_service import authentication_service
 from services.system_service import system_service
 from web_admin.routers.auth_router import router as auth_router
-from web_admin.routers.rule_router import router as rule_router
+from web_admin.routers.rules.rule_crud_router import router as rule_crud_router
+from web_admin.routers.rules.rule_content_router import router as rule_content_router
+from web_admin.routers.rules.rule_viz_router import router as rule_viz_router
 from web_admin.routers.user_router import router as user_router
-from web_admin.routers.system_router import router as system_router
-from web_admin.routers.stats_router import router as stats_router
+from web_admin.routers.user_router import router as user_router
+from web_admin.routers.system.log_router import router as log_router
+from web_admin.routers.system.maintain_router import router as maintain_router
+from web_admin.routers.system.stats_router import router as stats_router
 from web_admin.routers.websocket_router import router as websocket_router
 from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
 from core.helpers.realtime_stats import realtime_stats_cache
 from services.network.bot_heartbeat import get_heartbeat
 from services.dedup.engine import smart_deduplicator
-from utils.forward_recorder import forward_recorder
-# from utils.core.env_config import env_config_manager
+from core.helpers.forward_recorder import forward_recorder
+# from core.helpers.env_config import env_config_manager
 from web_admin.core.templates import templates, STATIC_DIR
 from web_admin.routers.page_router import router as page_router
 from web_admin.rss.routes.rss import router as rss_page_router
@@ -104,9 +108,12 @@ app = FastAPI(
 
 # 注册路由
 app.include_router(auth_router)
-app.include_router(rule_router)
+app.include_router(rule_crud_router)
+app.include_router(rule_content_router)
+app.include_router(rule_viz_router)
 app.include_router(user_router)
-app.include_router(system_router)
+app.include_router(log_router)
+app.include_router(maintain_router)
 app.include_router(stats_router)
 app.include_router(websocket_router)
 app.include_router(security_router)
@@ -129,7 +136,7 @@ async def page_redirect_handler(request: Request, exc: PageRedirect):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    from utils.core.log_config import trace_id_var
+    from core.context import trace_id_var
     trace_id = trace_id_var.get()
     
     # 记录详细错误
@@ -261,228 +268,7 @@ async def metrics():
 # Duplicate rule routes removed. Usage delegated to web_admin.routers.rule_router.
 
 
-# 聊天相关路由
-@app.get("/api/chats", response_class=JSONResponse)
-async def api_get_chats(request: Request, user = Depends(login_required)):
-    """返回聊天列表用于过滤"""
-    try:
-        # ✅ 调用 Repository，逻辑收敛
-        chats = await container.rule_repo.get_all_chats()
-        items = []
-        for c in chats:
-            items.append({
-                'id': c.id,
-                'title': getattr(c, 'name', None),
-                'username': getattr(c, 'username', None),
-                'telegram_chat_id': c.telegram_chat_id,
-                'chat_type': c.chat_type,
-                'member_count': c.member_count
-            })
-        return JSONResponse({'success': True, 'data': items})
-    except Exception as e:
-        logger.error(f"获取聊天列表失败: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
-
-# 可视化路由
-@app.get("/api/visualization/graph", response_class=JSONResponse)
-async def api_visualization_graph(request: Request, user = Depends(login_required)):
-    """返回规则-聊天图谱数据"""
-    try:
-        # ✅ 调用 Repository，逻辑收敛
-        rules = await container.rule_repo.get_all_rules_with_chats()
-        chats = await container.rule_repo.get_all_chats()
-        nodes = []
-        edges = []
-        chat_map = {}
-        for chat in chats:
-            node_id = f"chat_{chat.id}"
-            chat_map[chat.id] = node_id
-            nodes.append({
-                'id': node_id,
-                'label': getattr(chat, 'name', None) or f"Chat_{chat.telegram_chat_id}",
-                'type': 'chat',
-                'data': {
-                    'telegram_chat_id': chat.telegram_chat_id,
-                    'username': getattr(chat, 'username', None),
-                    'chat_type': chat.chat_type,
-                    'member_count': chat.member_count
-                }
-            })
-        for rule in rules:
-            rule_node_id = f"rule_{rule.id}"
-            nodes.append({
-                'id': rule_node_id,
-                'label': f"规则 {rule.id}",
-                'type': 'rule',
-                'data': {
-                    'enabled': rule.enable_rule,
-                    'enable_dedup': rule.enable_dedup,
-                    'keywords_count': len(rule.keywords) if rule.keywords else 0,
-                    'replace_rules_count': len(rule.replace_rules) if rule.replace_rules else 0
-                }
-            })
-            if rule.source_chat_id and rule.source_chat_id in chat_map:
-                edges.append({
-                    'id': f"edge_src_{rule.id}",
-                    'source': chat_map[rule.source_chat_id],
-                    'target': rule_node_id,
-                    'type': 'source',
-                    'label': ''
-                })
-            if rule.target_chat_id and rule.target_chat_id in chat_map:
-                edges.append({
-                    'id': f"edge_tgt_{rule.id}",
-                    'source': rule_node_id,
-                    'target': chat_map[rule.target_chat_id],
-                    'type': 'target',
-                    'label': ''
-                })
-        graph_data = {'nodes': nodes, 'edges': edges}
-        return JSONResponse({'success': True, 'data': graph_data})
-    except Exception as e:
-        logger.error(f"获取可视化图谱数据失败: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
-
-# 规则开关路由
-@app.post("/api/rules/{rule_id}/toggle", response_class=JSONResponse)
-async def api_toggle_rule(request: Request, rule_id: int, user = Depends(admin_required)):
-    try:
-        # ✅ 调用 Repository，逻辑收敛
-        new_state = await container.rule_repo.toggle_rule(rule_id)
-        if new_state is None:
-            return JSONResponse({'success': False, 'error': 'Rule not found'}, status_code=404)
-        return JSONResponse({'success': True, 'data': {'enabled': new_state}})
-    except Exception as e:
-        logger.error(f"切换规则状态失败: {e}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
-
-# 错误日志相关路由
-@app.get("/api/error_logs", response_class=JSONResponse)
-async def api_get_error_logs(
-    request: Request,
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
-    level: str = Query(None),
-    user = Depends(admin_required)
-):
-    """获取系统错误日志"""
-    try:
-        # ✅ 调用 Repository，逻辑收敛
-        items, total = await container.stats_repo.get_error_logs(page, size, level)
-        
-        data = []
-        for item in items:
-            data.append({
-                'id': item.id,
-                'level': getattr(item, 'level', 'ERROR'),
-                'module': getattr(item, 'module', ''),
-                'message': getattr(item, 'message', ''),
-                'created_at': item.created_at.isoformat() if item.created_at else None
-            })
-        
-        return JSONResponse({'success': True, 'data': {'total': total, 'items': data}})
-    except Exception as e:
-        logger.error(f"获取错误日志失败: {e}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
-
-@app.get("/api/logs/files", response_class=JSONResponse)
-async def api_list_log_files(request: Request, user = Depends(admin_required)):
-    """获取日志文件列表"""
-    try:
-        log_files = []
-        log_dir = settings.LOG_DIR
-        
-        if not log_dir.exists():
-             return JSONResponse({'success': True, 'data': []})
-
-        # 获取日志目录下的.log文件
-        for file in os.listdir(log_dir):
-            if file.endswith('.log'):
-                try:
-                    full_path = log_dir / file
-                    stat = full_path.stat()
-                    log_files.append({
-                        'name': file,
-                        'size': stat.st_size,
-                        'mtime': datetime.fromtimestamp(stat.st_mtime).isoformat()
-                    })
-                except Exception:
-                    pass
-        
-        # 按修改时间倒序排列
-        log_files.sort(key=lambda x: x['mtime'], reverse=True)
-        return JSONResponse({'success': True, 'data': log_files})
-    except Exception as e:
-        return JSONResponse({'success': False, 'error': str(e)}), 500
-
-@app.get("/api/logs/tail", response_class=JSONResponse)
-async def api_tail_log(
-    request: Request,
-    file: str = Query(...),
-    lines: int = Query(100, ge=1, le=1000),
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    level: str = Query(None),
-    q: str = Query(None),
-    user = Depends(admin_required)
-):
-    """读取日志文件末尾"""
-    try:
-        # 安全检查
-        if not file.endswith('.log') or '/' in file or '\\' in file:
-            return JSONResponse({'success': False, 'error': '无效的文件名'}, status_code=400)
-        
-        log_dir = settings.LOG_DIR
-        file_path = log_dir / file
-        
-        if not file_path.exists():
-            return JSONResponse({'success': False, 'error': '文件不存在'}, status_code=404)
-            
-        # 使用limit覆盖lines参数（兼容前端）
-        actual_lines = limit
-        content = []
-        try:
-            # 简单的读取实现，生产环境可能需要更高效的实现
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                # 读取最后N行
-                file_size = file_path.stat().st_size
-                read_size = min(file_size, 1024 * 1024) # 最多读1MB
-                if file_size > read_size:
-                    f.seek(file_size - read_size)
-                
-                lines_data = f.readlines()
-                content = lines_data[-actual_lines:]
-        except Exception as e:
-            return JSONResponse({'success': False, 'error': f"读取文件失败: {e}"}, status_code=500)
-        
-        # 应用搜索和级别筛选
-        filtered_content = content
-        if q:
-            filtered_content = [line for line in filtered_content if q.lower() in line.lower()]
-        if level:
-            filtered_content = [line for line in filtered_content if level.upper() in line]
-        
-        # 应用offset（当前实现中offset无实际作用，因为我们只读取了最后actual_lines行）
-        
-        # 返回与前端期望一致的数据格式
-        return JSONResponse({'success': True, 'data': {'items': filtered_content}})
-    except Exception as e:
-        return JSONResponse({'success': False, 'error': str(e)}), 500
-
-@app.get("/api/logs/download")
-async def api_download_log(request: Request, file: str = Query(...), user = Depends(admin_required)):
-    """下载日志文件"""
-    # 安全检查
-    if not file.endswith('.log') or '/' in file or '\\' in file:
-        return JSONResponse({'success': False, 'error': '无效的文件名'}, status_code=400)
-    
-    log_dir = settings.LOG_DIR
-    file_path = log_dir / file
-    
-    if not file_path.exists():
-        return JSONResponse({'success': False, 'error': '文件不存在'}, status_code=404)
-        
-    return FileResponse(file_path, filename=file)
+# Legacy routes removed.
 
 
 # 统计路由已迁移至 web_admin/routers/stats_router.py (@router.get("/series"))

@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from utils.processing.wtinylfu import WTinyLFU
+from core.cache.wtinylfu import WTinyLFU
 
 # [Optimization] 使用 W-TinyLFU 替代标准 TTLCache 以提高热点规则命中率
 class WTinyLFUCompatible(WTinyLFU):

@@ -20,9 +20,8 @@ except ImportError:
     aiohttp = None
     AIOHTTP_AVAILABLE = False
 
-from utils.core.constants import TEMP_DIR, RSS_MEDIA_DIR, get_rule_media_dir, RSS_HOST, RSS_PORT, RSS_ENABLED
+from core.config import settings
 from models.models import AsyncSessionManager
-from core.helpers.common import get_db_ops
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +30,22 @@ class RssService:
         from core.container import container
         self.container = container
         
-        self.rss_host = RSS_HOST
-        self.rss_port = RSS_PORT
+        self.rss_host = settings.RSS_HOST
+        self.rss_port = settings.RSS_PORT
         self.rss_base_url = f"http://{self.rss_host}:{self.rss_port}"
         
         # 使用统一的路径常量
-        self.rss_media_path = RSS_MEDIA_DIR
-        self.temp_dir = TEMP_DIR
+        self.rss_media_path = str(settings.RSS_MEDIA_DIR)
+        self.temp_dir = str(settings.TEMP_DIR)
         
         # 确保媒体文件存储根目录存在
         Path(self.rss_media_path).mkdir(parents=True, exist_ok=True)
 
     def _get_rule_media_path(self, rule_id):
         """获取规则特定的媒体目录"""
-        return get_rule_media_dir(rule_id)
+        rule_path = os.path.join(self.rss_media_path, str(rule_id))
+        os.makedirs(rule_path, exist_ok=True)
+        return rule_path
         
     def _sanitize_filename(self, filename: str) -> str:
         """处理文件名，去除不合法字符"""

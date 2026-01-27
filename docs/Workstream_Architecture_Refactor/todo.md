@@ -199,51 +199,51 @@
 
 *目标：标准化 API 接口，拆分庞大的路由文件。*
 
-* [ ] **Web 路由器拆解 (`web_admin/routers/`) [P1]**
-* [ ] **拆解 `system_router.py` (1023 行)**: 提取 `log_router.py`, `maintain_router.py`, `stats_router.py`。
-* [ ] **拆解 `rule_router.py` (529 行)**: 提取 DTO 映射逻辑至 `RuleDTOMapper`。
-* [ ] **API 现代化**: 移除 `fastapi_app.py` 中的剩余 API。
+* [x] **Web 路由器拆解 (`web_admin/routers/`) [P1]**
+* [x] **拆解 `system_router.py` (1023 行)**: 提取 `log_router.py`, `maintain_router.py`, `stats_router.py`。
+* [x] **拆解 `rule_router.py` (529 行)**: 提取 DTO 映射逻辑至 `RuleDTOMapper`。
+* [x] **API 现代化**: 移除 `fastapi_app.py` 中的剩余 API。
 
 
-* [ ] **表现层纯净化 [P2]**
-* [ ] 为所有路由引入 `ResponseSchema`，标准化 JSON 返回结构。
-* [ ] 撤销路由对 `Container` 的直接访问，改用 `Depends` 注入。
-* [ ] **安全与认证**: 移除 `/logout` 等路由内的手动认证，统一通过 `authentication_service`。
+* [x] **表现层纯净化 [P2]**
+* [x] 为所有路由引入 `ResponseSchema`，标准化 JSON 返回结构。
+* [x] 撤销路由对 `Container` 的直接访问，改用 `Depends` 注入。
+* [x] **安全与认证**: 移除 `/logout` 等路由内的手动认证，统一通过 `authentication_service`。
 
 
-* [ ] **Handler 与 UI 拆分**
-* [ ] **`handlers/button/callback/callback_handlers.py`**: 垂直拆分为 `RuleCallback`, `PageCallback` 等。
-* [ ] **`ui/menu_renderer.py`**: 细化为多个专用渲染器。
+* [x] **Handler 与 UI 拆分**
+* [x] **`handlers/button/callback/callback_handlers.py`**: 垂直拆分为 `RuleCallback`, `PageCallback` 等。
+* [x] **`ui/menu_renderer.py`**: 细化为多个专用渲染器。
 
 
 
 ---
 
-## 阶段 7：高性能算法与资源优化 (P2 - Optimization)
+## 阶段 7：高性能算法与资源优化 (P2 - Optimization) [Done]
 
 *目标：提升系统上限，降低资源占用，优化核心算法。*
 
-* [ ] **核心算法优化**
-* [ ] **去重引擎**: 优化 `bloom/`，重构 `dedup.py`。
-* [ ] **过滤器流水线 2.0**: AST-like 执行计划，支持并行 Filter 执行；增加 Result Caching。
-* [ ] **调度引擎升级**: 引入优先级队列 (Priority Queue)，实现动态 Worker 池。
+* [x] **核心算法优化**
+* [x] **去重引擎**: 优化 `bloom/`，重构 `dedup.py` (Shim & Imports Fixed)。
+* [x] **过滤器流水线 2.0**: AST-like 执行计划，支持并行 Filter 执行；增加 Result Caching (FilterChainFactory 2.0)。
+* [x] **调度引擎升级**: 引入优先级队列 (Priority Queue)，实现动态 Worker 池 (Dynamic Concurrency implemented in WorkerService)。
 
 
-* [ ] **低占用优化 (Low Consumption)**
-* [ ] **全局单例惰性化**: `repositories/` 和 `services/` 采用 `get_service()` 惰性加载。
-* [ ] **AI 模块惰性化**: 移除 `ai/__init__.py` 的顶层暴力导入。
-* [ ] **日志自动归档**: 实现 Rolling 更新与自动清理。
+* [x] **低占用优化 (Low Consumption)**
+* [x] **全局单例惰性化**: `repositories/` 和 `services/` 采用 `get_service()` 惰性加载 (Cached Properties)。
+* [x] **AI 模块惰性化**: 移除 `ai/__init__.py` 的顶层暴力导入，改为按需加载。
+* [x] **日志自动归档**: 实现 Rolling 更新与自动清理 (Core Logging)。
 
 
-* [ ] **数据层极致性能**
-* [ ] **数据库连接池调优**: 针对 SQLite WAL 优化，区分读/写连接池。
-* [ ] **统一缓存层**: 建立 `services/cache_service.py`，实现防击穿逻辑。
-* [ ] **轻量级去重索引**: 将布隆过滤器迁移到位数组实现。
+* [x] **数据层极致性能**
+* [x] **数据库连接池调优**: 针对 SQLite WAL 优化，区分读/写连接池 (Models/Base Split).
+* [x] **统一缓存层**: 建立 `services/cache_service.py`，实现防击穿逻辑 (Anti-Stampede).
+* [x] **轻量级去重索引**: 将布隆过滤器迁移到位数组实现 (Bytearray implemented in `core.algorithms.bloom_filter`).
 
 
-* [ ] **网络与并发稳定性**
-* [ ] **Telethon 客户端池**: 实现 Scale Out 复用池。
-* [ ] **全局限流器**: 实现基于令牌桶 (Token Bucket) 的精确限流。
+* [x] **网络与并发稳定性**
+* [x] **Telethon 客户端池**: 实现 Scale Out 复用池 (`services/network/client_pool.py`).
+* [x] **全局限流器**: 实现基于令牌桶/漏桶的精确限流 (`services/network/rate_limiter.py`).
 
 
 

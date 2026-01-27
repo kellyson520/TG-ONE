@@ -1,8 +1,8 @@
 from telethon import Button
 import logging
-from utils.core.logger_utils import get_logger, log_performance, log_user_action
-from utils.core.error_handler import handle_errors
-from utils.processing.auto_delete import async_delete_user_message, reply_and_delete
+from core.logging import get_logger, log_performance, log_user_action
+from core.helpers.error_handler import handle_errors
+from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 from services.rule_management_service import rule_management_service
 from services.rule_service import RuleQueryService
 

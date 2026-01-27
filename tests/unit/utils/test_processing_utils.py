@@ -69,7 +69,7 @@ class TestAutoDelete:
     @pytest.mark.skip(reason="需要完整的 message_task_manager 环境 - 集成测试场景")
     async def test_reply_and_delete_mock(self):
         """测试 reply_and_delete 函数 (Mock)"""
-        from utils.processing.auto_delete import reply_and_delete
+        from core.helpers.auto_delete import reply_and_delete
         from unittest.mock import AsyncMock, patch
         
         mock_event = MagicMock()

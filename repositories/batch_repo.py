@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 
 from models.models import get_dedup_session, get_read_session, get_session
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -230,7 +230,7 @@ class GlobalFilter(BaseFilter):
         # 检查媒体大小（全局设置）
         if settings.get('media_size_filter_enabled', False):
             try:
-                from utils.media import get_media_size
+                from core.helpers.media import get_media_size
                 file_size = await get_media_size(message.media)
                 file_size_mb = round(file_size/1024/1024, 2)
                 size_limit = settings.get('media_size_limit', 100)

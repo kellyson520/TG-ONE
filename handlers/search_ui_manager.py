@@ -6,7 +6,7 @@
 from telethon import Button
 from typing import Any, Dict, List, Optional, Tuple
 
-from utils.core.logger_utils import get_logger
+from core.logging import get_logger
 from core.helpers.search_system import (
     SearchFilter,
     SearchResponse,
