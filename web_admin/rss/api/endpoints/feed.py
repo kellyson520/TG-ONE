@@ -267,6 +267,8 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
         # 验证媒体数据
         if media_count > 0:
             media_filenames = []
+            # 检查当前条目数量，如果接近限制则删除最旧的条目
+            current_entries = await get_entries(rule_id)
             for m in entry_data.get("media", []):
                 if isinstance(m, dict):
                     media_filenames.append(m.get("filename", "未知"))
