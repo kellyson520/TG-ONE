@@ -50,6 +50,7 @@ async def get_media_size(media):
 
 async def get_max_media_size():
     """获取媒体文件大小上限（带缓存）"""
+    global _CACHED_MAX_SIZE
     if _CACHED_MAX_SIZE is None:
         _CACHED_MAX_SIZE = _load_max_size()
     return _CACHED_MAX_SIZE

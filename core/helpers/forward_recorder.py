@@ -632,7 +632,7 @@ class ForwardRecorder:
         records = []
         try:
             def read_file():
-                nonlocal records
+
                 with open(file_path, 'r', encoding='utf-8') as f:
                     for line in f:
                         if len(records) >= limit:

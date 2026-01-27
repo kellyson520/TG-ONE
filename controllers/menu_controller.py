@@ -414,6 +414,7 @@ class MenuController:
 
     async def show_history_time_range(self, event):
         """显示历史任务时间范围设置"""
+        from handlers.button.modules.history import history_module
         await history_module.show_time_range_selection(event)
 
     async def _set_user_state(self, event, state: str, rule_id: int, extra: dict = None):
