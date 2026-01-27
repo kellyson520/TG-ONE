@@ -34,7 +34,8 @@ def optimize_configs():
         ("http.lowSpeedTime", "999999"),
         ("core.compression", "0"),
     ]
-    print("🛠️  Applying Git network optimizations...")
+    print("🛠️  正在应用 Git 网络优化配置...")
+
     for key, val in configs:
         subprocess.run(["git", "config", key, val], check=False, env=get_git_env())
 
@@ -52,16 +53,18 @@ def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
         try:
             user_name = run_git(["config", "user.name"])
             noreply = get_noreply_email(user_name)
-            print(f"🔒 Ensuring Privacy: Switching email to {noreply}")
+            print(f"🔒 隐私保护: 切换邮箱至 {noreply}")
             subprocess.run(["git", "config", "user.email", noreply], check=True, env=get_git_env())
             # Try to amend the last commit to match this new email
-            print("✍️  Amending last commit author...")
+            print("✍️  修正最后一次提交的作者信息...")
             subprocess.run(["git", "commit", "--amend", "--reset-author", "--no-edit"], check=False, env=get_git_env())
         except Exception as e:
-            print(f"⚠️ Could not auto-fix privacy: {e}")
+            print(f"⚠️ 无法自动修复隐私信息: {e}")
+
 
     # 2. Push Loop
-    print(f"🚀 Pushing {branch} to {remote}...")
+    print(f"🚀 正在推送到 {remote} 的 {branch} 分支...")
+
     cmd = ["git", "push", "-u", remote, branch]
     if force:
         cmd.insert(2, "--force")
@@ -70,29 +73,31 @@ def smart_push(remote="origin", branch="main", privacy_mode=False, force=False):
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=get_git_env())
         
         if proc.returncode == 0:
-            print("✅ Push Successful!")
+            print("✅ 推送成功！")
             print(proc.stdout)
             return True
         else:
             err = proc.stderr
-            print("❌ Push Failed.")
+            print("❌ 推送失败。")
             print(err)
             
             # Auto-Diagnosis
             if "GH007" in err or "privacy" in err.lower():
-                print("\n🚨 [DIAGNOSIS]: GitHub Blocked Private Email.")
-                print("👉 Recommendation: Rerun with --privacy-fix")
+                print("\n🚨 [诊断]: GitHub 拒绝了私有邮箱推送。")
+                print("👉 建议: 请尝试添加 --privacy-fix 参数重试。")
             elif "408" in err or "RPC failed" in err:
-                print("\n🚨 [DIAGNOSIS]: Network Timeout.")
-                print("👉 Optimization applied. Retry might work.")
+                print("\n🚨 [诊断]: 网络超时。")
+                print("👉 已应用网络优化，重试可能成效。")
             elif "fast-forward" in err or "rejected" in err:
-                print("\n🚨 [DIAGNOSIS]: Remote is ahead.")
-                print("👉 Run: git pull --rebase")
+                print("\n🚨 [诊断]: 远程分支领先于本地。")
+                print("👉 请运行: git pull --rebase")
             return False
 
+
     except Exception as e:
-        print(f"🔥 Critical Error: {e}")
+        print(f"🔥 严重错误: {e}")
         return False
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Smart Push Wrapper")
