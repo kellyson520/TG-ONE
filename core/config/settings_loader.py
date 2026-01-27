@@ -24,7 +24,7 @@ def load_ai_models(type="list"):
     返回值:
         根据type参数返回不同格式的模型配置
     """
-    global _AI_MODELS_CACHE
+
 
     try:
         models_path = os.path.join(

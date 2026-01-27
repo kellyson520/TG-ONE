@@ -272,7 +272,8 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                     media_filenames.append(m.get("filename", "未知"))
                 else:
                     media_filenames.append(getattr(m, "filename", "未知"))
-                logger.info(f"当前条目数量({len(current_entries)})将超过限制({max_items})，需要删除 {to_delete_count} 个最早的条目")
+                to_delete_count = len(current_entries) - (max_items - 1)
+
             # 确保媒体文件存在
             for media in entry_data.get("media", []):
                 if isinstance(media, dict):
