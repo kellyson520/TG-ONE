@@ -103,9 +103,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    if args.action is None and len(sys.argv) == 1:
-        # Default behavior if no args
-        smart_push()
-    else:
-        # Actually parse args if provided
-        smart_push(args.remote, args.branch, args.privacy_fix, args.force)
+    # If no arguments are provided, use defaults.
+    # Args will always be populated with defaults by argparse.
+    smart_push(args.remote, args.branch, args.privacy_fix, args.force)
