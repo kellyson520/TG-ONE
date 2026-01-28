@@ -1,8 +1,20 @@
 # Change Log
 
-## 📅 2026-01-27 更新摘要
-
 ## 📅 2026-01-28 更新摘要
+
+### 🚀 v1.2.2.6: Code Quality Governance & Lint Standardization
+- **Flake8 配置标准化**:
+    - **配置文件**: 新增 `.flake8` 配置文件，统一项目代码质量检查标准。
+    - **排除规则**: 配置排除 `tests/temp/` 和 `.agent/temp/` 临时目录，避免临时文件污染 lint 检查结果。
+    - **检查规则**: 严格选择关键错误类型 (E9, F63, F7, F82, F401, F811)，聚焦语法错误、未定义名称和未使用导入。
+- **Lint 错误全面清理**:
+    - **自动修复**: 使用 `fix_lint.py` 自动清理 7 个文件中的未使用导入 (F401)，包括 `handlers/button/session_management.py`、`handlers/button/settings_manager.py`、`services/rule/logic.py` 等。
+    - **手动修复**: 修复 `handlers/commands/rule_commands.py` 中的 `Keyword` 类未定义错误 (F821)，在文件顶部添加正确的导入语句。
+    - **质量验证**: 通过本地 CI 代码质量检查，实现零 lint 错误状态。
+- **工程规范强化**:
+    - **Local CI 集成**: 确保所有代码提交前必须通过 flake8 检查，防止代码质量退化。
+    - **临时文件管理**: 建立临时文件隔离机制，测试输出文件统一存放至 `tests/temp/` 目录。
+    - **持续改进**: 为后续代码质量自动化治理奠定基础设施。
 
 ### 🚀 v1.2.2.5: Engineering System Upgrade & Local CI Integration
 - **Local CI System**:
