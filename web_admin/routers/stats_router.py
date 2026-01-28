@@ -292,7 +292,7 @@ async def api_stats_series(
             stmt = (
                 select(
                     RuleStatistics.date,
-                    func.sum(RuleStatistics.forwarded_count).label('count')
+                    func.sum(RuleStatistics.success_count).label('count')
                 )
                 .where(RuleStatistics.date >= cutoff_date)
                 .group_by(RuleStatistics.date)

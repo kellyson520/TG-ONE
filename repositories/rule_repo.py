@@ -204,14 +204,19 @@ class RuleRepository:
 
     async def get_rule_by_source_target(self, source_chat_id: int, target_chat_id: int) -> Optional[RuleDTO]:
         async with self.db.session() as session:
-            stmt = select(ForwardRule).filter_by(source_chat_id=source_chat_id, target_chat_id=target_chat_id)
+            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat_id, target_chat_id=target_chat_id)
             obj = (await session.execute(stmt)).scalar_one_or_none()
             return RuleDTO.model_validate(obj) if obj else None
 
     async def create_rule(self, **kwargs) -> RuleDTO:
         """创建规则并返回 DTO"""
+        from enum import Enum
+        processed_kwargs = {}
+        for k, v in kwargs.items():
+            processed_kwargs[k] = v.value if isinstance(v, Enum) else v
+            
         async with self.db.session() as session:
-            rule = ForwardRule(**kwargs)
+            rule = ForwardRule(**processed_kwargs)
             session.add(rule)
             await session.commit()
             await session.refresh(rule)
@@ -235,7 +240,7 @@ class RuleRepository:
     async def save_rule(self, rule: ForwardRule) -> RuleDTO:
         """保存规则 ORM 并返回 DTO"""
         async with self.db.session() as session:
-            session.add(rule)
+            rule = await session.merge(rule)
             await session.commit()
             await session.refresh(rule)
             # 重新加载以确保 DTO 验证通过

@@ -4,7 +4,16 @@ Tests keyword matching and forward mode logic.
 """
 import pytest
 from unittest.mock import MagicMock
-from core.helpers.common import check_keyword_match, process_whitelist_mode, process_blacklist_mode
+from services.rule.filter import RuleFilterService
+
+async def check_keyword_match(keyword, text):
+    return await RuleFilterService.check_keywords_fast([keyword], text)
+
+async def process_whitelist_mode(rule, message_text, reverse_blacklist):
+    return await RuleFilterService.process_whitelist_mode(rule, message_text, reverse_blacklist)
+
+async def process_blacklist_mode(rule, message_text, reverse_whitelist):
+    return await RuleFilterService.process_blacklist_mode(rule, message_text, reverse_whitelist)
 
 class TestFilteringLogic:
     

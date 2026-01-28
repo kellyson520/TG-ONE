@@ -6,6 +6,7 @@ class ForwardMode(enum.Enum):
     BLACKLIST = 'blacklist'
     BLACKLIST_THEN_WHITELIST = 'blacklist_then_whitelist'
     WHITELIST_THEN_BLACKLIST = 'whitelist_then_blacklist'
+    CUSTOM = 'custom'
 
 
 class PreviewMode(enum.Enum):

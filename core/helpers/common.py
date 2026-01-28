@@ -189,4 +189,9 @@ async def get_main_module():
         def bot_client(self): return container.bot_client
         @property
         def user_client(self): return container.user_client
-    return MainModuleWrapper()
+
+def get_session():
+    """Delegate to core.db_factory"""
+    mod = __import__('core.db_factory', fromlist=['get_session'])
+    return mod.get_session()
+

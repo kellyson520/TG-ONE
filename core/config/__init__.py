@@ -324,7 +324,14 @@ class Settings(BaseSettings):
         extra="ignore",
         frozen=False,  # 允许在运行时修改配置
         title="应用配置",
-        description="TelegramForwarder 应用配置"
+        description="TelegramForwarder 应用配置",
+        json_schema_extra={
+            "example": {
+                "APP_ENV": "development",
+                "DEBUG": True,
+                "LOG_LEVEL": "INFO"
+            }
+        }
     )
 
     from pydantic import field_validator

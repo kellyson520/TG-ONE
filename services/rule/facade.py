@@ -109,4 +109,10 @@ class RuleManagementService:
     async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
         return await self.logic.clear_replace_rules(rule_id)
 
+    async def export_rule_config(self, rule_id: int, format: str = "json") -> Dict[str, Any]:
+        return await self.logic.export_rule_config(rule_id, format)
+
+    async def import_rule_config(self, rule_id: int, content: str, format: str = "json") -> Dict[str, Any]:
+        return await self.logic.import_rule_config(rule_id, content, format)
+
 rule_management_service = RuleManagementService()

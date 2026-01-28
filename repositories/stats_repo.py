@@ -124,8 +124,8 @@ class StatsRepository:
         
         # 确定要更新的字段
         if status == "success":
-            update_values = {RuleStatistics.forwarded_count: RuleStatistics.forwarded_count + 1}
-            insert_values = {"forwarded_count": 1}
+            update_values = {RuleStatistics.success_count: RuleStatistics.success_count + 1}
+            insert_values = {"success_count": 1}
         elif status == "error":
             update_values = {RuleStatistics.error_count: RuleStatistics.error_count + 1}
             insert_values = {"error_count": 1}
@@ -133,13 +133,13 @@ class StatsRepository:
             update_values = {RuleStatistics.filtered_count: RuleStatistics.filtered_count + 1}
             insert_values = {"filtered_count": 1}
         else:
-            update_values = {RuleStatistics.processed_count: RuleStatistics.processed_count + 1}
-            insert_values = {"processed_count": 1}
+            update_values = {RuleStatistics.total_triggered: RuleStatistics.total_triggered + 1}
+            insert_values = {"total_triggered": 1}
 
         # 始终递增处理总数
-        update_values[RuleStatistics.processed_count] = RuleStatistics.processed_count + 1
-        if "processed_count" not in insert_values:
-            insert_values["processed_count"] = 1
+        update_values[RuleStatistics.total_triggered] = RuleStatistics.total_triggered + 1
+        if "total_triggered" not in insert_values:
+            insert_values["total_triggered"] = 1
 
         async with self.db.session() as session:
             stmt = (
@@ -242,8 +242,8 @@ class StatsRepository:
             stmt = (
                 select(
                     RuleStatistics.rule_id,
-                    func.sum(RuleStatistics.processed_count).label('processed'),
-                    func.sum(RuleStatistics.forwarded_count).label('forwarded'),
+                    func.sum(RuleStatistics.total_triggered).label('processed'),
+                    func.sum(RuleStatistics.success_count).label('forwarded'),
                     func.sum(RuleStatistics.error_count).label('error')
                 )
                 .where(RuleStatistics.rule_id.in_(rule_ids))

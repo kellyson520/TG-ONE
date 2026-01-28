@@ -585,7 +585,7 @@ class ConnectionPoolManager:
     def get_pool_status(self) -> Dict[str, Any]:
         """获取连接池状态"""
         try:
-            from models.models import get_engine
+            from core.db_factory import get_engine
 
             engine = get_engine()
             pool = engine.pool
@@ -665,33 +665,33 @@ async def batch_insert(
     table_name: str, data: List[Dict[str, Any]], priority: int = 0
 ) -> str:
     """批量插入数据"""
-    return await batch_repo.submit_operation("insert", table_name, data, priority)
+    return await batch_processor.submit_operation("insert", table_name, data, priority)
 
 
 async def batch_update(
     table_name: str, data: List[Dict[str, Any]], priority: int = 0
 ) -> str:
     """批量更新数据"""
-    return await batch_repo.submit_operation("update", table_name, data, priority)
+    return await batch_processor.submit_operation("update", table_name, data, priority)
 
 
 async def batch_delete(
     table_name: str, data: List[Dict[str, Any]], priority: int = 0
 ) -> str:
     """批量删除数据"""
-    return await batch_repo.submit_operation("delete", table_name, data, priority)
+    return await batch_processor.submit_operation("delete", table_name, data, priority)
 
 
 async def wait_for_operation(
     operation_id: str, timeout: float = 30.0
 ) -> Optional[BatchResult]:
     """等待操作完成"""
-    return await batch_repo.get_result(operation_id, timeout)
+    return await batch_processor.get_result(operation_id, timeout)
 
 
 def get_batch_processor_stats() -> Dict[str, Any]:
     """获取批量处理器统计"""
-    return batch_repo.get_stats()
+    return batch_processor.get_stats()
 
 
 def get_connection_pool_status() -> Dict[str, Any]:
@@ -701,13 +701,13 @@ def get_connection_pool_status() -> Dict[str, Any]:
 
 async def start_batch_processing():
     """启动批量处理服务"""
-    await batch_repo.start()
+    await batch_processor.start()
     logger.info("Batch processing services started")
 
 
 async def stop_batch_processing():
     """停止批量处理服务"""
-    await batch_repo.stop()
+    await batch_processor.stop()
     query_executor.shutdown()
     logger.info("Batch processing services stopped")
 

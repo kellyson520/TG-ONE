@@ -14,7 +14,7 @@ class TestRuleQueryService:
         mock_pc = MagicMock()
         mock_pc.get.return_value = None
         mock_pc.set.return_value = None  # 添加 set 方法的 mock
-        monkeypatch.setattr("services.rule_service.get_persistent_cache", lambda: mock_pc)
+        monkeypatch.setattr("repositories.rule_repo.get_persistent_cache", lambda: mock_pc)
 
     async def test_get_rules_for_source_chat_basic(self, db):
         # 1. 准备数据

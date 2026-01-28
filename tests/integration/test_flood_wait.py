@@ -9,7 +9,8 @@ import time
 from unittest.mock import AsyncMock, patch
 from services.queue_service import (
     forward_messages_queued, 
-    _flood_wait_until
+    _flood_wait_until,
+    FloodWaitException
 )
 
 # 模拟 Telethon 的 FloodWaitError
@@ -39,19 +40,23 @@ def cleanup_flood_wait_state():
 async def test_flood_wait_attribute_parsing(mock_client):
     """测试标准 Telethon 异常属性解析"""
     # 模拟第一次调用抛出 FloodWait (10s)
-    mock_client.forward_messages.side_effect = MockFloodWaitError(10)
+    from telethon.errors import FloodWaitError
+    e = FloodWaitError.__new__(FloodWaitError)
+    e.seconds = 10
+    mock_client.forward_messages.side_effect = e
     
     target_chat_id = 12345
     target_key = str(target_chat_id)
     
     # 预期函数会捕获异常，记录状态，并重新抛出异常
-    with pytest.raises(Exception) as exc:
+    with pytest.raises(FloodWaitException) as exc:
         await forward_messages_queued(
             client=mock_client,
             source_chat_id=111,
             target_chat_id=target_chat_id,
             messages=[1]
         )
+    assert exc.value.seconds == 10
     
     # 验证状态是否已更新
     assert target_key in _flood_wait_until
@@ -68,13 +73,14 @@ async def test_flood_wait_string_parsing(mock_client):
     target_chat_id = 67890
     target_key = str(target_chat_id)
     
-    with pytest.raises(MockFloodWaitStringException):
+    with pytest.raises(FloodWaitException) as exc:
         await forward_messages_queued(
             client=mock_client,
             source_chat_id=111,
             target_chat_id=target_chat_id,
             messages=[1]
         )
+    assert exc.value.seconds == 42
         
     # 验证是否成功解析出 42 秒
     assert target_key in _flood_wait_until
@@ -131,33 +137,28 @@ async def test_backoff_retry_success(mock_client):
     assert mock_client.forward_messages.call_count == 3
 
 @pytest.mark.asyncio
-async def test_batch_forward_fallback(mock_client):
+async def test_batch_forward_fallback(mock_client, monkeypatch):
     """测试批量转发失败后的回退机制"""
     # 启用批量 API
-    def mock_getenv(key, default=None):
-        if key == "FORWARD_ENABLE_BATCH_API":
-            return "true"
-        if key == "FORWARD_MAX_BATCH_SIZE":
-            return "50"
-        return default or "0"
-
-    with patch('os.getenv', side_effect=mock_getenv):
-        # 模拟 api_optimizer.forward_messages_batch 失败
-        with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
-            mock_batch.side_effect = Exception("Batch failed")
-            
-            # 单条转发成功
-            mock_client.forward_messages.return_value = "success"
-            
-            await forward_messages_queued(
-                client=mock_client,
-                source_chat_id=111,
-                target_chat_id=2000,
-                messages=[1, 2, 3], # 多条消息触发批量
-                handle_flood_wait_sleep=False
-            )
-            
-            # 验证批量被调用
-            assert mock_batch.called
-            # 验证回退到单条调用 (3次)
-            assert mock_client.forward_messages.call_count == 3
+    monkeypatch.setenv("FORWARD_ENABLE_BATCH_API", "true")
+    monkeypatch.setenv("FORWARD_MAX_BATCH_SIZE", "50")
+    # 模拟 api_optimizer.forward_messages_batch 失败
+    with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
+        mock_handler = AsyncMock(side_effect=Exception("Batch failed"))
+        mock_batch.side_effect = mock_handler
+        
+        # 单条转发成功
+        mock_client.forward_messages.return_value = "success"
+        
+        await forward_messages_queued(
+            client=mock_client,
+            source_chat_id=111,
+            target_chat_id=2000,
+            messages=[1, 2, 3], # 多条消息触发批量
+            handle_flood_wait_sleep=False
+        )
+        
+        # 验证批量被调用
+        assert mock_batch.called
+        # 验证回退到单条调用 (3次)
+        assert mock_client.forward_messages.call_count == 3

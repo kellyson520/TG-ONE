@@ -234,3 +234,8 @@ def load_media_extensions():
         "wma",
         "webm",
     ]
+
+def load_settings():
+    """Dummy load_settings for backward compatibility"""
+    from core.config import settings
+    return settings

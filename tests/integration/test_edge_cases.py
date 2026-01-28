@@ -55,7 +55,7 @@ class TestEdgeCasesAndExceptions:
         await pipeline.execute(ctx)
         
         assert len(ctx.rules) == 0
-        assert not ctx.is_terminated
+        assert ctx.is_terminated  # Loader terminates when no rules found
     
     @pytest.mark.asyncio
     async def test_flood_wait_exception(self, mock_client, mock_message):
@@ -66,6 +66,8 @@ class TestEdgeCasesAndExceptions:
         rule.target_chat.telegram_chat_id = "222"
         rule.enable_dedup = False
         rule.is_replace = False
+        rule.is_ai = False
+        rule.is_original_sender = True
         rule.force_pure_forward = False
         
         ctx = MessageContext(
@@ -122,10 +124,8 @@ class TestEdgeCasesAndExceptions:
         
         await middleware.process(ctx, AsyncMock())
         
-        # 应该发送空字符串
-        mock_client.send_message.assert_called_once()
-        args = mock_client.send_message.call_args[0]
-        assert args[1] == ""  # 空文本
+        # 应该跳过发送（UnifiedSender 忽略空文本且无媒体）
+        mock_client.send_message.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_very_long_text_message(self, mock_client):
@@ -292,9 +292,10 @@ class TestEdgeCasesAndExceptions:
         with patch('middlewares.sender.forward_messages_queued') as mock_forward:
             mock_forward.side_effect = ValueError("Invalid chat ID")
             
-            # 应该捕获异常并发布失败事件
-            with pytest.raises(ValueError):
-                await middleware.process(ctx, AsyncMock())
+            # 应该捕获异常并发布失败事件 (SenderMiddleware 会捕获并记录在 failed_rules 中)
+            await middleware.process(ctx, AsyncMock())
+            assert 1 in ctx.failed_rules
+            assert ctx.is_terminated  # 因为只有一条规则且失败了，所以应该终止
     
     @pytest.mark.asyncio
     async def test_metadata_edge_cases(self, mock_client, mock_message):

@@ -1,0 +1,87 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\lihuo\Desktop\重构\TG ONE
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 4 items
+
+tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_for_source_chat_basic 
+------------------------------- live log setup --------------------------------
+2026-01-28 16:48:16 [    INFO] Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)
+2026-01-28 16:48:16 [    INFO] cryptg module not installed and libssl not found, falling back to (slower) Python encryption
+2026-01-28 16:48:17 [    INFO] Bloom Filter (L0) 初始化成功
+2026-01-28 16:48:17 [    INFO] HLL (HyperLogLog) 初始化成功
+2026-01-28 16:48:17 [    INFO] SimHash 引擎与 LSH Forest 索引系统初始化成功
+2026-01-28 16:48:17 [    INFO] Bloom Filter Service initialized using consolidated utils implementation
+2026-01-28 16:48:17 [    INFO] 使用转发记录目录: E:\重构\TG ONE\zhuanfaji
+2026-01-28 16:48:17 [    INFO] ForwardRecorder 初始化完成，模式: summary
+2026-01-28 16:48:17 [    INFO] [Database] 初始化数据库连接，模式=共享引擎
+2026-01-28 16:48:17 [    INFO] [Database] 使用共享引擎: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true
+2026-01-28 16:48:17 [    INFO] [Database] 会话工厂已初始化
+2026-01-28 16:48:17 [    INFO] Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true
+2026-01-28 16:48:17 [    INFO] EventBus initialized
+2026-01-28 16:48:17 [    INFO] \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58\nERROR                                                                    [ 25%]
+tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_with_mapping SKIPPED [ 50%]
+tests/unit/services/test_rule_service.py::TestRuleQueryService::test_cache_logic 
+------------------------------- live log setup --------------------------------
+2026-01-28 16:48:17 [    INFO] \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58\nERROR                                                                    [ 75%]
+tests/unit/services/test_rule_service.py::TestRuleQueryService::test_id_variant_matching 
+------------------------------- live log setup --------------------------------
+2026-01-28 16:48:17 [    INFO] \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58\nERROR                                                                    [100%]
+
+=================================== ERRORS ====================================
+_ ERROR at setup of TestRuleQueryService.test_get_rules_for_source_chat_basic _
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:92: in annotated_getattr
+    obj = getattr(obj, name)
+          ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'services.rule_service' has no attribute 'get_persistent_cache'
+
+The above exception was the direct cause of the following exception:
+tests\unit\services\test_rule_service.py:17: in setup_mocks
+    monkeypatch.setattr("services.rule_service.get_persistent_cache", lambda: mock_pc)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:106: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:94: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at services.rule_service has no attribute 'get_persistent_cache'
+----------------------------- Captured log setup ------------------------------
+INFO     telethon.crypto.libssl:libssl.py:79 Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)\nINFO     telethon.crypto.aes:aes.py:25 cryptg module not installed and libssl not found, falling back to (slower) Python encryption\nINFO     services.dedup.engine:engine.py:147 Bloom Filter (L0) \u521d\u59cb\u5316\u6210\u529f\nINFO     services.dedup.engine:engine.py:156 HLL (HyperLogLog) \u521d\u59cb\u5316\u6210\u529f\nINFO     services.dedup.engine:engine.py:173 SimHash \u5f15\u64ce\u4e0e LSH Forest \u7d22\u5f15\u7cfb\u7edf\u521d\u59cb\u5316\u6210\u529f\nINFO     services.bloom_filter:bloom_filter.py:24 Bloom Filter Service initialized using consolidated utils implementation\nINFO     core.helpers.forward_recorder:logging.py:444 \u4f7f\u7528\u8f6c\u53d1\u8bb0\u5f55\u76ee\u5f55: E:\\\u91cd\u6784\\TG ONE\\zhuanfaji\nINFO     core.helpers.forward_recorder:logging.py:444 ForwardRecorder \u521d\u59cb\u5316\u5b8c\u6210\uff0c\u6a21\u5f0f: summary\nINFO     core.database:database.py:9 [Database] \u521d\u59cb\u5316\u6570\u636e\u5e93\u8fde\u63a5\uff0c\u6a21\u5f0f=\u5171\u4eab\u5f15\u64ce\nINFO     core.database:database.py:14 [Database] \u4f7f\u7528\u5171\u4eab\u5f15\u64ce: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true\nINFO     core.database:database.py:40 [Database] \u4f1a\u8bdd\u5de5\u5382\u5df2\u521d\u59cb\u5316\nINFO     core.container:container.py:28 Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true\nINFO     core.container:container.py:35 EventBus initialized\nINFO     services.rule.query:query.py:42 \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58
+___________ ERROR at setup of TestRuleQueryService.test_cache_logic ___________
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:92: in annotated_getattr
+    obj = getattr(obj, name)
+          ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'services.rule_service' has no attribute 'get_persistent_cache'
+
+The above exception was the direct cause of the following exception:
+tests\unit\services\test_rule_service.py:17: in setup_mocks
+    monkeypatch.setattr("services.rule_service.get_persistent_cache", lambda: mock_pc)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:106: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:94: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at services.rule_service has no attribute 'get_persistent_cache'
+----------------------------- Captured log setup ------------------------------
+INFO     services.rule.query:query.py:42 \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58
+_______ ERROR at setup of TestRuleQueryService.test_id_variant_matching _______
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:92: in annotated_getattr
+    obj = getattr(obj, name)
+          ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'services.rule_service' has no attribute 'get_persistent_cache'
+
+The above exception was the direct cause of the following exception:
+tests\unit\services\test_rule_service.py:17: in setup_mocks
+    monkeypatch.setattr("services.rule_service.get_persistent_cache", lambda: mock_pc)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:106: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+E:\python\python313\Lib\site-packages\_pytest\monkeypatch.py:94: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at services.rule_service has no attribute 'get_persistent_cache'
+----------------------------- Captured log setup ------------------------------
+INFO     services.rule.query:query.py:42 \U0001f504 [\u89c4\u5219\u670d\u52a1] \u5931\u6548\u6240\u6709\u7f13\u5b58
+=========================== short test summary info ===========================
+ERROR tests/unit/services/test_rule_service.py::TestRuleQueryService::test_get_rules_for_source_chat_basic
+ERROR tests/unit/services/test_rule_service.py::TestRuleQueryService::test_cache_logic
+ERROR tests/unit/services/test_rule_service.py::TestRuleQueryService::test_id_variant_matching
+======================== 1 skipped, 3 errors in 0.55s =========================

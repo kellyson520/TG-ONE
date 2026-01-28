@@ -34,6 +34,12 @@ def check_imports(file_path, root_dir):
     # Determine which component this file belongs to
     # 确定文件所属的组件
     rel_path = os.path.relpath(file_path, root_dir).replace("\\", "/")
+    
+    # Special exception: models/models.py is a backward compatibility proxy
+    # It uses lazy imports to avoid circular dependencies
+    if rel_path == "models/models.py":
+        return []
+    
     component = None
     
     # 优先检查严格子目录 (Rule keys 必须使用正斜杠)

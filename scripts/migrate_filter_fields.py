@@ -10,7 +10,8 @@ from sqlalchemy import text, inspect
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.models import get_session, get_engine, ForwardRule
+from models.models import get_session, ForwardRule
+from core.db_factory import get_engine
 from filters.config_manager import get_filter_config_manager
 
 # 配置日志

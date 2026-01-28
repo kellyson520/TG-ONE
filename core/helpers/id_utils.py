@@ -217,6 +217,70 @@ def find_chat_by_telegram_id_variants(session: Any, raw_id: Union[int, str]) -> 
         return None
 
 
+async def get_or_create_chat_async(client: Any, chat_input: str) -> Tuple[str, str, Any]:
+    """
+    解析聊天输入并确保在数据库中存在
+    
+    Args:
+        client: Telethon 客户端
+        chat_input: 聊天 ID、用户名或链接
+        
+    Returns:
+        (display_name, telegram_chat_id, chat_model_instance)
+    """
+    from core.container import container
+    from models.models import Chat
+    from sqlalchemy import select
+    import telethon.utils as telethon_utils
+
+    # 1. 尝试解析实体
+    entity, numeric_id = await resolve_entity_by_id_variants(client, chat_input)
+    if not entity:
+        return str(chat_input), str(chat_input), None
+
+    display_name = telethon_utils.get_display_name(entity)
+    telegram_chat_id = str(numeric_id) if numeric_id is not None else str(chat_input)
+
+    # 2. 数据库查重或创建
+    async with container.db.session() as session:
+        # 使用标准化 ID 查找
+        norm_id = normalize_chat_id(telegram_chat_id)
+        candidates = build_candidate_telegram_ids(telegram_chat_id)
+        
+        stmt = select(Chat).where(Chat.telegram_chat_id.in_(candidates))
+        result = await session.execute(stmt)
+        chat = result.scalars().first()
+        
+        if not chat:
+            # 获取聊天类型
+            from telethon.tl.types import Channel, Chat as TGChat, User
+            chat_type = "unknown"
+            if isinstance(entity, Channel):
+                chat_type = "channel" if entity.broadcast else "supergroup"
+            elif isinstance(entity, TGChat):
+                chat_type = "group"
+            elif isinstance(entity, User):
+                chat_type = "private"
+                
+            chat = Chat(
+                telegram_chat_id=norm_id,
+                name=display_name,
+                type=chat_type,
+                title=display_name
+            )
+            session.add(chat)
+            await session.commit()
+            await session.refresh(chat)
+        else:
+            # 更新名称
+            if chat.name != display_name:
+                chat.name = display_name
+                await session.commit()
+                await session.refresh(chat)
+        
+        return display_name, telegram_chat_id, chat
+
+
 # [Added for Scheme 7 Compatibility]
 from telethon import utils as telethon_utils
 

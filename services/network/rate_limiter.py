@@ -158,6 +158,17 @@ class RateLimiterPool:
             cls._limiters[name] = LeakyBucket(config)
         return cls._limiters[name]
 
+    @classmethod
+    def get_all_stats(cls) -> Dict[str, Dict[str, Any]]:
+        """获取所有限流器的统计信息"""
+        return {name: limiter.get_stats() for name, limiter in cls._limiters.items()}
+
+    @classmethod
+    def reset_all_stats(cls):
+        """重置所有限流器的统计信息"""
+        for limiter in cls._limiters.values():
+            limiter.reset_stats()
+
 # Backward Compatibility (Wait, previous utils version was TokenBucket)
 TokenBucket = LeakyBucket
 RateLimiterManager = RateLimiterPool

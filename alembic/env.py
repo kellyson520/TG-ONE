@@ -4,7 +4,6 @@ import sys
 import os
 
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
@@ -17,10 +16,8 @@ from core.config import settings
 
 # 导入所有模型以注册 Metadata
 from models.base import Base
-import models.chat
-import models.rule
-import models.user
-import  # If exists
+import .
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -70,7 +67,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
+def do_run_migrations(connection) -> None:
     context.configure(
         connection=connection, 
         target_metadata=target_metadata,

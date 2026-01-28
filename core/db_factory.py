@@ -120,11 +120,22 @@ def get_session_factory():
 def get_session():
     return get_session_factory()()
 
+def get_read_session():
+    return get_session()
+
+def get_dedup_session():
+    return get_session()
+
 def get_async_session_factory(readonly: bool = False):
     return DbFactory.get_async_session_factory(readonly)
 
+def get_async_session(readonly: bool = False):
+    return get_async_session_factory(readonly)()
+
+
 @asynccontextmanager
 async def AsyncSessionManager(readonly: bool = False):
+    """Async session manager context manager"""
     factory = get_async_session_factory(readonly=readonly)
     async with factory() as session:
         try:
@@ -137,6 +148,115 @@ async def AsyncSessionManager(readonly: bool = False):
             raise
         finally:
             await session.close()
+
+from contextlib import contextmanager
+
+@contextmanager
+def SessionManager(readonly: bool = False):
+    """Synchronous session manager context manager for legacy support"""
+    session = get_session()
+    try:
+        yield session
+        if not readonly:
+            session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+async def async_get_db_health():
+    """Get database health status (asynchronous)"""
+    try:
+        async_engine = DbFactory.get_async_engine()
+        async with async_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"connected": True, "status": "healthy"}
+    except Exception as e:
+        return {"connected": False, "status": "error", "error": str(e)}
+
+def get_db_health():
+    """Get database health status (synchronous)"""
+    try:
+        engine = DbFactory.get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"connected": True, "status": "healthy"}
+    except Exception as e:
+        return {"connected": False, "status": "error", "error": str(e)}
+
+def analyze_database():
+    """Run ANALYZE on the database"""
+    try:
+        engine = DbFactory.get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("ANALYZE"))
+            conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"ANALYZE failed: {e}")
+        return False
+
+async def async_analyze_database():
+    """Run ANALYZE on the database (async)"""
+    try:
+        engine = DbFactory.get_async_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("ANALYZE"))
+        return True
+    except Exception as e:
+        logger.error(f"Async ANALYZE failed: {e}")
+        return False
+
+def vacuum_database():
+    """Run VACUUM on the database"""
+    try:
+        engine = DbFactory.get_engine()
+        # VACUUM cannot be run inside a transaction
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("VACUUM"))
+        return True
+    except Exception as e:
+        logger.error(f"VACUUM failed: {e}")
+        return False
+
+async def async_vacuum_database():
+    """Run VACUUM on the database (async)"""
+    try:
+        engine = DbFactory.get_async_engine()
+        async with engine.connect() as conn:
+            # For async, we try executing it directly. 
+            # Note: some drivers/configurations might still struggle with VACUUM.
+            await conn.execute(text("VACUUM"))
+        return True
+    except Exception as e:
+        logger.error(f"Async VACUUM failed: {e}")
+        return False
+
+async def async_cleanup_old_logs(days: int):
+    """Cleanup old logs (dummy for now, but referenced by manage_db.py)"""
+    return 0
+
+async def async_get_database_info():
+    """Get database file info"""
+    try:
+        db_path = Path(settings.DB_PATH)
+        if not db_path.suffix == '.db':
+             db_path = db_path / "forwarder.db"
+        
+        db_size = db_path.stat().st_size if db_path.exists() else 0
+        wal_path = db_path.with_suffix('.db-wal')
+        wal_size = wal_path.stat().st_size if wal_path.exists() else 0
+        
+        return {
+            "db_size": db_size,
+            "wal_size": wal_size,
+            "total_size": db_size + wal_size,
+            "table_count": 0, # Could be improved
+            "index_count": 0
+        }
+    except Exception:
+        return None
 
 from sqlalchemy.engine import Engine
 @event.listens_for(Engine, "connect")

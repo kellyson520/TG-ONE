@@ -1,6 +1,5 @@
 import pytest
-import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from httpx import AsyncClient
 import secrets
 from werkzeug.security import generate_password_hash as get_password_hash
@@ -34,7 +33,7 @@ async def auth_headers(client: AsyncClient):
     csrf_token = page_resp.cookies.get("csrf_token")
     headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
     
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": username,
         "password": password
     }, cookies=page_resp.cookies, headers=headers)
@@ -54,9 +53,7 @@ async def test_get_system_resources(client: AsyncClient, auth_headers):
     mock_psutil.disk_usage.return_value.used = 1024 * 1024 * 1024 * 50 # 50GB
     mock_psutil.disk_usage.return_value.total = 1024 * 1024 * 1024 * 100 # 100GB
     
-    with pytest.MonkeyPatch().context() as m:
-        m.setitem(sys.modules, 'psutil', mock_psutil)
-        
+    with patch("web_admin.routers.stats_router.psutil", mock_psutil):
         resp = await client.get("/api/stats/system_resources", cookies=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
@@ -89,7 +86,7 @@ async def test_get_stats_series(client: AsyncClient, auth_headers):
 @pytest.mark.asyncio
 async def test_get_stats_fragment(client: AsyncClient, auth_headers):
     # 此接口返回 HTML
-    resp = await client.get("/api/stats_fragment", cookies=auth_headers)
+    resp = await client.get("/api/system/stats_fragment", cookies=auth_headers)
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     

@@ -298,7 +298,7 @@ def archive_once() -> None:
             logger.info(f"查询到 {len(rstats)} 条 RuleStatistics 记录待归档")
             
             if rstats:
-                rows = _to_rows(rstats, ['rule_id','date','processed_count','forwarded_count','filtered_count','error_count','avg_processing_time','created_at'])
+                rows = _to_rows(rstats, ['rule_id','date','total_triggered','success_count','filtered_count','error_count','created_at'])
                 logger.debug(f"转换为行数据完成，共 {len(rows)} 行")
                 
                 result = write_parquet('rule_statistics', rows, datetime.utcnow())
@@ -323,7 +323,7 @@ def archive_once() -> None:
         # 先尝试截断 WAL 再 VACUUM 收缩
         try:
             from sqlalchemy import text
-            from models.models import get_engine
+            from core.db_factory import get_engine
             with get_engine().connect() as conn:
                 try:
                     logger.debug("尝试 TRUNCATE WAL checkpoint")
@@ -615,7 +615,7 @@ def archive_force() -> None:
                     break
                 logger.debug(f"查询到 {len(rstats)} 条 RuleStatistics 记录，ID 范围: {rstats[0].id} - {rstats[-1].id}")
                 
-                rows = _to_rows(rstats, ['rule_id','date','processed_count','forwarded_count','filtered_count','error_count','avg_processing_time','created_at'])
+                rows = _to_rows(rstats, ['rule_id','date','total_triggered','success_count','filtered_count','error_count','created_at'])
                 logger.debug(f"转换为行数据完成，共 {len(rows)} 行")
                 
                 result = write_parquet('rule_statistics', rows, datetime.utcnow())
@@ -644,7 +644,7 @@ def archive_force() -> None:
         # 先尝试检查点并截断 WAL，随后 VACUUM 收缩主库
         try:
             from sqlalchemy import text
-            from models.models import get_engine
+            from core.db_factory import get_engine
             with get_engine().connect() as conn:
                 try:
                     logger.debug("尝试 TRUNCATE WAL checkpoint")

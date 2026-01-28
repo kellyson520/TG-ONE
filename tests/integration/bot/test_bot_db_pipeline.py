@@ -1,3 +1,4 @@
+from unittest.mock import MagicMock
 import pytest
 from unittest.mock import AsyncMock, patch
 from telethon import events
@@ -23,6 +24,15 @@ class TestBotToDBPipeline:
         
         # Mock Event
         event = AsyncMock(spec=events.NewMessage)
+        
+        # Setup reply to return a mock message that is JSON serializable
+        mock_reply_msg = MagicMock()
+        mock_reply_msg.id = 456
+        mock_reply_msg.chat_id = -100111222333
+        event.reply = AsyncMock(return_value=mock_reply_msg)
+        
+        event.delete = AsyncMock() # Manually add delete
+        
         mock_msg = MagicMock()
         mock_msg.text = "/add test_keyword"
         mock_msg.id = 123
@@ -48,23 +58,17 @@ class TestBotToDBPipeline:
         
         
         # Manually create a rule in DB as setup
-        from models.models import Chat
+        from models.models import Chat, ForwardRule
         
         async with container.db.session() as session:
             # Create Source/Target chats
-            src_chat = Chat(telegram_chat_id="-100987654321", name="Test Group", chat_type="channel")
+            src_chat = Chat(telegram_chat_id="-100987654321", name="Test Group", type="channel")
             # Target chat must have current_add_id set to Source ID to establish context
-            tgt_chat = Chat(telegram_chat_id="-100111222333", name="Target Group", chat_type="channel", current_add_id="-100987654321")
+            tgt_chat = Chat(telegram_chat_id="-100111222333", name="Target Group", type="channel", current_add_id="-100987654321")
             
             session.add(src_chat)
             session.add(tgt_chat)
             await session.commit()
-            
-            # Refresh to get IDs
-            # (In async session, refresh might be needed if we need IDs immediately, 
-            # but here we can just query or rely on flush)
-            # Actually, let's just create the rule with the objects directly if flush happened, or query ids.
-            # But safer to use variables after flush.
             
             # Create Rule (Active)
             rule = ForwardRule(
@@ -77,13 +81,10 @@ class TestBotToDBPipeline:
 
         # Now execute /add command
         try:
-            # handle_add_command(event, command, parts)
             await handle_add_command(event, "add", ["/add", "test_keyword"])
         except Exception as e:
             pytest.fail(f"Handler raised exception: {e}")
             
-        # 3. Verify Database State
-        # Check if Keyword was added to the Rule
         # 3. Verify Database State
         # Check if Keyword was added to the Rule
         async with container.db.session() as session:

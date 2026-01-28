@@ -1,4 +1,4 @@
-from models.base import Base, get_engine, get_session_factory
+from models.base import Base
 from models.chat import Chat
 from models.rule import (
     ForwardRule, ForwardMapping, Keyword, ReplaceRule, 
@@ -11,7 +11,7 @@ from models.system import SystemConfiguration, ErrorLog, TaskQueue, RSSSubscript
 from models.dedup import MediaSignature
 
 __all__ = [
-    'Base', 'get_engine', 'get_session_factory',
+    'Base',
     'Chat',
     'ForwardRule', 'ForwardMapping', 'Keyword', 'ReplaceRule', 
     'MediaTypes', 'MediaExtensions', 'RuleSync', 'PushConfig', 

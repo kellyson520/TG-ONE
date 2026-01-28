@@ -4,6 +4,7 @@ Handles complex logic like Copying Rules, Keywords Management, and Imports/Expor
 """
 from typing import Dict, Any, List, Optional
 import logging
+import json
 from datetime import datetime
 
 from core.helpers.error_handler import handle_errors
@@ -69,7 +70,7 @@ class RuleLogicService:
         return {'success': True, 'message': 'Rule copied successfully'}
 
     @handle_errors(default_return={'success': False, 'error': 'Chat binding failed'})
-    async def bind_chat(self, client, source_input: str, target_input: str) -> Dict[str, Any]:
+    async def bind_chat(self, client, source_input: str, target_input: Optional[str] = None, current_chat_id: Optional[int] = None) -> Dict[str, Any]:
         """一键绑定两个聊天"""
         from core.helpers.id_utils import get_or_create_chat_async
         
@@ -93,7 +94,7 @@ class RuleLogicService:
                 target_chat_id=target_chat_obj.id,
                 enable_rule=True,
                 forward_mode=ForwardMode.BLACKLIST,
-                created_at=datetime.utcnow().isoformat()
+                created_at=datetime.utcnow()
             )
             is_new = True
             rule_id = "New" 
@@ -283,3 +284,55 @@ class RuleLogicService:
         self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'deleted': initial_count}
+
+    @handle_errors(default_return={'success': False, 'error': 'Export failed'})
+    async def export_rule_config(self, rule_id: int, format: str = "json") -> Dict[str, Any]:
+        """导出规则配置"""
+        pass
+        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        if not rule_dto:
+            return {'success': False, 'error': 'Rule not found'}
+            
+        # Transform to export dict
+        export_data = {
+            "rule": {
+                "forward_mode": rule_dto.forward_mode.value if hasattr(rule_dto.forward_mode, 'value') else rule_dto.forward_mode,
+                "use_bot": rule_dto.use_bot,
+                "message_mode": rule_dto.message_mode.value if hasattr(rule_dto.message_mode, 'value') else rule_dto.message_mode,
+                "is_replace": rule_dto.is_replace,
+                "keywords": [{"k": kw.keyword, "rx": kw.is_regex, "bl": kw.is_blacklist} for kw in rule_dto.keywords],
+                "replace_rules": [{"p": rr.pattern, "c": rr.content, "rx": False} for rr in rule_dto.replace_rules]
+            }
+        }
+        
+        if format.lower() == "yaml":
+            if not yaml: return {'success': False, 'error': 'PyYAML not installed'}
+            content = yaml.dump(export_data, allow_unicode=True)
+        else:
+            content = json.dumps(export_data, ensure_ascii=False, indent=2)
+            
+        return {'success': True, 'content': content}
+
+    @handle_errors(default_return={'success': False, 'error': 'Import failed'})
+    async def import_rule_config(self, rule_id: int, content: str, format: str = "json") -> Dict[str, Any]:
+        """导入规则配置"""
+        if format.lower() == "yaml":
+            if not yaml: return {'success': False, 'error': 'PyYAML not installed'}
+            data = yaml.safe_load(content)
+        else:
+            import json
+            data = json.loads(content)
+            
+        rule_data = data.get("rule", {})
+        
+        # 批量应用
+        if "keywords" in rule_data:
+            for kw in rule_data["keywords"]:
+                await self.add_keywords(rule_id, [kw["k"]], is_regex=kw["rx"], is_blacklist=kw["bl"])
+                
+        if "replace_rules" in rule_data:
+            patterns = [rr["p"] for rr in rule_data["replace_rules"]]
+            replacements = [rr["c"] for rr in rule_data["replace_rules"]]
+            await self.add_replace_rules(rule_id, patterns, replacements)
+            
+        return {'success': True, 'message': 'Import successful'}

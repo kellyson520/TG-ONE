@@ -51,7 +51,11 @@ class AuthenticationService:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        to_encode.update({"exp": expire, "type": "access"})
+        to_encode.update({
+            "exp": expire, 
+            "type": "access",
+            "jti": secrets.token_hex(8) # Add nonce for uniqueness
+        })
         return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -61,7 +65,11 @@ class AuthenticationService:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        to_encode.update({"exp": expire, "type": "refresh"})
+        to_encode.update({
+            "exp": expire, 
+            "type": "refresh",
+            "jti": secrets.token_hex(16) # Add stronger nonce for refresh tokens
+        })
         return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     def create_pre_auth_token(self, user_id: int) -> str:

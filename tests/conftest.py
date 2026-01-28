@@ -15,6 +15,7 @@ if _project_root not in sys.path:
 # ============================================================
 # PHASE 0: 预导入关键包 & Patch 核心基础设施
 # ============================================================
+def _patch_database_engine_early():
     """迫使数据库引擎在任何业务代码导入前被 Patch"""
     try:
         import models.models
@@ -58,6 +59,7 @@ if _project_root not in sys.path:
 _engine_patched_early = _patch_database_engine_early()
 
 try:
+    import web_admin  # noqa: F401
 except ImportError as e:
     print(f"WARNING: Failed to pre-import web_admin: {e}")
 
@@ -124,19 +126,32 @@ try:
     config_mock.Settings = real_config.Settings
 except Exception:
     pass
-sys.modules["core.config"] = config_mock
+# sys.modules["core.config"] = config_mock  <-- This was breaking core.config.settings_loader imports
+import core.config
+# Instead of replacing settings, we update the existing object to avoid reference issues
+for key, value in mock_settings.__dict__.items():
+    if not key.startswith('_') and key.isupper():
+        try:
+            setattr(core.config.settings, key, value)
+        except Exception:
+            pass
+# Ensure SECRET_KEY and other critical ones are definitely set
+core.config.settings.SECRET_KEY = "test_jwt_secret"
+core.config.settings.ALGORITHM = "HS256"
+core.config.settings.DATABASE_URL = "sqlite+aiosqlite:///file:testdb_early?mode=memory&cache=shared&uri=true"
 
-# Mock 暂时不需要测试且存在导入错误的业务模块
-for module in [
-    "services.download_service", 
-    "services.worker_service", 
-    "scheduler.summary_scheduler",
-    "scheduler.optimized_chat_updater",
-    "core.helpers.media.media",
-    "core.helpers.tombstone"
-]:
-    if module not in sys.modules:
-        sys.modules[module] = MagicMock()
+
+# # Mock 暂时不需要测试且存在导入错误的业务模块
+# for module in [
+#     "services.download_service", 
+#     "services.worker_service", 
+#     "scheduler.summary_scheduler",
+#     "scheduler.optimized_chat_updater",
+#     "core.helpers.media.media",
+#     "core.helpers.tombstone"
+# ]:
+#     if module not in sys.modules:
+#         sys.modules[module] = MagicMock()
 
 # ============================================================
 # PHASE 3: 设置环境变量和基础导入
@@ -180,12 +195,8 @@ def get_app():
     """延迟获取 FastAPI app 实例"""
     global _app
     if _app is None:
-        try:
-            from web_admin.fastapi_app import app
-            _app = app
-        except Exception as e:
-            logging.warning(f"获取 app 失败: {e}")
-            _app = MagicMock()
+        from web_admin.fastapi_app import app
+        _app = app
     return _app
 
 
@@ -193,12 +204,8 @@ def get_base():
     """延迟获取 SQLAlchemy Base"""
     global _Base
     if _Base is None:
-        try:
-            from models.models import Base
-            _Base = Base
-        except Exception as e:
-            logging.warning(f"获取 Base 失败: {e}")
-            _Base = MagicMock()
+        from models.models import Base
+        _Base = Base
     return _Base
 
 

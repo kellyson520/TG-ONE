@@ -34,7 +34,7 @@ async def admin_auth_headers(client: AsyncClient):
     
     # 3. 登录
     login_headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", data={
         "username": username,
         "password": password
     }, cookies=page_resp.cookies, headers=login_headers)
@@ -81,8 +81,6 @@ async def test_get_audit_logs(client: AsyncClient, admin_auth_headers, seed_audi
     
     # 1. 无参数查询 (默认分页)
     resp = await client.get("/api/system/audit/logs", cookies=cookies)
-    if resp.status_code != 200:
-        raise Exception(f"API Error {resp.status_code}: {resp.text}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True

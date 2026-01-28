@@ -39,7 +39,7 @@ class TaskRepository:
                 unique_key=unique_key, # 存入唯一键
                 grouped_id=str(grouped_id) if grouped_id else None, # 存入 grouped_id
                 priority=priority,
-                retry_count=0,
+                attempts=0,
                 scheduled_at=scheduled_at  # 直接使用datetime对象，不再转换为字符串
             )
             session.add(task)
@@ -76,7 +76,7 @@ class TaskRepository:
                 "unique_key": unique_key,
                 "grouped_id": str(grouped_id) if grouped_id else None,
                 "priority": priority,
-                "retry_count": 0,
+                "attempts": 0,
                 "status": "pending",
                 "created_at": now,
                 "updated_at": now
@@ -176,7 +176,7 @@ class TaskRepository:
                 await session.execute(
                     update(TaskQueue).where(TaskQueue.id == task_id).values(
                         status='failed', 
-                        error_log=str(error),
+                        error_message=str(error),
                         updated_at=now
                     )
                 )
@@ -200,17 +200,17 @@ class TaskRepository:
             
             if task:
                 now = datetime.utcnow()
-                task.error_log = str(error)
-                if task.retry_count < max_retries:
+                task.error_message = str(error)
+                if task.attempts < max_attempts:
                     if validate_transition(task.status, 'pending'):
-                        task.retry_count += 1
+                        task.attempts += 1
                         task.status = 'pending' # 重新放回队列
                         task.priority += 1      # 稍微提高优先级以便重试
-                        # 实现指数退避算法：2^(retry_count) 秒
-                        backoff_seconds = 2 ** task.retry_count
+                        # 实现指数退避算法：2^(attempts) 秒
+                        backoff_seconds = 2 ** task.attempts
                         task.next_retry_at = now + timedelta(seconds=backoff_seconds)
                         task.updated_at = now
-                        logger.info(f"任务重试: {task_id}, 重试次数: {task.retry_count}, 下次重试时间: {task.next_retry_at}")
+                        logger.info(f"任务重试: {task_id}, 重试次数: {task.attempts}, 下次重试时间: {task.next_retry_at}")
                 else:
                     if validate_transition(task.status, 'failed'):
                         task.status = 'failed'  # 彻底失败
@@ -231,8 +231,8 @@ class TaskRepository:
                 TaskQueue.updated_at < cutoff_time
             ).values(
                 status='pending',
-                retry_count=TaskQueue.retry_count + 1, # 增加重试计数
-                error_log=TaskQueue.error_log + ' [System] Task rescued from zombie state',
+                attempts=TaskQueue.attempts + 1, # 增加重试计数
+                error_message=TaskQueue.error_message + ' [System] Task rescued from zombie state',
                 updated_at=now
             )
             

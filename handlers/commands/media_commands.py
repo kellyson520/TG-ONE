@@ -1,4 +1,4 @@
-from core.logging import get_logger
+﻿from core.logging import get_logger
 from core.helpers.auto_delete import reply_and_delete
 from services.rule_service import RuleQueryService
 
@@ -177,3 +177,33 @@ async def handle_set_size_command(event, parts):
             await session.rollback()
             logger.error(f"设置文件大小范围失败: {str(e)}")
             await reply_and_delete(event, "❌ 设置文件大小范围失败，请检查日志")
+
+
+async def handle_download_command(event, client, parts):
+    """处理 download 命令 - 手动触发下载"""
+    if not event.is_reply:
+        await reply_and_delete(event, "请回复一条包含媒体的消息。")
+        return
+
+    reply_msg = await event.get_reply_message()
+    if not reply_msg.media:
+        await reply_and_delete(event, "这条消息没有媒体文件。")
+        return
+
+    # 构造 Payload
+    payload = {
+        "chat_id": event.chat_id,
+        "message_id": reply_msg.id,
+        "manual_trigger": True,
+    }
+
+    # 写入任务队列，优先级 100 (插队)
+    from core.container import container
+
+    await container.task_repo.push(
+        task_type="download_file",  # 注意这里用了专门的 download 类型
+        payload=payload,
+        priority=100,
+    )
+
+    await reply_and_delete(event, "✅ 已加入下载队列，即将开始...")

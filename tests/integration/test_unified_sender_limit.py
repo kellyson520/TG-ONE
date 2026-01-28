@@ -9,7 +9,7 @@ import time
 import asyncio
 from unittest.mock import MagicMock, AsyncMock
 from core.helpers.unified_sender import UnifiedSender
-from services.queue_service import _flood_wait_until
+from services.queue_service import _flood_wait_until, FloodWaitException
 
 class MockFloodWaitError(Exception):
     def __init__(self, seconds):
@@ -40,8 +40,8 @@ async def test_unified_sender_text_flood_wait(mock_client):
     target_id = 991
     start_time = time.time()
     
-    # 第一次调用应抛出异常
-    with pytest.raises(MockFloodWaitError):
+    # 第一次调用应抛出异常 (被 TelegramQueueService 转换为 FloodWaitException)
+    with pytest.raises(FloodWaitException):
         await sender.send(target_id, text="Hello Limit")
     
     # 验证状态已记录
@@ -75,7 +75,7 @@ async def test_unified_sender_media_flood_wait(mock_client):
     
     target_id = 992
     
-    with pytest.raises(MockFloodWaitError):
+    with pytest.raises(FloodWaitException):
         await sender.send(target_id, media=mock_media, text="Caption")
         
     assert str(target_id) in _flood_wait_until

@@ -116,6 +116,8 @@ class TestArchiveStore:
         if IS_DUCKDB_MOCKED:
             pass
         else:
+            rows = create_dummy_rows(120)  # Total > 50*2
+            table_name = "chunk_table"
             with patch.dict(os.environ, {"ARCHIVE_WRITE_CHUNK_SIZE": "50"}):
                 out_dir = archive_store.write_parquet(table_name, rows)
                 parquet_files = glob.glob(os.path.join(out_dir, "*.parquet"))

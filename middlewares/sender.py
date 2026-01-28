@@ -150,6 +150,11 @@ class SenderMiddleware(Middleware):
                         "ctx_task_id": getattr(ctx, 'task_id', None)
                     }, wait=True)
                     
+                    # Re-raise FloodWaitException so the queue task can retry
+                    from services.queue_service import FloodWaitException
+                    if isinstance(e, FloodWaitException):
+                        raise e
+                        
                     if not hasattr(ctx, 'failed_rules'):
                         ctx.failed_rules = []
                     ctx.failed_rules.append(rule.id)

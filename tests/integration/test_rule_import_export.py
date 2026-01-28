@@ -14,8 +14,8 @@ async def test_rule_export_import(container):
     # 1. Setup Data: Chats (Manual DB)
     async with container.db.session() as session:
         # Create Source/Target Chats
-        source = Chat(telegram_chat_id="1001", name="Source Chat", chat_type="channel")
-        target = Chat(telegram_chat_id="2002", name="Target Chat", chat_type="channel")
+        source = Chat(telegram_chat_id="1001", name="Source Chat", type="channel")
+        target = Chat(telegram_chat_id="2002", name="Target Chat", type="channel")
         # Check if they exist (idempotent for re-runs if any)
         # But for tests, DB is fresh.
         session.add_all([source, target])

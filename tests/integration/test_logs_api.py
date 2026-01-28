@@ -4,8 +4,6 @@ import secrets
 from werkzeug.security import generate_password_hash as get_password_hash
 from core.container import container
 from models.models import User
-from unittest.mock import MagicMock
-import os
 
 @pytest.fixture
 async def logs_auth_headers(client: AsyncClient):
@@ -29,7 +27,7 @@ async def logs_auth_headers(client: AsyncClient):
     csrf_token = page_resp.cookies.get("csrf_token")
     headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
     
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": username,
         "password": password
     }, cookies=page_resp.cookies, headers=headers)
@@ -41,66 +39,37 @@ def setup_log_files(tmp_path):
     """
     配置 Mock 的 env_config_manager 并创建临时日志文件
     """
-    # 1. 强制设置环境变量
-    os.environ["LOG_DIR"] = str(tmp_path)
+    # 保证 settings.LOG_DIR 指向 tmp_path
+    from core.config import settings
+    original_log_dir = settings.LOG_DIR
+    settings.LOG_DIR = str(tmp_path)
     
-    # 2. Mock env_config_manager
+    # 也尝试 Mock env_config_manager 防止它被重新加载
     from core.helpers.env_config import env_config_manager
     
     def get_config_side_effect(key, default=None):
         if key == "LOG_DIR":
             return str(tmp_path)
-        return default
+        return getattr(settings, key, default)
         
     if hasattr(env_config_manager, "get_config"):
         env_config_manager.get_config.side_effect = get_config_side_effect
-    if hasattr(env_config_manager, "get_value"): # covering both
-        env_config_manager.get_value.side_effect = get_config_side_effect
-
-    # 3. Mock settings (if used)
-    try:
-        from core.config import settings
-        if isinstance(settings, MagicMock):
-            settings.LOG_DIR = str(tmp_path)
-    except ImportError:
-        pass
     
-    # 4. 创建测试日志文件和目录
-    logs_dir = tmp_path / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    
-    log1 = logs_dir / "app.log"
+    # 创建测试日志文件
+    log1 = tmp_path / "app.log"
     log1.write_text("2026-01-01 12:00:00 INFO Test log entry 1\nLine 2\nLine 3", encoding="utf-8")
     
-    log2 = logs_dir / "error.log"
+    log2 = tmp_path / "error.log"
     log2.write_text("Error message here", encoding="utf-8")
-    
-    # 也在根目录创建一份，防止应用读取的是 '.'
-    (tmp_path / "app.log").write_text("2026-01-01 12:00:00 INFO Test log entry 1\nLine 2\nLine 3", encoding="utf-8")
-    (tmp_path / "error.log").write_text("Error message here", encoding="utf-8")
-    
-    # 切换 CWD 到 tmp_path
-    original_cwd = os.getcwd()
-    os.chdir(tmp_path)
-
-    # 如果应用使用 "logs" 目录
-    # 我们将 Mock 返回 "logs"
-    def get_config_side_effect_v2(key, default=None):
-        if key == "LOG_DIR":
-            return "logs" #Relative to CWD (tmp_path)
-        return default
-
-    if hasattr(env_config_manager, "get_config"):
-        env_config_manager.get_config.side_effect = get_config_side_effect_v2
     
     yield tmp_path
     
-    # 恢复 CWD
-    os.chdir(original_cwd)
+    # 恢复 settings
+    settings.LOG_DIR = original_log_dir
 
 @pytest.mark.asyncio
 async def test_list_log_files(client: AsyncClient, logs_auth_headers, setup_log_files):
-    resp = await client.get("/api/logs/files", cookies=logs_auth_headers)
+    resp = await client.get("/api/system/logs/list", cookies=logs_auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data['success'] is True
@@ -112,18 +81,18 @@ async def test_list_log_files(client: AsyncClient, logs_auth_headers, setup_log_
 
 @pytest.mark.asyncio
 async def test_tail_log(client: AsyncClient, logs_auth_headers, setup_log_files):
-    # Tail app.log
-    resp = await client.get("/api/logs/tail?file=app.log&lines=10", cookies=logs_auth_headers)
+    # View app.log (was called tail)
+    resp = await client.get("/api/system/logs/view?filename=app.log", cookies=logs_auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data['success'] is True
-    # data['data'] is a list of lines
-    assert len(data['data']) > 0
-    # assert any("Test log entry 1" in line for line in data['data'])
+    # data['data']['content'] is the content string
+    content = data['data']['content']
+    assert "Test log entry 1" in content
 
 @pytest.mark.asyncio
 async def test_download_log(client: AsyncClient, logs_auth_headers, setup_log_files):
-    resp = await client.get("/api/logs/download?file=error.log", cookies=logs_auth_headers)
+    resp = await client.get("/api/system/logs/download?filename=error.log", cookies=logs_auth_headers)
     assert resp.status_code == 200
     # 应该是文件流
     assert "Error message here" in resp.text

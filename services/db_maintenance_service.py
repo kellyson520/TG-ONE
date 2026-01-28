@@ -232,5 +232,77 @@ class DBMaintenanceService:
             await self.cleaner.full_cleanup(session)
         logger.info("DB maintenance complete.")
 
+    async def optimize_database(self) -> Dict[str, Any]:
+        """优化数据库性能 (ANALYZE + VACUUM)"""
+        try:
+            from models.models import analyze_database, vacuum_database
+            await asyncio.to_thread(analyze_database)
+            await asyncio.to_thread(vacuum_database)
+            return {"success": True, "message": "数据库已优化 (ANALYZE & VACUUM 完成)"}
+        except Exception as e:
+            logger.error(f"数据库优化失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_database_info(self) -> Dict[str, Any]:
+        """获取数据库统计信息"""
+        try:
+            from core.config import settings
+            db_path = Path(settings.DB_PATH.replace("sqlite+aiosqlite:///", ""))
+            info = self.manager.check_file_permissions(db_path)
+            
+            # 简单的统计
+            from core.container import container
+            from sqlalchemy import func
+            from models.models import ErrorLog, RuleLog, Chat, ForwardRule
+            
+            tables = {}
+            async with container.db.session() as session:
+                for model in [Chat, ForwardRule, ErrorLog, RuleLog]:
+                    stmt = select(func.count()).select_from(model)
+                    count = (await session.execute(stmt)).scalar() or 0
+                    tables[model.__tablename__] = count
+            
+            return {
+                "success": True,
+                "size_mb": info["size"] / (1024 * 1024),
+                "total_rows": sum(tables.values()),
+                "tables": tables
+            }
+        except Exception as e:
+            logger.error(f"获取组件信息失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def backup_database(self) -> Dict[str, Any]:
+        """执行数据库备份"""
+        try:
+            from core.config import settings
+            db_path = Path(settings.DB_PATH.replace("sqlite+aiosqlite:///", ""))
+            backup_path = await asyncio.to_thread(self.manager.backup_database, db_path)
+            if backup_path:
+                return {
+                    "success": True, 
+                    "path": str(backup_path),
+                    "size_mb": backup_path.stat().st_size / (1024 * 1024)
+                }
+            return {"success": False, "error": "备份失败"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def check_integrity(self) -> Dict[str, Any]:
+        """检查数据库完整性"""
+        try:
+            from core.container import container
+            from sqlalchemy import text
+            async with container.db.session() as session:
+                result = await session.execute(text("PRAGMA integrity_check"))
+                status = result.scalar()
+            return {
+                "success": True,
+                "integrity_check": status,
+                "fragmentation": 0 # Placeholder if not easy to get
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
 # 全局服务实例
 db_maintenance_service = DBMaintenanceService()

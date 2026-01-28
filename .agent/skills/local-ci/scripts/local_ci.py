@@ -46,11 +46,11 @@ def check_architecture(root_dir: str) -> bool:
         return False
     return True
 
-def check_code_quality(root_dir: str) -> bool:
+def check_flake8(root_dir: str) -> bool:
     print_step("代码质量 (语法、命名、导入)")
     
     # 核心检查目标
-    targets = ["src", "core", "services", "handlers", "utils", "web_admin", "models", "listeners"]
+    targets = ["src", "core", "services", "handlers", "utils", "web_admin", "models", "listeners", "tests"]
     existing_targets = [d for d in targets if os.path.exists(os.path.join(root_dir, d))]
     
     if not existing_targets:
@@ -130,21 +130,32 @@ def check_code_quality(root_dir: str) -> bool:
     print("✅ 代码质量检查通过。")
     return True
 
-def run_targeted_test(root_dir: str, test_targets: List[str]) -> bool:
-    print_step(f"目标测试: {', '.join(test_targets)}")
+def run_tests(root_dir: str, test_targets: List[str]) -> bool:
+    """运行测试。若提供目标则针对性运行，否则全量并发运行 (-n 3)。"""
     
-    if len(test_targets) > 3:
-        print(f"⚠️ 超出限制: 您请求了 {len(test_targets)} 个测试文件。")
-        print("为防止系统卡顿，请一次最多运行 3 个测试文件。")
-        return False
-        
-    for target in test_targets:
-        if not os.path.exists(os.path.join(root_dir, target)):
-            print(f"❌ 未找到测试文件: {target}")
-            return False
+    cmd = [sys.executable, "-m", "pytest"]
+    
+    if test_targets:
+        print_step(f"针对性测试: {', '.join(test_targets)}")
+        for target in test_targets:
+            if not os.path.exists(os.path.join(root_dir, target)):
+                print(f"❌ 未找到测试文件: {target}")
+                return False
+        cmd.extend(test_targets)
+    else:
+        print_step("全量测试 (并发限制: 3)")
+        # Check for pytest-xdist
+        try:
+             # Basic check if xdist is installed
+             subprocess.run([sys.executable, "-m", "pytest", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+             pass
 
-    cmd = [sys.executable, "-m", "pytest"] + test_targets
-    
+        # Add xdist args to limit concurrency
+        cmd.extend(["-n", "3"])
+
+    # Run command
+    print(f"🔄 正在执行: {' '.join(cmd)}")
     code, out, err = run_command(cmd, cwd=root_dir)
     
     print(out)
@@ -153,14 +164,15 @@ def run_targeted_test(root_dir: str, test_targets: List[str]) -> bool:
         print(f"❌ 测试失败。")
         return False
         
-    print("✅ 目标测试通过。")
+    print("✅ 测试通过。")
     return True
 
 def main():
     parser = argparse.ArgumentParser(description="TG ONE 本地 CI 运行器")
-    parser.add_argument("--test", "-t", nargs='+', help="要运行的特定测试文件 (最多 3 个)", default=[])
+    # Change --test to accept multiple arguments
+    parser.add_argument("--test", "-t", nargs='+', help="指定测试文件运行。若省略，则运行全量测试 (并发限制 3)。", default=[])
     parser.add_argument("--skip-arch", action="store_true", help="跳过架构检查")
-    parser.add_argument("--skip-quality", action="store_true", help="跳过代码质量检查 (flake8)")
+    parser.add_argument("--skip-flake", action="store_true", help="跳过 flake8 检查")
     
     args = parser.parse_args()
     root_dir = os.getcwd()
@@ -172,20 +184,15 @@ def main():
         if not check_architecture(root_dir):
             passes = False
             
-    # 2. Code Quality (Strict)
-    if passes and not args.skip_quality:
-        if not check_code_quality(root_dir):
+    # 2. Flake8
+    if passes and not args.skip_flake:
+        if not check_flake8(root_dir):
             passes = False
             
-    # 3. Targeted Test
+    # 3. Tests
     if passes:
-        if args.test:
-            if not run_targeted_test(root_dir, args.test):
-                passes = False
-        else:
-            print("\n⚠️ 未提供特定测试目标 (--test)。跳过单元测试。")
-            print("💡 最佳实践: 请始终运行与您更改相关的测试文件 (最多 3 个)。")
-            print("❌ 禁止运行完整测试套件 (pytest .)，以防止系统卡顿。")
+        if not run_tests(root_dir, args.test):
+            passes = False
 
     if passes:
         print("\n✨✨ 本地 CI 通过 - 准备发布 ✨✨")

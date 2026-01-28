@@ -1,3 +1,0 @@
-web_admin\rss\api\endpoints\feed.py
-web_admin\rss\core\config.py
-web_admin\rss\models\entry.py

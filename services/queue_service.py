@@ -7,6 +7,15 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# 全局限流状态记录，供测试和监控使用
+_flood_wait_until = {}
+
+class FloodWaitException(Exception):
+    """Telegram FloodWait 异常的统一包装"""
+    def __init__(self, seconds):
+        self.seconds = seconds
+        super().__init__(f"Flood wait for {seconds} seconds required")
+
 class MessageQueueService:
     """
     Implements a Producer-Consumer pattern with Backpressure using asyncio.Queue.
@@ -145,7 +154,7 @@ class TelegramQueueService:
         self._pair_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_PER_PAIR", "1"))
         self._target_semaphores = {}
         self._pair_semaphores = {}
-        self._flood_wait_until = {}
+        self._flood_wait_until = _flood_wait_until
         self._global_next_at = 0.0
         self._target_next_at = {}
         self._pair_next_at = {}
@@ -179,9 +188,20 @@ class TelegramQueueService:
                 except Exception as e:
                     last_exc = e
                     from telethon.errors import FloodWaitError
+                    seconds = None
                     if isinstance(e, FloodWaitError):
-                        self._handle_flood_wait(target_key, pair_key, e.seconds)
-                        raise
+                        seconds = e.seconds
+                    else:
+                        # 尝试从字符串解析 (针对 Mock 或非标准异常)
+                        import re
+                        err_str = str(e)
+                        match = re.search(r"(?:FloodWait|Flood wait|A wait) (?:of|for) (\d+) seconds", err_str, re.IGNORECASE)
+                        if match:
+                            seconds = int(match.group(1))
+                    
+                    if seconds is not None:
+                        self._handle_flood_wait(target_key, pair_key, seconds)
+                        raise FloodWaitException(seconds)
                     continue
             if last_exc:
                 raise last_exc
@@ -209,4 +229,41 @@ async def send_message_queued(client, target_chat_id, message, **kwargs):
 async def send_file_queued(client, target_chat_id, file, **kwargs):
     return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendFile", lambda: client.send_file(target_chat_id, file, **kwargs))
 async def forward_messages_queued(client, source_chat_id, target_chat_id, messages, **kwargs):
+    import os
+    eb = os.getenv("FORWARD_ENABLE_BATCH_API", "false")
+    use_batch = eb.lower() == "true"
+    
+    # 获取消息 ID 列表供批量使用
+    if isinstance(messages, int):
+        ids = [messages]
+    elif hasattr(messages, 'id'):
+        ids = [messages.id]
+    elif isinstance(messages, list):
+        ids = [m.id if hasattr(m, 'id') else m for m in messages]
+    else:
+        ids = [messages]
+
+    if use_batch and len(ids) > 1:
+        from services.network.telegram_api_optimizer import api_optimizer
+        try:
+            return await telegram_queue_service.run_guarded_operation(
+                target_chat_id, source_chat_id, "ForwardBatch", 
+                lambda: api_optimizer.forward_messages_batch(client, source_chat_id, target_chat_id, ids, **kwargs)
+            )
+        except Exception as e:
+            logger.warning(f"Batch forward failed, falling back to individual calls: {e}")
+            # Fallback to individual
+            results = []
+            for msg_id in ids:
+                res = await telegram_queue_service.run_guarded_operation(
+                    target_chat_id, source_chat_id, "ForwardSingle", 
+                    lambda: client.forward_messages(target_chat_id, msg_id, from_peer=source_chat_id, **kwargs)
+                )
+                results.append(res)
+            return results
+
+    # 单条转发或不启用批量
     return await telegram_queue_service.run_guarded_operation(target_chat_id, source_chat_id, "Forward", lambda: client.forward_messages(target_chat_id, messages, from_peer=source_chat_id, **kwargs))
+
+async def get_messages_queued(client, chat_id, ids=None, **kwargs):
+    return await telegram_queue_service.run_guarded_operation(chat_id, None, "GetMsgs", lambda: client.get_messages(chat_id, ids=ids, **kwargs))

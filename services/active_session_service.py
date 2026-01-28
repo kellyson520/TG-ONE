@@ -45,10 +45,8 @@ class ActiveSessionService:
             
             data = []
             for s in sessions:
-                # Use stored device info or parse on the fly
-                info = s.device_info
-                if not info:
-                    info = self._parse_ua(s.user_agent)
+                # Parse device info from user agent
+                info = self._parse_ua(s.user_agent)
                     
                 data.append({
                     "id": s.id,

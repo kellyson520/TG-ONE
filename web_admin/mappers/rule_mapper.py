@@ -33,8 +33,8 @@ class RuleDTOMapper:
             "ai_prompt": rule.ai_prompt,
             "description": rule.description,
             "priority": rule.priority,
-            "created_at": rule.created_at.isoformat() if rule.created_at else None,
-            "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            "created_at": rule.created_at if rule.created_at else None,
+            "updated_at": rule.updated_at if rule.updated_at else None,
             "forwards": stats.get('forwarded', 0),  
             "processed": stats.get('processed', 0),
             "errors": stats.get('error', 0),
@@ -87,7 +87,7 @@ class RuleDTOMapper:
             'source_message_id': item.source_message_id,
             'action': item.action,
             'result': item.result,
-            'created_at': item.created_at.isoformat() if item.created_at else None,
+            'created_at': item.created_at if item.created_at else None,
             'source_chat': source_title,
             'target_chat': target_title
         }

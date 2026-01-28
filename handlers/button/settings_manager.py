@@ -641,3 +641,74 @@ async def create_buttons(rule, back_callback="settings"):
         )
 
     return buttons
+
+
+async def create_ai_settings_buttons(rule):
+    """创建 AI 设置按钮"""
+    buttons = []
+    
+    # Enable AI Switch
+    buttons.append([
+        Button.inline(
+            f"AI处理: {AI_SETTINGS['is_ai']['values'][rule.is_ai]}",
+            f"toggle_ai:{rule.id}"
+        )
+    ])
+
+    if rule.is_ai:
+        # Model Selection
+        current_model = rule.ai_model or "Default"
+        buttons.append([
+            Button.inline(
+                f"模型: {current_model}", 
+                f"change_model:{rule.id}"
+            )
+        ])
+        
+        # Prompt Settings
+        buttons.append([
+            Button.inline("设置提示词", f"set_ai_prompt:{rule.id}")
+        ])
+        
+        # AI Options
+        buttons.append([
+            Button.inline(
+                f"上传图片: {AI_SETTINGS['enable_ai_upload_image']['values'][rule.enable_ai_upload_image]}",
+                f"toggle_ai_upload_image:{rule.id}"
+            ),
+             Button.inline(
+                f"AI后过滤: {AI_SETTINGS['is_keyword_after_ai']['values'][rule.is_keyword_after_ai]}",
+                f"toggle_keyword_after_ai:{rule.id}"
+            )
+        ])
+        
+        # Summary Options
+        buttons.append([
+            Button.inline(
+                f"AI总结: {AI_SETTINGS['is_summary']['values'][rule.is_summary]}",
+                f"toggle_summary:{rule.id}"
+            )
+        ])
+        
+        if rule.is_summary:
+            buttons.append([
+                Button.inline(
+                    f"总结时间: {rule.summary_time or '00:00'}",
+                    f"set_summary_time:{rule.id}"
+                ),
+                 Button.inline("设置总结提示词", f"set_summary_prompt:{rule.id}")
+            ])
+            buttons.append([
+                Button.inline(
+                    f"顶置总结: {AI_SETTINGS['is_top_summary']['values'][rule.is_top_summary]}",
+                    f"toggle_top_summary:{rule.id}"
+                ),
+                Button.inline("立即总结", f"summary_now:{rule.id}")
+            ])
+
+    # Back button
+    buttons.append([
+        Button.inline("👈 返回", f"settings:{rule.id}")
+    ])
+    
+    return buttons

@@ -1,0 +1,530 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\lihuo\Desktop\重构\TG ONE
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... 
+----------------------------- live log collection -----------------------------
+2026-01-28 16:51:28 [    INFO] Bloom Filter (L0) 初始化成功
+2026-01-28 16:51:28 [    INFO] HLL (HyperLogLog) 初始化成功
+2026-01-28 16:51:28 [    INFO] SimHash 引擎与 LSH Forest 索引系统初始化成功
+2026-01-28 16:51:28 [    INFO] Bloom Filter Service initialized using consolidated utils implementation
+2026-01-28 16:51:28 [    INFO] 使用转发记录目录: E:\重构\TG ONE\zhuanfaji
+2026-01-28 16:51:28 [    INFO] ForwardRecorder 初始化完成，模式: summary
+2026-01-28 16:51:28 [    INFO] Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)
+2026-01-28 16:51:28 [    INFO] cryptg module not installed and libssl not found, falling back to (slower) Python encryption
+2026-01-28 16:51:29 [    INFO] [Database] 初始化数据库连接，模式=共享引擎
+2026-01-28 16:51:29 [    INFO] [Database] 使用共享引擎: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true
+2026-01-28 16:51:29 [    INFO] [Database] 会话工厂已初始化
+2026-01-28 16:51:29 [    INFO] Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_early?cache=shared&mode=memory&uri=true
+2026-01-28 16:51:29 [    INFO] EventBus initialized
+collected 6 items
+
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_get_rule_list PASSED [ 16%]
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_create_rule PASSED [ 33%]
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_bind_chat 
+-------------------------------- live log call --------------------------------
+2026-01-28 16:51:29 [   ERROR] [Database] 事务回滚: 3075590832720，错误=(sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-01-28 16:51:29 [   ERROR] [Database] 会话处理失败: 3075590832720，错误=(sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 180, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 340, in _handle_exception
+    raise error
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 162, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlite3.ProgrammingError: Error binding parameter 4: type 'ForwardMode' is not supported
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\lihuo\Desktop\重构\TG ONE\core\database.py", line 49, in session
+    yield session
+  File "C:\Users\lihuo\Desktop\重构\TG ONE\repositories\rule_repo.py", line 216, in create_rule
+    await session.commit()
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 1000, in commit
+    await greenlet_spawn(self.sync_session.commit)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 203, in greenlet_spawn
+    result = context.switch(value)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+        statement,
+        params,
+        execution_options=execution_options,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 180, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 340, in _handle_exception
+    raise error
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 162, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlalchemy.exc.ProgrammingError: (sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED                                                                   [ 50%]
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_add_delete_keywords PASSED [ 66%]
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_toggle_boolean_setting PASSED [ 83%]
+tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_copy_rule PASSED [100%]
+
+================================== FAILURES ===================================
+__________________ TestRuleManagementService.test_bind_chat ___________________
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:180: in execute
+    self._adapt_connection._handle_exception(error)
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:340: in _handle_exception
+    raise error
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:162: in execute
+    self.await_(_cursor.execute(operation, parameters))
+E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+E:\python\python313\Lib\site-packages\aiosqlite\cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\core.py:63: in _connection_worker_thread
+    result = function()
+             ^^^^^^^^^^
+E   sqlite3.ProgrammingError: Error binding parameter 4: type 'ForwardMode' is not supported
+
+The above exception was the direct cause of the following exception:
+tests\unit\services\test_rule_management_service.py:57: in test_bind_chat
+    result = await rule_management_service.bind_chat(mock_client, "Source", "Target")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\rule\facade.py:60: in bind_chat
+    return await self.logic.bind_chat(client, source_input, target_input, current_chat_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\rule\logic.py:91: in bind_chat
+    await self.container.rule_repo.create_rule(
+repositories\rule_repo.py:216: in create_rule
+    await session.commit()
+E:\python\python313\Lib\site-packages\sqlalchemy\ext\asyncio\session.py:1000: in commit
+    await greenlet_spawn(self.sync_session.commit)
+E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:203: in greenlet_spawn
+    result = context.switch(value)
+             ^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:2030: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:1311: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:1286: in _prepare_impl
+    self.session.flush()
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:4331: in flush
+    self._flush(objects)
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:4466: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py:4427: in _flush
+    flush_context.execute()
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py:93: in save_obj
+    _emit_insert_statements(
+E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py:1233: in _emit_insert_statements
+    result = connection.execute(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+E:\python\python313\Lib\site-packages\sqlalchemy\sql\elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:180: in execute
+    self._adapt_connection._handle_exception(error)
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:340: in _handle_exception
+    raise error
+E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py:162: in execute
+    self.await_(_cursor.execute(operation, parameters))
+E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+E:\python\python313\Lib\site-packages\aiosqlite\cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+E:\python\python313\Lib\site-packages\aiosqlite\core.py:63: in _connection_worker_thread
+    result = function()
+             ^^^^^^^^^^
+E   sqlalchemy.exc.ProgrammingError: (sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+E   [SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+E   [parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+E   (Background on this error at: https://sqlalche.me/e/20/f405)
+------------------------------ Captured log call ------------------------------
+ERROR    core.database:database.py:57 [Database] 事务回滚: 3075590832720，错误=(sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+ERROR    core.database:database.py:58 [Database] 会话处理失败: 3075590832720，错误=(sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 180, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 340, in _handle_exception
+    raise error
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 162, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlite3.ProgrammingError: Error binding parameter 4: type 'ForwardMode' is not supported
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\lihuo\Desktop\重构\TG ONE\core\database.py", line 49, in session
+    yield session
+  File "C:\Users\lihuo\Desktop\重构\TG ONE\repositories\rule_repo.py", line 216, in create_rule
+    await session.commit()
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 1000, in commit
+    await greenlet_spawn(self.sync_session.commit)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 203, in greenlet_spawn
+    result = context.switch(value)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+        statement,
+        params,
+        execution_options=execution_options,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 180, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 340, in _handle_exception
+    raise error
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 162, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "E:\python\python313\Lib\site-packages\aiosqlite\cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "E:\python\python313\Lib\site-packages\aiosqlite\core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlalchemy.exc.ProgrammingError: (sqlite3.ProgrammingError) Error binding parameter 4: type 'ForwardMode' is not supported
+[SQL: INSERT INTO forward_rules (source_chat_id, target_chat_id, enable_rule, forward_mode, handle_mode, message_mode, enable_dedup, is_ai, is_summary, is_delete_original, is_preview, is_original_sender, is_original_time, is_original_link, is_filter_user_info, use_bot, enable_comment_button, enable_delay, delay_seconds, force_pure_forward, enable_sync, enable_reverse_blacklist, enable_reverse_whitelist, ai_prompt, summary_prompt, ai_model, only_rss, is_replace, max_media_size, enable_media_size_filter, enable_media_type_filter, description, priority, is_ufb, ufb_domain, ufb_item, message_thread_id, required_sender_id, required_sender_regex, is_send_over_media_size_message, enable_extension_filter, extension_filter_mode, is_save_to_local, enable_duration_filter, min_duration, max_duration, enable_resolution_filter, min_width, max_width, min_height, max_height, enable_file_size_range, min_file_size, max_file_size, media_allow_text, enable_push, enable_only_push, allow_delete_source_on_dedup, enable_ai_upload_image, summary_time, is_keyword_after_ai, is_top_summary, userinfo_template, time_template, original_link_template, add_mode, unique_key, daily_limit, rate_limit, webhook_url, custom_config, created_at, updated_at, created_by, message_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: (1, 2, 1, <ForwardMode.BLACKLIST: 'blacklist'>, 'FORWARD', 'Markdown', 0, 0, 0, 0, 'follow', 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, None, None, None, 0, 0, 50, 0, 0, None, 0, 0, None, 'main', None, None, None, 1, 0, 'blacklist', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '08:00', 0, 1, '**{name}**', '{time}', '原始连接：{original_link}', 'blacklist', None, None, None, None, None, '2026-01-28T08:51:29.184065', '2026-01-28T08:51:29.185010', None, 0, None)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+=========================== short test summary info ===========================
+FAILED tests/unit/services/test_rule_management_service.py::TestRuleManagementService::test_bind_chat
+========================= 1 failed, 5 passed in 1.12s =========================

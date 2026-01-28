@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 # Basic Keywords, Replacements
@@ -8,8 +8,7 @@ class KeywordDTO(BaseModel):
     is_regex: bool = False
     is_blacklist: bool = True
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ReplaceRuleDTO(BaseModel):
     id: int
@@ -17,5 +16,4 @@ class ReplaceRuleDTO(BaseModel):
     content: Optional[str] = None
     is_regex: bool = False
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

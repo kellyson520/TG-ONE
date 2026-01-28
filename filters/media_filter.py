@@ -4,7 +4,7 @@ from core.helpers.media import get_media_size
 from core.constants import TEMP_DIR
 from filters.base_filter import BaseFilter
 from models.models import MediaTypes
-from models.models import AsyncSessionManager
+# AsyncSessionManager is deprecated, use container.db.session() instead
 from core.helpers.common import get_db_ops
 from enums.enums import AddMode
 from services.network.telegram_api_optimizer import api_optimizer
@@ -56,8 +56,12 @@ class MediaFilter(BaseFilter):
         context.skipped_media = []
         
         # 获取媒体类型设置
-        async with AsyncSessionManager() as session:
-            media_types = session.query(MediaTypes).filter_by(rule_id=rule.id).first()
+        from core.container import container
+        from sqlalchemy import select
+        async with container.db.session() as session:
+            stmt = select(MediaTypes).filter_by(rule_id=rule.id)
+            result = await session.execute(stmt)
+            media_types = result.scalar_one_or_none()
             
         total_media_count = 0
         blocked_media_count = 0
@@ -383,7 +387,8 @@ class MediaFilter(BaseFilter):
         db_ops = await get_db_ops()
         allowed = True
         try:
-            async with AsyncSessionManager() as session:
+            from core.container import container
+            async with container.db.session() as session:
                 # 使用db_operations中的函数获取扩展名列表
                 extensions = await db_ops.get_media_extensions(session, rule.id)
                 extension_list = [ext["extension"].lower() for ext in extensions]

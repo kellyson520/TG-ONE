@@ -33,7 +33,8 @@ from web_admin.routers.rules.rule_viz_router import router as rule_viz_router
 from web_admin.routers.user_router import router as user_router
 from web_admin.routers.system.log_router import router as log_router
 from web_admin.routers.system.maintain_router import router as maintain_router
-from web_admin.routers.system.stats_router import router as stats_router
+from web_admin.routers.system.stats_router import router as system_stats_router
+from web_admin.routers.stats_router import router as business_stats_router
 from web_admin.routers.websocket_router import router as websocket_router
 from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
@@ -97,7 +98,8 @@ app.include_router(rule_viz_router)
 app.include_router(user_router)
 app.include_router(log_router)
 app.include_router(maintain_router)
-app.include_router(stats_router)
+app.include_router(system_stats_router)
+app.include_router(business_stats_router)
 app.include_router(websocket_router)
 app.include_router(security_router)
 app.include_router(simulator_router)

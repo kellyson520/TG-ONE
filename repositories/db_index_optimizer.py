@@ -7,7 +7,7 @@ import os
 from sqlalchemy import inspect, text
 from typing import Any, Dict, List
 
-from models.models import get_engine
+from core.db_factory import get_engine
 from core.logging import get_logger
 
 logger = get_logger(__name__)

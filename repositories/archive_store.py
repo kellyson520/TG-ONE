@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import duckdb
 import logging
 import os
+
+logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional, Tuple
 
 # 规范为绝对路径，避免相对路径在不同工作目录下丢失写入
@@ -40,8 +42,6 @@ except Exception as e:
     _ROW_GROUP_SIZE_INT = 100000
 
 _QUERY_DEBUG = os.getenv("ARCHIVE_QUERY_DEBUG", "0") in {"1", "true", "TRUE"}
-
-logger = logging.getLogger(__name__)
 
 
 def _ensure_dir(path: str) -> None:
