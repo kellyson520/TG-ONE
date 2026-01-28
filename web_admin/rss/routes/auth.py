@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, status, Request, Response
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from models.models import get_session, get_read_session, User, RSSConfig
+from models.models import get_session, get_read_session, User
 from repositories.db_operations import DBOperations
 from core.cache.unified_cache import cached
 import jwt
@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 import pytz
 from core.constants import DEFAULT_TIMEZONE
 from typing import Optional
-from sqlalchemy.orm import joinedload
-import models.models as models
 import os
 import secrets
 from pathlib import Path

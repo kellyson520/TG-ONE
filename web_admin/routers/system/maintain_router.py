@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import re
 
-from fastapi import APIRouter, Request, Depends, Query
+from fastapi import APIRouter, Request, Depends
 from sqlalchemy import func, select
 
 from core.config import settings

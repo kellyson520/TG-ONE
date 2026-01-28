@@ -1,13 +1,11 @@
 import asyncio
-import logging
 import json
 import random
 import math
 from datetime import datetime, timedelta
 from core.pipeline import MessageContext
 from services.queue_service import FloodWaitException
-import structlog
-from core.exceptions import TransientError, PermanentError, BusinessLogicError
+from core.exceptions import TransientError, PermanentError
 from core.config import settings
 
 from core.logging import get_logger, short_id

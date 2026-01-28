@@ -1,5 +1,3 @@
-import os
-import time
 from typing import Tuple
 
 # 优雅降级：未安装 prometheus_client 时提供空实现，避免启动报错

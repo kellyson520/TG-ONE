@@ -1,12 +1,11 @@
 import pytest
-import asyncio
 import json
 try:
     import yaml
 except ImportError:
     yaml = None
 from services.rule_management_service import RuleManagementService
-from models.models import ForwardRule, Keyword, ReplaceRule, Chat
+from models.models import ForwardRule, Chat
 
 @pytest.mark.asyncio
 async def test_rule_export_import(container):

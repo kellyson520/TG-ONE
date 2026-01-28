@@ -9,7 +9,6 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +138,6 @@ def check_dependencies() -> bool:
     # 检查pandas（可选）
     try:
         logger.debug("检查 Pandas")
-        import pandas as pd
 
         dependencies.append(("Pandas", True, ""))
     except Exception as e:

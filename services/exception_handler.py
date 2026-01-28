@@ -16,7 +16,6 @@ import traceback
 import hashlib
 from datetime import datetime, timedelta
 from typing import Callable, Dict, Optional, Any, List
-from collections import defaultdict
 from functools import wraps
 
 logger = logging.getLogger(__name__)

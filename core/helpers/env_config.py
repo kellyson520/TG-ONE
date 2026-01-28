@@ -6,7 +6,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from core.config import settings
 # from services.config_service import config_service

@@ -3,9 +3,8 @@ import asyncio
 import os
 import sys
 import time
-import threading
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from core.config import settings
 
 logger = logging.getLogger(__name__)

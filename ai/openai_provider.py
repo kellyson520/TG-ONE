@@ -1,7 +1,4 @@
 from typing import Optional, List, Dict
-from openai import AsyncOpenAI
-from .base import BaseAIProvider
-import os
 import logging
 from .openai_base_provider import OpenAIBaseProvider
 

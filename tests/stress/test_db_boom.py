@@ -2,7 +2,6 @@
 import pytest
 import os
 import time
-import random
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text

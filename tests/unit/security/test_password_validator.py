@@ -1,4 +1,3 @@
-import pytest
 from web_admin.security.password_validator import PasswordValidator, PasswordStrength, get_password_strength
 
 class TestPasswordValidator:

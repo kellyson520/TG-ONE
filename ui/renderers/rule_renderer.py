@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from telethon.tl.custom import Button
 from .base_renderer import BaseRenderer
 

@@ -3,21 +3,21 @@ import ast
 import os
 import sys
 
-# Force UTF-8 output for Windows consoles to support emojis
+# Windows 控制台强制 UTF-8 输出以支持 emoji
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Define layering rules: Key component -> Forbidden imports
-# Format: "component_dir": ["forbidden_component_1", "forbidden_component_2"]
+# 定义分层规则：源组件 -> 禁止导入的组件
+# 格式: "组件目录": ["禁止组件1", "禁止组件2"]
 RULES = {
     "repositories": ["services", "handlers", "web_admin"],
     "utils": ["services", "repositories", "models", "handlers", "web_admin", "core"],
-    # Core Container/Bootstrap needs to import everything to wire the app, so we allow it.
-    # However, strict helpers should not depend on business logic.
+    # Core Container/Bootstrap 需要导入所有内容进行组装，因此允许。
+    # 但是，strict helpers 不应依赖业务逻辑。
     "core/helpers": ["services", "repositories", "handlers", "web_admin"],
     
-    "services": ["handlers", "web_admin"], # Services should not depend on UI/Controllers
-    "models": ["services", "repositories", "handlers", "web_admin", "core"], # Models are pure data structure
+    "services": ["handlers", "web_admin"], # Services 不应依赖 UI/Controllers
+    "models": ["services", "repositories", "handlers", "web_admin", "core"], # Models 是纯数据结构
 }
 
 def get_project_files(root_dir):
@@ -32,15 +32,15 @@ def get_project_files(root_dir):
 
 def check_imports(file_path, root_dir):
     # Determine which component this file belongs to
-    # Determine which component this file belongs to
+    # 确定文件所属的组件
     rel_path = os.path.relpath(file_path, root_dir).replace("\\", "/")
     component = None
     
-    # Check strict subdirectories first (Rule keys must use forward slashes)
+    # 优先检查严格子目录 (Rule keys 必须使用正斜杠)
     if rel_path.startswith("core/helpers"):
         component = "core/helpers"
     else:
-        # Top level components
+        # 顶级组件
         parts = rel_path.split("/")
         if len(parts) > 0 and parts[0] in RULES:
             component = parts[0]
@@ -66,24 +66,24 @@ def check_imports(file_path, root_dir):
                     if msg: violations.append((node.lineno, msg))
                     
     except Exception as e:
-        # print(f"Error parsing {file_path}: {e}")
+        # print(f"解析错误 {file_path}: {e}")
         pass
         
     return violations
 
 def _check_import(module_name, forbidden_list):
-    # module_name could be "services.user_service" or "models"
+    # module_name 可能是 "services.user_service" 或 "models"
     parts = module_name.split(".")
     if not parts: return None
     
     top_level = parts[0]
     if top_level in forbidden_list:
-        return f"Imports '{module_name}' which is forbidden for this component."
+        return f"导入了 '{module_name}'，该层级禁止依赖此组件。"
     return None
 
 def main():
     root_dir = os.getcwd()
-    print(f"Scanning for architecture violations in {root_dir}...")
+    print(f"正在扫描架构违规：{root_dir}...")
     
     violations_count = 0
     files = get_project_files(root_dir)
@@ -97,10 +97,10 @@ def main():
                 violations_count += 1
                 
     if violations_count == 0:
-        print("\n✅ Architecture verification passed! No layering violations found.")
+        print("\n✅ 架构验证通过！未发现分层违规。")
         sys.exit(0)
     else:
-        print(f"\n❌ Found {violations_count} architecture violations.")
+        print(f"\n❌ 发现 {violations_count} 个架构违规。")
         sys.exit(1)
 
 if __name__ == "__main__":

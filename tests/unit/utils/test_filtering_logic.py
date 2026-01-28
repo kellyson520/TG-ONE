@@ -5,7 +5,6 @@ Tests keyword matching and forward mode logic.
 import pytest
 from unittest.mock import MagicMock
 from core.helpers.common import check_keyword_match, process_whitelist_mode, process_blacklist_mode
-from enums.enums import ForwardMode
 
 class TestFilteringLogic:
     

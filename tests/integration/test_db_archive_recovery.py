@@ -4,12 +4,10 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 from scheduler.db_archive_job import archive_once
 from models.models import MediaSignature, ErrorLog
-from sqlalchemy import select, func
 
 @pytest.mark.asyncio
 async def test_archive_recovery_on_failure(db, monkeypatch):
     """验证归档失败时不会从 SQLite 删除数据 (数据不丢失验证)"""
-    import os
     # 设置测试数据库路径，确保 get_engine() 能拿到有效的 URL
     monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")
     monkeypatch.setenv("DEDUP_DATABASE_URL", "sqlite:///test.db")
@@ -50,7 +48,6 @@ async def test_archive_recovery_on_failure(db, monkeypatch):
     # 在内存或测试库中，如果配置正确，它们应该看到同一批数据。
     from models.models import get_session
     with get_session() as session:
-        from sqlalchemy import func
         sig_count = session.query(func.count(MediaSignature.id)).scalar()
         err_count = session.query(func.count(ErrorLog.id)).scalar()
         

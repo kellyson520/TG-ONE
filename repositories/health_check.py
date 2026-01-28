@@ -3,7 +3,6 @@ import shutil
 import os
 import time
 import logging
-from typing import Tuple
 from pathlib import Path
 from core.config import settings
 

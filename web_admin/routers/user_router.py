@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional
 from core.container import container
 from web_admin.security.deps import admin_required
 import logging
@@ -15,7 +14,7 @@ class UserSettingsUpdateRequest(BaseModel):
     # Depending on what settings are available
     pass
 
-from web_admin.security.deps import admin_required, login_required
+from web_admin.security.deps import login_required
 
 # Routes
 @router.get("/me", response_class=JSONResponse)

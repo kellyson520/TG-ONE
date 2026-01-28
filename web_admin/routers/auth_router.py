@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Body
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+
 from core.config import settings
 import jwt
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
+
 from services.authentication_service import authentication_service
 from core.container import container
 from services.active_session_service import active_session_service
@@ -18,7 +18,6 @@ from web_admin.security.deps import get_current_user, login_required, admin_requ
 
 # New imports for enhanced security
 from fastapi import Form, Query
-from werkzeug.security import check_password_hash
 from web_admin.security.rate_limiter import get_rate_limiter
 from web_admin.security.password_validator import PasswordValidator, get_password_strength
 from services.system_service import system_service

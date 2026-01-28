@@ -2,12 +2,11 @@
 智能去重服务层
 纯业务逻辑，不包含UI相关代码
 """
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Tuple, Any
 import logging
-from sqlalchemy import select
 from models.models import MediaSignature
 # [Refactor Fix] 更新 smart_dedup 路径
-from services.dedup.engine import smart_deduplicator, SmartDeduplicator
+from services.dedup.engine import smart_deduplicator
 from services.bloom_filter import bloom_filter_service
 
 logger = logging.getLogger(__name__)

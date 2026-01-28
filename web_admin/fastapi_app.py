@@ -9,19 +9,13 @@ if __name__ == "__main__":
     sys.exit(1)
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, Query
-from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.security import APIKeyCookie
 from starlette.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
-from pathlib import Path
-import secrets
 import jwt
-import hashlib
 import asyncio
-import traceback
 
 
 # JWT 配置 - 已迁移至 core.config.settings
@@ -30,18 +24,12 @@ logger = logging.getLogger(__name__)
 
 # 导入内部模块
 from core.config import settings
-from models.models import User, get_db_health, ForwardRule, Chat
-from core.container import container
-from services.config_service import config_service
-from services.settings_applier import settings_applier
-from services.rule_service import RuleQueryService
-from services.authentication_service import authentication_service
+from models.models import get_db_health
 from services.system_service import system_service
 from web_admin.routers.auth_router import router as auth_router
 from web_admin.routers.rules.rule_crud_router import router as rule_crud_router
 from web_admin.routers.rules.rule_content_router import router as rule_content_router
 from web_admin.routers.rules.rule_viz_router import router as rule_viz_router
-from web_admin.routers.user_router import router as user_router
 from web_admin.routers.user_router import router as user_router
 from web_admin.routers.system.log_router import router as log_router
 from web_admin.routers.system.maintain_router import router as maintain_router
@@ -50,19 +38,15 @@ from web_admin.routers.websocket_router import router as websocket_router
 from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
 from core.helpers.realtime_stats import realtime_stats_cache
-from services.network.bot_heartbeat import get_heartbeat
-from services.dedup.engine import smart_deduplicator
-from core.helpers.forward_recorder import forward_recorder
 # from core.helpers.env_config import env_config_manager
-from web_admin.core.templates import templates, STATIC_DIR
+from web_admin.core.templates import STATIC_DIR
 from web_admin.routers.page_router import router as page_router
 from web_admin.rss.routes.rss import router as rss_page_router
 from web_admin.rss.api.endpoints.feed import router as rss_feed_router
 from web_admin.rss.api.endpoints.subscription import router as rss_sub_router
 
 # 安全模块导入 (Phase 1 Security Enhancement)
-from services.audit_service import audit_service
-from web_admin.security.csrf import CSRFMiddleware, validate_csrf, csrf_token_input
+from web_admin.security.csrf import CSRFMiddleware
 from web_admin.middlewares.ip_guard_middleware import IPGuardMiddleware
 from web_admin.routers.settings_router import router as settings_router
 from web_admin.security.exceptions import PageRedirect
@@ -96,7 +80,6 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Web Admin API 已关闭")
 
-from fastapi.exceptions import RequestValidationError
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -193,8 +176,7 @@ else:
 # 辅助函数
 def _issue_token(user_id: int) -> str:
     """生成 JWT 访问令牌 (兼容性)"""
-    from datetime import datetime, timedelta
-    import jwt
+
     
     expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     expire = datetime.utcnow() + expires_delta
@@ -211,7 +193,7 @@ def _set_allow_registration(v: bool):
     system_service.set_allow_registration(v)
 
 # 鉴权依赖
-from web_admin.security.deps import get_current_user, login_required, admin_required
+# from web_admin.security.deps import get_current_user, login_required, admin_required
 
 # 健康检查路由
 @app.get("/healthz")

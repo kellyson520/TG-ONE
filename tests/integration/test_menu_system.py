@@ -1,8 +1,7 @@
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from handlers.button.new_menu_system import NewMenuSystem
-from telethon import Button
 import traceback
 
 @pytest.fixture

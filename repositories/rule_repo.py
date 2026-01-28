@@ -1,5 +1,5 @@
 from typing import List, Optional, Any, Dict
-from sqlalchemy import select, or_, func, desc, delete
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from models.models import ForwardRule, ForwardMapping, Chat
 from core.helpers.id_utils import build_candidate_telegram_ids

@@ -5,41 +5,21 @@ import logging
 
 # aiohttp 在某些环境未安装会导致编辑器波浪线，这里仅在使用处做延迟导入
 import os
-from sqlalchemy import inspect, select
+from sqlalchemy import select
 from telethon import Button
 from telethon.tl import types
 
-from enums.enums import AddMode
-from repositories.db_operations import DBOperations
 from models.models import (
     AsyncSessionManager,
     ForwardRule,
-    Keyword,
-    MediaExtensions,
-    MediaTypes,
     PushConfig,
-    ReplaceRule,
     RuleSync,
-    get_session,
-)
-from core.helpers.auto_delete import (
-    reply_and_delete,
-    respond_and_delete,
-    send_message_and_delete,
 )
 from core.helpers.common import (
-    check_and_clean_chats,
-    get_db_ops,
-    get_media_settings_text,
     is_admin,
 )
-from core.constants import PUSH_SETTINGS_TEXT, RSS_HOST, RSS_PORT, RULES_PER_PAGE
-
+from core.constants import PUSH_SETTINGS_TEXT
 from handlers.button.button_helpers import (
-    create_media_extensions_buttons,
-    create_media_settings_buttons,
-    create_media_size_buttons,
-    create_media_types_buttons,
     create_push_config_details_buttons,
     create_push_settings_buttons,
 )

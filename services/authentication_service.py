@@ -4,7 +4,7 @@ import jwt
 from sqlalchemy.orm import selectinload
 from core.config import settings
 from models.models import User, ActiveSession
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 from sqlalchemy import select, delete, desc
 import logging
 import hashlib
@@ -15,7 +15,6 @@ import io
 import base64
 import secrets
 import json
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

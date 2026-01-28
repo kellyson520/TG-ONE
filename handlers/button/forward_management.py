@@ -2,8 +2,6 @@
 转发管理功能模块
 """
 
-import traceback
-from datetime import datetime
 
 import logging
 from telethon import Button

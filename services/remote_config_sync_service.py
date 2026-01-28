@@ -6,8 +6,6 @@
 import asyncio
 import json
 import os
-import time
-import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 
@@ -63,7 +61,6 @@ class RemoteConfigSyncService:
     async def _sync_to_database(self, config: Dict[str, Any]):
         """将配置同步到数据库 (通过 Container)"""
         try:
-            from core.container import container
             # 这里需要具体的同步逻辑，目前根据旧代码 ufb_client.py 
             # 逻辑是通过 db_ops.sync_from_json(config)
             # 我们可能需要一个专门的 repo 或 service 来处理这个

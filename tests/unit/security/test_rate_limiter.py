@@ -1,7 +1,6 @@
 import pytest
 from web_admin.security.rate_limiter import LoginRateLimiter
 from datetime import datetime, timedelta
-import time
 
 class TestLoginRateLimiter:
     @pytest.fixture

@@ -1,11 +1,9 @@
-from sqlalchemy import text
 from telethon import Button
 
-from models.models import ForwardRule, get_session
-from core.helpers.common import get_db_ops
+from models.models import ForwardRule
+from core.helpers.common import get_db_ops, get_session
 from core.constants import *
 from core.config.settings_loader import (
-    load_ai_models,
     load_delay_times,
     load_max_media_size,
     load_media_extensions,
@@ -21,7 +19,7 @@ from .settings_manager import (
 )
 
 SUMMARY_TIMES = load_summary_times()
-AI_MODELS = load_ai_models()
+
 DELAY_TIMES = load_delay_times()
 MEDIA_SIZE = load_max_media_size()
 MEDIA_EXTENSIONS = load_media_extensions()

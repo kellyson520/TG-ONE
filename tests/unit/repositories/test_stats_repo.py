@@ -3,7 +3,7 @@ from sqlalchemy import select, func
 from repositories.stats_repo import StatsRepository
 from models.models import RuleLog, RuleStatistics
 from core.container import container
-from datetime import date, datetime
+from datetime import date
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("clear_data")

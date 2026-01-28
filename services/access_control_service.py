@@ -1,6 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select, delete
-from sqlalchemy.orm import Session
+from sqlalchemy import select
 from models.models import AccessControlList
 from core.container import container
 import logging

@@ -5,7 +5,6 @@
 import traceback
 
 import logging
-import os
 from telethon import Button
 
 from handlers.button.new_menu_system import new_menu_system

@@ -8,7 +8,6 @@ from middlewares.filter import FilterMiddleware
 from middlewares.sender import SenderMiddleware
 from models.models import ForwardRule, Chat
 from filters.base_filter import BaseFilter
-from types import SimpleNamespace
 
 # ==============================================================================
 # Helper Factories

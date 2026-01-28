@@ -1,6 +1,5 @@
 import asyncio
-from typing import Any, Callable, Dict, Optional, TypeVar, Union
-from weakref import WeakValueDictionary
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 from core.cache.unified_cache import get_smart_cache, MultiLevelCache
 from core.logging import get_logger

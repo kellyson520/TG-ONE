@@ -3,7 +3,6 @@ import asyncio
 import datetime
 import logging
 import os
-from typing import List
 
 from core.config import settings
 from scheduler.db_archive_job import archive_once, garbage_collect_once

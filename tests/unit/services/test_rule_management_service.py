@@ -1,7 +1,7 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from services.rule_management_service import rule_management_service
-from models.models import ForwardRule, Chat, Keyword, ReplaceRule
+from models.models import ForwardRule, Chat, Keyword
 from core.container import container
 
 @pytest.mark.asyncio
@@ -119,7 +119,7 @@ class TestRuleManagementService:
         assert kws[0].keyword == "fruit"
 
 @pytest.mark.asyncio
-class TestRuleManagementService:
+class :
     async def test_get_rule_list(self, db):
         # 准备数据
         c1 = Chat(telegram_chat_id="101", name="S")

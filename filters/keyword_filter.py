@@ -1,11 +1,9 @@
 ﻿import logging
-import re
-from core.helpers.common import get_sender_info, get_main_module
+from core.helpers.common import get_main_module
 from filters.base_filter import BaseFilter
-from enums.enums import ForwardMode
 
 from services.network.telegram_api_optimizer import api_optimizer
-from core.helpers.error_handler import handle_errors, log_execution
+from core.helpers.error_handler import handle_errors
 
 logger = logging.getLogger(__name__)
 

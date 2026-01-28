@@ -6,7 +6,6 @@ import asyncio
 import logging
 from telethon import Button
 
-from core.helpers.auto_delete import reply_and_delete
 
 from handlers.command_handlers import (
     handle_db_backup_command,

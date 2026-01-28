@@ -3,14 +3,13 @@
 使用官方事件API替代轮询机制，提升响应速度和降低资源消耗
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import asyncio
 import logging
 import time
 from telethon import TelegramClient, events
-from telethon.tl.types import UpdateDeleteMessages, UpdateEditMessage, UpdateNewMessage
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Set
 
 logger = logging.getLogger(__name__)
 

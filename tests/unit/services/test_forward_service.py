@@ -1,9 +1,8 @@
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, AsyncMock, patch
-from services.forward_service import ForwardService, forward_service
+from unittest.mock import AsyncMock, patch
+from services.forward_service import ForwardService
 from sqlalchemy import select
-from models.models import ForwardRule, Chat, RuleLog
+from models.models import ForwardRule, Chat
 
 @pytest.mark.asyncio
 class TestForwardService:

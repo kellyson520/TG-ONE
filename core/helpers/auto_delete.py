@@ -1,7 +1,5 @@
-from functools import wraps
 import asyncio
 import logging
-import os
 
 from core.constants import BOT_MESSAGE_DELETE_TIMEOUT, USER_MESSAGE_DELETE_ENABLE
 

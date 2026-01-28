@@ -1,9 +1,8 @@
 
 import pytest
 from web_admin.security.deps import admin_required
-from unittest.mock import MagicMock
 from web_admin.fastapi_app import app
-from web_admin.security.deps import get_current_user, admin_required
+from web_admin.security.deps import get_current_user
 from models.models import User
 
 @pytest.fixture(autouse=True)

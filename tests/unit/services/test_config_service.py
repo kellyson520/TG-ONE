@@ -1,8 +1,7 @@
 import pytest
-import json
 import os
-from unittest.mock import MagicMock, AsyncMock, patch
-from services.config_service import ConfigService, config_service
+from unittest.mock import AsyncMock, patch
+from services.config_service import ConfigService
 from models.models import SystemConfiguration
 
 @pytest.mark.asyncio

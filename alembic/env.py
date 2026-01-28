@@ -20,7 +20,7 @@ from models.base import Base
 import models.chat
 import models.rule
 import models.user
-import models.system # If exists
+import  # If exists
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,8 +1,6 @@
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from telethon import events
-from models.models import ForwardRule
 from core.container import container
 from sqlalchemy import select
 
@@ -24,7 +22,6 @@ class TestBotToDBPipeline:
         mock_get_user_id.return_value = 123456789
         
         # Mock Event
-        from unittest.mock import MagicMock
         event = AsyncMock(spec=events.NewMessage)
         mock_msg = MagicMock()
         mock_msg.text = "/add test_keyword"
@@ -49,10 +46,9 @@ class TestBotToDBPipeline:
         # 2. Execute Handler (Pipeline trigger)
         container.user_client = AsyncMock()
         
-        from services.rule_management_service import rule_management_service
         
         # Manually create a rule in DB as setup
-        from models.models import ForwardRule, Chat
+        from models.models import Chat
         
         async with container.db.session() as session:
             # Create Source/Target chats

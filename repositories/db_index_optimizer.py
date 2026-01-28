@@ -3,12 +3,11 @@
 自动分析查询模式并创建最优索引策略
 """
 
-import logging
 import os
-from sqlalchemy import Index, inspect, text
-from typing import Any, Dict, List, Optional, Tuple
+from sqlalchemy import inspect, text
+from typing import Any, Dict, List
 
-from models.models import get_engine, get_session
+from models.models import get_engine
 from core.logging import get_logger
 
 logger = get_logger(__name__)

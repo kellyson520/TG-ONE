@@ -5,18 +5,15 @@
 """
 
 import asyncio
-import logging
-import os
 from telethon import TelegramClient
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.functions.users import GetUsersRequest
-from telethon.tl.types import InputPeerChannel, InputPeerChat, InputPeerUser
 from typing import Any, Dict, List, Optional, Union
 
 from core.helpers.entity_validator import get_entity_validator
 from core.helpers.error_handler import handle_errors
 from core.logging import get_logger, log_performance
-from core.cache.unified_cache import cached, get_smart_cache
+from core.cache.unified_cache import cached
 
 logger = get_logger(__name__)
 

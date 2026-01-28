@@ -6,7 +6,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from handlers.user_handler import process_forward_rule
 from models.models import ForwardRule, Chat, ForwardMode, Keyword
-from core.helpers.forward_recorder import forward_recorder
 from sqlalchemy import select
 
 from sqlalchemy.orm import selectinload

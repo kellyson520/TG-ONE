@@ -1,8 +1,6 @@
 ﻿import logging
-import asyncio
 from telethon import Button
 from filters.base_filter import BaseFilter
-from core.helpers.common import get_main_module
 import traceback
 logger = logging.getLogger(__name__)
 

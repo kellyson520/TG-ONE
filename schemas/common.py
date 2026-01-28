@@ -1,5 +1,4 @@
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime
+from pydantic import BaseModel
 from typing import Optional, List, Any
 
 class TimestampMixin(BaseModel):

@@ -1,13 +1,9 @@
 
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 # Ensure modules are loaded so patch can find them
-import filters.context
-import repositories.db_context
-import models.models
-import core.helpers.error_handler
 
 # Patch dependencies BEFORE importing module under test 
 # (although since we just imported them, they are already loaded, 

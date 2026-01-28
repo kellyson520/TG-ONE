@@ -1,6 +1,5 @@
 import glob
 import hashlib
-import math
 import mmap
 import threading
 

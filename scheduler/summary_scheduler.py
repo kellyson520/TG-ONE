@@ -7,17 +7,15 @@ except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
 import os
-from dotenv import load_dotenv
-from telethon import TelegramClient, errors
+from telethon import TelegramClient
 from sqlalchemy import select
 from ai import get_ai_provider
-import traceback
 from models.models import ForwardRule
 from core.constants import DEFAULT_TIMEZONE,DEFAULT_AI_MODEL,DEFAULT_SUMMARY_PROMPT
 
 # 导入统一优化工具
 from core.helpers.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
-from core.logging import get_logger, log_user_action, log_performance
+from core.logging import get_logger, log_performance
 from core.cache.unified_cache import cached, get_smart_cache
 from core.helpers.message_utils import get_message_handler
 from services.network.timing_wheel import HashedTimingWheel

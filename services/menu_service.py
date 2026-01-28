@@ -3,7 +3,7 @@
 从 MenuController 剥离出的业务逻辑，负责数据聚合与状态管理
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from services.analytics_service import analytics_service
 
 logger = logging.getLogger(__name__)

@@ -12,10 +12,7 @@ Created: 2026-01-14
 """
 
 import asyncio
-import signal
-import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from core.shutdown import ShutdownCoordinator, get_shutdown_coordinator
 
 

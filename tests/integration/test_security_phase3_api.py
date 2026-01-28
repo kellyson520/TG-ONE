@@ -2,7 +2,6 @@ import pytest
 import pyotp
 from unittest.mock import patch, AsyncMock
 from models.models import User
-from sqlalchemy import select
 from core.container import container
 
 @pytest.mark.asyncio

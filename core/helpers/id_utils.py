@@ -9,10 +9,9 @@ Telegram ID 工具函数
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 
 import logging
-from typing import Any, AsyncGenerator, Optional, Set, Tuple, Union
+from typing import Any, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
 

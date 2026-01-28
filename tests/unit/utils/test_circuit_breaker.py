@@ -1,6 +1,5 @@
 import pytest
 import asyncio
-import time
 from services.network.circuit_breaker import CircuitBreaker, CircuitOpenException, circuit_breaker
 
 class MockService:

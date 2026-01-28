@@ -3,9 +3,9 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any
 
-from core.helpers.realtime_stats import realtime_stats_cache
 from services.network.bot_heartbeat import get_heartbeat
 from services.dedup.engine import smart_deduplicator
+from core.helpers.realtime_stats import realtime_stats_cache
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,6 @@ class AnalyticsService:
         """获取性能指标和资源占用"""
         try:
             # 获取实时统计数据
-            from core.helpers.realtime_stats import realtime_stats_cache
 
             # 获取系统资源统计
             system_stats = await realtime_stats_cache.get_system_stats(
@@ -382,8 +381,8 @@ class AnalyticsService:
         """
         try:
             from datetime import datetime, timedelta
-            from sqlalchemy import select, func
-            from models.models import RuleLog, RuleStatistics, ChatStatistics
+            from sqlalchemy import select
+            from models.models import RuleStatistics, ChatStatistics
             
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
@@ -462,7 +461,7 @@ class AnalyticsService:
         """
         try:
             from sqlalchemy import select, or_
-            from models.models import RuleLog, ForwardRule
+            from models.models import RuleLog
             
             async with self.container.db.session() as session:
                 # 搜索规则日志

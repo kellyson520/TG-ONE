@@ -3,7 +3,7 @@ import os
 from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode
 from telethon.errors import FloodWaitError
-from core.helpers.error_handler import handle_telegram_errors, handle_errors
+from core.helpers.error_handler import handle_errors
 from repositories.db_context import safe_db_operation
 
 logger = logging.getLogger(__name__)

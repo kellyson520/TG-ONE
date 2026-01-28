@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from core.event_bus import EventBus
 from services.notification_service import NotificationService
 from core.config import settings

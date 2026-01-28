@@ -1,6 +1,5 @@
 ﻿import logging
 from filters.base_filter import BaseFilter
-from core.helpers.common import get_main_module
 
 logger = logging.getLogger(__name__)
 

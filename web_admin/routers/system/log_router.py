@@ -4,7 +4,6 @@ from pathlib import Path
 from datetime import datetime
 from io import BytesIO
 import json
-import os
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse

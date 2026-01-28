@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import MagicMock
 from ui.renderers.main_menu_renderer import MainMenuRenderer
 
 @pytest.fixture

@@ -1,14 +1,11 @@
 ﻿import logging
 import asyncio
-import time
-import telethon
 import traceback
 from telethon import Button
 from filters.base_filter import BaseFilter
 from telethon.tl.functions.channels import GetFullChannelRequest
 from core.helpers.common import get_main_module
 from difflib import SequenceMatcher
-import traceback
 logger = logging.getLogger(__name__)
 
 class CommentButtonFilter(BaseFilter):

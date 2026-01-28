@@ -5,9 +5,8 @@ FloodWait 机制专项测试
 """
 
 import pytest
-import asyncio
 import time
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from services.queue_service import (
     forward_messages_queued, 
     _flood_wait_until

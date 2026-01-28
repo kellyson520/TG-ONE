@@ -1,8 +1,7 @@
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, inspect, text
-from pathlib import Path
+from sqlalchemy import inspect
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')

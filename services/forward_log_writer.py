@@ -11,11 +11,10 @@ Phase H.5: 转发日志存档优化
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from datetime import datetime
+from typing import Dict, List, Optional
 from collections import deque
 from dataclasses import dataclass, field
-import json
 
 logger = logging.getLogger(__name__)
 

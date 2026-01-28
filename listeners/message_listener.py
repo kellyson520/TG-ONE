@@ -12,8 +12,6 @@ from typing import Any
 from telethon import events
 from dotenv import load_dotenv
 
-from .event_adapters import TelegramEventAdapter, BotMessageFilter
-from .business_handlers import UserMessageHandler, BotMessageHandler
 from core.container import container
 
 # 加载环境变量
@@ -78,7 +76,6 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager
-            from services.session_service import session_service
             from services.session_service import session_manager
             
             # 检查当前会话状态

@@ -1,11 +1,8 @@
 
 import logging
-import re
-from typing import List, Dict, Optional, Any
+from typing import List, Dict
 from ai import get_ai_provider
 from core.constants import DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
-from core.helpers.id_utils import resolve_entity_by_id_variants
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 

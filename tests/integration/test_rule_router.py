@@ -1,6 +1,5 @@
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, MagicMock
 from models.models import Chat, User, ForwardRule
 
 @pytest.fixture

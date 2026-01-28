@@ -3,16 +3,16 @@ Rule Management CRUD Service (Core Logic)
 Handles Create, Read, Update, Delete for Forward Rules.
 Proxies to RuleRepository where possible, ensuring DTO contracts.
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import logging
 from datetime import datetime
-from sqlalchemy import select, func, cast, String, delete
-from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy import select, func, cast, String
+from sqlalchemy.orm import selectinload
 
 from core.helpers.error_handler import handle_errors, log_execution
-from models.models import ForwardRule, Chat, Keyword, ReplaceRule
-from schemas.rule import RuleDTO, RuleCreate
-from enums.enums import ForwardMode, AddMode
+from models.models import ForwardRule
+from schemas.rule import RuleDTO
+from enums.enums import ForwardMode
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,6 @@ class RuleCRUDService:
         """创建新规则"""
         # Logic remains largely same but ensures cleanup
         # This writes to DB, so Repo should handle validation
-        from core.helpers.id_utils import get_display_name_async
     
         try:
             async with self.container.db.session() as session:

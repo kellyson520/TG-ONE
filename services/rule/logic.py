@@ -6,8 +6,8 @@ from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime
 
-from core.helpers.error_handler import handle_errors, log_execution
-from enums.enums import ForwardMode, AddMode
+from core.helpers.error_handler import handle_errors
+from enums.enums import ForwardMode
 from schemas.sub_rules import KeywordDTO, ReplaceRuleDTO
 
 try:
@@ -199,7 +199,6 @@ class RuleLogicService:
 
     async def cleanup_orphan_chats(self, rule_deleted=None) -> int:
         """检查并清理不再与任何规则关联的聊天记录"""
-        from models.models import Chat
         
         chat_ids_to_check = []
         if rule_deleted:

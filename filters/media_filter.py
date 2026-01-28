@@ -1,14 +1,10 @@
 ﻿import logging
 import os
-import asyncio
 from core.helpers.media import get_media_size
 from core.constants import TEMP_DIR
 from filters.base_filter import BaseFilter
-from core.helpers.media import get_max_media_size
-from enums.enums import PreviewMode
 from models.models import MediaTypes
 from models.models import AsyncSessionManager
-from sqlalchemy import text
 from core.helpers.common import get_db_ops
 from enums.enums import AddMode
 from services.network.telegram_api_optimizer import api_optimizer

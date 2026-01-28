@@ -12,13 +12,11 @@ except ImportError:
     PYTZ_AVAILABLE = False
 import os
 import logging
-from dotenv import load_dotenv
 from telethon import TelegramClient
 from models.models import Chat
 import traceback
-import random
 from core.constants import DEFAULT_TIMEZONE
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Set
 
 logger = logging.getLogger(__name__)
 

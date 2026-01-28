@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Any
+from typing import Optional
 
 class BaseTaskPayload(BaseModel):
     v: int = Field(default=1, alias="_v") # 版本控制

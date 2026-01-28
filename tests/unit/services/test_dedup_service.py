@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from services.dedup_service import DedupService, dedup_service
+from services.dedup_service import dedup_service
 from models.models import MediaSignature
 
 @pytest.mark.asyncio

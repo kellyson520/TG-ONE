@@ -1,11 +1,8 @@
 import asyncio
 import logging
-from typing import Any, Callable, Awaitable, List
-from core.config import settings
-from core.context import trace_id_var
+from typing import Any, Callable, Awaitable
 from services.network.pid import PIDController
 from services.network.circuit_breaker import CircuitBreaker
-import uuid
 import time
 
 logger = logging.getLogger(__name__)
@@ -136,7 +133,6 @@ class MessageQueueService:
                 logger.error(f"Worker-{worker_id} crashed loop: {e}", exc_info=True)
                 await asyncio.sleep(1) # Prevent busy loop on crash
 
-from typing import Union
 
 class TelegramQueueService:
     """Telegram API 限流与并发管理服务"""

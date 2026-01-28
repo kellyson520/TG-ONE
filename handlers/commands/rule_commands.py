@@ -1,6 +1,5 @@
 import shlex
 from telethon import Button
-import logging
 from sqlalchemy import select
 from core.logging import get_logger, log_performance, log_user_action
 from core.helpers.error_handler import handle_errors

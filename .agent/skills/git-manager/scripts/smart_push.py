@@ -1,6 +1,5 @@
 import argparse
 import subprocess
-import sys
 import os
 
 def get_git_env():

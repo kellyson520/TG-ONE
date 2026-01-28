@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from ui.menu_renderer import MenuRenderer
 from enums.enums import MessageMode
-from telethon import Button
 
 # -----------------
 # MenuRenderer Tests

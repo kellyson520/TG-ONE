@@ -1,13 +1,11 @@
 
 import asyncio
-import logging
-import os
 from telethon import TelegramClient
 
 from core.config import settings
 from core.container import container
 from core.config_initializer import load_dynamic_config_from_db
-from core.shutdown import get_shutdown_coordinator, register_cleanup
+from core.shutdown import get_shutdown_coordinator
 from listeners import setup_listeners
 from core.logging import get_logger
 from core.helpers.metrics import set_ready, update_heartbeat

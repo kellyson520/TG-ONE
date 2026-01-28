@@ -1,11 +1,10 @@
 import pytest
-import asyncio
 import threading
 import uvicorn
 import time
 # Avoid heavy imports here, import inside test or fixture
 from web_admin.fastapi_app import app
-from DrissionPage import ChromiumPage, ChromiumOptions
+from DrissionPage import ChromiumOptions
 
 # Define a fixture to start the server
 @pytest.fixture(scope="module")
@@ -37,7 +36,6 @@ def browser():
     co.set_argument('--disable-gpu')
     
     try:
-        from DrissionPage import ChromiumPage
         page = ChromiumPage(co)
         yield page
     except Exception as e:

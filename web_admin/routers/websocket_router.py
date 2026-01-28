@@ -11,7 +11,7 @@ WebSocket Router - 实时数据推送
 Phase G.3: 增强广播智能化
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Set, List, Optional, Any
 import asyncio
 import json

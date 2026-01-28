@@ -31,7 +31,9 @@ def print_step(name: str):
 
 def check_architecture(root_dir: str) -> bool:
     print_step("架构守卫 (分层与依赖)")
-    script_path = os.path.join(root_dir, "scripts", "arch_guard.py")
+    # Updated to find arch_guard in the same directory as local_ci.py
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.join(script_dir, "arch_guard.py")
     if not os.path.exists(script_path):
         print("❌ 未找到 scripts/arch_guard.py!")
         return False
@@ -77,10 +79,52 @@ def check_code_quality(root_dir: str) -> bool:
     print(f"正在对以下目录进行严格检查: {', '.join(existing_targets)}")
     code, out, err = run_command(cmd, cwd=root_dir)
     
+    # Parse and count errors
+    # Flake8 output line format: file:line:col: code message
+    error_counts = {}
+    lines = out.strip().splitlines()
+    for line in lines:
+        parts = line.split()
+        for part in parts:
+            if part.startswith(('E', 'F', 'W')) and part[1:].isdigit():
+                # Found a code like F401
+                code_key = part.strip(':') 
+                error_counts[code_key] = error_counts.get(code_key, 0) + 1
+                break
+
+    print(out)
+    
+    if error_counts:
+        print("\n📊 错误统计报告:")
+        print(f"{'Code':<8} {'Count':<8} {'Description':<30}")
+        print("-" * 50)
+        descriptions = {
+            'F401': 'Module imported but unused',
+            'F811': 'Redefinition of unused name',
+            'F821': 'Undefined name',
+            'E999': 'Syntax Error',
+            # Add others as encountered
+        }
+        total = 0
+        for code_key, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True):
+            desc = descriptions.get(code_key, "Lint Error")
+            print(f"{code_key:<8} {count:<8} {desc:<30}")
+            total += count
+        print("-" * 50)
+        print(f"{'Total':<8} {total:<8}\n")
+
     if code != 0:
-        print(out)
         print(err)
         print("❌ 发现严重代码质量问题 (未定义名称、未使用的导入、语法错误)。")
+        
+        # Suggest auto-fix
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        fix_script = os.path.join(script_dir, "fix_lint.py")
+        if os.path.exists(fix_script):
+            rel_path = os.path.relpath(fix_script, root_dir)
+            print(f"\n💡 建议: 检测到可通过脚本修复的 Lint 错误。")
+            print(f"   请运行: python {rel_path}")
+            
         return False
     
     print("✅ 代码质量检查通过。")

@@ -5,7 +5,6 @@ Telegram API 优化工具模块
 
 import secrets
 
-import asyncio
 import logging
 import time
 from telethon.tl.functions.messages import (
@@ -24,7 +23,7 @@ from telethon.tl.types import (
     InputMessagesFilterVoice,
     Message,
 )
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Union
 
 logger = logging.getLogger(__name__)
 

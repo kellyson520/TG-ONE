@@ -1,10 +1,9 @@
 
 import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from services.network.api_optimization import TelegramAPIOptimizer
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.types import Channel, Chat
+from telethon.tl.types import Channel
 
 @pytest.fixture
 def mock_client():

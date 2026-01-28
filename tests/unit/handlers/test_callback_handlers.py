@@ -2,7 +2,6 @@
 Callback Handler 单元测试
 测试回调处理器的分发与核心功能
 """
-import sys
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 

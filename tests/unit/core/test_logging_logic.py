@@ -1,6 +1,4 @@
 
-import pytest
-from datetime import datetime
 from models.models import ErrorLog, RuleLog
 
 class TestLoggingModels:

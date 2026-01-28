@@ -1,4 +1,3 @@
-import logging
 from telethon import events
 from core.logging import get_logger
 from core.helpers.auto_delete import reply_and_delete
@@ -64,7 +63,6 @@ from handlers.commands.stats_commands import (
 )
 from handlers.commands.dedup_commands import (
     handle_dedup_enable_command,
-    handle_dedup_command
 )
 # handle_dedup_scan_command is in system commands but used by dedup wrapper
 from handlers.commands.system_commands import handle_dedup_scan_command

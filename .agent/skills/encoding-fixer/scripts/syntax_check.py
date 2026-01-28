@@ -1,7 +1,6 @@
 
 import sys
 import ast
-import compileall
 import os
 
 def check_syntax(file_path):

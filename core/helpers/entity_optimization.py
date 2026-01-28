@@ -8,8 +8,7 @@ from datetime import datetime, timedelta
 import asyncio
 import logging
 from telethon import TelegramClient
-from telethon.tl.types import InputPeerChannel, InputPeerChat, InputPeerUser
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 import logging
 import jwt
-from fastapi import APIRouter, Request, Depends, status
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.config import settings
 from web_admin.core.templates import templates

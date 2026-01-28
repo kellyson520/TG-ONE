@@ -1,7 +1,6 @@
 from core.config import settings
 import logging
 import asyncio
-from typing import Optional, List
 from core.event_bus import EventBus
 from telethon import TelegramClient
 

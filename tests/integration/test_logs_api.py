@@ -4,10 +4,8 @@ import secrets
 from werkzeug.security import generate_password_hash as get_password_hash
 from core.container import container
 from models.models import User
-import sys
 from unittest.mock import MagicMock
 import os
-import io
 
 @pytest.fixture
 async def logs_auth_headers(client: AsyncClient):

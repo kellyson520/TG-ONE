@@ -4,7 +4,7 @@
 """
 import logging
 import json
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from filters.filter_chain import FilterChain
 from filters.registry import get_filter_registry
 from models.models import ForwardRule

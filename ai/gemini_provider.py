@@ -6,7 +6,6 @@ from .base import BaseAIProvider
 from .openai_base_provider import OpenAIBaseProvider
 import os
 import logging
-import base64
 
 logger = logging.getLogger(__name__)
 

@@ -58,9 +58,6 @@ if _project_root not in sys.path:
 _engine_patched_early = _patch_database_engine_early()
 
 try:
-    import web_admin
-    import web_admin.security
-    import web_admin.routers
 except ImportError as e:
     print(f"WARNING: Failed to pre-import web_admin: {e}")
 

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import List, Optional
 
 from sqlalchemy import select
 from telethon import TelegramClient

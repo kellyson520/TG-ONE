@@ -5,14 +5,13 @@
 
 import hashlib
 from collections import OrderedDict
-from difflib import SequenceMatcher
 
 import asyncio
 import logging
 import os
 import re
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any
 
 from core.helpers.tombstone import tombstone
 
@@ -168,7 +167,6 @@ class SmartDeduplicator:
             # But the line 165 was `from core.algorithms.lsh_forest import LSHForest`
             # I should keep LSHForest import as is if I didn't move it. 
             # Wait, I didn't see lsh_forest in core/algorithms list.
-            from core.algorithms.lsh_forest import LSHForest
             self.simhash_engine = SimHash()
             # 初始化索引 (chat_id -> LSHForest)
             self.lsh_forests = {}

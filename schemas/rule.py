@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List, Union
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
 from .common import TimestampMixin
 from enums.enums import ForwardMode, PreviewMode, MessageMode, AddMode, HandleMode
 

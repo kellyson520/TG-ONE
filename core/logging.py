@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import structlog
 from dotenv import find_dotenv, load_dotenv

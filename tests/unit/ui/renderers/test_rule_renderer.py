@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import MagicMock
 from ui.renderers.rule_renderer import RuleRenderer
 
 @pytest.fixture

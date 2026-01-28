@@ -7,7 +7,6 @@ from datetime import datetime
 
 import asyncio
 import json
-import logging
 from typing import Any, Dict, List, Optional
 
 from repositories.batch_repo import (
@@ -17,7 +16,6 @@ from repositories.batch_repo import (
     stop_batch_processing,
 )
 from repositories.db_index_optimizer import (
-    db_optimizer,
     get_database_performance_metrics,
     optimize_database_performance,
 )
@@ -29,13 +27,10 @@ from repositories.db_monitor import (
 )
 from repositories.db_sharding import (
     get_sharding_statistics,
-    optimize_query_with_sharding,
     setup_database_sharding,
 )
 from core.logging import get_logger
 from repositories.query_optimizer import (
-    CacheInvalidationManager,
-    OptimizedQueries,
     get_query_performance_stats,
     start_query_optimization,
 )

@@ -3,7 +3,6 @@ Telegram 转发机器人主程序
 TG ONE Refactored Entry Point
 """
 import asyncio
-import logging
 import os
 import platform
 import signal

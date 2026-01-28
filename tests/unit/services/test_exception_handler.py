@@ -12,8 +12,7 @@ Phase G.2 测试
 """
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 
 class TestGlobalExceptionHandler:

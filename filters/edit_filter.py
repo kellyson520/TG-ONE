@@ -1,5 +1,4 @@
 ﻿import logging
-import os
 from filters.base_filter import BaseFilter
 from enums.enums import HandleMode, PreviewMode
 from core.helpers.common import get_main_module

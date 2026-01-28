@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 
 class BaseAIProvider(ABC):
     """AI提供者的基类"""

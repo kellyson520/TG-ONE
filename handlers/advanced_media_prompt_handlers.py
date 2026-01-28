@@ -4,7 +4,6 @@
 """
 
 import logging
-import re
 
 from services.session_service import session_manager
 from models.models import ForwardRule

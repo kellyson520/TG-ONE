@@ -1,9 +1,7 @@
 import pytest
-from httpx import AsyncClient
 from services.authentication_service import authentication_service
 from services.active_session_service import active_session_service
 from models.models import User
-import uuid
 
 @pytest.mark.asyncio
 async def test_session_management(db, clear_data):

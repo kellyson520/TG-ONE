@@ -5,12 +5,10 @@ import logging
 
 # aiohttp 在某些环境未安装会导致编辑器波浪线，这里保持局部延迟导入
 import os
-from sqlalchemy import delete, func, inspect, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import delete, inspect, select, func
 from telethon import Button
 from telethon.tl import types
 
-from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
 from services.session_service import session_manager
 from repositories.db_operations import DBOperations
 from models.models import (
@@ -25,34 +23,23 @@ from models.models import (
     get_session,
 )
 from core.helpers.auto_delete import (
-    reply_and_delete,
-    respond_and_delete,
     send_message_and_delete,
 )
 from core.helpers.common import (
-    check_and_clean_chats,
-    get_db_ops,
-    get_media_settings_text,
     is_admin,
+    check_and_clean_chats,
 )
-from core.constants import RSS_HOST, RSS_PORT, RULES_PER_PAGE
-from repositories.db_context import async_db_session
-
 from handlers.button.button_helpers import (
-    create_media_extensions_buttons,
-    create_media_settings_buttons,
-    create_media_size_buttons,
-    create_media_types_buttons,
     create_other_settings_buttons,
 )
-from handlers.button.settings_manager import RULE_SETTINGS, create_buttons, create_settings_text
+from core.constants import RSS_HOST, RSS_PORT, RULES_PER_PAGE
+from handlers.button.settings_manager import create_buttons, create_settings_text
 
 logger = logging.getLogger(__name__)
 
 
 async def handle_other_callback(event):
     """处理通用规则设置回调 (异步版)"""
-    from models.models import AsyncSessionManager
 
     data = event.data.decode("utf-8")
     parts = data.split(":")
@@ -339,12 +326,11 @@ async def callback_keep_duplicates(event, rule_id, session, message, data):
 async def callback_confirm_delete_duplicates(event, rule_id, session, message, data):
     """确认删除重复媒体 (实际执行)"""
     try:
-        from models.models import ForwardRule, MediaSignature
+        from models.models import ForwardRule
         from repositories.db_operations import DBOperations
         from core.helpers.common import get_main_module
         from services.media_service import extract_message_signature
         from telethon import Button as _Btn
-        import asyncio
 
         rule = await session.get(ForwardRule, int(rule_id))
         if not rule:
@@ -475,7 +461,7 @@ async def callback_handle_ufb_item(event, rule_id, session, message, data):
         
         # 必须根据上下文查找当前规则
         current_chat = await event.get_chat()
-        from models.models import Chat, ForwardRule
+        from models.models import ForwardRule
         from sqlalchemy import select
         
         stmt = select(Chat).where(Chat.telegram_chat_id == str(current_chat.id))
@@ -1333,7 +1319,6 @@ async def callback_clear_keyword(event, rule_id, session, message, data):
         buttons.append([Button.inline(current_button_text, current_callback_data)])
 
         # 检查是否有其他规则
-        from sqlalchemy import func
 
         result = await session.execute(
             select(func.count(ForwardRule.id)).filter(ForwardRule.id != current_rule.id)

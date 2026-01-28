@@ -1,5 +1,4 @@
 import pytest
-import json
 from sqlalchemy import select, func
 from repositories.task_repo import TaskRepository
 from models.models import TaskQueue

@@ -3,19 +3,16 @@
 提供高效的批量操作、异步处理、连接池管理等功能
 """
 
-import threading
 import uuid
 from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import asyncio
-import logging
 import time
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 

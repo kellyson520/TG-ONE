@@ -1,6 +1,5 @@
 
 import os
-import sys
 import shutil
 
 def convert_file(path, dry_run=False):

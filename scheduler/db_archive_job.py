@@ -9,7 +9,6 @@ from core.helpers.metrics import ARCHIVE_RUN_TOTAL, ARCHIVE_RUN_SECONDS
 from repositories.bloom_index import bloom
 from models.models import analyze_database, vacuum_database
 from pathlib import Path
-import shutil
 
 logger = logging.getLogger(__name__)
 

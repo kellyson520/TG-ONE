@@ -4,7 +4,6 @@ Telegram转发器Web管理系统启动脚本
 用于快速启动Web后台管理界面
 """
 
-import os
 import sys
 import logging
 from pathlib import Path
@@ -69,8 +68,6 @@ def main():
 def check_dependencies():
     """检查必要的依赖"""
     try:
-        import flask
-        import flask_cors
         print("✅ Flask依赖检查通过")
     except ImportError as e:
         print(f"❌ 缺少必要依赖: {e}")
@@ -81,7 +78,6 @@ def check_dependencies():
     # 检查项目模块
     try:
         sys.path.append(str(project_root))
-        from models.models import get_session
         print("✅ 数据库模块检查通过")
     except ImportError as e:
         print(f"⚠️  数据库模块导入失败: {e}")

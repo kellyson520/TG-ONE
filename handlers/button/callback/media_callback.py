@@ -3,15 +3,10 @@ import traceback
 import logging
 from sqlalchemy import select
 
-from enums.enums import AddMode
-from repositories.db_operations import DBOperations
 from models.models import (
     AsyncSessionManager,
     ForwardRule,
-    MediaExtensions,
-    MediaTypes,
     RuleSync,
-    get_session,
 )
 from repositories.db_context import async_db_session
 from core.helpers.common import get_db_ops, get_media_settings_text
@@ -22,7 +17,6 @@ from handlers.button.button_helpers import (
     create_media_size_buttons,
     create_media_types_buttons,
 )
-from handlers.button.forward_management import forward_manager
 
 logger = logging.getLogger(__name__)
 

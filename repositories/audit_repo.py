@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func
 from models.models import AuditLog
 from datetime import datetime
 import json

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Callable
+from typing import Callable
 
 # 尝试引入高性能序列化
 try:

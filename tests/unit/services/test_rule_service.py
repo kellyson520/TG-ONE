@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 from models.models import Chat, ForwardRule, ForwardMapping
 from services.rule_service import RuleQueryService
 

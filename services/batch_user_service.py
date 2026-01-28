@@ -3,7 +3,7 @@
 使用官方GetUsersRequest API，速度提升3-8倍
 """
 import logging
-from typing import Dict, List, Optional, Any, Union, Set
+from typing import Dict, List, Any, Union, Set
 import asyncio
 from datetime import datetime, timedelta
 from services.network.api_optimization import get_api_optimizer

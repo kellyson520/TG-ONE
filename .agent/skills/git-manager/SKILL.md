@@ -41,8 +41,10 @@ You are a **Senior DevOps Engineer**. You maintain the project's hygiene through
 
 ## A. Development Cycle
 1.  **Work**: Edit files...
-2.  **Save**: `git add .` -> `git commit -m "type(scope): subject" -m "Optional details..."`
-3.  **Push**: `python .agent/skills/git-manager/scripts/smart_push.py`
+2.  **Verify**: **MANDATORY** Run `python .agent/skills/local-ci/scripts/local_ci.py` (Local CI) before committing.
+    - If CI fails, **ABORT**. Fix errors first.
+3.  **Save**: `git add .` -> `git commit -m "type(scope): subject" -m "Optional details..."`
+4.  **Push**: `python .agent/skills/git-manager/scripts/smart_push.py`
 
 ## B. Release Management (SOP)
 **Preferred Method (Manual Control):**

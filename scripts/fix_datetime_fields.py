@@ -4,16 +4,14 @@
 检查并修复数据库中可能存在的日期时间格式问题
 """
 
-import os
 import sys
 import logging
 from pathlib import Path
-from datetime import datetime
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models.models import get_session, ForwardRule, Chat, MediaSignature, ForwardLog, SearchResult
+from models.models import ForwardRule, Chat, MediaSignature, ForwardLog, SearchResult
 from repositories_field_utils import fix_datetime_fields, validate_datetime_fields
 from repositories.db_context import db_session
 

@@ -3,7 +3,6 @@ TG ONE 统一生命周期管理中心 (Lifecycle Manager)
 负责整合应用启动 (Bootstrap) 和 优雅关闭 (Shutdown) 流程。
 """
 import logging
-import asyncio
 from typing import Optional
 from telethon import TelegramClient
 

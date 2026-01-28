@@ -1,8 +1,6 @@
 
 import pytest
-import datetime
 from sqlalchemy import select
-from services.authentication_service import authentication_service
 from models.models import ForwardRule, RuleLog, Chat, User
 
 @pytest.mark.asyncio

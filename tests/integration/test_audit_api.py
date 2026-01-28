@@ -4,7 +4,6 @@ import secrets
 from werkzeug.security import generate_password_hash as get_password_hash
 from core.container import container
 from models.models import User, AuditLog
-from datetime import datetime
 
 @pytest.fixture
 async def admin_auth_headers(client: AsyncClient):

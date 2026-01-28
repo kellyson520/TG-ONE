@@ -1,4 +1,3 @@
-import os
 from telethon import Button
 
 from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode

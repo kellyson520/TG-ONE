@@ -14,12 +14,11 @@ import mimetypes
 from models.models import get_read_session as get_session, RSSConfig
 from datetime import datetime
 from ai import get_ai_provider
-from models.models import get_session, ForwardRule
+from models.models import ForwardRule
 import re
 from models.models import RSSPattern
 import shutil
 import time
-import os
 import subprocess
 import platform
 from pydantic import ValidationError

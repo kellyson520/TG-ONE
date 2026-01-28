@@ -3,7 +3,6 @@ from services.queue_service import forward_messages_queued
 from services.dedup_service import dedup_service
 import logging
 from core.helpers.forward_recorder import forward_recorder
-from core.helpers.common import get_main_module
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +165,6 @@ class SenderMiddleware(Middleware):
                 group_id = ctx.metadata.get('delete_group_id')
                 chat_id = ctx.chat_id
                 
-                from core.helpers.common import get_main_module
                 main = await get_main_module()
                 client = main.user_client if (main and hasattr(main, 'user_client')) else ctx.client
 

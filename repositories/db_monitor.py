@@ -6,20 +6,18 @@
 import threading
 from collections import defaultdict, deque
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import asyncio
-import json
-import logging
 import os
 import psutil
 import time
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from models.models import get_engine, get_session
+from models.models import get_engine
 from core.logging import get_logger
 from core.cache.unified_cache import get_smart_cache
 

@@ -9,7 +9,6 @@ import logging
 from typing import Any
 from abc import ABC, abstractmethod
 
-from handlers.prompt_handlers import handle_prompt_setting
 from handlers import bot_handler
 from core.container import container
 from core.helpers.metrics import (

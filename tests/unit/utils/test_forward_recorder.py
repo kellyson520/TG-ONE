@@ -1,7 +1,5 @@
 import pytest
 import json
-import os
-from pathlib import Path
 from unittest.mock import MagicMock
 from datetime import datetime
 from core.helpers.forward_recorder import ForwardRecorder

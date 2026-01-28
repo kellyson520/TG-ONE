@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from telethon import events
 from core.container import container
 from listeners.message_listener import setup_listeners
 

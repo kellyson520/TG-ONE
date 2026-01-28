@@ -2,7 +2,6 @@
 综合搜索服务
 支持本地数据库搜索与 Telegram 远程搜索
 """
-import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from enum import Enum

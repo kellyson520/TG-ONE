@@ -1,5 +1,4 @@
 from fastapi import Depends, HTTPException, status, Request, Response
-from fastapi.responses import RedirectResponse
 from fastapi.security import APIKeyCookie
 from services.authentication_service import authentication_service
 from models.models import User

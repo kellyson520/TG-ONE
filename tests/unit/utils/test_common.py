@@ -1,5 +1,4 @@
 import pytest
-import os
 from unittest.mock import MagicMock, AsyncMock, patch
 from core.helpers.common import (
     check_keywords,

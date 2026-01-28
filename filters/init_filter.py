@@ -1,15 +1,10 @@
 ﻿import logging
-import os
 try:
     import pytz
     PYTZ_AVAILABLE = True
 except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
-import asyncio
-from core.constants import TEMP_DIR
-from core.helpers.media import get_max_media_size
-from models.models import get_session, MediaSignature
 
 from filters.base_filter import BaseFilter
 

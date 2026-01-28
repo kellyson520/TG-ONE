@@ -1,19 +1,12 @@
-import asyncio
-import re
 
 # 导入新的过滤器系统
 from filters.factory import get_filter_chain_factory
-from repositories.db_operations import DBOperations
-from models.models import ForwardMode
 from core.helpers.common import check_keywords, get_sender_info
 
 # 导入统一优化工具
-from repositories.db_context import async_db_session, db_session, safe_db_operation
-from core.helpers.error_handler import handle_errors, handle_telegram_errors, retry_on_failure
+from core.helpers.error_handler import handle_errors, handle_telegram_errors
 from core.helpers.forward_recorder import forward_recorder
 from core.logging import get_logger, log_performance, log_user_action
-from core.helpers.message_utils import get_message_handler
-from core.cache.unified_cache import cached, get_smart_cache
 
 logger = get_logger(__name__)
 

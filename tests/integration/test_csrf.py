@@ -1,5 +1,4 @@
 import pytest
-import httpx
 from httpx import AsyncClient, ASGITransport
 from web_admin.fastapi_app import app
 

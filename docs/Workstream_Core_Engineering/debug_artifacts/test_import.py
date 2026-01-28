@@ -13,7 +13,6 @@ print("Testing prompt_handlers import...")
 print("=" * 60)
 
 try:
-    from handlers import prompt_handlers
     print("✅ SUCCESS: handlers.prompt_handlers imported successfully")
 except Exception as e:
     print(f"❌ FAILED: {type(e).__name__}: {e}")

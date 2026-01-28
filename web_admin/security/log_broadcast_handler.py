@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import Optional
+
 
 class WebSocketLogHandler(logging.Handler):
     """

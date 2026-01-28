@@ -4,36 +4,21 @@
 """
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
 import asyncio
 import json
 import time
-from telethon.tl.functions.channels import GetParticipantsRequest
 from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.functions.messages import SearchRequest as MessagesSearchRequest
 from telethon.tl.types import (
     Channel,
-    ChannelParticipantsSearch,
 )
 from telethon.tl.types import Chat as TelegramChat
-from telethon.tl.types import (
-    DocumentAttributeAudio,
-    DocumentAttributeImageSize,
-    DocumentAttributeVideo,
-    InputPeerChannel,
-    InputPeerChat,
-    InputPeerUser,
-)
-from telethon.tl.types import Message as TelegramMessage
-from telethon.tl.types import (
-    MessageMediaDocument,
-    MessageMediaPhoto,
-    MessageMediaWebPage,
-    User,
-)
-from typing import Any, Dict, List, Optional, Tuple
+
+
+from typing import Any, Dict, List, Optional
 
 from models.models import Chat, ForwardRule, get_session
 from core.logging import get_logger
@@ -496,12 +481,8 @@ class EnhancedSearchSystem:
                     chat_id = int(chat_record.telegram_chat_id)
 
                     # 使用 Telethon 的消息搜索功能
-                    from telethon.tl.functions.messages import (
-                        SearchRequest as MessagesSearchRequest,
-                    )
+
                     from telethon.tl.types import (
-                        InputPeerChannel,
-                        InputPeerChat,
                         MessagesFilter,
                     )
 
@@ -645,9 +626,7 @@ class EnhancedSearchSystem:
                     # 对每种媒体类型进行搜索
                     for media_filter in media_filters:
                         try:
-                            from telethon.tl.functions.messages import (
-                                SearchRequest as MessagesSearchRequest,
-                            )
+
 
                             search_results = await self.user_client(
                                 MessagesSearchRequest(

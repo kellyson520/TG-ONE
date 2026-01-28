@@ -1,10 +1,8 @@
 import asyncio
-import logging
 import time
 from collections import deque
 from typing import Any, List, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
 

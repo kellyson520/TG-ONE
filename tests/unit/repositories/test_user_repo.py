@@ -1,7 +1,5 @@
 import pytest
 from repositories.user_repo import UserRepository
-from models.models import User
-from sqlalchemy import select
 
 @pytest.fixture
 def user_repo(container):

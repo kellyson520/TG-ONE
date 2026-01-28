@@ -4,8 +4,6 @@ Command Handlers 单元测试
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-import shlex
-import sys
 
 # sys.modules mocks are now in conftest.py
 

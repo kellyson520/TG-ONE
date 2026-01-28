@@ -11,14 +11,12 @@ from functools import wraps
 
 import asyncio
 import json
-import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from models.models import get_read_session, get_session
+from models.models import get_read_session
 from core.logging import get_logger
-from repositories.persistent_cache import get_persistent_cache
-from core.cache.unified_cache import MultiLevelCache, get_smart_cache
+from core.cache.unified_cache import get_smart_cache
 
 logger = get_logger(__name__)
 
@@ -295,7 +293,7 @@ class OptimizedQueries:
         try:
             from sqlalchemy.orm import joinedload, selectinload
 
-            from models.models import ForwardRule, Keyword
+            from models.models import ForwardRule
 
             with get_read_session() as session:
                 rule = (

@@ -2,7 +2,6 @@ import logging
 from .database import Database
 from models.models import Base
 # 必须导入所有定义了模型的模块，否则 create_all 找不到表
-from models.models import ForwardRule, Chat, TaskQueue, MediaSignature, User, Keyword, ReplaceRule, MediaTypes, MediaExtensions, RuleSync, PushConfig, RSSConfig, RSSPattern, ChatStatistics, RuleStatistics, RuleLog, SystemConfiguration, ErrorLog, ForwardMapping 
 
 logger = logging.getLogger(__name__)
 

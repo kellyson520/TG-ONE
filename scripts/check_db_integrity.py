@@ -1,5 +1,4 @@
 import sqlite3
-import sys
 import os
 
 def check_integrity(db_path):

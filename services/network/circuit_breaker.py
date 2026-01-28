@@ -1,7 +1,7 @@
 import time
 import asyncio
 from enum import Enum
-from typing import Optional, Callable, Dict, Any
+from typing import Callable, Any
 from functools import wraps
 
 class CircuitState(Enum):

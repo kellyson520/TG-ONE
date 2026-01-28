@@ -1,26 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
+from fastapi import APIRouter, Depends, status, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from models.models import (
     get_session,
     get_read_session,
-    User,
     RSSConfig,
     ForwardRule,
     RSSPattern,
 )
-from repositories.db_operations import DBOperations
-from typing import Optional, List
+
+from typing import Optional
 from sqlalchemy.orm import joinedload
 from .auth import get_current_user
-from feedgen.feed import FeedGenerator
-from datetime import datetime
 import logging
 import base64
 import re
 from core.helpers.common import get_db_ops
 from core.cache.unified_cache import cached
-import os
 import aiohttp
 from core.constants import RSS_HOST, RSS_PORT, RSS_BASE_URL
 

@@ -3,8 +3,7 @@
 专门负责页面渲染，不包含业务逻辑
 此文件作为 Facade，将请求委托给 ui/renderers/ 下的专用渲染器
 """
-from typing import Dict, List, Optional, Tuple, Any
-from telethon.tl.custom import Button
+from typing import Dict, Any
 import logging
 
 from ui.renderers.main_menu_renderer import MainMenuRenderer

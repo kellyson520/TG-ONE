@@ -1,10 +1,10 @@
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from core.pipeline import Pipeline, MessageContext
 from middlewares.filter import FilterMiddleware
 from filters.factory import get_filter_chain_factory
-from models.models import ForwardRule, Chat
+from models.models import ForwardRule
 from filters.base_filter import BaseFilter
 
 # 定义 Mock 过滤器，避免依赖真实业务逻辑

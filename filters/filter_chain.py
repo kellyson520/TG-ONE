@@ -1,6 +1,6 @@
 ﻿import logging
 import asyncio
-from typing import List, Union, Protocol, runtime_checkable
+from typing import List, Protocol, runtime_checkable
 from filters.base_filter import BaseFilter
 from filters.context import MessageContext
 

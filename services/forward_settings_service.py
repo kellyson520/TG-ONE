@@ -2,7 +2,7 @@
 全局转发筛选与媒体设置服务层
 负责全局媒体设置的加载、保存与更新
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
 import json
 from datetime import datetime

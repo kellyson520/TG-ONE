@@ -5,8 +5,7 @@ Web 模块单元测试 - WebSocket Router
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import asyncio
+from unittest.mock import AsyncMock, patch
 
 
 class TestConnectionManager:

@@ -1,17 +1,7 @@
-from feedgen.feed import FeedGenerator
-from datetime import datetime, timedelta
-from core.config import settings
-from .models.entry import Entry
-from typing import List, Dict, Any, Optional, Tuple
 import logging
-import os
 from pathlib import Path
-import markdown
 import re
 import json
-from models.models import get_session, RSSConfig, ForwardRule
-from core.constants import DEFAULT_TIMEZONE
-import pytz
 
 logger = logging.getLogger(__name__)
 

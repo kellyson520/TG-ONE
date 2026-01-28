@@ -22,8 +22,7 @@ Reference: Bawa et al., "LSH Forest: Self-Tuning Indexes for Similarity Search"
 """
 
 import bisect
-import struct
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple
 import pickle
 import os
 import logging

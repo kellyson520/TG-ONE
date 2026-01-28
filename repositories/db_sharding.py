@@ -6,13 +6,10 @@
 import hashlib
 from datetime import datetime, timedelta
 
-import logging
-import os
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from typing import Any, Callable, Dict, List, Optional, Union
+from sqlalchemy import text
+from typing import Any, Dict, List, Optional, Union
 
-from models.models import get_engine, get_session
+from models.models import get_session
 from core.logging import get_logger
 
 logger = get_logger(__name__)

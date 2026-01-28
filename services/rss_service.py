@@ -4,12 +4,7 @@ RSS 业务逻辑服务
 """
 import logging
 import os
-import asyncio
-import mimetypes
-import shutil
-import uuid
-import json
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
@@ -21,7 +16,6 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
 
 from core.config import settings
-from models.models import AsyncSessionManager
 
 logger = logging.getLogger(__name__)
 

@@ -4,15 +4,13 @@
 """
 
 import pytest
-import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
 from core.pipeline import MessageContext, Pipeline
 from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
-from middlewares.filter import FilterMiddleware
 from middlewares.sender import SenderMiddleware
-from models.models import ForwardRule, Chat, Keyword
+from models.models import ForwardRule, Chat
 
 
 class TestFullPipelineIntegration:

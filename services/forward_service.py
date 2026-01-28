@@ -2,15 +2,14 @@
 转发管理服务层 (原生异步版)
 纯业务逻辑，不包含UI相关代码
 """
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Any
 from datetime import datetime, timedelta
 import logging
-import asyncio
-from sqlalchemy import text, select, func, delete
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 # from core.container import container (移至内部以避免循环导入)
-from models.models import ForwardRule, Chat, RuleLog
+from models.models import ForwardRule, Chat
 
 logger = logging.getLogger(__name__)
 

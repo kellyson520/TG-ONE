@@ -3,7 +3,7 @@ import logging
 import uuid
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from ..models.entry import Entry
 from core.cache.unified_cache import get_smart_cache
 from ..core.config import settings

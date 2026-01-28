@@ -1,5 +1,5 @@
 import collections
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Set
 
 class ACAutomaton:
     """

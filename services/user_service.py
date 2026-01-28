@@ -34,7 +34,6 @@ class UserService:
             return False
 
         # 1. 检查环境变量配置的管理员列表
-        import os
         from core.helpers.common import get_admin_list
         try:
             bot_admins = get_admin_list()

@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 @pytest.fixture
 async def auth_headers(client: AsyncClient):

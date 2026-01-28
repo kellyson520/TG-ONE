@@ -3,8 +3,6 @@ Utils 核心工具测试
 测试 logger_utils, error_handler 等核心工具
 """
 import pytest
-import logging
-from unittest.mock import MagicMock, patch
 
 
 class TestLoggerUtils:

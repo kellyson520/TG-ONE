@@ -3,9 +3,7 @@
 负责接收菜单操作请求，处理业务逻辑，可以调用 View(NewMenuSystem) 进行渲染
 """
 import logging
-import asyncio
-from typing import Optional, List, Dict, Any
-from telethon import Button, events
+from telethon import Button
 
 from services.menu_service import menu_service
 from services.rule.facade import rule_management_service
@@ -257,7 +255,6 @@ class MenuController:
 
     async def show_db_backup(self, event):
         """展示备份界面"""
-        from services.system_service import system_service
         text = "💾 **数据库备份与维护**\n您可以手动触发现有数据库的备份，或者管理历史备份。"
         buttons = [
             [Button.inline("✅ 立即备份", "new_menu:do_backup")],

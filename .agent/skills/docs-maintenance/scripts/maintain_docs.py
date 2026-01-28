@@ -1,5 +1,4 @@
 import os
-import sys
 
 def generate_tree_markdown(root_dir):
     """

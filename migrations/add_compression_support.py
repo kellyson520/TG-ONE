@@ -6,7 +6,6 @@ import asyncio
 import logging
 from sqlalchemy import text
 from core.database import Database
-from core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

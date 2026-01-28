@@ -10,6 +10,8 @@
 - [x] **Test**: 验证脚本是否符合资源限制 (2GB RAM) <!-- id: 3 -->
 - [x] **Workflow**: 创建 `/ship` 工作流文件 <!-- id: 4 -->
 - [x] **Docs**: 更新 `AGENTS.md` 注册新技能 <!-- id: 5 -->
+- [x] **Enhance**: 升级 CI 脚本为 Strict Mode (F401, F811 等) <!-- id: 6 -->
+- [x] **Tool**: 开发 `fix_lint.py` 自动化修复工具并迁移脚本至技能目录 <!-- id: 7 -->
 
 ## Definition of Done
 1. 存在 `.agent/skills/local-ci/SKILL.md`

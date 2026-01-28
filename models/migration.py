@@ -1,8 +1,5 @@
 from sqlalchemy import inspect, text
 import logging
-import os
-from datetime import datetime
-from models.base import Base
 from models.chat import Chat
 from models.rule import (
     ForwardRule, ForwardMapping, Keyword, ReplaceRule, 

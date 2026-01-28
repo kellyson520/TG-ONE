@@ -2,10 +2,7 @@
 Unit tests for application settings.
 Tests Pydantic validation and default values.
 """
-import pytest
 from core.config import Settings
-from pathlib import Path
-import os
 
 class TestSettingsLogic:
     def test_debug(self):

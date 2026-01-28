@@ -3,7 +3,7 @@ Core Container 测试
 测试依赖注入容器的基本功能
 """
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock
 
 
 class TestContainer:

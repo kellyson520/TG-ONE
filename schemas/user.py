@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, EmailStr
-from typing import Optional, List
+from typing import Optional
 from .common import TimestampMixin
 
 class UserBase(BaseModel):

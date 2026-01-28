@@ -1,10 +1,8 @@
 import pytest
-import pytest_asyncio
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 from services.authentication_service import AuthenticationService
 from models.models import User, ActiveSession
-from core.config import settings
 
 @pytest.fixture
 def auth_service():

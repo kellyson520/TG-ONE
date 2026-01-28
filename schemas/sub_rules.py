@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 
 # Basic Keywords, Replacements
 class KeywordDTO(BaseModel):

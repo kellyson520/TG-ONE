@@ -7,7 +7,6 @@ Dynamically adjusts system concurrency/throughput based on resource usage.
 import time
 import logging
 import psutil
-from typing import Optional, Tuple
 from services.network.pid import PIDController
 
 logger = logging.getLogger(__name__)

@@ -1,9 +1,8 @@
 
 import os
 import sqlite3
-import pytest
 from repositories import backup
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 def create_dummy_db(path):
     conn = sqlite3.connect(path)

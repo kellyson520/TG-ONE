@@ -5,7 +5,6 @@ from core.pipeline import MessageContext, Pipeline
 from middlewares.dedup import DedupMiddleware
 from middlewares.sender import SenderMiddleware
 from middlewares.loader import RuleLoaderMiddleware
-from services.dedup_service import DedupService
 from models.models import ForwardRule, Chat
 from datetime import datetime
 

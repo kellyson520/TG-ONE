@@ -2,6 +2,20 @@
 
 ## 📅 2026-01-27 更新摘要
 
+## 📅 2026-01-28 更新摘要
+
+### 🚀 v1.2.2.5: Engineering System Upgrade & Local CI Integration
+- **Local CI System**:
+    - **Skill Set**: Implemented `local-ci` skill with `arch_guard.py` (Architecture), `fix_lint.py` (Autofix), and `local_ci.py` (Orchestrator).
+    - **Workflow Integration**: Hard-linked `git-manager` to `local-ci`, prohibiting pushes unless local checks pass.
+    - **Performance Guard**: Enforced strict limits (max 3 test files, no all-tests) to prevent development machine lag.
+- **Architecture Guard**:
+    - **Localization**: Fully localized `arch_guard.py` output to Chinese for better DX.
+    - **Rule Refinement**: Relaxed dependency rules for `core` (Bootstrap/Container) to allow practical Dependency Injection wiring.
+- **Code Hygiene**:
+    - **Linting**: Automated unused import detection and removal via `fix_lint.py`.
+    - **Encoding**: Enforced UTF-8 output across all scripts for Windows console compatibility.
+
 ### 🚀 v1.2.2.4: Critical Encoding Recovery & RSS Module Stabilization
 - **Disaster Recovery (Encoding/Mojibake)**:
     - **Global Repair**: Systematically repaired widespread Mojibake (Gb18030/UTF-8 mix-ups) across `web_admin/rss/` and `tests/temp/`.

@@ -1,10 +1,8 @@
-from datetime import datetime, timedelta
 
 import logging
 import os
 from dotenv import load_dotenv
 from telethon import events
-from telethon.tl.types import ChannelParticipantsAdmins
 from version import WELCOME_TEXT
 
 from core.constants import TEMP_DIR

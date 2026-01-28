@@ -1,5 +1,4 @@
 import pytest
-import time
 from core.cache.wtinylfu import WTinyLFU
 
 def test_wtinylfu_basics():

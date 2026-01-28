@@ -21,7 +21,6 @@ import os
 import sys
 import math
 import logging
-from typing import List
 from sqlalchemy import create_engine, MetaData, Table, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker

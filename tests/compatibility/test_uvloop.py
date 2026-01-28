@@ -2,7 +2,6 @@ import pytest
 import asyncio
 import platform
 import os
-import sys
 
 # Windows does not support uvloop
 @pytest.mark.skipif(platform.system() == 'Windows', reason="uvloop not supported on Windows")

@@ -2,7 +2,6 @@ import pytest
 from repositories.rule_repo import RuleRepository
 from models.models import ForwardRule, Chat
 from core.container import container
-from sqlalchemy import select
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("clear_data")

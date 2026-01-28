@@ -1,6 +1,5 @@
 
 import unittest
-import random
 from core.algorithms.lsh_forest import LSHForest
 from core.algorithms.simhash import SimHash
 

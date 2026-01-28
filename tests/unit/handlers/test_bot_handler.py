@@ -4,7 +4,6 @@ Bot Handler 单元测试 (bot_handler.py)
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import sys
 
 # Mock modules via a fixture to avoid global pollution
 @pytest.fixture(autouse=True, scope="module")

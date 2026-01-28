@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Any, Optional
 
 
 class Media(BaseModel):

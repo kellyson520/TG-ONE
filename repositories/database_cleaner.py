@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

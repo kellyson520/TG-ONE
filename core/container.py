@@ -6,7 +6,6 @@ from core.pipeline import Pipeline
 
 from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
-from middlewares.download import DownloadMiddleware
 from middlewares.sender import SenderMiddleware
 from middlewares.filter import FilterMiddleware
 # from services.db_buffer import GroupCommitCoordinator -> moved to property
@@ -15,11 +14,8 @@ from middlewares.filter import FilterMiddleware
 from core.db_factory import get_async_engine 
 # 引入 Database 类（我们需要稍微改造它以接受现有的 engine）
 from core.database import Database 
-import os
 import asyncio
-from pathlib import Path
 import logging
-from functools import cached_property
 
 logger = logging.getLogger(__name__)
 

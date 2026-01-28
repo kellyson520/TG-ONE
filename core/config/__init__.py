@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict
 from functools import lru_cache
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Any, Union
 from pathlib import Path
 import os
 import logging

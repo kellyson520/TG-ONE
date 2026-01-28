@@ -6,7 +6,7 @@
 import functools
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Type, Union
+from typing import Any, Optional, Type, Union
 from telethon.errors import FloodWaitError
 
 from core.context import trace_id_var

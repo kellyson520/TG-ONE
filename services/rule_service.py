@@ -10,5 +10,3 @@ class RuleQueryService(NewService):
     pass
 
 # For those who might import specific module contents or attempt to patch them
-from services.rule.query import *
-from repositories.persistent_cache import get_persistent_cache

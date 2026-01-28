@@ -1,6 +1,6 @@
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from core.pipeline import MessageContext
 from middlewares.sender import SenderMiddleware
 from models.models import ForwardRule, Chat

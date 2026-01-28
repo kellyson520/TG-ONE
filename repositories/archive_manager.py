@@ -1,10 +1,7 @@
-import asyncio
-import logging
 from datetime import datetime, timedelta
-from typing import List, Type, Any, Dict
+from typing import Type, Any
 
-from sqlalchemy import select, delete, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, func
 
 from models.models import (
     RuleLog, RuleStatistics, ChatStatistics, 

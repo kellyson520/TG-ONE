@@ -1,6 +1,5 @@
 import traceback
 import logging
-from telethon import Button
 from services.network.router import RadixRouter
 
 # 导入模块化处理函数
@@ -16,7 +15,6 @@ from handlers.button.callback.modules.rule_settings import (
     callback_set_delay_time,
     callback_delay_time_page,
     callback_select_delay_time,
-    update_rule_setting
 )
 from handlers.button.callback.modules.rule_actions import callback_delete
 from handlers.button.callback.modules.sync_settings import (

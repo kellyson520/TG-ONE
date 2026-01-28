@@ -1,6 +1,6 @@
 import hashlib
 import re
-from typing import List, Set
+from typing import List
 
 class SimHash:
     """

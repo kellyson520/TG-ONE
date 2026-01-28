@@ -4,7 +4,6 @@ from httpx import AsyncClient
 from datetime import timedelta
 from services.authentication_service import authentication_service
 from models.models import User
-import asyncio
 
 @pytest.mark.asyncio
 async def test_auth_auto_refresh(client: AsyncClient, db, clear_data):

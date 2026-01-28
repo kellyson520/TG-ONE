@@ -8,7 +8,6 @@ except ImportError:
     PYTZ_AVAILABLE = False
 import os
 import logging
-from dotenv import load_dotenv
 from telethon import TelegramClient
 from models.models import Chat
 from repositories.db_context import async_db_session

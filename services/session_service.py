@@ -6,12 +6,11 @@
 import asyncio
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from core.container import container
 from core.helpers.tombstone import tombstone
 from core.helpers.time_range import format_time_range_display, parse_time_range_to_dates
-from models.models import TaskQueue
 from services.forward_settings_service import forward_settings_service
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-VERSION = "1.2.2.4"
+VERSION = "1.2.2.5"
 
 WELCOME_TEXT = """
 👋 欢迎使用 Telegram 消息转发机器人！
@@ -10,6 +10,7 @@ WELCOME_TEXT = """
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.2.5: 工程系统升级 - Local CI 技能集成、Git 自动化工作流强关联、架构守卫 (Arch Guard) 汉化与规则放宽。
 - v1.2.2.4: 关键修复 - Web Admin 编码灾难恢复 (Encoding/Mojibake Fixes)、RSS 模块语法修复与健康度扫描 (Self-Healing)。
 - v1.2.2.3: 架构重构 (Phase 6) - Web Admin 模块化 (Router/Handler Split)、UI 渲染器重构 (Facade/Strategy Pattern)、前端 API 解耦。
 - v1.2.2.2: 架构重构 (Phase 5) - SessionManager 服务化下沉、ForwardSettings 独立解耦、全链路异步IO合规、静默失败治理完成。

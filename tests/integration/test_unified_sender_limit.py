@@ -7,7 +7,7 @@ UnifiedSender 限流保护集成测试
 import pytest
 import time
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from core.helpers.unified_sender import UnifiedSender
 from services.queue_service import _flood_wait_until
 

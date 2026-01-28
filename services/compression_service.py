@@ -3,7 +3,7 @@ LZ4 Compression Service
 提供透明的数据压缩/解压缩功能，优化数据库存储
 """
 import logging
-from typing import Optional, Union
+from typing import Union
 import zlib  # Fallback compression
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from core.parsers.rss_parser import rss_parser, FeedEntry
+from core.parsers.rss_parser import rss_parser
 
 class TestRSSParser(unittest.TestCase):
     def test_xml_fallback_rss2(self):

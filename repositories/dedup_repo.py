@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import logging
 from sqlalchemy import select
 from models.models import MediaSignature

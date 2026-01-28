@@ -3,7 +3,6 @@ from models.models import RuleLog, ChatStatistics, ErrorLog, RuleStatistics
 from sqlalchemy import select, update, insert, func
 from datetime import date, datetime
 import asyncio
-import time
 import logging
 
 logger = logging.getLogger(__name__)

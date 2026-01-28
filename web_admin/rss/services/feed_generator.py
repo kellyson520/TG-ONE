@@ -1,5 +1,5 @@
 from feedgen.feed import FeedGenerator
-from datetime import datetime, timedelta
+from datetime import datetime
 from core.config import settings
 from web_admin.rss.models.entry import Entry
 from typing import List

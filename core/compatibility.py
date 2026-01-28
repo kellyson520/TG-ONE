@@ -1,5 +1,4 @@
 import logging
-import telethon.network.connection.connection
 from telethon.network.connection.connection import Connection
 
 logger = logging.getLogger(__name__)
