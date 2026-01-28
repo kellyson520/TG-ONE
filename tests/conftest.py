@@ -15,10 +15,10 @@ if _project_root not in sys.path:
 # ============================================================
 # PHASE 0: 预导入关键包 & Patch 核心基础设施
 # ============================================================
-def _patch_database_engine_early():
     """迫使数据库引擎在任何业务代码导入前被 Patch"""
     try:
         import models.models
+        import core.db_factory
         from sqlalchemy import create_engine
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.pool import StaticPool
@@ -37,7 +37,7 @@ def _patch_database_engine_early():
         models.models.Base.metadata.create_all(sync_engine)
         
         def mock_get_engine(): return sync_engine
-        def mock_get_async_engine():
+        def mock_get_async_engine(readonly=False):
             return create_async_engine(
                 test_url_async, 
                 echo=False, 
@@ -45,10 +45,10 @@ def _patch_database_engine_early():
                 poolclass=StaticPool
             )
         
-        models.models.get_engine = mock_get_engine
-        models.models.get_read_engine = mock_get_engine
-        models.models.get_dedup_engine = mock_get_engine
-        models.models.get_async_engine = mock_get_async_engine
+        core.db_factory.get_engine = mock_get_engine
+        core.db_factory.get_async_engine = mock_get_async_engine
+        core.db_factory.DbFactory.get_engine = mock_get_engine
+        core.db_factory.DbFactory.get_async_engine = mock_get_async_engine
         return True
     except Exception as e:
         print(f"CRITICAL: Failed early engine patch: {e}")

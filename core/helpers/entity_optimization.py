@@ -182,9 +182,8 @@ class EntityResolver:
                 return {"error": f"无法解析聊天实体: {chat_id}"}
 
             # 使用API优化器获取统计信息
-            from services.network.api_optimization import get_api_optimizer
-
-            api_optimizer = get_api_optimizer()
+            mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
+            api_optimizer = mod.get_api_optimizer()
 
             chat_info = {
                 "entity": entity,

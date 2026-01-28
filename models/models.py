@@ -2,11 +2,7 @@
 Modular Models Proxy
 This file maintains backward compatibility while redirecting to split model files.
 """
-from models.base import (
-    Base, get_engine, get_async_engine, get_session, 
-    get_session_factory, AsyncSessionManager
-)
-get_read_session = get_session  # Alias for backward compatibility
+from models.base import Base
 from models.chat import Chat
 from models.rule import (
     ForwardRule, ForwardMapping, Keyword, ReplaceRule, 
@@ -21,8 +17,7 @@ from models.migration import migrate_db
 
 # Re-export all for backward compatibility
 __all__ = [
-    'Base', 'get_engine', 'get_async_engine', 'get_session', 
-    'get_session_factory', 'AsyncSessionManager',
+    'Base',
     'Chat',
     'ForwardRule', 'ForwardMapping', 'Keyword', 'ReplaceRule', 
     'MediaTypes', 'MediaExtensions', 'RuleSync', 'PushConfig', 

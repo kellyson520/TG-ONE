@@ -76,7 +76,9 @@ class ForwardManager:
 
     async def toggle_rule_status(self, rule_id):
         """切换规则启用状态"""
-        async with async_db_session() as session:
+        from core.container import container
+        from models.models import ForwardRule
+        async with container.db.session() as session:
             try:
                 # 获取规则
                 rule = await session.get(ForwardRule, rule_id)

@@ -46,9 +46,8 @@ class RealtimeStatsCache:
 
         # 检查持久化缓存中是否有今日概览数据
         try:
-            from repositories.persistent_cache import get_persistent_cache
-
-            persistent_cache = get_persistent_cache()
+            mod = __import__('repositories.persistent_cache', fromlist=['get_persistent_cache'])
+            persistent_cache = mod.get_persistent_cache()
             today_str = datetime.now().strftime("%Y-%m-%d")
             persistent_key = f"today_summary:{today_str}"
 
@@ -66,7 +65,8 @@ class RealtimeStatsCache:
             return self._cache[cache_key]
 
         try:
-            from services.forward_service import forward_service
+            mod = __import__('services.forward_service', fromlist=['forward_service'])
+            forward_service = mod.forward_service
 
             stats = await forward_service.get_forward_stats()
 
@@ -79,7 +79,8 @@ class RealtimeStatsCache:
 
             # 将今日统计数据保存到持久化缓存中（有效期到今天结束）
             try:
-                from repositories.persistent_cache import dumps_json
+                mod = __import__('repositories.persistent_cache', fromlist=['dumps_json'])
+                dumps_json = mod.dumps_json
 
                 tomorrow = datetime.now() + timedelta(days=1)
                 tomorrow_midnight = datetime(
@@ -118,7 +119,8 @@ class RealtimeStatsCache:
             return self._cache[cache_key]
 
         try:
-            from services.dedup_service import dedup_service
+            mod = __import__('services.dedup_service', fromlist=['dedup_service'])
+            dedup_service = mod.dedup_service
 
             stats = await dedup_service.get_dedup_config()
 
@@ -153,7 +155,8 @@ class RealtimeStatsCache:
             return self._cache[cache_key]
 
         try:
-            from services.analytics_service import analytics_service
+            mod = __import__('services.analytics_service', fromlist=['analytics_service'])
+            analytics_service = mod.analytics_service
 
             stats = await analytics_service.get_system_status()
 

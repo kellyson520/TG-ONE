@@ -21,7 +21,8 @@ async def get_user_id():
 async def get_current_rule(event):
     """获取当前选中的规则 (Delegate to RuleQueryService)"""
     try:
-        from services.rule_service import RuleQueryService
+        mod = __import__('services.rule_service', fromlist=['RuleQueryService'])
+        RuleQueryService = mod.RuleQueryService
 
         result = await RuleQueryService.get_current_rule_for_chat(event)
 
@@ -42,7 +43,8 @@ async def get_current_rule(event):
 async def get_all_rules(event):
     """获取当前聊天的所有规则 (Delegate to RuleQueryService)"""
     try:
-        from services.rule_service import RuleQueryService
+        mod = __import__('services.rule_service', fromlist=['RuleQueryService'])
+        RuleQueryService = mod.RuleQueryService
 
         current_chat = await event.get_chat()
         chat_id = abs(current_chat.id)
@@ -88,7 +90,8 @@ async def get_channel_admins(client, chat_id):
 async def is_admin(event, client=None):
     """检查用户是否为管理员 (Delegate to UserService)"""
     try:
-        from services.user_service import user_service
+        mod = __import__('services.user_service', fromlist=['user_service'])
+        user_service = mod.user_service
         return await user_service.is_admin(event.sender_id, event, client)
     except Exception as e:
         logger.error(f"检查管理员权限时出错: {str(e)}")
@@ -105,8 +108,10 @@ async def get_ai_settings_text(rule):
 async def get_sender_info(event, rule_id):
     """获取发送者信息 (保持原逻辑，涉及大量 Telethon 交互)"""
     try:
-        from services.batch_user_service import get_batch_user_service
-        from services.network.api_optimization import get_api_optimizer
+        mod_batch = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
+        get_batch_user_service = mod_batch.get_batch_user_service
+        mod_api = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
+        get_api_optimizer = mod_api.get_api_optimizer
 
         batch_service = get_batch_user_service()
         api_optimizer = get_api_optimizer()
@@ -154,21 +159,22 @@ def get_admin_list():
 
 async def check_keywords(rule, message_text, event=None):
     """Delegate to RuleFilterService"""
-    from services.rule.filter import RuleFilterService
-    return await RuleFilterService.check_keywords(rule, message_text, event)
+    mod = __import__('services.rule.filter', fromlist=['RuleFilterService'])
+    return await mod.RuleFilterService.check_keywords(rule, message_text, event)
 
 async def process_user_info(event, rule_id, message_text):
     """Delegate to UserService"""
     try:
-        from services.user_service import user_service
+        mod = __import__('services.user_service', fromlist=['user_service'])
+        user_service = mod.user_service
         return await user_service.process_user_info(event, rule_id, message_text)
     except Exception as e:
         logger.error(f"处理用户信息失败: {str(e)}")
         return message_text
 
 async def get_db_ops():
-    from repositories.db_operations import DBOperations
-    return await DBOperations.create()
+    mod = __import__('repositories.db_operations', fromlist=['DBOperations'])
+    return await mod.DBOperations.create()
 
 async def get_user_client():
     from core.container import container

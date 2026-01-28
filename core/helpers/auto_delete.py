@@ -54,7 +54,8 @@ async def reply_and_delete(event, text, delete_after_seconds=None, **kwargs):
     # 使用新的任务管理器安排删除任务
     if deletion_timeout != -1:
         try:
-            from services.task_service import message_task_manager
+            mod = __import__('services.task_service', fromlist=['message_task_manager'])
+            message_task_manager = mod.message_task_manager
 
             await message_task_manager.schedule_delete(message, deletion_timeout)
         except ImportError:
@@ -85,7 +86,8 @@ async def respond_and_delete(event, text, delete_after_seconds=None, **kwargs):
     # 使用新的任务管理器安排删除任务
     if deletion_timeout != -1:
         try:
-            from services.task_service import message_task_manager
+            mod = __import__('services.task_service', fromlist=['message_task_manager'])
+            message_task_manager = mod.message_task_manager
 
             await message_task_manager.schedule_delete(message, deletion_timeout)
         except ImportError:
@@ -119,7 +121,8 @@ async def send_message_and_delete(
     # 使用新的任务管理器安排删除任务
     if deletion_timeout != -1:
         try:
-            from services.task_service import message_task_manager
+            mod = __import__('services.task_service', fromlist=['message_task_manager'])
+            message_task_manager = mod.message_task_manager
 
             await message_task_manager.schedule_delete(message, deletion_timeout)
         except ImportError:
@@ -147,7 +150,8 @@ async def async_delete_user_message(client, chat_id, message_id, seconds):
 
     # 使用新的任务管理器安排删除任务
     try:
-        from services.task_service import message_task_manager
+        mod = __import__('services.task_service', fromlist=['message_task_manager'])
+        message_task_manager = mod.message_task_manager
 
         # 创建删除任务的回调函数
         async def delete_callback():

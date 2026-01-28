@@ -12,7 +12,7 @@ from middlewares.filter import FilterMiddleware
 # from services.db_buffer import GroupCommitCoordinator -> moved to property
 
 # 引入全局数据库单例获取函数
-from models.models import get_async_engine 
+from core.db_factory import get_async_engine 
 # 引入 Database 类（我们需要稍微改造它以接受现有的 engine）
 from core.database import Database 
 import os
@@ -227,6 +227,7 @@ class Container:
         self.user_client = user_client
         self.bot_client = bot_client
         # 初始化服务
+        from services.download_service import DownloadService
         self.downloader = DownloadService(user_client)
         logger.info("DownloadService initialized")
         
@@ -243,6 +244,7 @@ class Container:
         logger.info("✅ Pipeline assembled: Loader -> Dedup -> Filter -> AI -> Sender")
         
         # [Dependency Injection] 将 downloader 直接注入 worker，解耦全局依赖
+        from services.worker_service import WorkerService
         self.worker = WorkerService(user_client, self.task_repo, pipeline, self.downloader)
         logger.info("WorkerService initialized with injected dependencies")
         

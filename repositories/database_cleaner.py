@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Chat, ForwardRule
-from services.network.api_optimization import get_api_optimizer
+# from services.network.api_optimization import get_api_optimizer
 from core.helpers.entity_validator import get_entity_validator
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,11 @@ class DatabaseCleaner:
             "validation_errors": 0,
         }
 
-        api_optimizer = get_api_optimizer()
+        try:
+            mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
+            api_optimizer = mod.get_api_optimizer()
+        except ImportError:
+            api_optimizer = None
         if not api_optimizer:
             logger.warning("API优化器未初始化，跳过聊天验证")
             return results

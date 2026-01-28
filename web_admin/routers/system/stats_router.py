@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse
 
 from web_admin.security.deps import admin_required, login_required
-from models.models import get_async_engine
+from core.db_factory import get_async_engine
 from web_admin.schemas.response import ResponseSchema
 from web_admin.api import deps
 

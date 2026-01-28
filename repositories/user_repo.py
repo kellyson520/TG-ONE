@@ -123,16 +123,21 @@ class UserRepository:
     async def get_allow_registration(self) -> bool:
         """获取是否允许注册"""
         # 这里应该从配置服务获取，暂时返回默认值
-        from services.config_service import config_service
-        v = await config_service.get('ALLOW_REGISTRATION')
-        if v is None:
-             import os
-             v = os.getenv('ALLOW_REGISTRATION', 'false')
-        return str(v).lower() in ('1', 'true', 'yes')
+        try:
+            mod = __import__('services.config_service', fromlist=['config_service'])
+            config_service = mod.config_service
+            v = await config_service.get('ALLOW_REGISTRATION')
+            if v is None:
+                 import os
+                 v = os.getenv('ALLOW_REGISTRATION', 'false')
+            return str(v).lower() in ('1', 'true', 'yes')
+        except Exception:
+            return False
 
     async def set_allow_registration(self, allow: bool) -> None:
         """设置是否允许注册"""
-        from services.config_service import config_service
+        mod = __import__('services.config_service', fromlist=['config_service'])
+        config_service = mod.config_service
         await config_service.set('ALLOW_REGISTRATION', 'true' if allow else 'false', data_type='string')
 
     async def get_user_by_telegram_id(self, telegram_id: str) -> Optional[UserDTO]:

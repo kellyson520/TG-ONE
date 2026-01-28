@@ -45,9 +45,8 @@ class EventOptimizer:
                 self.event_stats["messages_processed"] += 1
 
                 # 使用批量用户服务预处理用户信息
-                from services.batch_user_service import get_batch_user_service
-
-                batch_service = get_batch_user_service()
+                mod = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
+                batch_service = mod.get_batch_user_service()
 
                 # 预加载发送者信息（避免后续单独API调用）
                 if event.sender_id:
@@ -109,9 +108,8 @@ class EventOptimizer:
                 self.event_stats["events_handled"] += 1
 
                 # 实时更新用户信息缓存
-                from services.batch_user_service import get_batch_user_service
-
-                batch_service = get_batch_user_service()
+                mod = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
+                batch_service = mod.get_batch_user_service()
 
                 if hasattr(event, "user_id") and event.user_id:
                     # 异步更新用户信息
@@ -132,9 +130,8 @@ class EventOptimizer:
                 self.event_stats["events_handled"] += 1
 
                 # 使用官方API实时更新聊天统计
-                from services.network.api_optimization import get_api_optimizer
-
-                api_optimizer = get_api_optimizer()
+                mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
+                api_optimizer = mod.get_api_optimizer()
 
                 if api_optimizer and event.chat_id:
                     # 异步更新聊天统计
@@ -234,13 +231,13 @@ class EventDrivenMonitor:
                     await asyncio.sleep(600)
 
                     # 使用官方API获取聊天统计
-                    from services.network.api_optimization import get_api_optimizer
-
-                    api_optimizer = get_api_optimizer()
+                    mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
+                    api_optimizer = mod.get_api_optimizer()
 
                     if api_optimizer:
                         # 获取活跃聊天列表（从数据库）
-                        from models.models import Chat, get_session
+                        from models.models import Chat
+                        from core.db_factory import get_session
 
                         session = get_session()
                         try:

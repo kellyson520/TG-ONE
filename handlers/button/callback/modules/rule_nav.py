@@ -90,10 +90,7 @@ async def callback_page(event, rule_id, session, message, data):
             rule = rule.scalar()
 
             if command == "keyword":
-                keywords = await s.execute(
-                    select(Keyword).where(Keyword.rule_id == rule.id) # Assuming Keyword imported? No, need import
-                )
-                from models.models import Keyword # Lazy import or move to top
+                from models.models import Keyword
                 keywords = await s.execute(
                      select(Keyword).where(Keyword.rule_id == rule.id)
                 )
@@ -170,9 +167,8 @@ async def callback_page_rule(event, page_str, session, message, data):
         page = int(page_str)
 
         async def _do(s):
-            total_result = await s.execute(select(func.count()).select_from(ForwardRule))
             from sqlalchemy import func
-            total_result = await s.execute(select(func.count()).select_from(ForwardRule)) # Re-import func if needed or use from sqlalchemy
+            total_result = await s.execute(select(func.count()).select_from(ForwardRule))
             total_rules = total_result.scalar()
             if total_rules == 0:
                 await event.answer("没有任何规则")

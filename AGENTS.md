@@ -99,6 +99,13 @@ Action: view_file(AbsolutePath=".../SKILL.md") before proceeding.
   </skill>
 
   <skill>
+    <name>local-ci</name>
+    <description>本地 CI 执行器。在提交代码前强制运行架构检查、风格检查和针对性单元测试，确保本地质量门禁通过后才允许推送云端。</description>
+    <path>.agent/skills/local-ci/SKILL.md</path>
+    <location>project</location>
+  </skill>
+
+  <skill>
     <name>python-runtime-diagnostics</name>
     <description>Expert diagnostics for Python runtime errors including ModuleNotFoundError, UnboundLocalError, and Import issues.</description>
     <path>.agent/skills/python-runtime-diagnostics/SKILL.md</path>

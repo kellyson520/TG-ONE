@@ -3,14 +3,17 @@ import ast
 import os
 import sys
 
+# Force UTF-8 output for Windows consoles to support emojis
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # Define layering rules: Key component -> Forbidden imports
 # Format: "component_dir": ["forbidden_component_1", "forbidden_component_2"]
 RULES = {
     "repositories": ["services", "handlers", "web_admin"],
-    "utils": ["services", "repositories", "models", "handlers", "web_admin"],
-    "core": ["handlers", "web_admin", "services", "repositories"], # Core should be independent ideally, but currently imports services/repositories for Container?
-    # Wait, Core Container imports everything to wire them up. So Core is special.
-    # Let's refine Core: core/helpers should not import services/repositories.
+    "utils": ["services", "repositories", "models", "handlers", "web_admin", "core"],
+    # Core Container/Bootstrap needs to import everything to wire the app, so we allow it.
+    # However, strict helpers should not depend on business logic.
     "core/helpers": ["services", "repositories", "handlers", "web_admin"],
     
     "services": ["handlers", "web_admin"], # Services should not depend on UI/Controllers
@@ -29,15 +32,16 @@ def get_project_files(root_dir):
 
 def check_imports(file_path, root_dir):
     # Determine which component this file belongs to
-    rel_path = os.path.relpath(file_path, root_dir)
+    # Determine which component this file belongs to
+    rel_path = os.path.relpath(file_path, root_dir).replace("\\", "/")
     component = None
     
-    # Check strict subdirectories first
+    # Check strict subdirectories first (Rule keys must use forward slashes)
     if rel_path.startswith("core/helpers"):
         component = "core/helpers"
     else:
         # Top level components
-        parts = rel_path.split(os.sep)
+        parts = rel_path.split("/")
         if len(parts) > 0 and parts[0] in RULES:
             component = parts[0]
 

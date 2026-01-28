@@ -643,6 +643,7 @@ class SessionService:
         try:
             from models.models import ForwardRule
             from sqlalchemy.orm import selectinload
+            from sqlalchemy import select
             
             async with container.db.session() as session:
                 # 预加载关联的聊天和关键字

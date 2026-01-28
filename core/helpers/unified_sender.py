@@ -1,7 +1,7 @@
 
 import logging
 from typing import Union, List, Optional, Any
-from services.queue_service import send_message_queued, send_file_queued
+# from services.queue_service import send_message_queued, send_file_queued
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,8 @@ class UnifiedSender:
             buttons = kwargs.pop('buttons', None)
             
             # Send Album
-            await send_file_queued(
+            mod = __import__('services.queue_service', fromlist=['send_file_queued'])
+            await mod.send_file_queued(
                 self.client,
                 target_id,
                 media,
@@ -79,7 +80,8 @@ class UnifiedSender:
                     'message_thread_id': kwargs.get('message_thread_id'),
                     'buttons': buttons
                 }
-                await send_message_queued(
+                mod = __import__('services.queue_service', fromlist=['send_message_queued'])
+                await mod.send_message_queued(
                     self.client,
                     target_id,
                     "👇 互动按钮",
@@ -88,7 +90,8 @@ class UnifiedSender:
                 )
         else:
             # Single Media
-            await send_file_queued(
+            mod = __import__('services.queue_service', fromlist=['send_file_queued'])
+            await mod.send_file_queued(
                 self.client, 
                 target_id, 
                 media, 
@@ -107,7 +110,8 @@ class UnifiedSender:
                 logger.warning(f"UnifiedSender: Ignored empty text send request to {target_id}")
                 return
 
-        await send_message_queued(
+        mod = __import__('services.queue_service', fromlist=['send_message_queued'])
+        await mod.send_message_queued(
             self.client,
             target_id,
             text,

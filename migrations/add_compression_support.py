@@ -16,7 +16,7 @@ async def add_compression_fields():
     """添加压缩标志字段到数据库"""
     
     # 使用共享引擎
-    from models.models import get_async_engine
+    from core.db_factory import get_async_engine
     engine = get_async_engine()
     db = Database(engine=engine)
     
@@ -57,7 +57,8 @@ async def add_compression_fields():
 
 async def compress_existing_data():
     """压缩现有的大文本数据"""
-    from models.models import get_async_engine, RSSConfig, RuleLog, ErrorLog
+    from core.db_factory import get_async_engine
+    from models.models import RSSConfig, RuleLog, ErrorLog
     from services.compression_service import compression_service
     from sqlalchemy import select
     

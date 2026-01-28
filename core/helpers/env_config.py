@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.config import settings
-from services.config_service import config_service
+# from services.config_service import config_service
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,13 @@ class EnvConfigManager:
         if hasattr(settings, key):
             return str(getattr(settings, key))
         # 回退到旧逻辑
-        v = config_service.get(key)
+        # 回退到旧逻辑
+        try:
+            mod = __import__('services.config_service', fromlist=['config_service'])
+            config_service = mod.config_service
+            v = config_service.get(key)
+        except Exception:
+            v = None
         if v is not None:
             return str(v)
         env_value = os.getenv(key)
@@ -55,6 +61,8 @@ class EnvConfigManager:
     def set_config(self, key: str, value: str, persist: bool = True) -> bool:
         """设置配置"""
         try:
+            mod = __import__('services.config_service', fromlist=['config_service'])
+            config_service = mod.config_service
             config_service.set(key, value, data_type="string")
             os.environ[key] = value
             self._config_cache[key] = value
