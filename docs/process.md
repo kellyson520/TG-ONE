@@ -81,6 +81,8 @@
 | 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3+) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report.md) |
 | 20260126_Phase5_Stability | 稳定性、异步合规与静默失败治理 | 2026-01-26 | 进行中 | 5% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Phase5_Stability_Async_Governance/todo.md) |
 | 20260126_Web_Admin_Refactor | Web Admin 与表现层重构 (P1/P2) | 2026-01-26 | 进行中 | 0% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Web_Admin_Refactor_Phase6/todo.md) |
+| 20260129_Align_Tests_UserHandler | UserHandler 测试适配与修复 | 2026-01-29 | 2026-01-29 | 100% | [[report.md]](./docs/Workstream_Core_Engineering/20260129_Align_Tests_UserHandler/report.md) |
+| 20260129_Fix_Remaining_Tests | 修复残余集成测试 (WebFullLink/KeyError) | 2026-01-29 | 进行中 | 0% | [[todo.md]](./docs/Workstream_Core_Engineering/20260129_Fix_Remaining_Integration_Tests/todo.md) |
 
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
