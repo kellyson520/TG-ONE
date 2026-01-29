@@ -201,7 +201,7 @@ class TaskRepository:
             if task:
                 now = datetime.utcnow()
                 task.error_message = str(error)
-                if task.attempts < max_attempts:
+                if task.attempts < max_retries:
                     if validate_transition(task.status, 'pending'):
                         task.attempts += 1
                         task.status = 'pending' # 重新放回队列
