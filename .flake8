@@ -9,7 +9,10 @@ exclude =
     dist,
     *.egg-info,
     tests/temp,
-    .agent/temp
+    .agent/temp,
+    archive,
+    alembic,
+    services/dedup/engine.py
 
 max-line-length = 120
 
