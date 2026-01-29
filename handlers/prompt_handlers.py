@@ -7,7 +7,8 @@ from .button import button_helpers
 from repositories.db_operations import DBOperations
 from models.models import ForwardRule, PushConfig, ReplaceRule, RuleSync
 from repositories.db_context import async_db_session
-from core.helpers.common import get_ai_settings_text, get_bot_client, get_main_module
+from core.helpers.common import get_bot_client, get_main_module
+from handlers.button.settings_manager import get_ai_settings_text
 from core.helpers.auto_delete import (
     async_delete_user_message,
     send_message_and_delete,

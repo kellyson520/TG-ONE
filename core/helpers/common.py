@@ -95,13 +95,7 @@ async def is_admin(event, client=None):
         logger.error(f"检查管理员权限时出错: {str(e)}")
         return False
 
-async def get_media_settings_text():
-    return MEDIA_SETTINGS_TEXT
 
-async def get_ai_settings_text(rule):
-    ai_prompt = rule.ai_prompt or os.getenv("DEFAULT_AI_PROMPT", "未设置")
-    summary_prompt = rule.summary_prompt or os.getenv("DEFAULT_SUMMARY_PROMPT", "未设置")
-    return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt)
 
 async def get_sender_info(event, rule_id):
     """获取发送者信息 (保持原逻辑，涉及大量 Telethon 交互)"""
@@ -189,6 +183,7 @@ async def get_main_module():
         def bot_client(self): return container.bot_client
         @property
         def user_client(self): return container.user_client
+    return MainModuleWrapper()
 
 def get_session():
     """Delegate to core.db_factory"""

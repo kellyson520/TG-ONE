@@ -9,7 +9,8 @@ from models.models import (
     RuleSync,
 )
 from repositories.db_context import async_db_session
-from core.helpers.common import get_db_ops, get_media_settings_text
+from core.helpers.common import get_db_ops
+from handlers.button.settings_manager import get_media_settings_text
 
 from handlers.button.button_helpers import (
     create_media_extensions_buttons,

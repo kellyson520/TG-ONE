@@ -1,4 +1,4 @@
-VERSION = "1.2.2.6"
+VERSION = "1.2.2.7"
 
 WELCOME_TEXT = """
 👋 欢迎使用 Telegram 消息转发机器人！
@@ -10,6 +10,7 @@ WELCOME_TEXT = """
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.2.7: 架构分层修复 - 移除 core 层对 handlers 层的非法依赖、修复未定义名称错误、通过本地 CI 质量门禁。
 - v1.2.2.6: 代码质量治理 - Flake8 配置标准化、Lint 错误全面清理、临时目录排除规则建立。
 - v1.2.2.5: 工程系统升级 - Local CI 技能集成、Git 自动化工作流强关联、架构守卫 (Arch Guard) 汉化与规则放宽。
 - v1.2.2.4: 关键修复 - Web Admin 编码灾难恢复 (Encoding/Mojibake Fixes)、RSS 模块语法修复与健康度扫描 (Self-Healing)。

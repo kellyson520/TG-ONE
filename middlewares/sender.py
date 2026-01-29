@@ -167,6 +167,7 @@ class SenderMiddleware(Middleware):
         # [Cleanup] 统一处理源消息删除
         if ctx.metadata.get('delete_source_message'):
             try:
+                from core.helpers.common import get_main_module
                 group_id = ctx.metadata.get('delete_group_id')
                 chat_id = ctx.chat_id
                 

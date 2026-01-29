@@ -4,7 +4,7 @@ from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode
 from telethon.errors import FloodWaitError
 from core.helpers.error_handler import handle_errors
-from repositories.db_context import safe_db_operation
+from repositories.db_context import async_safe_db_operation
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class SenderFilter(BaseFilter):
             logger.warning(f'获取目标聊天实体时出错: {str(e)}')
         
         # 设置消息格式
-        parse_mode = rule.message_mode.value  # 使用枚举的值（字符串）
+        parse_mode = getattr(rule.message_mode, 'value', rule.message_mode)  # Safely handle String/Enum
         logger.info(f'使用消息格式: {parse_mode}')
         
         # 使用统一的错误处理发送消息
@@ -262,7 +262,7 @@ class SenderFilter(BaseFilter):
                         PreviewMode.ON: True,
                         PreviewMode.OFF: False,
                         PreviewMode.FOLLOW: context.event.message.media is not None
-                    }[rule.is_preview]
+                    }[PreviewMode(getattr(rule.is_preview, 'value', rule.is_preview))]
                 )
                 # 保存发送的消息到上下文
                 # 修复："Updates" 对象没有 len() 方法的问题
@@ -351,7 +351,7 @@ class SenderFilter(BaseFilter):
                         PreviewMode.ON: True,
                         PreviewMode.OFF: False,
                         PreviewMode.FOLLOW: context.event.message.media is not None
-                    }[rule.is_preview]
+                    }[PreviewMode(getattr(rule.is_preview, 'value', rule.is_preview))]
                 )
                 logger.info(f'媒体消息已发送')
             except Exception as e:
@@ -382,7 +382,7 @@ class SenderFilter(BaseFilter):
             PreviewMode.ON: True,
             PreviewMode.OFF: False,
             PreviewMode.FOLLOW: context.event.message.media is not None  # 跟随原消息
-        }[rule.is_preview]
+        }[PreviewMode(getattr(rule.is_preview, 'value', rule.is_preview))]
         
         # 组合消息文本
         message_text = context.sender_info + context.message_text + context.time_info + context.original_link
@@ -407,14 +407,14 @@ class SenderFilter(BaseFilter):
         Returns:
             Chat对象或None
         """
-        def get_chat_operation(session):
+        async def get_chat_operation(session):
             from models.models import Chat
             target_chat_id = getattr(rule, 'target_chat_id', None)
             if target_chat_id:
-                return session.query(Chat).get(target_chat_id)
+                return await session.get(Chat, target_chat_id)
             return None
         
-        return safe_db_operation(get_chat_operation, default_return=None)
+        return await async_safe_db_operation(get_chat_operation, default_return=None)
     
     @handle_errors(default_return=False)
     async def _send_message_with_error_handling(self, context, target_chat_id, target_chat, parse_mode):
@@ -478,6 +478,7 @@ class SenderFilter(BaseFilter):
         """记录转发信息"""
         try:
             from core.helpers.forward_recorder import forward_recorder
+            from core.helpers.common import get_main_module
             rule = context.rule
             event = context.event
             
