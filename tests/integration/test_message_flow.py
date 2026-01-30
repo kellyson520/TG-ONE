@@ -19,8 +19,8 @@ async def test_integration_flow_success(db, clear_data):
     """
     # 1. 准备数据 (Real DB Setup)
     # Create Source & Target Chats
-    source_chat = Chat(telegram_chat_id="111111", name="Source", chat_type="user")
-    target_chat = Chat(telegram_chat_id="987654321", name="Integration Target", chat_type="group")
+    source_chat = Chat(telegram_chat_id="111111", name="Source", type="user")
+    target_chat = Chat(telegram_chat_id="987654321", name="Integration Target", type="group")
     db.add(source_chat)
     db.add(target_chat)
     await db.commit()
@@ -29,7 +29,7 @@ async def test_integration_flow_success(db, clear_data):
     rule = ForwardRule(
         source_chat_id=source_chat.id,
         target_chat_id=target_chat.id,
-        forward_mode=ForwardMode.WHITELIST,
+        forward_mode=ForwardMode.WHITELIST.value,
         enable_rule=True,
         force_pure_forward=True,
     )
@@ -42,13 +42,19 @@ async def test_integration_flow_success(db, clear_data):
     await db.commit()
     
     # Reload Rule with Keywords Eager Loaded
-    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(selectinload(ForwardRule.keywords))
+    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(
+        selectinload(ForwardRule.keywords),
+        selectinload(ForwardRule.target_chat)
+    )
     result = await db.execute(stmt)
     rule_loaded = result.scalar_one()
     
     # 2. 准备依赖 (Real Logic, Mock I/O)
     mock_client = MagicMock()
     mock_client.forward_messages = AsyncMock(return_value=MagicMock(id=8888))
+    mock_client.get_messages = AsyncMock(return_value=MagicMock())
+    mock_client.send_message = AsyncMock()
+    mock_client.send_file = AsyncMock()
     
     mock_event = MagicMock()
     mock_event.message.text = "This contains magic keyword"
@@ -65,10 +71,10 @@ async def test_integration_flow_success(db, clear_data):
     
     # 4. 验证行为
     mock_client.forward_messages.assert_awaited()
-    args = mock_client.forward_messages.await_args
-    # Verify kwargs 'entity' or 'to_peer'
-    kwargs = args[1]
-    assert kwargs.get('entity') == 987654321 or kwargs.get('to_peer') == 987654321
+    args, kwargs = mock_client.forward_messages.await_args
+    # Verify target (either as 1st positional or keyword 'entity'/'to_peer')
+    target_id = args[0] if len(args) > 0 else (kwargs.get('entity') or kwargs.get('to_peer'))
+    assert str(target_id) == "987654321"
 
 @pytest.mark.asyncio
 async def test_integration_flow_filtered(db, clear_data):
@@ -77,8 +83,8 @@ async def test_integration_flow_filtered(db, clear_data):
     Rule(Keyword 'magic') -> Message('boring') -> Filter Block -> No Client Call
     """
     # Setup
-    target_chat = Chat(telegram_chat_id="999", name="T", chat_type="group")
-    source_chat = Chat(telegram_chat_id="222", name="S", chat_type="group")
+    target_chat = Chat(telegram_chat_id="999", name="T", type="group")
+    source_chat = Chat(telegram_chat_id="222", name="S", type="group")
     db.add(target_chat)
     db.add(source_chat)
     await db.commit()
@@ -86,7 +92,7 @@ async def test_integration_flow_filtered(db, clear_data):
     rule = ForwardRule(
         source_chat_id=source_chat.id,
         target_chat_id=target_chat.id,
-        forward_mode=ForwardMode.WHITELIST,
+        forward_mode=ForwardMode.WHITELIST.value,
         enable_rule=True
     )
     db.add(rule)
@@ -117,8 +123,8 @@ async def test_integration_flow_fallback(db, clear_data):
     当过滤器链抛出异常时，应自动切换到 _fallback_process_forward_rule 执行转发
     """
     # 1. 准备数据
-    target_chat = Chat(telegram_chat_id="333333", name="FallbackTarget", chat_type="group")
-    source_chat = Chat(telegram_chat_id="444444", name="FallbackSource", chat_type="group")
+    target_chat = Chat(telegram_chat_id="333333", name="FallbackTarget", type="group")
+    source_chat = Chat(telegram_chat_id="444444", name="FallbackSource", type="group")
     db.add(target_chat)
     db.add(source_chat)
     await db.commit()
@@ -126,7 +132,7 @@ async def test_integration_flow_fallback(db, clear_data):
     rule = ForwardRule(
         source_chat_id=source_chat.id,
         target_chat_id=target_chat.id,
-        forward_mode=ForwardMode.WHITELIST,
+        forward_mode=ForwardMode.WHITELIST.value,
         enable_rule=True
     )
     db.add(rule)
@@ -138,13 +144,19 @@ async def test_integration_flow_fallback(db, clear_data):
     await db.commit()
     
     # Reload rule eagerly (similar to other tests)
-    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(selectinload(ForwardRule.keywords))
+    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(
+        selectinload(ForwardRule.keywords),
+        selectinload(ForwardRule.target_chat)
+    )
     result = await db.execute(stmt)
     rule_loaded = result.scalar_one()
 
     # 2. 准备各类 Mock
     mock_client = MagicMock()
     mock_client.forward_messages = AsyncMock()
+    mock_client.get_messages = AsyncMock()
+    mock_client.send_message = AsyncMock()
+    mock_client.send_file = AsyncMock()
     
     mock_event = MagicMock()
     mock_event.message.text = "This message contains fallback keyword"
@@ -152,9 +164,14 @@ async def test_integration_flow_fallback(db, clear_data):
     mock_event.message.grouped_id = None
     mock_event.message.id = 999
     
-    # 3. Patch factory to Crash
-    with patch("handlers.user_handler.get_filter_chain_factory") as mock_factory:
+    # 3. Patch factory to Crash and mock recorder
+    with patch("handlers.user_handler.get_filter_chain_factory") as mock_factory, \
+         patch("core.helpers.forward_recorder.forward_recorder") as mock_recorder:
+         
         mock_factory.side_effect = RuntimeError("Simulated Chain Crash")
+        
+        # Ensure record_forward is awaitable
+        mock_recorder.record_forward = AsyncMock(return_value=True)
         
         # 4. Execute
         await process_forward_rule(mock_client, mock_event, 444444, rule_loaded)
@@ -162,9 +179,9 @@ async def test_integration_flow_fallback(db, clear_data):
     # 5. Verify Fallback behavior covers for the crash
     # Fallback logic calls: await client.forward_messages(target_chat_id, event.message, from_peer=event.chat_id)
     mock_client.forward_messages.assert_awaited()
-    args = mock_client.forward_messages.await_args
-    # Fallback uses POSITIONAL arguments for target_chat_id
-    assert args[0][0] == 333333
+    args, kwargs = mock_client.forward_messages.await_args
+    target_id = args[0] if len(args) > 0 else (kwargs.get('entity') or kwargs.get('to_peer'))
+    assert str(target_id) == "333333"
 
 @pytest.mark.asyncio
 async def test_integration_flow_album(db, clear_data):
@@ -173,8 +190,8 @@ async def test_integration_flow_album(db, clear_data):
     验证带有 grouped_id 的消息能被正确透传
     """
     # 1. 准备数据
-    target_chat = Chat(telegram_chat_id="555555", name="AlbumTarget", chat_type="group")
-    source_chat = Chat(telegram_chat_id="666666", name="AlbumSource", chat_type="group")
+    target_chat = Chat(telegram_chat_id="555555", name="AlbumTarget", type="group")
+    source_chat = Chat(telegram_chat_id="666666", name="AlbumSource", type="group")
     db.add(target_chat)
     db.add(source_chat)
     await db.commit()
@@ -182,20 +199,23 @@ async def test_integration_flow_album(db, clear_data):
     rule = ForwardRule(
         source_chat_id=source_chat.id,
         target_chat_id=target_chat.id,
-        forward_mode=ForwardMode.BLACKLIST, # 黑名单模式且无关键词 = 转发所有
+        forward_mode=ForwardMode.BLACKLIST.value, # 黑名单模式且无关键词 = 转发所有
         enable_rule=True,
         force_pure_forward=True
     )
     db.add(rule)
     await db.commit()
     
-    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(selectinload(ForwardRule.keywords))
+    stmt = select(ForwardRule).where(ForwardRule.id == rule.id).options(
+        selectinload(ForwardRule.keywords),
+        selectinload(ForwardRule.target_chat)
+    )
     result = await db.execute(stmt)
     rule_loaded = result.scalar_one()
 
-    # 2. Mock with grouped_id
     mock_client = MagicMock()
     mock_client.forward_messages = AsyncMock()
+    mock_client.get_messages = AsyncMock()
     
     mock_event = MagicMock()
     mock_event.message.text = "Photo 1 in Album"
@@ -203,21 +223,26 @@ async def test_integration_flow_album(db, clear_data):
     mock_event.message.grouped_id = 123456789
     mock_event.message.id = 1001
     
-    # Mock iter_messages for media group logic (it iterates to find siblings)
+    # Mock iter_messages for media group logic
     async def mock_iter_messages(*args, **kwargs):
         yield mock_event.message
         
     mock_client.iter_messages = MagicMock(side_effect=mock_iter_messages)
     
-    # 3. Execute
-    await process_forward_rule(mock_client, mock_event, 666666, rule_loaded)
+    # 3. Execute with media_service patched to force fallback to iter_messages
+    with patch("services.media_service.media_service") as mock_ms:
+        mock_ms.get_media_group_messages.side_effect = Exception("Force Fallback")
+        await process_forward_rule(mock_client, mock_event, 666666, rule_loaded)
     
     # 4. Verify
     mock_client.forward_messages.assert_awaited()
-    # SenderFilter call: await client.forward_messages(entity=..., messages=..., from_peer=...)
-    kwargs = mock_client.forward_messages.await_args.kwargs
-    # Check target (accepts int or Entity)
-    assert str(kwargs.get('entity') or kwargs.get('to_peer')) == "555555"
-    # messages passed to forward_messages in pure forward (grouped) is a LIST of IDs
-    assert kwargs.get('messages') == [1001]
-    assert kwargs.get('from_peer') == 666666
+    args, kwargs = mock_client.forward_messages.await_args
+    
+    target_id = args[0] if len(args) > 0 else (kwargs.get('entity') or kwargs.get('to_peer'))
+    assert str(target_id) == "555555"
+    
+    # In pure forward mode (SenderMiddleware/SenderFilter), it sends a list of IDs
+    msg_arg = args[1] if len(args) > 1 else kwargs.get('messages')
+    
+    # Assert it is [1001]
+    assert msg_arg == [1001]

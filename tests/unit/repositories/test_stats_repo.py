@@ -36,21 +36,21 @@ class TestStatsRepository:
         stmt = select(RuleStatistics).filter_by(rule_id=10, date=today)
         res = await db.execute(stmt)
         stat = res.scalar_one()
-        assert stat.forwarded_count == 1
-        assert stat.processed_count == 1
+        assert stat.success_count == 1
+        assert stat.total_triggered == 1
         
         # 第二次增加 (应触发 update)
         await repo.increment_rule_stats(rule_id=10, status="error")
         await db.refresh(stat)
-        assert stat.forwarded_count == 1
+        assert stat.success_count == 1
         assert stat.error_count == 1
-        assert stat.processed_count == 2
+        assert stat.total_triggered == 2
 
     async def test_get_rules_stats_batch(self, repo, db):
         # 准备数据
         today = date.today()
-        s1 = RuleStatistics(rule_id=1, date=today.isoformat(), forwarded_count=10, processed_count=12)
-        s2 = RuleStatistics(rule_id=2, date=today.isoformat(), forwarded_count=5, processed_count=5)
+        s1 = RuleStatistics(rule_id=1, date=today.isoformat(), success_count=10, total_triggered=12)
+        s2 = RuleStatistics(rule_id=2, date=today.isoformat(), success_count=5, total_triggered=5)
         db.add_all([s1, s2])
         await db.commit()
         

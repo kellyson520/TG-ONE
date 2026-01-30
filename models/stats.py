@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.base import Base
@@ -12,7 +12,8 @@ class ChatStatistics(Base):
     message_count = Column(Integer, default=0)
     forward_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     chat = relationship('Chat', back_populates='chat_stats')
     __table_args__ = (
@@ -29,7 +30,8 @@ class RuleStatistics(Base):
     success_count = Column(Integer, default=0)
     filtered_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     rule = relationship('ForwardRule', back_populates='rule_statistics')
     __table_args__ = (
@@ -45,6 +47,7 @@ class RuleLog(Base):
     message_id = Column(Integer, nullable=True)
     details = Column(String, nullable=True)
     is_result_compressed = Column(Boolean, default=False)
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat(), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     rule = relationship('ForwardRule', back_populates='rule_logs')

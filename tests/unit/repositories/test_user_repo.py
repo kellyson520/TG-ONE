@@ -63,3 +63,46 @@ class TestUserRepository:
         updated = await user_repo.get_user_by_id(user.id)
         assert updated.username == "newname"
         assert updated.is_admin is True
+
+    async def test_telegram_id_methods(self, user_repo):
+        # 1. 创建带 Telegram ID 的用户
+        user = await user_repo.create_user("tg_user", "p")
+        await user_repo.update_user(user.id, telegram_id="123456789")
+        
+        # 2. 根据 Telegram ID 获取
+        fetched = await user_repo.get_user_by_telegram_id("123456789")
+        assert fetched is not None
+        assert fetched.username == "tg_user"
+        
+        # 3. 创建管理员并根据 Telegram ID 获取
+        admin = await user_repo.create_user("tg_admin", "p", is_admin=True)
+        await user_repo.update_user(admin.id, telegram_id="987654321")
+        
+        fetched_admin = await user_repo.get_admin_by_telegram_id("987654321")
+        assert fetched_admin is not None
+        assert fetched_admin.username == "tg_admin"
+        assert fetched_admin.is_admin is True
+
+    async def test_registration_settings(self, user_repo):
+        # 注意：这里涉及到 config_service 的 mock 或真实调用
+        # UserRepository 内部使用了 __import__ 动态加载
+        original = await user_repo.get_allow_registration()
+        
+        await user_repo.set_allow_registration(not original)
+        new_val = await user_repo.get_allow_registration()
+        assert new_val != original
+        
+        # 恢复
+        await user_repo.set_allow_registration(original)
+
+    async def test_user_auth_dto(self, user_repo):
+        user = await user_repo.create_user("auth_user", "password123")
+        
+        # 获取认证信息
+        auth_data = await user_repo.get_user_for_auth("auth_user")
+        assert auth_data is not None
+        assert auth_data.password.startswith("pbkdf2:sha256") or auth_data.password.startswith("scrypt")
+        
+        auth_data_by_id = await user_repo.get_user_auth_by_id(user.id)
+        assert auth_data_by_id.id == user.id
+        assert auth_data_by_id.username == "auth_user"

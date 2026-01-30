@@ -13,7 +13,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
-    last_login_at = Column(String, nullable=True)
+    last_login = Column(String, nullable=True)
+    login_count = Column(Integer, default=0)
     
     # Security Features
     totp_secret = Column(String, nullable=True)

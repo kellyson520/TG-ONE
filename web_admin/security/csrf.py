@@ -26,7 +26,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         # 2. 对非安全方法进行校验 (全局生效)
         if request.method not in ("GET", "HEAD", "OPTIONS", "TRACE"):
             # 排除白名单路径
-            if not request.url.path.startswith(("/static", "/healthz", "/readyz", "/api/auth/login", "/api/auth/refresh")):
+            if not request.url.path.startswith(("/static", "/healthz", "/readyz")):
                 try:
                     await validate_csrf(request)
                     logger.debug(f"CSRF token validation passed for {request.method} {request.url.path}")

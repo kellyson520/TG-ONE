@@ -41,10 +41,14 @@ class UserRepository:
             user = User(
                 username=username,
                 password=generate_password_hash(password),
-                is_admin=is_admin
+                is_admin=is_admin,
+                is_active=True,
+                is_2fa_enabled=False,
+                login_count=0
             )
             session.add(user)
             await session.commit()
+            await session.refresh(user)
             return UserDTO.model_validate(user)
 
     async def update_user_admin_status(self, user_id: int, is_admin: bool):

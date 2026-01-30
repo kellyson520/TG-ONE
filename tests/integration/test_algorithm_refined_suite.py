@@ -189,14 +189,19 @@ class TestAlgorithmRefinedSuite:
         dedupper.config["similarity_threshold"] = 0.6 # Lower threshold for the test
         
         # Mock DB calls
-        with patch.object(SmartDeduplicator, '_load_config_from_db', return_value=None):
-            with patch.object(SmartDeduplicator, '_check_signature_duplicate', return_value=(False, None)):
-                with patch.object(SmartDeduplicator, '_check_content_hash_duplicate', return_value=(False, None)):
-                    # 1st message
-                    is_dup1, _ = await dedupper.check_duplicate(msg1, target_chat_id=111)
-                    assert is_dup1 is False
-                    
-                    # 2nd message (similar text)
-                    is_dup2, reason = await dedupper.check_duplicate(msg2, target_chat_id=111)
-                    assert is_dup2 is True, f"Expected duplicate for similar text, got False. Reason: {reason}"
-                    assert "相似" in reason or "文本" in reason or "内容" in reason
+        dedupper.simhash_engine = None
+        
+        # Force Jaccard similarity for the test to avoid rapidfuzz mock issues
+        from services.dedup import engine
+        with patch.object(engine, '_HAS_RAPIDFUZZ', False):
+            with patch.object(SmartDeduplicator, '_load_config_from_db', return_value=None):
+                with patch.object(SmartDeduplicator, '_check_signature_duplicate', return_value=(False, None)):
+                    with patch.object(SmartDeduplicator, '_check_content_hash_duplicate', return_value=(False, None)):
+                        # 1st message
+                        is_dup1, _ = await dedupper.check_duplicate(msg1, target_chat_id=111)
+                        assert is_dup1 is False
+                        
+                        # 2nd message (similar text)
+                        is_dup2, reason = await dedupper.check_duplicate(msg2, target_chat_id=111)
+                        assert is_dup2 is True, f"Expected duplicate for similar text, got False. Reason: {reason}"
+                        assert "相似" in reason or "文本" in reason or "内容" in reason

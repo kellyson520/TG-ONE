@@ -9,23 +9,24 @@ async def test_web_full_link_rule_cycle(client, db):
     Scenario A: Rule Config Cycle
     Web Create -> DB Verify -> Mock Handler -> Web Verify Log
     """
-    from web_admin.security.deps import get_current_user, admin_required
-    
     # Mock User
     mock_user = User(id=1, username="admin", is_admin=True)
     
-    # Override Dependency
-    # We need to access the app instance. Tests usually use 'client' which accesses 'app' via 'get_app()' in conftest.
-    # conftest 'client' fixture:
-    #   app = get_app()
-    #   transport = ASGITransport(app=app)
-    #   async with AsyncClient(...)
-    
-    # We need to override ON THE APP that CLIENT uses.
     from tests.conftest import get_app
+    from web_admin.security.deps import get_current_user, admin_required, login_required
     app = get_app()
+    
+    # Remove specific middlewares that interfere with testing
+    # Note: Using app.middleware_stack = None forces regeneration on next request
+    app.user_middleware = [
+        m for m in app.user_middleware 
+        if "CSRFMiddleware" not in str(m.cls) and "IPGuardMiddleware" not in str(m.cls)
+    ]
+    app.middleware_stack = app.build_middleware_stack()
+
     app.dependency_overrides[admin_required] = lambda: mock_user
     app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[login_required] = lambda: mock_user
     
     # CSRF Token Mock (Still needed for middleware)
     csrf_token = "dummy_csrf_token"
@@ -47,17 +48,27 @@ async def test_web_full_link_rule_cycle(client, db):
     
     # Pre-create Chats (Repository constraint)
 
-    chat_src = Chat(id=100, telegram_chat_id=100, name="Src", chat_type="group")
-    chat_tgt = Chat(id=200, telegram_chat_id=200, name="Tgt", chat_type="group")
+    chat_src = Chat(id=100, telegram_chat_id=100, name="Src", type="group")
+    chat_tgt = Chat(id=200, telegram_chat_id=200, name="Tgt", type="group")
     db.add(chat_src)
     db.add(chat_tgt)
     await db.commit()
     
-    resp = await client.post("/api/rules", json=rule_data, headers=headers)
+    resp = await client.post(
+        "/api/rules", 
+        json=rule_data, 
+        headers={"X-CSRF-Token": csrf_token},
+        cookies={"csrf_token": csrf_token}
+    )
+    if resp.status_code != 200:
+        print(f"DEBUG: Response status: {resp.status_code}")
+        print(f"DEBUG: Response body: {resp.text}")
+        print(f"DEBUG: Request headers: {resp.request.headers}")
+        print(f"DEBUG: Request cookies: {resp.request.headers.get('cookie')}")
     assert resp.status_code == 200, f"Create Rule failed: {resp.text}"
     data = resp.json()
     assert data["success"] == True, f"Response: {data}"
-    rule_id = data["rule_id"]
+    rule_id = data["data"]["rule_id"]
     
     # 3. Store: Verify DB
     # We use the 'db' fixture to query directly
@@ -77,9 +88,8 @@ async def test_web_full_link_rule_cycle(client, db):
     log = RuleLog(
         rule_id=rule_id,
         action="forward",
-        source_message_id=999,
-        result="success",
-        processing_time=123
+        message_id=999,
+        details="success"
     )
     db.add(log)
     await db.commit()
@@ -126,14 +136,17 @@ async def test_web_full_link_rule_cycle(client, db):
     processed_log = RuleLog(
         rule_id=rule_id,
         action="forward",
-        source_message_id=12345,
-        result="success"
+        message_id=12345,
+        details="success"
     )
     db.add(processed_log)
     await db.commit()
     
     # 6. Verify Log via Web API
     resp_logs = await client.get(f"/api/rules/logs?rule_id={rule_id}", headers=headers)
+    if resp_logs.status_code != 200:
+        print(f"DEBUG: Get Logs status: {resp_logs.status_code}")
+        print(f"DEBUG: Get Logs response: {resp_logs.text}")
     assert resp_logs.status_code == 200
     logs_data = resp_logs.json()["data"]["items"]
     assert len(logs_data) >= 1

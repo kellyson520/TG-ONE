@@ -1314,6 +1314,8 @@ class SmartDeduplicator:
         content_hash: Optional[str],
     ):
         """记录消息到缓存"""
+        with open("debug_engine_internal.txt", "a") as f:
+             f.write(f"ENTER _record_message: {getattr(message_obj, 'message', 'NO_MSG')}\n")
         try:
             current_time = time.time()
             cache_key = str(target_chat_id)
@@ -1332,17 +1334,7 @@ class SmartDeduplicator:
                 self.content_hash_cache[cache_key][content_hash] = current_time
                 self.content_hash_cache[cache_key].move_to_end(content_hash)
 
-            # [Optimization] 文本 SimHash 指纹索引化
-            if hasattr(message_obj, "message") and message_obj.message:
-                text = message_obj.message
-                cleaned = self._clean_text_for_hash(text)
-                if cleaned:
-                    fp = self._compute_text_fingerprint(cleaned)
-                    if fp is not None:
-                        idx = self._get_simhash_index(cache_key)
-                        if idx:
-                            # 在索引中存储 (text, timestamp)
-                            idx.add((cleaned, current_time), fp)
+
 
             # 写入持久化缓存（用于跨重启去重热命中）
             try:

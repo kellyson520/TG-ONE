@@ -34,7 +34,7 @@ async def admin_auth_headers(client: AsyncClient):
     
     # 3. 登录
     login_headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
-    login_resp = await client.post("/api/auth/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": username,
         "password": password
     }, cookies=page_resp.cookies, headers=login_headers)
@@ -134,7 +134,7 @@ async def test_audit_logs_forbidden(client: AsyncClient):
     csrf_token = page_resp.cookies.get("csrf_token")
     headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
     
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": username,
         "password": password
     }, cookies=page_resp.cookies, headers=headers)

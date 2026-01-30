@@ -63,7 +63,7 @@ async def test_user_management_flow(client: AsyncClient):
     csrf_token = page_resp.cookies.get("csrf_token")
     headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
     
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": "admin_test",
         "password": "password"
     }, cookies=page_resp.cookies, headers=headers)
@@ -137,7 +137,7 @@ async def test_regular_user_forbidden(client: AsyncClient):
     csrf_token = page_resp.cookies.get("csrf_token")
     headers = {"X-CSRF-Token": csrf_token, "Accept": "application/json"}
 
-    login_resp = await client.post("/login", data={
+    login_resp = await client.post("/api/auth/login", json={
         "username": "user_forbidden",
         "password": "password"
     }, cookies=page_resp.cookies, headers=headers)

@@ -38,10 +38,12 @@ class TaskQueue(Base):
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
     error_message = Column(String, nullable=True)
-    scheduled_at = Column(String, nullable=True)
-    started_at = Column(String, nullable=True)
-    completed_at = Column(String, nullable=True)
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    scheduled_at = Column(DateTime, nullable=True)
+    next_retry_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Context
     source_chat_id = Column(String, nullable=True)

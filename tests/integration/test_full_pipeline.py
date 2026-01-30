@@ -94,7 +94,7 @@ class TestFullPipelineIntegration:
         pipeline.add(SenderMiddleware(mock_bus))
         
         with patch('middlewares.dedup.dedup_service') as mock_dedup:
-            mock_dedup.check_and_record = AsyncMock(return_value=(False, None))
+            mock_dedup.check_and_lock = AsyncMock(return_value=(False, None))
             
             with patch('middlewares.sender.forward_messages_queued') as mock_forward:
                 mock_forward.return_value = AsyncMock()
@@ -132,7 +132,7 @@ class TestFullPipelineIntegration:
         pipeline.add(SenderMiddleware(mock_bus))
         
         with patch('middlewares.dedup.dedup_service') as mock_dedup:
-            mock_dedup.check_and_record = AsyncMock(return_value=(False, None))
+            mock_dedup.check_and_lock = AsyncMock(return_value=(False, None))
             
             with patch('middlewares.sender.forward_messages_queued') as mock_forward:
                 mock_forward.return_value = AsyncMock()
@@ -165,7 +165,7 @@ class TestFullPipelineIntegration:
         pipeline.add(SenderMiddleware(mock_bus))
         
         with patch('middlewares.dedup.dedup_service') as mock_dedup:
-            mock_dedup.check_and_record = AsyncMock(return_value=(True, "duplicate_signature"))
+            mock_dedup.check_and_lock = AsyncMock(return_value=(True, "duplicate_signature"))
             
             with patch('middlewares.sender.forward_messages_queued') as mock_forward:
                 await pipeline.execute(ctx)

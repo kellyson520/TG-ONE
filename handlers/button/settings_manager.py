@@ -167,6 +167,17 @@ RULE_SETTINGS = {
     },
 }
 
+async def get_media_settings_text():
+    from core.constants import MEDIA_SETTINGS_TEXT
+    return MEDIA_SETTINGS_TEXT
+
+async def get_ai_settings_text(rule):
+    import os
+    from core.constants import AI_SETTINGS_TEXT
+    ai_prompt = rule.ai_prompt or os.getenv("DEFAULT_AI_PROMPT", "未设置")
+    summary_prompt = rule.summary_prompt or os.getenv("DEFAULT_SUMMARY_PROMPT", "未设置")
+    return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt)
+
 
 # 添加 AI 设置
 AI_SETTINGS = {

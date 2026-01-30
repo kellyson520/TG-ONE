@@ -72,15 +72,10 @@ class StatsRepository:
         # RuleLog expects: rule_id, action, source_message_id, result
         log_entry = {
             "rule_id": rule_id,
-            "source_message_id": msg_id,
+            "message_id": msg_id,
             "action": status,
-            "result": str(result) if result else "",
-            # created_at handled by DB default or we should set it if using insert()
-            # Since we use bulk insert, we MUST provide all fields usually if we skip ORM
-            # But insert(RuleLog) works with default values if schema defines them?
-            # models.py says default=lambda... which is Python Side.
-            # So we MUST generate it here.
-            "created_at": datetime.utcnow().isoformat()
+            "details": str(result) if result else "",
+            "created_at": datetime.utcnow()
         }
         
         async with self._buffer_lock:

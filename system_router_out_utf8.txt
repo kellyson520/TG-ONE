@@ -1,0 +1,70 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\lihuo\Desktop\重构\TG ONE
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 6 items
+
+tests/integration/test_system_router.py::test_get_tasks_list 
+------------------------------- live log setup --------------------------------
+2026-01-29 17:24:53 [    INFO] Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)
+2026-01-29 17:24:53 [    INFO] cryptg module not installed and libssl not found, falling back to (slower) Python encryption
+2026-01-29 17:24:53 [    INFO] Bloom Filter (L0) 初始化成功
+2026-01-29 17:24:53 [    INFO] HLL (HyperLogLog) 初始化成功
+2026-01-29 17:24:53 [    INFO] SimHash 引擎与 LSH Forest 索引系统初始化成功
+2026-01-29 17:24:53 [    INFO] Bloom Filter Service initialized using consolidated utils implementation
+2026-01-29 17:24:53 [    INFO] 使用转发记录目录: E:\重构\TG ONE\zhuanfaji
+2026-01-29 17:24:53 [    INFO] ForwardRecorder 初始化完成，模式: summary
+2026-01-29 17:24:53 [    INFO] [Database] 初始化数据库连接，模式=共享引擎
+2026-01-29 17:24:53 [    INFO] [Database] 使用共享引擎: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-01-29 17:24:53 [    INFO] [Database] 会话工厂已初始化
+2026-01-29 17:24:53 [    INFO] Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-01-29 17:24:53 [    INFO] EventBus initialized
+2026-01-29 17:24:54 [    INFO] RSS数据路径: C:\Users\lihuo\Desktop\重构\TG ONE\rss\data
+2026-01-29 17:24:54 [    INFO] RSS媒体路径: C:\Users\lihuo\Desktop\重构\TG ONE\rss\media
+-------------------------------- live log call --------------------------------
+2026-01-29 17:24:54 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=e72c486c-18b0-4cb0-adc3-637f94387c24, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/tasks\n2026-01-29 17:24:54 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=e72c486c-18b0-4cb0-adc3-637f94387c24, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/tasks, \u72b6\u6001\u7801=200, \u8017\u65f6=7.81ms\n2026-01-29 17:24:54 [    INFO] HTTP Request: GET http://test/api/system/tasks "HTTP/1.1 200 OK"
+PASSED
+tests/integration/test_system_router.py::test_get_system_stats FAILED
+tests/integration/test_system_router.py::test_get_config 
+-------------------------------- live log call --------------------------------
+2026-01-29 17:24:54 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=93ab3b19-12b1-43fb-bed6-13fc967d2927, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/config\n2026-01-29 17:24:54 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=93ab3b19-12b1-43fb-bed6-13fc967d2927, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/config, \u72b6\u6001\u7801=200, \u8017\u65f6=4.25ms\n2026-01-29 17:24:54 [    INFO] HTTP Request: GET http://test/api/system/config "HTTP/1.1 200 OK"
+PASSED
+tests/integration/test_system_router.py::test_update_config_error 
+-------------------------------- live log call --------------------------------
+2026-01-29 17:24:54 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=4c4777eb-89d8-4d26-8f3d-977bc847cdc5, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/system/config\n2026-01-29 17:24:54 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=4c4777eb-89d8-4d26-8f3d-977bc847cdc5, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/system/config, \u72b6\u6001\u7801=200, \u8017\u65f6=1.81ms\n2026-01-29 17:24:54 [    INFO] HTTP Request: POST http://test/api/system/config "HTTP/1.1 200 OK"
+FAILED
+tests/integration/test_system_router.py::test_get_db_pool_status 
+-------------------------------- live log call --------------------------------
+2026-01-29 17:24:54 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=6d5ac579-3879-4151-8d52-897529547916, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/db-pool\n2026-01-29 17:24:54 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=6d5ac579-3879-4151-8d52-897529547916, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/db-pool, \u72b6\u6001\u7801=200, \u8017\u65f6=1.60ms\n2026-01-29 17:24:54 [    INFO] HTTP Request: GET http://test/api/system/db-pool "HTTP/1.1 200 OK"
+PASSED
+tests/integration/test_system_router.py::test_get_websocket_stats 
+-------------------------------- live log call --------------------------------
+2026-01-29 17:24:54 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=ceb51084-3c6b-49d0-8b5e-0777e9954460, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/websocket/stats\n2026-01-29 17:24:54 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=ceb51084-3c6b-49d0-8b5e-0777e9954460, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/websocket/stats, \u72b6\u6001\u7801=200, \u8017\u65f6=1.12ms\n2026-01-29 17:24:54 [    INFO] HTTP Request: GET http://test/api/system/websocket/stats "HTTP/1.1 200 OK"
+PASSED
+
+================================== FAILURES ===================================
+____________________________ test_get_system_stats ____________________________
+tests\integration\test_system_router.py:38: in test_get_system_stats
+    with patch("services.system_service.guard_service.get_stats") as mock_stats:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\unittest\mock.py:1491: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+E:\python\python313\Lib\unittest\mock.py:1464: in get_original
+    raise AttributeError(
+E   AttributeError: <services.system_service.GuardService object at 0x000001BE40B7D160> does not have the attribute 'get_stats'
+__________________________ test_update_config_error ___________________________
+tests\integration\test_system_router.py:59: in test_update_config_error
+    assert resp.status_code == 400
+E   assert 200 == 400
+E    +  where 200 = <Response [200 OK]>.status_code
+------------------------------ Captured log call ------------------------------
+INFO     web_admin.middlewares.trace_middleware:trace_middleware.py:26 \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=4c4777eb-89d8-4d26-8f3d-977bc847cdc5, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/system/config\nINFO     web_admin.middlewares.trace_middleware:trace_middleware.py:47 \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=4c4777eb-89d8-4d26-8f3d-977bc847cdc5, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/system/config, \u72b6\u6001\u7801=200, \u8017\u65f6=1.81ms\nINFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/system/config "HTTP/1.1 200 OK"
+=========================== short test summary info ===========================
+FAILED tests/integration/test_system_router.py::test_get_system_stats - AttributeError: <services.system_service.GuardService object at 0x000001BE40B7D160> does not have the attribute 'get_stats'
+FAILED tests/integration/test_system_router.py::test_update_config_error - assert 200 == 400
+ +  where 200 = <Response [200 OK]>.status_code
+========================= 2 failed, 4 passed in 1.13s =========================

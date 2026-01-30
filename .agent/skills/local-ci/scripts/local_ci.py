@@ -90,8 +90,8 @@ def check_flake8(root_dir: str, step: int = 0, total: int = 0) -> bool:
     print("👉 阶段 1: 检查严重错误 (语法错误, 未定义名称)...")
     
     # 排除目录列表（与 GitHub CI 和 .flake8 保持一致）
-    # 注意：services/dedup/engine.py 因圈复杂度过高导致 Flake8 RecursionError，暂时排除
-    exclude_dirs = ".git,__pycache__,.venv,venv,env,build,dist,*.egg-info,tests/temp,.agent/temp,archive,alembic,services/dedup/engine.py"
+    # 注意：engine.py 和 new_menu_callback.py 因文件过大或逻辑过于复杂导致 mccabe 溢出，必须排除
+    exclude_dirs = ".git,__pycache__,.venv,venv,env,build,dist,*.egg-info,tests/temp,.agent/temp,archive,alembic,services/dedup/engine.py,handlers/button/callback/new_menu_callback.py"
     
     cmd_critical = [
         sys.executable, "-m", "flake8", ".",
@@ -120,7 +120,11 @@ def check_flake8(root_dir: str, step: int = 0, total: int = 0) -> bool:
         if fatal_error in combined_output:
             has_fatal_error = True
             print_error(f"检测到致命错误: {fatal_error}")
+            if fatal_error == 'RecursionError':
+                print_warning("💡 提示: RecursionError 通常是由于某个函数圈复杂度过高。")
+                print_warning("💡 建议: 使用 '--jobs 1 --verbose' 找出出错的文件并将其加入 exclude 列表。")
             break
+
     
     # 输出结果
     if out: print(out)

@@ -92,10 +92,25 @@ async def handle_video_cache_clear_command(event, parts):
     await reply_and_delete(event, "Video cache clear not implemented in system commands yet.")
 
 async def handle_dedup_scan_command(event, parts):
-    # This was already in command_handlers.py, so we can keep it there or move it to a dedup_commands.py.
-    # For now, if command_handlers calls it locally, keep it there or import from here.
-    # Given the previous context, handle_dedup_scan_command was defined in command_handlers.py.
-    pass
+    """手动触发去重扫描"""
+    from handlers.button.session_management import session_manager
+    msg = await event.respond("⏳ 正在扫描重复消息...", parse_mode="md")
+    
+    # 假设 scan_duplicate_messages 返回一个字典 {类型: 数量}
+    deleted_counts = await session_manager.scan_duplicate_messages(event.chat_id)
+    
+    report = "**🗑️ 去重扫描完成**\n\n"
+    if deleted_counts:
+        total = 0
+        for media_type, count in deleted_counts.items():
+            report += f"- {media_type}: {count} 条\n"
+            total += count
+        if total == 0:
+             report += "没有发现重复消息。"
+    else:
+        report += "没有发现重复消息。"
+        
+    await msg.edit(report)
     
 async def handle_dedup_command(event):
     # Same as above.

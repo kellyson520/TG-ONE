@@ -84,9 +84,10 @@ class RuleDTOMapper:
         return {
             'id': item.id,
             'rule_id': item.rule_id,
-            'source_message_id': item.source_message_id,
+            'source_message_id': item.message_id,
             'action': item.action,
-            'result': item.result,
+            'result': item.details,
+            'error_message': item.details if item.action in ('error', 'filtered') else None,
             'created_at': item.created_at if item.created_at else None,
             'source_chat': source_title,
             'target_chat': target_title

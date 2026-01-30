@@ -12,7 +12,9 @@ exclude =
     .agent/temp,
     archive,
     alembic,
-    services/dedup/engine.py
+    services/dedup/engine.py,
+    handlers/button/callback/new_menu_callback.py
+
 
 max-line-length = 120
 

@@ -23,26 +23,36 @@ class TestCallbackHandlers:
 
     async def test_handle_callback_new_menu(self, mock_event):
         """测试分发到新菜单系统"""
-        with patch('handlers.button.callback.callback_handlers.handle_new_menu_callback', new_callable=AsyncMock) as mock_new_menu:
+        with patch('handlers.button.callback.callback_handlers.callback_router') as mock_router:
+            mock_handler = AsyncMock()
+            mock_router.match.return_value = (mock_handler, {})
+            
             from handlers.button.callback.callback_handlers import handle_callback
             mock_event.data = b"new_menu:test"
             await handle_callback(mock_event)
-            mock_new_menu.assert_called_once_with(mock_event)
+            
+            mock_router.match.assert_called_with("new_menu:test")
+            mock_handler.assert_called_once_with(mock_event)
 
     async def test_handle_callback_media(self, mock_event):
         """测试分发到媒体设置"""
-        with patch('handlers.button.callback.callback_handlers.handle_media_callback', new_callable=AsyncMock) as mock_media:
+        with patch('handlers.button.callback.callback_handlers.callback_router') as mock_router:
+            mock_handler = AsyncMock()
+            mock_router.match.return_value = (mock_handler, {})
+
             from handlers.button.callback.callback_handlers import handle_callback
             mock_event.data = b"media_settings:1"
             await handle_callback(mock_event)
-            mock_media.assert_called_once_with(mock_event)
+            
+            mock_router.match.assert_called_with("media_settings:1")
+            mock_handler.assert_called_once_with(mock_event)
 
     async def test_callback_settings_success(self, mock_event):
         """测试显示规则列表 (callback_settings)"""
         with patch('core.container.container') as mock_container, \
              patch('core.helpers.id_utils.find_chat_by_telegram_id_variants') as mock_find_chat:
             
-            from handlers.button.callback.callback_handlers import callback_settings
+            from handlers.button.callback.modules.rule_settings import callback_settings
             
             mock_session = AsyncMock()
             mock_container.db_session.return_value.__aenter__.return_value = mock_session
@@ -60,7 +70,8 @@ class TestCallbackHandlers:
             
             mock_msg = AsyncMock()
             
-            await callback_settings(mock_event, "settings", mock_msg, None)
+            # Correct arguments: event, rule_id, session, message, data
+            await callback_settings(mock_event, "settings", mock_session, mock_msg, "settings")
             
             mock_msg.edit.assert_called_once()
             assert "请选择要管理的转发规则" in mock_msg.edit.call_args[0][0]
@@ -68,10 +79,10 @@ class TestCallbackHandlers:
     async def test_callback_rule_settings(self, mock_event):
         """测试显示单一规则设置 (callback_rule_settings)"""
         with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.callback_handlers.create_settings_text', new_callable=AsyncMock) as mock_text, \
-             patch('handlers.button.callback.callback_handlers.create_buttons', new_callable=AsyncMock) as mock_buttons:
+             patch('handlers.button.callback.modules.rule_settings.create_settings_text', new_callable=AsyncMock) as mock_text, \
+             patch('handlers.button.callback.modules.rule_settings.create_buttons', new_callable=AsyncMock) as mock_buttons:
              
-            from handlers.button.callback.callback_handlers import callback_rule_settings
+            from handlers.button.callback.modules.rule_settings import callback_rule_settings
             from models.models import ForwardRule
             
             mock_session = AsyncMock()
@@ -85,20 +96,21 @@ class TestCallbackHandlers:
             
             mock_msg = AsyncMock()
             
-            await callback_rule_settings(mock_event, 1, mock_msg, None)
+            # Correct arguments: event, rule_id, session, message, data
+            await callback_rule_settings(mock_event, 1, mock_session, mock_msg, None)
             
             mock_msg.edit.assert_called_once()
 
     async def test_callback_delete(self, mock_event):
         """测试删除规则 (callback_delete)"""
         with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.callback_handlers.check_and_clean_chats', new_callable=AsyncMock) as mock_clean, \
-             patch('handlers.button.callback.callback_handlers.respond_and_delete', new_callable=AsyncMock) as mock_respond, \
+             patch('handlers.button.callback.modules.rule_actions.check_and_clean_chats', new_callable=AsyncMock) as mock_clean, \
+             patch('handlers.button.callback.modules.rule_actions.respond_and_delete', new_callable=AsyncMock) as mock_respond, \
              patch('importlib.import_module', side_effect=ImportError("aiohttp not found")):
              
              mock_clean.return_value = 0
              
-             from handlers.button.callback.callback_handlers import callback_delete
+             from handlers.button.callback.modules.rule_actions import callback_delete
              from models.models import ForwardRule
              
              mock_session = AsyncMock()
@@ -109,11 +121,13 @@ class TestCallbackHandlers:
              
              mock_msg = AsyncMock()
              
-             await callback_delete(mock_event, 1, mock_msg, None)
+             await callback_delete(mock_event, 1, mock_session, mock_msg, None)
              
              mock_session.delete.assert_called_with(mock_rule)
              mock_session.commit.assert_called()
-
+    
+    
+    # Removed misplaced test_callback_dedup_scan_now from TestCallbackHandlers
 
 class TestOtherCallback:
     """测试通用回调处理 (other_callback.py)"""
@@ -140,7 +154,6 @@ class TestOtherCallback:
         """测试去重扫描 (callback_dedup_scan_now)"""
         with patch('handlers.button.callback.other_callback.AsyncSessionManager') as mock_sm, \
              patch('handlers.button.callback.other_callback.DBOperations') as mock_db_ops, \
-             patch('handlers.button.callback.other_callback.respond_and_delete') as mock_respond, \
              patch('core.helpers.common.get_main_module', new_callable=AsyncMock) as mock_get_mm:
 
             from handlers.button.callback.other_callback import callback_dedup_scan_now
@@ -214,6 +227,7 @@ class TestAdminCallback:
         event.answer = AsyncMock()
         event.edit = AsyncMock()
         event.sender_id = 12345
+        event.get_message = AsyncMock()
         return event
 
     async def test_handle_admin_callback_forbidden(self, mock_event):

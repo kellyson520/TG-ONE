@@ -74,11 +74,11 @@ class TestTaskRepository:
         await repo.fail_or_retry(tid, "error 1", max_retries=3)
         task = await db.get(TaskQueue, tid)
         assert task.status == "pending"
-        assert task.retry_count == 1
+        assert task.attempts == 1
         assert task.next_retry_at > datetime.utcnow()
         
         # 模拟达到最大重试
-        task.retry_count = 3
+        task.attempts = 3
         await db.commit()
         await repo.fail_or_retry(tid, "final error", max_retries=3)
         await db.refresh(task)
@@ -91,7 +91,8 @@ class TestTaskRepository:
             task_type="stuck",
             task_data="{}",
             status="running",
-            updated_at=old_time
+            updated_at=old_time,
+            attempts=0
         )
         db.add(task)
         await db.commit()
@@ -102,4 +103,4 @@ class TestTaskRepository:
         
         await db.refresh(task)
         assert task.status == "pending"
-        assert task.retry_count == 1
+        assert task.attempts == 1

@@ -70,9 +70,17 @@ async def update_config(
             
         return ResponseSchema(success=True, message='配置已更新', data={'history_message_limit': limit})
     except ValueError:
-        return ResponseSchema(success=False, error='history_message_limit 必须为整数')
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=400,
+            content={'success': False, 'error': 'history_message_limit 必须为整数'}
+        )
     except Exception as e:
-        return ResponseSchema(success=False, error=str(e))
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={'success': False, 'error': str(e)}
+        )
 
 @router.get("/settings", response_model=ResponseSchema)
 async def get_full_settings(

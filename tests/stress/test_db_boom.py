@@ -53,6 +53,7 @@ def temp_archive_root_stress(tmp_path):
     yield str(archive_dir)
     archive_store.ARCHIVE_ROOT = original_root
 
+@pytest.mark.stress
 class TestDBBoom:
     
     def populate_db(self, session, count=1000):
@@ -71,8 +72,7 @@ class TestDBBoom:
                 updated_at=old_date,
                 last_seen=old_date,
                 count=1,
-                media_type="photo",
-                file_size=1024
+                media_type="photo"
             ))
             
             logs.append(ErrorLog(

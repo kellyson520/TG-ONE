@@ -1,6 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from telethon import events
 from core.container import container
 from sqlalchemy import select
@@ -54,12 +54,18 @@ class TestBotToDBPipeline:
         event.get_chat = AsyncMock(return_value=chat_mock)
         
         # 2. Execute Handler (Pipeline trigger)
+        # We want to use REAL repositories for integration testing
+        # Ensure container has real repos (which it should by default unless conftest mocked it)
+        from repositories.rule_repo import RuleRepository
+        from repositories.task_repo import TaskRepository
+        
+        # Ensure we have clean real repos linked to the test DB
+        container.rule_repo = RuleRepository(container.db)
+        container.task_repo = TaskRepository(container.db)
         container.user_client = AsyncMock()
         
-        
-        # Manually create a rule in DB as setup
+        # Setup data in DB
         from models.models import Chat, ForwardRule
-        
         async with container.db.session() as session:
             # Create Source/Target chats
             src_chat = Chat(telegram_chat_id="-100987654321", name="Test Group", type="channel")
@@ -80,16 +86,17 @@ class TestBotToDBPipeline:
             await session.commit()
 
         # Now execute /add command
+        # Note: handle_add_command will call RuleQueryService which uses container.rule_repo
         try:
             await handle_add_command(event, "add", ["/add", "test_keyword"])
         except Exception as e:
-            pytest.fail(f"Handler raised exception: {e}")
+            import traceback
+            pytest.fail(f"Handler raised exception: {e}\n{traceback.format_exc()}")
             
         # 3. Verify Database State
-        # Check if Keyword was added to the Rule
         async with container.db.session() as session:
-            # We need to find the rule again
             from models.models import Keyword
+            from sqlalchemy import select
             stmt = select(Keyword).filter_by(keyword="test_keyword")
             result = await session.execute(stmt)
             keywords = result.scalars().all()

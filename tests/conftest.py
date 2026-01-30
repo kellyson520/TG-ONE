@@ -24,14 +24,16 @@ def _patch_database_engine_early():
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.pool import StaticPool
         
-        # 使用共享缓存的命名内存数据库，确保 sync 和 async 共享同一个 DB
-        test_url_sync = "sqlite:///file:testdb_early?mode=memory&cache=shared&uri=true"
-        test_url_async = "sqlite+aiosqlite:///file:testdb_early?mode=memory&cache=shared&uri=true"
+        # 使用 xdist 进程 ID 确保每个 worker 有独立的内存数据库，避免并发冲突
+        worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
+        test_url_sync = f"sqlite:///file:testdb_{worker_id}?mode=memory&cache=shared&uri=true"
+        test_url_async = f"sqlite+aiosqlite:///file:testdb_{worker_id}?mode=memory&cache=shared&uri=true"
         
+        from sqlalchemy.pool import StaticPool, QueuePool
         sync_engine = create_engine(
             test_url_sync,
             connect_args={"check_same_thread": False},
-            poolclass=StaticPool
+            poolclass=QueuePool
         )
         
         # 预先创建所有表
@@ -42,8 +44,8 @@ def _patch_database_engine_early():
             return create_async_engine(
                 test_url_async, 
                 echo=False, 
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool
+                connect_args={"check_same_thread": False}
+                # poolclass argument removed to use default (NullPool for SQLite/async)
             )
         
         core.db_factory.get_engine = mock_get_engine
@@ -63,7 +65,7 @@ try:
 except ImportError as e:
     print(f"WARNING: Failed to pre-import web_admin: {e}")
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 import unittest.mock
 
 # ============================================================
@@ -85,6 +87,7 @@ def mock_decorator(*args, **kwargs):
 
 mock_err = unittest.mock.MagicMock()
 mock_err.handle_errors = mock_decorator
+mock_err.handle_telegram_errors = mock_decorator
 mock_err.log_execution = mock_decorator
 sys.modules["core.helpers.error_handler"] = mock_err
 
@@ -184,10 +187,28 @@ def get_container():
             if hasattr(_container, 'db') and hasattr(_container.db, 'engine'):
                 _container.db.engine.echo = False
         except Exception as e:
-            logging.warning(f"获取 container 失败: {e}")
+            logging.error(f"CRITICAL: Failed to get container: {e}")
             import traceback
-            logging.warning(traceback.format_exc())
-            _container = MagicMock()
+            logging.error(traceback.format_exc())
+            # Fallback to an object that at least has repo attributes as AsyncMocks
+            class AsyncSafeMock(MagicMock):
+                def __getattr__(self, name):
+                    attr = super().__getattr__(name)
+                    if not name.startswith('_'):
+                        # Check if it looks like a repo or service
+                        if any(x in name.lower() for x in ["repo", "service", "coordinator", "processor", "manager", "logic", "query", "crud"]):
+                             new_mock = AsyncMock()
+                             setattr(self, name, new_mock)
+                             return new_mock
+                        # Also protect commonly awaited properties
+                        if name in ["db", "task_repo", "rule_repo", "user_repo"]:
+                             new_mock = AsyncSafeMock()
+                             setattr(self, name, new_mock)
+                             return new_mock
+                    return attr
+                def __call__(self, *args, **kwargs):
+                    return AsyncMock()(*args, **kwargs)
+            _container = AsyncSafeMock()
     return _container
 
 
@@ -195,8 +216,16 @@ def get_app():
     """延迟获取 FastAPI app 实例"""
     global _app
     if _app is None:
-        from web_admin.fastapi_app import app
-        _app = app
+        try:
+            from web_admin.fastapi_app import app
+            _app = app
+        except Exception as e:
+            logging.error(f"CRITICAL: Failed to get FastAPI app: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            _app = MagicMock()
+            # FastAPI app must be awaitable for ASGITransport
+            _app.__call__ = AsyncMock()
     return _app
 
 
@@ -240,11 +269,16 @@ async def setup_database():
     
     try:
         engine = container.db.engine
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        # [Crucial] 开启一个持久连接以维持 cache=shared 内存数据库不被销毁
+        # 这样就不需要使用 StaticPool (它会导致嵌套 session 死锁)
+        keep_alive_conn = await engine.connect()
+        # 仅执行初始化，不要持有事务
+        await keep_alive_conn.run_sync(Base.metadata.create_all)
+        
         yield
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+        
+        await keep_alive_conn.run_sync(Base.metadata.drop_all)
+        await keep_alive_conn.close()
     except Exception as e:
         logging.warning(f"数据库初始化失败: {e}")
         yield

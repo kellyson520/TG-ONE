@@ -92,9 +92,9 @@ app = FastAPI(
 
 # 注册路由
 app.include_router(auth_router)
-app.include_router(rule_crud_router)
-app.include_router(rule_content_router)
 app.include_router(rule_viz_router)
+app.include_router(rule_content_router)
+app.include_router(rule_crud_router)
 app.include_router(user_router)
 app.include_router(log_router)
 app.include_router(maintain_router)

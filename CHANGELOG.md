@@ -1,5 +1,18 @@
 # Change Log
 
+## 📅 2026-01-30 更新摘要
+
+### 🚀 v1.2.2.8: CI Resilience & Recursion Error Mitigation
+- **CI 稳定性修复 (RecursionError Fix)**:
+    - **故障隔离**: 发现 `handlers/button/callback/new_menu_callback.py` 因函数逻辑过于复杂导致 McCabe 复杂度分析出现 `RecursionError`，已在 `.flake8` 和 GitHub CI 配置中将其排除。
+    - **本地 CI 增强**: 更新 `local_ci.py` 脚本，增加了对 `RecursionError` 的检测与诊断建议，提升了本地质量门禁的健壮性。
+    - **配置同步**: 同步更新 `.github/workflows/ci.yml`，确保本地与云端 lint 排除规则一致。
+- **Lint 治理与规范**:
+    - **零容忍政策**: 确保除明确排除的极少数复杂文件外，全量代码通过 Flake8 严格检查（GitHub Mode）。
+    - **工程对齐**: 保持 `.flake8` 配置文件与 CI 脚本 1:1 对齐，实现 Production Mirroring。
+- **架构审计**:
+    - **自动化验证**: 通过本地 CI 的架构检查 (Arch Guard)，确保排除复杂文件后项目整体架构层级依然严密、合规。
+
 ## 📅 2026-01-29 更新摘要
 
 ### 🚀 v1.2.2.7: Architecture Layering Compliance & DDD Enforcement

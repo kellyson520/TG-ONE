@@ -78,10 +78,18 @@ mock_container.db = MagicMock()
 mock_container.db.session = MagicMock(return_value=AsyncMock())
 mock_container.db_session = MagicMock(return_value=AsyncMock())
 mock_container.db.engine = MagicMock()
-mock_container.user_client = MagicMock()
-mock_container.bot_client = MagicMock()
+mock_container.user_client = AsyncMock()
+mock_container.bot_client = AsyncMock()
+# 补全 repository/service 的 mock, 默认设为 AsyncMock 以防止 await 错误
+mock_container.rule_repo = AsyncMock()
+mock_container.task_repo = AsyncMock()
+mock_container.user_repo = AsyncMock()
+mock_container.rule_management_service = AsyncMock()
+mock_container.rule_query_service = AsyncMock()
+
 sys.modules["core.container"] = MagicMock()
 sys.modules["core.container"].container = mock_container
+sys.modules["core.container"].get_container = lambda: mock_container
 
 # Mock web_admin 完全禁用 FastAPI 初始化
 sys.modules["web_admin"] = MagicMock()

@@ -50,13 +50,13 @@ class RuleFilterService:
 
         forward_mode = rule.forward_mode
         
-        if forward_mode == ForwardMode.WHITELIST:
+        if forward_mode == ForwardMode.WHITELIST.value:
             return await RuleFilterService.process_whitelist_mode(rule, message_text, reverse_blacklist)
-        elif forward_mode == ForwardMode.BLACKLIST:
+        elif forward_mode == ForwardMode.BLACKLIST.value:
             return await RuleFilterService.process_blacklist_mode(rule, message_text, reverse_whitelist)
-        elif forward_mode == ForwardMode.WHITELIST_THEN_BLACKLIST:
+        elif forward_mode == ForwardMode.WHITELIST_THEN_BLACKLIST.value:
             return await RuleFilterService.process_whitelist_then_blacklist_mode(rule, message_text, reverse_blacklist)
-        elif forward_mode == ForwardMode.BLACKLIST_THEN_WHITELIST:
+        elif forward_mode == ForwardMode.BLACKLIST_THEN_WHITELIST.value:
             return await RuleFilterService.process_blacklist_then_whitelist_mode(rule, message_text, reverse_whitelist)
 
         logger.error(f"未知的转发模式: {forward_mode}")

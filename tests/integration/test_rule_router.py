@@ -25,8 +25,8 @@ async def auth_headers(client: AsyncClient, db):
 @pytest.mark.usefixtures("clear_data")
 async def test_rule_crud_flow(client, auth_headers, db):
     # 1. 准备 Chat 数据 (Repository 需要关联 Chat)
-    c1 = Chat(id=101, telegram_chat_id="-101", name="Source", chat_type="supergroup")
-    c2 = Chat(id=102, telegram_chat_id="-102", name="Target", chat_type="supergroup")
+    c1 = Chat(id=101, telegram_chat_id="-101", name="Source", type="supergroup")
+    c2 = Chat(id=102, telegram_chat_id="-102", name="Target", type="supergroup")
     db.add_all([c1, c2])
     await db.commit()
     
@@ -40,7 +40,7 @@ async def test_rule_crud_flow(client, auth_headers, db):
     assert resp.status_code == 200
     res = resp.json()
     assert res["success"] is True
-    rule_id = res["rule_id"]
+    rule_id = res["data"]["rule_id"]
     
     # 3. 验证列表显示
     resp = await client.get("/api/rules", headers=auth_headers)

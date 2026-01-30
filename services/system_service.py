@@ -142,6 +142,21 @@ class GuardService:
         self._temp_guard_path = settings.TEMP_DIR
         self._memory_limit_mb = 500 # Default limit
 
+    def get_stats(self) -> Dict[str, Any]:
+        """获取守护服务的当前统计状态"""
+        import psutil
+        try:
+            process = psutil.Process()
+            return {
+                "memory_mb": round(process.memory_info().rss / 1024 / 1024, 2),
+                "cpu_percent": process.cpu_percent(),
+                "uptime_seconds": round(time.time() - process.create_time(), 1),
+                "tasks_active": len(asyncio.all_tasks()),
+                "guard_status": "active" if not self._stop_event.is_set() else "stopped"
+            }
+        except Exception:
+            return {"status": "error"}
+
     def start_guards(self):
         """Deprecated: Use start_guards_async instead."""
         pass

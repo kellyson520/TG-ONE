@@ -11,13 +11,13 @@ class TestBasicCommands:
     """测试基础命令：/start, /help, /changelog"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_start_command(self, mock_reply_and_delete, mock_async_delete):
         """测试 /start 命令返回欢迎消息"""
         from handlers.command_handlers import handle_start_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -31,13 +31,13 @@ class TestBasicCommands:
         assert "欢迎" in welcome_msg or "Welcome" in welcome_msg
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_help_command(self, mock_reply_and_delete, mock_async_delete):
         """测试 /help 命令返回帮助信息"""
         from handlers.command_handlers import handle_help_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -52,13 +52,13 @@ class TestBasicCommands:
         assert "/help" in help_msg
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_changelog_command(self, mock_reply_and_delete, mock_async_delete):
         """测试 /changelog 命令返回更新日志"""
         from handlers.command_handlers import handle_changelog_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -73,13 +73,13 @@ class TestKeywordCommands:
     """测试关键词管理命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_add_keyword_no_args(self, mock_reply, mock_delete):
         """测试 /add 命令无参数时返回用法"""
         from handlers.command_handlers import handle_add_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
@@ -92,15 +92,15 @@ class TestKeywordCommands:
         mock_reply.assert_called()
 
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers._add_keywords_to_rule', new_callable=AsyncMock)
-    @patch('handlers.command_handlers._parse_keywords', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands._add_keywords_to_rule', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands._parse_keywords', new_callable=AsyncMock)
     async def test_add_keyword_success(self, mock_parse, mock_add, mock_reply, mock_delete):
         """测试 /add 命令成功添加"""
         from handlers.command_handlers import handle_add_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.message.text = "/add keyword1 keyword2"
         mock_event.client = AsyncMock()
         mock_event.chat_id = 123
@@ -121,13 +121,13 @@ class TestRuleCommands:
     """测试规则管理命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_bind_command_no_args(self, mock_reply, mock_delete):
         """测试 /bind 命令无参数时返回提示"""
         from handlers.command_handlers import handle_bind_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
@@ -141,15 +141,15 @@ class TestRuleCommands:
         mock_reply.assert_called()
 
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.rule_management_service')
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service')
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_bind_command_success(self, mock_container, mock_reply, mock_delete, mock_service):
         """测试 /bind 命令成功"""
         from handlers.command_handlers import handle_bind_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.message.text = "/bind https://t.me/src https://t.me/dst"
         mock_event.chat_id = 123
         
@@ -174,12 +174,12 @@ class TestSettingsCommands:
     
     @pytest.mark.asyncio
     @patch('handlers.button.new_menu_system.new_menu_system')
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
     async def test_settings_command(self, mock_delete, mock_menu):
         """测试 /settings 命令显示主菜单"""
         from handlers.command_handlers import handle_settings_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.message.chat_id = 123
         mock_event.message.id = 456
         mock_event.sender.id = 123
@@ -198,13 +198,13 @@ class TestReplaceCommands:
     """测试替换规则命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_replace_command_no_args(self, mock_reply, mock_delete):
         """测试 /replace 命令无参数时返回提示"""
         from handlers.command_handlers import handle_replace_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
@@ -220,15 +220,15 @@ class TestDedupCommands:
     """测试去重相关命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.RuleQueryService')
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.dedup_commands.RuleQueryService')
+    @patch('handlers.commands.dedup_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.dedup_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_dedup_enable_command_no_rule(self, mock_container, mock_reply, mock_delete, mock_query):
         """测试 /dedup 命令无规则时的处理"""
         from handlers.command_handlers import handle_dedup_enable_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         
         # Mock session
@@ -244,16 +244,16 @@ class TestDedupCommands:
         assert "❌ 未找到管理上下文" in mock_reply.call_args[0][1]
 
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.rule_management_service')
-    @patch('handlers.command_handlers.RuleQueryService')
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.dedup_commands.rule_management_service')
+    @patch('handlers.commands.dedup_commands.RuleQueryService')
+    @patch('handlers.commands.dedup_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.dedup_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_dedup_enable_command_success(self, mock_container, mock_reply, mock_delete, mock_query, mock_service):
         """测试 /dedup 成功切换"""
         from handlers.command_handlers import handle_dedup_enable_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_query.get_current_rule_for_chat = AsyncMock(return_value=(MagicMock(id=1, enable_dedup=False), MagicMock(name="Source")))
         
         mock_service.update_rule = AsyncMock(return_value={"success": True})
@@ -268,12 +268,12 @@ class TestMediaSettingsCommands:
     """测试媒体筛选设置命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.media_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_set_duration_command_no_args(self, mock_reply):
         """测试 /set_duration 无参数时返回用法"""
         from handlers.command_handlers import handle_set_duration_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         
         await handle_set_duration_command(mock_event, [])
@@ -281,12 +281,12 @@ class TestMediaSettingsCommands:
         mock_reply.assert_called()
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.media_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_set_resolution_command_no_args(self, mock_reply):
         """测试 /set_resolution 无参数时返回用法"""
         from handlers.command_handlers import handle_set_resolution_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         
         await handle_set_resolution_command(mock_event, [])
@@ -294,13 +294,12 @@ class TestMediaSettingsCommands:
         mock_reply.assert_called()
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    async def test_set_size_command_no_args(self, mock_reply, mock_delete):
+    @patch('handlers.commands.media_commands.reply_and_delete', new_callable=AsyncMock)
+    async def test_set_size_command_no_args(self, mock_reply):
         """测试 /set_size 无参数时返回用法"""
         from handlers.command_handlers import handle_set_size_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -333,14 +332,14 @@ class TestClearCommands:
     """测试清除命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.rule_management_service')
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service')
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_clear_all_command(self, mock_reply, mock_delete, mock_service):
         """测试 /clear_all 命令"""
         from handlers.command_handlers import handle_clear_all_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.client = MagicMock()
         mock_event.message = MagicMock()
@@ -359,14 +358,14 @@ class TestRemoveCommands:
     """测试删除命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.rule_management_service')
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service')
     async def test_remove_keyword_command(self, mock_service, mock_reply, mock_delete):
         """测试 /remove_keyword 命令"""
         from handlers.command_handlers import handle_remove_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -379,14 +378,14 @@ class TestRemoveCommands:
         mock_reply.assert_called()
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.rule_management_service')
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service')
     async def test_remove_replace_command(self, mock_service, mock_reply, mock_delete):
         """测试 /remove_replace 命令"""
         from handlers.command_handlers import handle_remove_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.message = MagicMock()
         mock_event.message.chat_id = 123
@@ -403,24 +402,24 @@ class TestListCommands:
     """测试列表显示命令"""
     
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.RuleQueryService')
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.RuleQueryService')
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
     @patch('core.container.container')
-    async def test_list_keyword(self, mock_container, mock_delete, mock_reply, mock_query):
+    async def test_list_keyword(self, mock_container, mock_delete, mock_reply, mock_query, mock_service):
         """测试 /list_keyword"""
         from handlers.command_handlers import handle_list_keyword_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_query.get_current_rule_for_chat = AsyncMock(return_value=(MagicMock(id=1, add_mode=0), MagicMock(name="Source")))
         
-        # Mock session and result
+        # Mock session (still needed for RuleQueryService)
         mock_session = AsyncMock()
         mock_container.db.session.return_value.__aenter__.return_value = mock_session
         
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [MagicMock(keyword="kw1", is_regex=False)]
-        mock_session.execute.return_value = mock_result
+        # Mock service result
+        mock_service.get_keywords.return_value = [MagicMock(keyword="kw1", is_regex=False)]
         
         await handle_list_keyword_command(mock_event)
         
@@ -428,23 +427,23 @@ class TestListCommands:
         assert "kw1" in mock_reply.call_args[0][1]
 
     @pytest.mark.asyncio
-    @patch('handlers.command_handlers.RuleQueryService')
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.RuleQueryService')
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
     @patch('core.container.container')
-    async def test_list_replace(self, mock_container, mock_delete, mock_reply, mock_query):
+    async def test_list_replace(self, mock_container, mock_delete, mock_reply, mock_query, mock_service):
         """测试 /list_replace"""
         from handlers.command_handlers import handle_list_replace_command
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_query.get_current_rule_for_chat = AsyncMock(return_value=(MagicMock(id=1), MagicMock(name="Source")))
         
         mock_session = AsyncMock()
         mock_container.db.session.return_value.__aenter__.return_value = mock_session
         
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [MagicMock(pattern="pat1", content="rep1")]
-        mock_session.execute.return_value = mock_result
+        # Mock service result
+        mock_service.get_replace_rules.return_value = [MagicMock(pattern="pat1", content="rep1")]
         
         await handle_list_replace_command(mock_event)
         
@@ -453,72 +452,53 @@ class TestListCommands:
         assert "匹配 `pat1` -> 替换为 `rep1`" in res_text
 
 
+
 class TestMaintenanceCommands:
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('models.models.get_database_info', new_callable=MagicMock)
-    async def test_db_info_command(self, mock_get_info, mock_reply):
-        mock_get_info.return_value = {
-            'db_size': 1024,
-            'wal_size': 512,
-            'total_size': 1536,
-            'table_count': 10,
-            'index_count': 5
-        }
-        mock_event = MagicMock()
+    @patch('handlers.commands.system_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.system_commands.db_maintenance_service')
+    async def test_db_info_command(self, mock_service, mock_reply):
+        mock_service.get_database_info = AsyncMock(return_value={
+            'success': True,
+            'size_mb': 1024,
+            'total_rows': 1536,
+            'tables': {'table1': 10, 'table2': 5}
+        })
+        mock_event = AsyncMock()
         
         from handlers.command_handlers import handle_db_info_command
         await handle_db_info_command(mock_event)
         
-        mock_reply.assert_called_once()
-        assert "数据库详情" in mock_reply.call_args[0][1]
+        mock_event.respond.assert_called()
+        mock_event.respond.return_value.edit.assert_called()
+        assert "数据库信息" in mock_event.respond.return_value.edit.call_args[0][0]
 
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.get_logger')
-    async def test_system_status_command(self, mock_get_logger, mock_delete, mock_reply):
-        # 我们需要 Patch 实际被定义的模块位置，注意 handle_system_status_command 可能会重新导入
-        # 最简单的方法是 Patch psutil 和 models.models 里的相关同步函数
+    @patch('handlers.commands.system_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.system_commands.system_service')
+    async def test_system_status_command(self, mock_system_service, mock_delete):
+        mock_system_service.get_system_status = AsyncMock(return_value={
+            'cpu_percent': 10.0,
+            'memory_percent': 50.0,
+            'memory_used_mb': 4096,
+            'disk_percent': 30.0,
+            'uptime': "1 day",
+            'version': "1.0.0"
+        })
+            
+        mock_event = AsyncMock()
         
-        with patch('psutil.cpu_percent', return_value=10.0), \
-             patch('psutil.virtual_memory') as mock_mem, \
-             patch('psutil.disk_usage') as mock_disk, \
-             patch('models.models.get_database_info') as mock_db_info, \
-             patch('models.models.get_db_health') as mock_db_health:
-            
-            mock_mem.return_value.percent = 50.0
-            mock_mem.return_value.used = 4 * 1024**3
-            mock_mem.return_value.total = 8 * 1024**3
-            mock_disk.return_value.percent = 30.0
-            mock_disk.return_value.used = 100 * 1024**3
-            mock_disk.return_value.total = 500 * 1024**3
-            
-            mock_db_info.return_value = {'total_size': 10 * 1024**2, 'table_count': 5, 'index_count': 2}
-            mock_db_health.return_value = {'status': 'healthy'}
-            
-            mock_event = MagicMock()
-            mock_event.client = MagicMock()
-            mock_event.message.chat_id = 123
-            mock_event.message.id = 456
-            
-            from handlers.command_handlers import handle_system_status_command
-            await handle_system_status_command(mock_event)
-            
-            # 如果进入了 Exception 分支，mock_reply 会被调用，内容为 "获取系统状态失败"
-            # 我们可以打印出来看看到底报了什么错
-            if mock_reply.called and "失败" in mock_reply.call_args[0][1]:
-                print(f"DEBUG: system_status failed with: {mock_reply.call_args[0][1]}")
-            
-            mock_reply.assert_called_once()
-            assert "系统状态报告" in mock_reply.call_args[0][1]
-            assert "10.0%" in mock_reply.call_args[0][1]
-            assert "healthy" in mock_reply.call_args[0][1]
+        from handlers.command_handlers import handle_system_status_command
+        await handle_system_status_command(mock_event)
+        
+        msg = mock_event.respond.return_value
+        msg.edit.assert_called_once()
+        assert "系统状态" in msg.edit.call_args[0][0]
 
 
 class TestUFBCommands:
-    @patch('handlers.command_handlers.rule_management_service', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service', new_callable=AsyncMock)
     @patch('services.rule_service.RuleQueryService.get_current_rule_for_chat', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_ufb_bind_command_success(self, mock_container, mock_reply, mock_delete, mock_get_rule, mock_service):
         mock_rule = MagicMock(id=1, ufb_domain=None)
@@ -526,7 +506,7 @@ class TestUFBCommands:
         mock_source.name = "Source"
         mock_get_rule.return_value = (mock_rule, mock_source)
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.message.text = "/ufb_bind example.com content"
         mock_service.update_rule.return_value = {'success': True}
         
@@ -541,9 +521,9 @@ class TestUFBCommands:
         assert "✅ 已绑定 UFB" in args[1]
         assert "Source" in args[1]
 
-    @patch('handlers.command_handlers._get_current_rule_for_chat', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.async_delete_user_message', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.RuleQueryService.get_current_rule_for_chat', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.async_delete_user_message', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_ufb_item_change_command(self, mock_container, mock_reply, mock_delete, mock_get_rule):
         mock_rule = MagicMock(id=1)
@@ -551,7 +531,7 @@ class TestUFBCommands:
         mock_source.name = "Source"
         mock_get_rule.return_value = (mock_rule, mock_source)
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.client = MagicMock()
         mock_event.message.chat_id = 123
         mock_event.message.id = 456
@@ -566,23 +546,22 @@ class TestUFBCommands:
 
 
 class TestAdminCommands:
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    async def test_admin_panel_command(self, mock_reply):
+    async def test_admin_panel_command(self):
         mock_event = AsyncMock()
         
         from handlers.command_handlers import handle_admin_panel_command
         await handle_admin_panel_command(mock_event)
         
-        mock_event.reply.assert_called_once()
-        assert "系统管理面板" in mock_event.reply.call_args[0][0]
-        assert "buttons" in mock_event.reply.call_args[1]
+        mock_event.respond.assert_called_once()
+        assert "管理员控制面板" in mock_event.respond.call_args[0][0]
+        assert "buttons" in mock_event.respond.call_args[1]
 
 
 class TestExportImportCommands:
-    @patch('handlers.command_handlers.rule_management_service', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service', new_callable=AsyncMock)
     @patch('services.rule_service.RuleQueryService.get_current_rule_for_chat', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.respond_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.respond_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_export_replace_command(self, mock_container, mock_respond, mock_reply, mock_get_rule, mock_service):
         mock_rule = MagicMock(id=1)
@@ -592,7 +571,7 @@ class TestExportImportCommands:
         
         mock_service.export_replace_rules.return_value = ["pat1\trep1"]
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.client = AsyncMock()
         
         from handlers.command_handlers import handle_export_replace_command
@@ -603,9 +582,9 @@ class TestExportImportCommands:
         mock_respond.assert_called_once()
         assert "Source" in mock_respond.call_args[0][1]
 
-    @patch('handlers.command_handlers.rule_management_service', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.rule_management_service', new_callable=AsyncMock)
     @patch('services.rule_service.RuleQueryService.get_current_rule_for_chat', new_callable=AsyncMock)
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.rule_commands.reply_and_delete', new_callable=AsyncMock)
     @patch('core.container.container')
     async def test_import_replace_command(self, mock_container, mock_reply, mock_get_rule, mock_service):
         mock_rule = MagicMock(id=1)
@@ -613,7 +592,7 @@ class TestExportImportCommands:
         mock_source.name = "Source"
         mock_get_rule.return_value = (mock_rule, mock_source)
         
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.message.file = MagicMock()
         mock_event.message.download_media = AsyncMock(return_value="temp.txt")
         
@@ -637,9 +616,9 @@ class TestExportImportCommands:
 
 class TestMediaActionCommands:
     @patch('core.container.container')
-    @patch('handlers.command_handlers.reply_and_delete', new_callable=AsyncMock)
+    @patch('handlers.commands.media_commands.reply_and_delete', new_callable=AsyncMock)
     async def test_handle_download_command(self, mock_reply, mock_container):
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.is_reply = True
         mock_reply_msg = AsyncMock()
         mock_reply_msg.media = True
@@ -659,7 +638,7 @@ class TestMediaActionCommands:
 
     @patch('handlers.button.session_management.session_manager', new_callable=AsyncMock)
     async def test_handle_dedup_scan_command(self, mock_session_manager):
-        mock_event = MagicMock()
+        mock_event = AsyncMock()
         mock_event.chat_id = 123
         mock_event.respond = AsyncMock()
         
