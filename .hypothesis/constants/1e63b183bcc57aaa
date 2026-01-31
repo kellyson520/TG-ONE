@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\repositories\archive_store.py
+# hypothesis_version: 6.151.4
+
+['%Y', '%d', '%m', "'", "''", '*', '*.parquet', ',', '.tmp', '/', '://', ':memory:', 'S3 配置失败详细信息', 'SELECT', 'SELECT DISTINCT', 'day=*', 'df_rows', 'http://', 'https://', 'month=*', 'part-*.parquet', 'rows', 's3://', 'tmp_file', 'year=*', '关闭 DuckDB 连接', '写入 Parquet 文件', '写入 Parquet 文件详细信息', '写入压实文件详细信息', '创建目录失败详细信息', '创建表并插入数据', '创建表并插入数据详细信息', '删除小文件失败详细信息', '压实分区失败详细信息', '原子替换文件失败详细信息', '回退移动文件详细信息', '安装并加载 httpfs 扩展', '尝试使用 JSON 推断', '执行查询', '未找到任何归档文件', '未生成任何 Parquet 文件', '查询 Parquet 文件详细信息', '校验 Parquet 文件详细信息', '没有数据需要写入', '目标文件不存在', '记录查询失败日志详细信息', '记录查询日志详细信息', '设置 DuckDB 内存限制详细信息', '设置 DuckDB 线程数详细信息', '设置 S3 会话令牌', '设置 S3 访问密钥', '配置 DuckDB 连接', '配置 S3 访问参数', '限定文件详细信息']

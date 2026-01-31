@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\repositories\stats_repo.py
+# hypothesis_version: 6.151.4
+
+[100, '%Y-%m-%dT%H', 'action', 'count', 'created_at', 'details', 'error', 'error_count', 'filtered', 'filtered_count', 'forwarded', 'hour', 'message_id', 'processed', 'rule_id', 'success', 'success_count', 'total_triggered']

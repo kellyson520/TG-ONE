@@ -28,6 +28,7 @@ async def load_dynamic_config_from_db(settings_obj: Any) -> None:
                 field_type = field_info.annotation
                 try:
                     # 根据字段类型转换值
+                    converted_value: Any = value
                     if field_type == bool:
                         converted_value = str(value).strip().lower() in ('1','true','yes','on')
                     elif field_type == int:
@@ -36,8 +37,6 @@ async def load_dynamic_config_from_db(settings_obj: Any) -> None:
                         converted_value = float(value)
                     elif field_type == Path:
                         converted_value = Path(value)
-                    else:
-                        converted_value = value
                     
                     # 更新配置值
                     setattr(settings_obj, key, converted_value)

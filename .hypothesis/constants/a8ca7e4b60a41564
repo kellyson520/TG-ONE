@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\rss\routes\auth.py
+# hypothesis_version: 6.151.4
+
+[1440, '/', '/login', '/logout', '/register', '/rss/change_password', '/rss/dashboard', '/rss/login', '/rss/register', 'HS256', 'confirm_password', 'current_password', 'error', 'exp', 'login.html', 'message', 'new_password', 'password', 'register.html', 'request', 'rss', 'rss.current_user', 'rss/app/templates', 'rss_access_token', 'secret.key', 'sub', 'success', 'username', 'utf-8', '两次输入的密码不一致', '修改密码失败，请重试', '创建用户失败', '密码修改成功', '当前密码不正确', '新密码和确认密码不一致', '新密码长度必须至少为8个字符', '未登录或会话已过期', '用户名或密码错误', '请输入当前密码', '请输入新密码']

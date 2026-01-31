@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\system_service.py
+# hypothesis_version: 6.151.4
+
+[0.7, 500, 1024, 1800, 3600, '*', '**/*.py', '.env', '///', 'ANALYZE;', 'Log file not found.', 'PRAGMA optimize;', 'VACUUM;', 'active', 'app', 'app.log', 'core', 'cpu_percent', 'deep', 'deleted_logs', 'duration', 'error', 'error.log', 'guard_status', 'ignore', 'main.py', 'memory_mb', 'message', 'path', 'r', 'services', 'size_mb', 'sqlite', 'status', 'stopped', 'success', 'tasks_active', 'uptime_seconds', 'utf-8', 'web_admin']

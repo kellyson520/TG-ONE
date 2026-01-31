@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\rss\routes\rss.py
+# hypothesis_version: 6.151.4
+
+[200, '/config', '/dashboard', '/delete/{rule_id}', '/pattern', '/rss', '/rss/login', '/subscriptions/page', '/test-regex', '/toggle/{rule_id}', 'BASE64:', 'RSS 配置已保存', 'RSS配置不存在', 'ai_extract_prompt', 'config_id', 'enable_rss', 'extracted', 'has_groups', 'id', 'is_ai_extract', 'is_auto_content', 'is_auto_title', 'language', 'matched', 'max_items', 'message', 'name', 'pattern', 'pattern_id', 'pattern_type', 'patterns', 'priority', 'request', 'rss.dashboard', 'rss/app/templates', 'rss_base_url', 'rss_configs', 'rss_dashboard.html', 'rule_description', 'rule_id', 'rule_title', 'rules', 'source_chat', 'success', 'target_chat', 'user', 'utf-8', 'zh-CN', '创建新模式', '匹配成功！', '找不到该模式', '未找到匹配', '未登录', '未登录的访问尝试', '模式删除成功', '模式已创建', '该规则已经存在RSS配置', '配置不存在']

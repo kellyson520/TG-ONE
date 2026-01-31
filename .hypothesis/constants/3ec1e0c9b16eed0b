@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\user.py
+# hypothesis_version: 6.151.4
+
+[128, 255, 'User', 'access_control_list', 'active_sessions', 'audit_logs', 'ip_address', 'sessions', 'success', 'type', 'unique_ip_type', 'users', 'users.id', 'whitelist']

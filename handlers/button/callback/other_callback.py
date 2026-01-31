@@ -33,7 +33,9 @@ from handlers.button.button_helpers import (
     create_other_settings_buttons,
 )
 from core.constants import RSS_HOST, RSS_PORT, RULES_PER_PAGE
+from core.config import settings
 from handlers.button.settings_manager import create_buttons, create_settings_text
+
 
 logger = logging.getLogger(__name__)
 
@@ -1754,7 +1756,8 @@ async def callback_set_userinfo_template(event, rule_id, session, message, data)
         if not await is_admin(event):
             await event.answer("只有管理员可以修改设置")
             return
-        user_id = os.getenv("USER_ID")
+        user_id = settings.USER_ID
+
     else:
         user_id = event.sender_id
 
@@ -1824,7 +1827,8 @@ async def callback_set_time_template(event, rule_id, session, message, data):
         if not await is_admin(event):
             await event.answer("只有管理员可以修改设置")
             return
-        user_id = os.getenv("USER_ID")
+        user_id = settings.USER_ID
+
     else:
         user_id = event.sender_id
 
@@ -1964,7 +1968,8 @@ async def callback_set_original_link_template(event, rule_id, session, message, 
         if not await is_admin(event):
             await event.answer("只有管理员可以修改设置")
             return
-        user_id = os.getenv("USER_ID")
+        user_id = settings.USER_ID
+
     else:
         user_id = event.sender_id
 

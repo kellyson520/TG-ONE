@@ -2,6 +2,7 @@ from telethon import Button
 
 from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
 from core.constants import RSS_ENABLED, UFB_ENABLED
+from core.config import settings
 from core.config.settings_loader import load_ai_models
 
 AI_MODELS = load_ai_models()
@@ -172,10 +173,9 @@ async def get_media_settings_text():
     return MEDIA_SETTINGS_TEXT
 
 async def get_ai_settings_text(rule):
-    import os
     from core.constants import AI_SETTINGS_TEXT
-    ai_prompt = rule.ai_prompt or os.getenv("DEFAULT_AI_PROMPT", "未设置")
-    summary_prompt = rule.summary_prompt or os.getenv("DEFAULT_SUMMARY_PROMPT", "未设置")
+    ai_prompt = rule.ai_prompt or settings.DEFAULT_AI_PROMPT
+    summary_prompt = rule.summary_prompt or settings.DEFAULT_SUMMARY_PROMPT
     return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt)
 
 
@@ -445,7 +445,7 @@ async def create_settings_text(rule):
     return text
 
 
-async def create_buttons(rule, back_callback="settings"):
+async def create_buttons(rule, _back_callback="settings"):
     """创建规则设置按钮"""
     buttons = []
 

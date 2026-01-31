@@ -2,6 +2,7 @@ from telethon import Button
 
 from models.models import ForwardRule
 from core.helpers.common import get_db_ops, get_session
+from core.config import settings
 from core.constants import *
 from core.config.settings_loader import (
     load_delay_times,
@@ -47,7 +48,7 @@ async def create_ai_settings_buttons(rule=None, rule_id=None):
 
         elif field == "ai_model":
             current_value = getattr(rule, field)
-            display_value = current_value or os.getenv("DEFAULT_AI_MODEL")
+            display_value = current_value or settings.DEFAULT_AI_MODEL
         else:
             current_value = getattr(rule, field)
             display_value = config["values"].get(current_value, str(current_value))

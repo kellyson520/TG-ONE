@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\repositories\task_repo.py
+# hypothesis_version: 6.151.4
+
+[0.0, 100, 'OR IGNORE', 'active_queues', 'active_rules', 'attempts', 'chat_id', 'completed', 'completed_tasks', 'created_at', 'error_rate', 'failed', 'failed_tasks', 'grouped_id', 'message_id', 'pending', 'priority', 'running', 'status', 'task_data', 'task_type', 'total_chats', 'total_rules', 'total_tasks', 'unique_key', 'updated_at']

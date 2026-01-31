@@ -117,7 +117,7 @@ if not mock_settings.DB_DIR.exists():
 
 # JWT Settings
 mock_settings.SECRET_KEY = "test_jwt_secret"
-mock_settings.ALGORITHM = "HS256"
+mock_settings.JWT_ALGORITHM = "HS256"
 mock_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30
 mock_settings.REFRESH_TOKEN_EXPIRE_DAYS = 7
 
@@ -140,7 +140,7 @@ for key, value in mock_settings.__dict__.items():
             pass
 # Ensure SECRET_KEY and other critical ones are definitely set
 core.config.settings.SECRET_KEY = "test_jwt_secret"
-core.config.settings.ALGORITHM = "HS256"
+core.config.settings.JWT_ALGORITHM = "HS256"
 core.config.settings.DATABASE_URL = "sqlite+aiosqlite:///file:testdb_early?mode=memory&cache=shared&uri=true"
 
 
@@ -193,19 +193,25 @@ def get_container():
             # Fallback to an object that at least has repo attributes as AsyncMocks
             class AsyncSafeMock(MagicMock):
                 def __getattr__(self, name):
-                    attr = super().__getattr__(name)
-                    if not name.startswith('_'):
-                        # Check if it looks like a repo or service
-                        if any(x in name.lower() for x in ["repo", "service", "coordinator", "processor", "manager", "logic", "query", "crud"]):
-                             new_mock = AsyncMock()
-                             setattr(self, name, new_mock)
-                             return new_mock
-                        # Also protect commonly awaited properties
-                        if name in ["db", "task_repo", "rule_repo", "user_repo"]:
-                             new_mock = AsyncSafeMock()
-                             setattr(self, name, new_mock)
-                             return new_mock
-                    return attr
+                    if name.startswith('_'):
+                        return super().__getattr__(name)
+                    
+                    # Check if we already have a child mock for this name
+                    # (MagicMock logic handles this usually, but we want to override creation)
+                    # We can't easily check internal _mock_children without private access.
+                    # But we can just create a new one if not present, or rely on side_effect.
+                    
+                    # Simplified strategy: Return AsyncSafeMock for everything that looks like a component,
+                    # and AsyncMock for everything else (likely methods).
+                    # Actually, AsyncMock is callable and awaitable. AsyncSafeMock is also MagicMock.
+                    
+                    # Let's simple return AsyncMock for everything to be safe for async testing.
+                    # Except known attributes.
+                    
+                    new_mock = AsyncMock()
+                    setattr(self, name, new_mock)
+                    return new_mock
+
                 def __call__(self, *args, **kwargs):
                     return AsyncMock()(*args, **kwargs)
             _container = AsyncSafeMock()
@@ -274,14 +280,18 @@ async def setup_database():
         keep_alive_conn = await engine.connect()
         # 仅执行初始化，不要持有事务
         await keep_alive_conn.run_sync(Base.metadata.create_all)
-        
-        yield
-        
-        await keep_alive_conn.run_sync(Base.metadata.drop_all)
-        await keep_alive_conn.close()
     except Exception as e:
         logging.warning(f"数据库初始化失败: {e}")
         yield
+        return
+        
+    yield
+        
+    try:
+        await keep_alive_conn.run_sync(Base.metadata.drop_all)
+        await keep_alive_conn.close()
+    except Exception as e:
+        logging.warning(f"数据库清理失败: {e}")
 
 
 @pytest.fixture

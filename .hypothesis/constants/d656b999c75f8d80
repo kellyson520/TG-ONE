@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\forward_settings_service.py
+# hypothesis_version: 6.151.4
+
+[100, 3600, 86400, '7z', 'allow_emoji', 'allow_text', 'audio', 'avi', 'blacklist', 'days', 'document', 'docx', 'duration_max_seconds', 'duration_min_seconds', 'enabled', 'exclude_keywords', 'flac', 'gif', 'hours', 'image', 'include_keywords', 'jpeg', 'jpg', 'json', 'max_seconds', 'media_extensions', 'media_size_limit', 'media_size_limit_kb', 'media_types', 'min', 'min_seconds', 'minutes', 'mkv', 'mov', 'mp3', 'mp4', 'new_mode', 'new_value', 'ogg', 'only_media', 'only_text', 'pdf', 'png', 'rar', 'seconds', 'success', 'video', 'voice', 'wav', 'webp', 'whitelist', 'zip']

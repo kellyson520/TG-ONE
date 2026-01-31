@@ -247,7 +247,7 @@ py
 """
 
 
-def create_default_configs():
+def create_default_configs() -> None:
     """创建默认配置文件"""
     config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
     os.makedirs(config_dir, exist_ok=True)

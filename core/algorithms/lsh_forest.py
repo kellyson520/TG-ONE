@@ -72,7 +72,7 @@ class LSHForest:
         shift = (tree_index * 7) % 64
         return ((val >> shift) | (val << (64 - shift))) & 0xFFFFFFFFFFFFFFFF
 
-    def add(self, doc_id: str, simhash: int):
+    def add(self, doc_id: str, simhash: int) -> None:
         """
         Add a document to the index.
         Note: This is O(L * log N) if using insort, or O(L) + lazy sort.
@@ -140,7 +140,7 @@ class LSHForest:
         # NOTE: We need the ORIGINAL hashes of candidates to compute distance.
         # The index stores (permuted, doc_id). We can re-compute original from permuted.
         
-        final_results = []
+        final_results: List[str] = []
         # We need to retrieve original hash. 
         # Option A: Store (permuted, original, doc_id) -> More memory.
         # Option B: Re-unpermute. -> CPU cost. 
@@ -204,7 +204,7 @@ class LSHForest:
             x &= x - 1
         return dist
 
-    def save(self, filepath: str):
+    def save(self, filepath: str) -> None:
         try:
             with open(filepath, 'wb') as f:
                 pickle.dump(self.trees, f)
@@ -212,7 +212,7 @@ class LSHForest:
         except Exception as e:
             logger.error(f"Failed to save LSH Forest: {e}")
 
-    def load(self, filepath: str):
+    def load(self, filepath: str) -> None:
         if os.path.exists(filepath):
             try:
                 with open(filepath, 'rb') as f:

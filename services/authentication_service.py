@@ -56,7 +56,7 @@ class AuthenticationService:
             "type": "access",
             "jti": secrets.token_hex(8) # Add nonce for uniqueness
         })
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
         """Create long-lived refresh token."""
@@ -70,13 +70,13 @@ class AuthenticationService:
             "type": "refresh",
             "jti": secrets.token_hex(16) # Add stronger nonce for refresh tokens
         })
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     def create_pre_auth_token(self, user_id: int) -> str:
         """Create short-lived pre-auth token for 2FA verification."""
         expire = datetime.utcnow() + timedelta(minutes=5)
         to_encode = {"sub": str(user_id), "type": "pre_auth", "exp": expire}
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
     async def create_session(self, user_id: int, ip_address: str, user_agent: str) -> Tuple[str, str]:
@@ -119,7 +119,7 @@ class AuthenticationService:
         Implements Rotation: Generates a new refresh token and replaces the old one.
         """
         try:
-            payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "refresh":
                 return None
             user_id_str = payload.get("sub")
@@ -192,7 +192,7 @@ class AuthenticationService:
     async def get_user_from_token(self, token: str) -> Optional[UserDTO]:
         """Decode access token and return User object."""
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "access": # Enforce type check
                 return None
             user_id = payload.get("sub")

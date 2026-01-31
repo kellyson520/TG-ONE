@@ -19,22 +19,16 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-BLOOM_ROOT = os.getenv("BLOOM_ROOT", "./archive/bloom")
-BLOOM_BITS = int(os.getenv("BLOOM_BITS", str(1 << 24)))  # 默认 16,777,216 bits (~2MB)
-BLOOM_HASHES = int(os.getenv("BLOOM_HASHES", "7"))
-BLOOM_SHARD_BY = os.getenv("BLOOM_SHARD_BY", "chat")  # chat | global
+from core.config import settings
 
-# 可选缓存配置：减少频繁磁盘读取
-try:
-    _CACHE_MAX_ENTRIES = max(16, int(os.getenv("BLOOM_CACHE_MAX_ENTRIES", "1024")))
-except Exception as e:
-    logger.warning(f"解析 BLOOM_CACHE_MAX_ENTRIES 时出错: {e}，使用默认值 1024")
-    _CACHE_MAX_ENTRIES = 1024
-try:
-    _CACHE_TTL_SEC = max(5, int(os.getenv("BLOOM_CACHE_TTL_SEC", "300")))
-except Exception as e:
-    logger.warning(f"解析 BLOOM_CACHE_TTL_SEC 时出错: {e}，使用默认值 300")
-    _CACHE_TTL_SEC = 300
+# 全局配置映射
+BLOOM_ROOT = str(settings.BLOOM_ROOT)
+BLOOM_BITS = settings.BLOOM_BITS
+BLOOM_HASHES = settings.BLOOM_HASHES
+BLOOM_SHARD_BY = settings.BLOOM_SHARD_BY
+
+_CACHE_MAX_ENTRIES = settings.BLOOM_CACHE_MAX_ENTRIES
+_CACHE_TTL_SEC = settings.BLOOM_CACHE_TTL_SEC
 
 
 def _ensure_dir(path: str) -> None:
@@ -330,7 +324,7 @@ class BloomIndex:
         """从 Parquet 归档重建 media_signatures 的 Bloom 索引。
         返回写入的条目计数（估算）。
         """
-        root = archive_root or os.getenv("ARCHIVE_ROOT", "./archive/parquet")
+        root = archive_root or str(settings.ARCHIVE_ROOT)
         logger.debug(f"重建媒体签名 Bloom 索引: archive_root={root}")
         pattern = os.path.join(
             root, "media_signatures", "year=*", "month=*", "*.parquet"

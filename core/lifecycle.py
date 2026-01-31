@@ -16,20 +16,20 @@ class LifecycleManager:
     
     _instance: Optional['LifecycleManager'] = None
     
-    def __init__(self, user_client: TelegramClient, bot_client: TelegramClient):
+    def __init__(self, user_client: TelegramClient, bot_client: TelegramClient) -> None:
         self.bootstrap = Bootstrap(user_client, bot_client)
         self.coordinator = get_shutdown_coordinator()
         self._running = False
 
     @classmethod
-    def get_instance(cls, user_client=None, bot_client=None) -> 'LifecycleManager':
+    def get_instance(cls, user_client: Optional[TelegramClient] = None, bot_client: Optional[TelegramClient] = None) -> 'LifecycleManager':
         if cls._instance is None:
             if user_client is None or bot_client is None:
                 raise ValueError("LifecycleManager not initialized. Pass clients first.")
             cls._instance = LifecycleManager(user_client, bot_client)
         return cls._instance
 
-    async def start(self):
+    async def start(self) -> None:
         """启动系统"""
         if self._running:
             logger.warning("LifecycleManager: System is already running.")
@@ -45,7 +45,7 @@ class LifecycleManager:
             await self.stop()
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """停止系统"""
         logger.info("LifecycleManager: Initiating shutdown...")
         await self.coordinator.shutdown()
@@ -57,5 +57,5 @@ class LifecycleManager:
         return self._running
 
 # 原生导出
-def get_lifecycle(user_client=None, bot_client=None) -> LifecycleManager:
+def get_lifecycle(user_client: Optional[TelegramClient] = None, bot_client: Optional[TelegramClient] = None) -> LifecycleManager:
     return LifecycleManager.get_instance(user_client, bot_client)

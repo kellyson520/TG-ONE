@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\network\telegram_api_optimizer.py
+# hypothesis_version: 6.151.4
+
+[100, 300, 1024, 'API优化器缓存已清理', 'all', 'bytes', 'date', 'dc_id', 'documents', 'duration', 'file_header', 'file_name', 'h', 'has_sample', 'height', 'id', 'media_cache_size', 'messages', 'mime_type', 'music', 'photos', 'sample_size', 'search_cache_size', 'size', 'videos', 'voice', 'w', 'width']

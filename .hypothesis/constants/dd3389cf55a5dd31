@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\bloom_filter.py
+# hypothesis_version: 6.151.4
+
+[0.001, 1000000, 'data', 'dedup_bloom.dat']

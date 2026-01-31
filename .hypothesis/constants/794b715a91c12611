@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\rules\rule_crud_router.py
+# hypothesis_version: 6.151.4
+
+[200, '/api/rules', '/{rule_id}', '/{rule_id}/toggle', 'Rules Operations', 'ai_model', 'ai_prompt', 'delay_seconds', 'description', 'enable_dedup', 'enable_delay', 'enable_rule', 'enabled', 'error', 'force_pure_forward', 'forwarded', 'is_ai', 'is_delete_original', 'is_original_link', 'is_original_sender', 'is_original_time', 'items', 'max_media_size', 'page', 'processed', 'rule_id', 'size', 'success', 'target_chat_id', 'total', 'unknown', 'use_bot', '切换状态失败', '启用', '更新失败', '没有更新项', '禁用', '规则不存在', '规则不存在或删除失败', '规则创建失败', '规则创建成功', '规则更新成功']

@@ -9,9 +9,11 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# 归档系统的默认配置
-ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT", "./archive/parquet")
-BLOOM_ROOT = os.getenv("BLOOM_ROOT", "./archive/bloom")
+from core.config import settings
+
+# 归档系统的配置映射
+ARCHIVE_ROOT = str(settings.ARCHIVE_ROOT)
+BLOOM_ROOT = str(settings.BLOOM_ROOT)
 
 
 def init_archive_system() -> bool:

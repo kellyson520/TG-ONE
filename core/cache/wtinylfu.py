@@ -1,6 +1,6 @@
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 
 class CountMinSketch:
     """
@@ -17,7 +17,7 @@ class CountMinSketch:
     def _hash(self, key: Any, seed: int) -> int:
         return hash((key, seed)) % self.width
 
-    def add(self, key: Any):
+    def add(self, key: Any) -> None:
         self.count += 1
         for i in range(self.depth):
             idx = self._hash(key, i)
@@ -28,7 +28,7 @@ class CountMinSketch:
         if self.count >= self.reset_limit:
             self._reset()
 
-    def _reset(self):
+    def _reset(self) -> None:
         """老化机制：所有计数除以2，防止老数据永久占据高频位"""
         for i in range(self.depth):
             for j in range(self.width):
@@ -43,14 +43,14 @@ class WTinyLFU:
     W-TinyLFU 缓存协议实现 (增强版：支持 TTL 和 字典接口)
     结合了 LRU 的新数据敏感度和 LFU 的频率敏感度。
     """
-    def __init__(self, max_size: int = 1000, window_ratio: float = 0.01, ttl: float = None):
+    def __init__(self, max_size: int = 1000, window_ratio: float = 0.01, ttl: Optional[float] = None):
         self.max_size = max_size
         self.window_size = max(1, int(max_size * window_ratio))
         self.main_size = max_size - self.window_size
         self.ttl = ttl
         
-        self.window_lru: Dict[Any, Tuple[Any, float]] = OrderedDict()
-        self.main_lru: Dict[Any, Tuple[Any, float]] = OrderedDict()
+        self.window_lru: OrderedDict[Any, Tuple[Any, float]] = OrderedDict()
+        self.main_lru: OrderedDict[Any, Tuple[Any, float]] = OrderedDict()
         self.sketch = CountMinSketch()
         
     def _is_expired(self, expiry: float) -> bool:
@@ -84,7 +84,7 @@ class WTinyLFU:
             raise KeyError(key)
         return val
 
-    def __setitem__(self, key: Any, value: Any):
+    def __setitem__(self, key: Any, value: Any) -> None:
         expiry = time.time() + self.ttl if self.ttl else 0
         
         if key in self.window_lru:
@@ -106,7 +106,7 @@ class WTinyLFU:
             self._admit_to_main(w_key, w_val, w_exp)
             self.window_lru[key] = (value, expiry)
 
-    def _admit_to_main(self, key: Any, value: Any, expiry: float):
+    def _admit_to_main(self, key: Any, value: Any, expiry: float) -> None:
         if len(self.main_lru) < self.main_size:
             self.main_lru[key] = (value, expiry)
         else:
@@ -128,13 +128,13 @@ class WTinyLFU:
     def __contains__(self, key: Any) -> bool:
         return self.get(key) is not None
 
-    def __delitem__(self, key: Any):
+    def __delitem__(self, key: Any) -> None:
         if key in self.window_lru:
             del self.window_lru[key]
         elif key in self.main_lru:
             del self.main_lru[key]
 
-    def clear(self):
+    def clear(self) -> None:
         self.window_lru.clear()
         self.main_lru.clear()
         self.sketch = CountMinSketch()

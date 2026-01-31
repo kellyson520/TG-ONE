@@ -8,13 +8,11 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(os.getcwd())
 
-from dotenv import load_dotenv
-load_dotenv()
-
 # Import the new utility
 from core.helpers.trace_analyzer import TraceAnalyzer
 
-LOG_DIR = os.getenv("LOG_DIR", "logs")
+from core.config import settings
+LOG_DIR = settings.LOG_DIR
 LOG_FILE = Path(LOG_DIR) / "app.log"
 
 def main():

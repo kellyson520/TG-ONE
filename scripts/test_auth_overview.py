@@ -12,9 +12,10 @@ def run():
     print('Unauthenticated /api/stats/overview:', r1.status_code)
     assert r1.status_code == 401, f'Expected 401, got {r1.status_code}'
 
-    username = os.getenv('WEB_ADMIN_USERNAME') or ''
-    password = os.getenv('WEB_ADMIN_PASSWORD') or ''
-    assert username and password, 'WEB_ADMIN_USERNAME/WEB_ADMIN_PASSWORD must be set'
+    from core.config import settings
+    username = settings.WEB_ADMIN_USERNAME or ''
+    password = settings.WEB_ADMIN_PASSWORD or ''
+    assert username and password, 'WEB_ADMIN_USERNAME/WEB_ADMIN_PASSWORD must be set in settings or .env'
 
     # JSON 登录流程，验证 200 + Set-Cookie
     r2 = client.post('/login', json={'username': username, 'password': password}, follow_redirects=False, headers={'Accept': 'application/json'})

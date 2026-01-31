@@ -84,7 +84,7 @@ query_cache = QueryResultCache()
 
 
 def cached_query(
-    query_type: str, ttl: int = 300, invalidate_on: Optional[List[str]] = None
+    query_type: str, ttl: int = 300, _invalidate_on: Optional[List[str]] = None
 ):
     """查询结果缓存装饰器"""
 

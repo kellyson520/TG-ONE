@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 from openai import AsyncOpenAI
 from .base import BaseAIProvider
-import os
+from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,11 +27,12 @@ class OpenAIBaseProvider(BaseAIProvider):
     async def initialize(self, **kwargs) -> None:
         """初始化OpenAI客户端"""
         try:
-            api_key = os.getenv(f'{self.env_prefix}_API_KEY')
+            # 从 settings 动态获取配置
+            api_key = getattr(settings, f'{self.env_prefix}_API_KEY', None)
             if not api_key:
-                raise ValueError(f"未设置 {self.env_prefix}_API_KEY 环境变量")
+                raise ValueError(f"未设置 {self.env_prefix}_API_KEY 配置")
 
-            api_base = os.getenv(f'{self.env_prefix}_API_BASE', '').strip() or self.default_api_base
+            api_base = getattr(settings, f'{self.env_prefix}_API_BASE', None) or self.default_api_base
 
             self.client = AsyncOpenAI(
                 api_key=api_key,

@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\button\button_helpers.py
+# hypothesis_version: 6.151.4
+
+['...', 'Single', 'add_push_channel', 'ai_model', 'ai_prompt', 'audio', 'close_settings', 'display_name', 'document', 'duration_range', 'extension', 'file_size_range', 'max_duration', 'max_file_size', 'max_height', 'max_media_size', 'max_width', 'media_allow_text', 'media_extensions', 'min_duration', 'min_file_size', 'min_height', 'min_width', 'noop', 'noop:0', 'photo', 'resolution_range', 'reverse_blacklist', 'reverse_whitelist', 'selected_media_types', 'summary_now', 'summary_prompt', 'values', 'video', 'voice', '❌ 关闭', '❌ 推送配置不存在', '❌ 没有可用的规则', '❌ 规则不存在', '➡️', '⬅️', '⬅️ 上一页', '下一页 ➡️', '全部', '关闭', '单个', '返回', '🎤 语音', '🎬 视频', '🎵 音频', '👈 返回', '📄 文档', '📷 图片', '🗑️ 删除推送配置']

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sqlite3
 
-import os
 import time
 from typing import Any, Optional
 
@@ -210,6 +209,8 @@ class SQLitePersistentCache(BasePersistentCache):
             conn.close()
 
 
+from core.config import settings
+
 _persistent_cache: Optional[BasePersistentCache] = None
 
 
@@ -217,15 +218,18 @@ def get_persistent_cache() -> BasePersistentCache:
     global _persistent_cache
     if _persistent_cache is not None:
         return _persistent_cache
-    url = os.getenv("REDIS_URL") or os.getenv("REDIS_CONNECTION_URL")
+        
+    url = settings.REDIS_URL
     if url:
         try:
             _persistent_cache = RedisPersistentCache(url)
             return _persistent_cache
-        except Exception:
+        except Exception as e:
+            # Redis 连接失败，回退到 SQLite
             pass
+            
     # fallback: local sqlite file
-    db_path = os.getenv("PERSIST_CACHE_SQLITE", os.path.join(os.getcwd(), "cache.db"))
+    db_path = str(settings.PERSIST_CACHE_SQLITE)
     _persistent_cache = SQLitePersistentCache(db_path)
     return _persistent_cache
 

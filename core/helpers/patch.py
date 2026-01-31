@@ -2,19 +2,20 @@ import platform
 
 import asyncio
 import logging
+from typing import Any
 from telethon.network.connection.connection import Connection
 
 logger = logging.getLogger(__name__)
 
 
-def apply_uvloop_patch():
+def apply_uvloop_patch() -> None:
     """
     应用 uvloop TCPTransport 兼容性补丁，修复 RuntimeError: unable to perform operation on <TCPTransport closed=True...>
     """
     # 保存原始的 _send 方法
     _original_send = Connection._send
 
-    def _patched_send(self, data):
+    def _patched_send(self: Connection, data: Any) -> Any:
         try:
             # 尝试调用原始发送逻辑
             return _original_send(self, data)
@@ -36,7 +37,7 @@ def apply_uvloop_patch():
     logger.info("已应用 uvloop TCPTransport 兼容性补丁")
 
 
-def setup_event_loop():
+def setup_event_loop() -> None:
     """
     设置事件循环，优先使用 uvloop 以提高性能
     """

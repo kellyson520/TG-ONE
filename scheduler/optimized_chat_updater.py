@@ -10,12 +10,12 @@ try:
 except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
-import os
 import logging
+from core.config import settings
 from telethon import TelegramClient
 from models.models import Chat
 import traceback
-from core.constants import DEFAULT_TIMEZONE
+import traceback
 from typing import List, Dict, Any, Set
 
 logger = logging.getLogger(__name__)
@@ -29,16 +29,16 @@ class OptimizedChatUpdater:
     def __init__(self, user_client: TelegramClient, db):
         self.user_client = user_client
         self.db = db
-        self.timezone = pytz.timezone(DEFAULT_TIMEZONE)
+        self.timezone = pytz.timezone(settings.TIMEZONE)
         self.task = None
         self.is_running = False
         
-        # 从环境变量获取更新时间，默认凌晨3点
-        self.update_time = os.getenv('CHAT_UPDATE_TIME', "03:00")
+        # 从配置获取更新时间
+        self.update_time = settings.CHAT_UPDATE_TIME
         
         # 批量处理配置
-        self.batch_size = int(os.getenv('CHAT_UPDATE_BATCH_SIZE', '10'))
-        self.update_limit = int(os.getenv('CHAT_UPDATE_LIMIT', '50'))  # 降低限制，使用API优化
+        self.batch_size = settings.CHAT_UPDATE_BATCH_SIZE
+        self.update_limit = settings.CHAT_UPDATE_LIMIT  # 已在配置中降低限制，使用API优化
         
         # 事件驱动队列
         self.update_queue = asyncio.Queue()

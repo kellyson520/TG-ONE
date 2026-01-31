@@ -15,7 +15,7 @@ class StateService:
         # {(user_id, chat_id): "state_name"}
         self._states: Dict[Tuple[int, int], str] = {}
 
-    def set_state(self, user_id: int, chat_id: int, state: str, message: Any = None, state_type: Any = None):
+    def set_state(self, user_id: int, chat_id: int, state: str, _message: Any = None, _state_type: Any = None):
         """设置用户在特定聊天中的状态"""
         self._states[(user_id, chat_id)] = state
         logger.debug(f"User {user_id} in {chat_id} set to state: {state}")

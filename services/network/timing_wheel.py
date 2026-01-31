@@ -3,7 +3,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Set
 
 class TimingWheelTask:
-    def __init__(self, task_id: str, delay_ticks: int, callback: Callable, *args, **kwargs):
+    def __init__(self, task_id: str, _delay_ticks: int, callback: Callable, *args, **kwargs):
         self.task_id = task_id
         self.remaining_rounds = 0 # 剩余轮数 (用于处理超过一圈的延迟)
         self.callback = callback

@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from ...services.feed_generator import FeedService
 from ...models.entry import Entry
-from ...core.config import settings
+from core.config import settings
+from core.constants import get_rule_media_dir, get_rule_data_dir
 from ...crud.entry import get_entries, create_entry, delete_entry
 from core.cache.unified_cache import cached
 import mimetypes
@@ -35,8 +36,8 @@ async def verify_local_access(request: Request):
     # 允许的本地IP地址列表
     local_addresses = ["127.0.0.1", "::1", "localhost", "0.0.0.0"]
     # 如果设置HOST 环境变量，也将其添加到允许列表中
-    if hasattr(settings, "HOST") and settings.HOST:
-        local_addresses.append(settings.HOST)
+    if hasattr(settings, "RSS_HOST") and settings.RSS_HOST:
+        local_addresses.append(settings.RSS_HOST)
     # 检查是否是Docker内部网络IP (常见的私有网络范围
     docker_ip = False
     if client_host:
@@ -91,7 +92,7 @@ async def get_feed(rule_id: int, request: Request):
                 scheme = request.headers.get("X-Forwarded-Proto", "http")
                 base_url = f"{scheme}://{forwarded_host}"
                 logger.info(f"基于X-Forwarded-Host的媒体基础URL: {base_url}")
-            elif host_header and host_header != f"{settings.HOST}:{settings.PORT}":
+            elif host_header and host_header != f"{settings.RSS_HOST}:{settings.RSS_PORT}":
                 logger.info(f"检测到自定义Host: {host_header}")
                 # 构建基于Host的URL
                 scheme = request.url.scheme
@@ -120,13 +121,13 @@ async def get_feed(rule_id: int, request: Request):
                     logger.warning(f"RSS XML中仍包含硬编码的本地地址")
                     # 替换硬编码的地址
                     rss_xml = rss_xml.replace(
-                        f"http://127.0.0.1:{settings.PORT}", base_url
+                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
                     )
                     rss_xml = rss_xml.replace(
-                        f"http://localhost:{settings.PORT}", base_url
+                        f"http://localhost:{settings.RSS_PORT}", base_url
                     )
                     rss_xml = rss_xml.replace(
-                        f"http://{settings.HOST}:{settings.PORT}", base_url
+                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
                     )
                     logger.info(f"已替换硬编码的本地地址 {base_url}")
                 # 确保返回的是字节类型
@@ -160,13 +161,13 @@ async def get_feed(rule_id: int, request: Request):
                     logger.warning(f"RSS XML中仍包含硬编码的本地地址")
                     # 替换硬编码的地址
                     rss_xml = rss_xml.replace(
-                        f"http://127.0.0.1:{settings.PORT}", base_url
+                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
                     )
                     rss_xml = rss_xml.replace(
-                        f"http://localhost:{settings.PORT}", base_url
+                        f"http://localhost:{settings.RSS_PORT}", base_url
                     )
                     rss_xml = rss_xml.replace(
-                        f"http://{settings.HOST}:{settings.PORT}", base_url
+                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
                     )
                     logger.info(f"已替换硬编码的本地地址 {base_url}")
                 # 确保返回的是字节类型
@@ -209,13 +210,13 @@ async def get_media(rule_id: int, filename: str, request: Request):
             logger.info(f"检测到X-Forwarded-Host: {forwarded_host}")
             scheme = request.headers.get("X-Forwarded-Proto", "http")
             base_url = f"{scheme}://{forwarded_host}"
-        elif host_header and host_header != f"{settings.HOST}:{settings.PORT}":
+        elif host_header and host_header != f"{settings.RSS_HOST}:{settings.RSS_PORT}":
             logger.info(f"检测到自定义Host: {host_header}")
             scheme = request.url.scheme
             base_url = f"{scheme}://{host_header}"
     logger.info(f"最终使用的媒体基础URL: {base_url}")
     # 构建规则特定的媒体文件路
-    media_path = Path(settings.get_rule_media_path(rule_id)) / filename
+    media_path = Path(get_rule_media_dir(rule_id)) / filename
     # 记录尝试访问的路
     logger.info(f"尝试访问媒体文件: {media_path}")
     # 检查文件是否存
@@ -281,7 +282,7 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                     filename = media.get("filename", "")
                 else:
                     filename = getattr(media, "filename", "")
-                media_path = os.path.join(settings.MEDIA_PATH, filename)
+                media_path = os.path.join(settings.RSS_MEDIA_DIR, filename)
                 if not os.path.exists(media_path):
                     logger.warning(f"媒体文件不存 {media_path}")
         # 记录上下文信息
@@ -322,7 +323,7 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                                 f"条目 {entry.id} 包含 {len(entry.media)} 个媒体文件，将一并删除"
                             )
                             # 删除媒体文件
-                            media_dir = Path(settings.get_rule_media_path(rule_id))
+                            media_dir = Path(get_rule_media_dir(rule_id))
                             for media in entry.media:
                                 if hasattr(media, "filename"):
                                     media_path = media_dir / media.filename
@@ -603,8 +604,8 @@ async def delete_rule_data(rule_id: int):
     """删除规则相关的所有数据和媒体文件 (仅限本地访问)"""
     try:
         # 获取规则的数据目录和媒体目录
-        data_path = Path(settings.get_rule_data_path(rule_id))
-        media_path = Path(settings.get_rule_media_path(rule_id))
+        data_path = Path(get_rule_data_dir(rule_id))
+        media_path = Path(get_rule_media_dir(rule_id))
         deleted_files = 0
         deleted_dirs = 0
         failed_paths = []

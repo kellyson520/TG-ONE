@@ -6,7 +6,7 @@ try:
 except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
-import os
+from core.config import settings
 from telethon import TelegramClient
 from sqlalchemy import select
 from ai import get_ai_provider
@@ -46,13 +46,13 @@ class SummaryScheduler:
         self.cache = get_smart_cache("summary_scheduler", l1_ttl=300, l2_ttl=1800)
         
         # 添加信号量来限制并发请求
-        # 从环境变量读取并发数，默认提高到5
-        concurrency = int(os.getenv('SUMMARY_CONCURRENCY', '5'))
+        # 使用 settings 配置
+        concurrency = settings.SUMMARY_CONCURRENCY
         self.request_semaphore = asyncio.Semaphore(concurrency)  # 最多同时执行N个请求
         
-        # 从环境变量获取配置
-        self.batch_size = int(os.getenv('SUMMARY_BATCH_SIZE', 20))
-        self.batch_delay = int(os.getenv('SUMMARY_BATCH_DELAY', 2))
+        # 使用 settings 配置
+        self.batch_size = settings.SUMMARY_BATCH_SIZE
+        self.batch_delay = settings.SUMMARY_BATCH_DELAY
         
         # 初始化时间轮 (1s 一个刻度，3600 槽位即 1 小时一圈)
         self.timing_wheel = HashedTimingWheel(tick_ms=1000, slots=3600)

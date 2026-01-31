@@ -57,5 +57,6 @@ jobs:
 
     - name: Run Tests (Unit & Integration)
       # Use xvfb-run to provide a virtual display for any GUI components
+      # Added -vv and --durations=10 for better debugging of timeout/slowness
       run: |
-        xvfb-run pytest -m "not stress and not slow"
+        xvfb-run pytest -m "not stress and not slow" -vv --durations=10

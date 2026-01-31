@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\stats.py
+# hypothesis_version: 6.151.4
+
+['Chat', 'ForwardRule', 'chat_id', 'chat_statistics', 'chat_stats', 'chats.id', 'date', 'forward_rules.id', 'rule_id', 'rule_logs', 'rule_statistics']

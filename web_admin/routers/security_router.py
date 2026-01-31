@@ -4,7 +4,9 @@ from typing import Optional, List
 from services.access_control_service import access_control_service
 from services.audit_service import audit_service
 from web_admin.security.deps import admin_required
+from web_admin.schemas.response import ResponseSchema
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +25,12 @@ class CreateACLRuleRequest(BaseModel):
     type: str # ALLOW or BLOCK
     reason: Optional[str] = None
 
-@router.get("/acl", response_model=List[ACLRuleResponse])
+@router.get("/acl", response_model=ResponseSchema)
 async def get_acl_rules(user = Depends(admin_required)):
+
     """Get all Access Control List rules."""
     rules = await access_control_service.get_all_rules()
-    return [
+    return ResponseSchema(success=True, data=[
         {
             "id": r.id,
             "ip_address": r.ip_address,
@@ -37,7 +40,8 @@ async def get_acl_rules(user = Depends(admin_required)):
             "is_active": r.is_active
         }
         for r in rules
-    ]
+    ])
+
 
 @router.post("/acl")
 async def add_acl_rule(
@@ -61,7 +65,8 @@ async def add_acl_rule(
             status="success"
         )
         
-        return {"success": True, "message": "Rule added successfully"}
+        return ResponseSchema(success=True, message="Rule added successfully")
+
     except Exception as e:
         logger.error(f"Failed to add ACL rule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -86,7 +91,8 @@ async def delete_acl_rule(
             status="success"
         )
             
-        return {"success": True, "message": "Rule deleted successfully"}
+        return ResponseSchema(success=True, message="Rule deleted successfully")
+
     except Exception as e:
         logger.error(f"Failed to delete ACL rule: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\network\rate_limiter.py
+# hypothesis_version: 6.151.4
+
+[0.0, 0.1, 0.5, 0.8, 1.0, 1.1, 10.0, 20.0, 30.0, 50.0, 100.0, 1000.0, 100, 200, 'accepted_requests', 'api_calls', 'current_rate', 'db_writes', 'file_io', 'rejected_requests', 'tokens_available', 'total_requests', 'total_wait_time']

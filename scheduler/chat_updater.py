@@ -6,7 +6,7 @@ try:
 except ImportError:
     pytz = None
     PYTZ_AVAILABLE = False
-import os
+from core.config import settings
 import logging
 from telethon import TelegramClient
 from models.models import Chat
@@ -21,8 +21,8 @@ class ChatUpdater:
         self.user_client = user_client
         self.timezone = pytz.timezone(DEFAULT_TIMEZONE)
         self.task = None
-        # 从环境变量获取更新时间，默认凌晨3点
-        self.update_time = os.getenv('CHAT_UPDATE_TIME', "03:00")
+        # 使用 settings 配置
+        self.update_time = settings.CHAT_UPDATE_TIME
     
     async def start(self):
         """启动定时更新任务"""
@@ -83,11 +83,7 @@ class ChatUpdater:
         async with async_db_session() as session:
             try:
                 # 分批/限量获取聊天，避免一次性大量请求触发 FloodWait
-                try:
-                    update_limit = int(os.getenv('CHAT_UPDATE_LIMIT', '200'))
-                    update_limit = max(1, update_limit)
-                except Exception:
-                    update_limit = 200
+                update_limit = settings.CHAT_UPDATE_LIMIT
                 
                 from sqlalchemy import select
                 # 采用按 id 升序的稳定顺序，保证分批可预期
@@ -150,14 +146,8 @@ class ChatUpdater:
                         continue
                         
                     # 每个聊天处理后暂停一会，避免请求过于频繁（基础 2s + 抖动）
-                    try:
-                        base = float(os.getenv('CHAT_UPDATE_SLEEP_BASE', '2.0'))
-                    except Exception:
-                        base = 2.0
-                    try:
-                        jitter = float(os.getenv('CHAT_UPDATE_SLEEP_JITTER', '0.5'))  # 0.5 表示 ±50% 抖动范围
-                    except Exception:
-                        jitter = 0.5
+                    base = settings.CHAT_UPDATE_SLEEP_BASE
+                    jitter = settings.CHAT_UPDATE_SLEEP_JITTER
                     low = max(0.0, base * (1.0 - jitter))
                     high = base * (1.0 + jitter)
                     await asyncio.sleep(random.uniform(low, high))

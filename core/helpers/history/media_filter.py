@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class MediaFilter:
     """媒体筛选器 - 根据设置判断是否处理消息"""
 
-    def __init__(self, media_settings: Optional[Dict] = None):
+    def __init__(self, media_settings: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化媒体筛选器
 
@@ -24,10 +24,10 @@ class MediaFilter:
         self.total_checked = 0
         self.total_allowed = 0
         self.total_filtered = 0
-        self.filter_reasons = {}
+        self.filter_reasons: Dict[str, int] = {}
 
     @staticmethod
-    def _get_default_settings() -> Dict:
+    def _get_default_settings() -> Dict[str, Any]:
         """获取默认媒体设置"""
         return {
             "allow_text": True,
@@ -44,7 +44,7 @@ class MediaFilter:
             },
         }
 
-    def update_settings(self, media_settings: Dict):
+    def update_settings(self, media_settings: Dict[str, Any]) -> None:
         """更新媒体设置"""
         self.media_settings = media_settings
 
@@ -158,11 +158,11 @@ class MediaFilter:
 
         return True, None
 
-    def _record_filter_reason(self, reason: str):
+    def _record_filter_reason(self, reason: str) -> None:
         """记录过滤原因统计"""
         self.filter_reasons[reason] = self.filter_reasons.get(reason, 0) + 1
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> Dict[str, Any]:
         """获取筛选统计信息"""
         return {
             "total_checked": self.total_checked,
@@ -176,14 +176,14 @@ class MediaFilter:
             "filter_reasons": self.filter_reasons.copy(),
         }
 
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         """重置统计信息"""
         self.total_checked = 0
         self.total_allowed = 0
         self.total_filtered = 0
         self.filter_reasons.clear()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<MediaFilter "
             f"checked={self.total_checked} "

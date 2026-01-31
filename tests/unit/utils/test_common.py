@@ -150,28 +150,23 @@ class TestCommonHelpers:
 
     # --- Env Var Tests ---
 
-    @patch('os.getenv')
-    def test_get_admin_list_admins_set(self, mock_getenv):
-        def side_effect(key, default=None):
-            if key == "ADMINS": return "123, 456"
-            return default
-        mock_getenv.side_effect = side_effect
+    @patch('core.helpers.common.settings')
+    def test_get_admin_list_admins_set(self, mock_settings):
+        # 模拟 settings.ADMIN_IDS 为列表 [123, 456]
+        mock_settings.ADMIN_IDS = [123, 456]
         
         admins = get_admin_list()
         assert admins == [123, 456]
 
-    @patch('os.getenv')
-    def test_get_admin_list_fallback_user_id(self, mock_getenv):
-        def side_effect(key, default=None):
-            if key == "ADMINS": return ""
-            if key == "USER_ID": return "789"
-            return default
-        mock_getenv.side_effect = side_effect
+    @patch('core.helpers.common.settings')
+    def test_get_admin_list_fallback_user_id(self, mock_settings):
+        mock_settings.ADMIN_IDS = []
+        mock_settings.USER_ID = 789
         
         admins = get_admin_list()
         assert admins == [789]
 
-    @patch('os.getenv')
-    async def test_get_user_id(self, mock_getenv):
-        mock_getenv.return_value = "999"
+    @patch('core.helpers.common.settings')
+    async def test_get_user_id(self, mock_settings):
+        mock_settings.USER_ID = 999
         assert await get_user_id() == 999

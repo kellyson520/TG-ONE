@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 import asyncio
 import json
 import time
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, cast
 
 from core.helpers.error_handler import handle_errors
 from core.logging import get_logger, log_performance
@@ -21,15 +21,15 @@ from repositories.persistent_cache import get_persistent_cache
 
 # 实现一个简单的TTLCache类作为临时解决方案
 class TTLCache:
-    def __init__(self, ttl_seconds, maxsize):
+    def __init__(self, ttl_seconds: int, maxsize: int) -> None:
         self.ttl_seconds = ttl_seconds
         self.maxsize = maxsize
-        self._store = {}
+        self._store: Dict[str, Any] = {}
 
-    def get(self, key):
+    def get(self, key: str) -> Optional[Any]:
         return self._store.get(key)
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any) -> None:
         self._store[key] = value
         # 简单的大小限制
         if len(self._store) > self.maxsize:
@@ -37,11 +37,11 @@ class TTLCache:
             for k in list(self._store.keys())[: len(self._store) - self.maxsize]:
                 del self._store[k]
 
-    def delete(self, key):
+    def delete(self, key: str) -> None:
         if key in self._store:
             del self._store[key]
 
-    def clear(self):
+    def clear(self) -> None:
         self._store.clear()
 
 
@@ -75,7 +75,7 @@ class CacheKey:
     """缓存键生成器"""
 
     @staticmethod
-    def generate(prefix: str, *args, **kwargs) -> str:
+    def generate(prefix: str, *args: Any, **kwargs: Any) -> str:
         """
         生成缓存键
 
@@ -96,7 +96,7 @@ class CacheKey:
         return f"{prefix}:{key_hash}"
 
     @staticmethod
-    def generate_for_function(func: Callable, *args, **kwargs) -> str:
+    def generate_for_function(func: Callable, *args: Any, **kwargs: Any) -> str:
         """
         为函数生成缓存键
 
@@ -122,7 +122,7 @@ class MultiLevelCache(Generic[T]):
         l1_maxsize: int = 1000,  # L1缓存最大条目数
         l2_ttl: int = 3600,  # L2缓存TTL（1小时）
         enable_persistent: bool = True,
-    ):  # 是否启用持久化
+    ) -> None:
         """
         初始化多级缓存
 
@@ -175,7 +175,7 @@ class MultiLevelCache(Generic[T]):
             if value is not None:
                 self.stats.hits += 1
                 logger.log_data_flow(f"L1缓存命中-{self.name}", 1, "条目", {"key": key})
-                return value
+                return cast(Optional[T], value)
 
             # L2缓存查找
             if self.l2_cache:
@@ -192,7 +192,7 @@ class MultiLevelCache(Generic[T]):
                         logger.log_data_flow(
                             f"L2缓存命中-{self.name}", 1, "条目", {"key": key}
                         )
-                        return value
+                        return cast(Optional[T], value)
                 except Exception as e:
                     logger.log_error(f"L2缓存读取-{self.name}", e, context={"key": key})
 
@@ -300,7 +300,7 @@ class MultiLevelCache(Generic[T]):
 class SmartCache:
     """智能缓存管理器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化智能缓存管理器"""
         self.caches: Dict[str, MultiLevelCache] = {}
         self.access_patterns: Dict[str, List[float]] = defaultdict(list)
@@ -308,7 +308,7 @@ class SmartCache:
 
         logger.log_system_state("智能缓存管理器", "初始化完成")
 
-    def get_cache(self, name: str, **cache_config) -> MultiLevelCache:
+    def get_cache(self, name: str, **cache_config: Any) -> MultiLevelCache:
         """
         获取或创建缓存实例
 
@@ -423,7 +423,7 @@ class SmartCache:
 
     def get_global_stats(self) -> Dict[str, Any]:
         """获取全局缓存统计信息"""
-        global_stats = {"total_caches": len(self.caches), "caches": {}}
+        global_stats: Dict[str, Any] = {"total_caches": len(self.caches), "caches": {}}
 
         total_hits = 0
         total_misses = 0
@@ -460,14 +460,14 @@ class SmartCache:
 smart_cache = None
 
 
-def _init_smart_cache():
+def _init_smart_cache() -> None:
     """延迟初始化智能缓存管理器"""
     global smart_cache
     if smart_cache is None:
         smart_cache = SmartCache()
 
 
-def get_smart_cache(name: str, **config) -> MultiLevelCache:
+def get_smart_cache(name: str, **config: Any) -> MultiLevelCache:
     """
     获取智能缓存实例
 
@@ -479,13 +479,14 @@ def get_smart_cache(name: str, **config) -> MultiLevelCache:
         多级缓存实例
     """
     _init_smart_cache()
-    cache = smart_cache.get_cache(name, **config)
-    smart_cache.record_access(name)
+    mgr = cast(SmartCache, smart_cache)
+    cache = mgr.get_cache(name, **config)
+    mgr.record_access(name)
     return cache
 
 
 # 缓存装饰器
-def cached(cache_name: str = None, ttl: int = 300, key_func: Optional[Callable] = None):
+def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[Callable] = None) -> Callable:
     """
     缓存装饰器
 
@@ -495,17 +496,17 @@ def cached(cache_name: str = None, ttl: int = 300, key_func: Optional[Callable] 
         key_func: 自定义键生成函数
     """
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         nonlocal cache_name
         if cache_name is None:
             cache_name = f"{func.__module__}.{func.__name__}"
 
         # 延迟获取缓存实例，确保在setup_logging()之后初始化
-        def get_cache():
+        def get_cache() -> MultiLevelCache:
             return get_smart_cache(cache_name, l1_ttl=ttl, l2_ttl=ttl * 2)
 
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_cache()
             # 生成缓存键
             if key_func:
@@ -538,7 +539,7 @@ def cached(cache_name: str = None, ttl: int = 300, key_func: Optional[Callable] 
             return result
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_cache()
             # 生成缓存键
             if key_func:
@@ -585,7 +586,7 @@ def cached(cache_name: str = None, ttl: int = 300, key_func: Optional[Callable] 
 class CacheWarmer:
     """缓存预热器"""
 
-    def __init__(self, cache: MultiLevelCache):
+    def __init__(self, cache: MultiLevelCache) -> None:
         """
         初始化缓存预热器
 
@@ -666,25 +667,27 @@ def create_cache_warmer(cache_name: str) -> CacheWarmer:
     return CacheWarmer(cache)
 
 
-def get_cache_stats(cache_name: str = None) -> Dict[str, Any]:
+def get_cache_stats(cache_name: Optional[str] = None) -> Dict[str, Any]:
     """获取缓存统计信息"""
     _init_smart_cache()
+    mgr = cast(SmartCache, smart_cache)
     if cache_name:
-        if cache_name in smart_cache.caches:
-            return smart_cache.caches[cache_name].get_stats().to_dict()
+        if cache_name in mgr.caches:
+            return mgr.caches[cache_name].get_stats().to_dict()
         else:
             return {}
     else:
-        return smart_cache.get_global_stats()
+        return mgr.get_global_stats()
 
 
 def optimize_all_caches() -> Dict[str, Any]:
     """优化所有缓存配置"""
     _init_smart_cache()
+    mgr = cast(SmartCache, smart_cache)
     optimization_results = {}
 
-    for cache_name in smart_cache.caches.keys():
-        suggested_config = smart_cache.optimize_cache_config(cache_name)
+    for cache_name in mgr.caches.keys():
+        suggested_config = mgr.optimize_cache_config(cache_name)
         optimization_results[cache_name] = suggested_config
 
     logger.log_operation("全局缓存优化", details=f"优化结果: {optimization_results}")

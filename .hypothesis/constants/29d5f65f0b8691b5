@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\global_filter.py
+# hypothesis_version: 6.151.4
+
+[100, 1024, '.', 'allow_emoji', 'allow_text', 'attributes', 'audio', 'blacklist', 'document', 'duration', 'duration_max_seconds', 'duration_min_seconds', 'file_name', 'image', 'media_blocked', 'media_extensions', 'media_size_limit', 'media_types', 'message', 'photo', 'video', 'voice', '全局设置：原生视频被屏蔽', '全局设置：图片类型被屏蔽', '全局设置：文本消息被屏蔽', '全局设置：文档类型被屏蔽', '全局设置：表情包消息被屏蔽', '全局设置：视频文档被屏蔽', '全局设置：语音类型被屏蔽', '全局设置：音频文档被屏蔽', '全局设置：音频类型被屏蔽']

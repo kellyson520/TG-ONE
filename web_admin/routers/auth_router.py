@@ -258,7 +258,7 @@ async def login_2fa(
     """
     # Verify pre_auth_token
     try:
-        payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         if payload.get("type") != "pre_auth":
             raise HTTPException(status_code=401, detail="Invalid token type")
         user_id = int(payload.get("sub"))
@@ -735,7 +735,7 @@ async def login_with_recovery_code(
     """
     # Verify pre_auth_token
     try:
-        payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         if payload.get("type") != "pre_auth":
             raise HTTPException(status_code=401, detail="Invalid token type")
         user_id = int(payload.get("sub"))

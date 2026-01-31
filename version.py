@@ -1,15 +1,9 @@
-VERSION = "1.2.2.8"
-
-WELCOME_TEXT = """
-👋 欢迎使用 Telegram 消息转发机器人！
-
-📱 当前版本：v{version}
-
-📖 查看完整命令列表请使用 /help
-""".format(version=VERSION)
+VERSION = "1.2.3.0"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP)，增加 Web Admin IP 频率限制与访问控制。
+- v1.2.2.9: CI 深度优化 - 修复单元测试超时问题，同步 CI 配置 (增加运行时长统计)，修复 Auth CSRF 测试漏洞，增强 Mock 机制稳定性。
 - v1.2.2.8: CI 稳定性修复 - 解决 GitHub CI 递归错误 (RecursionError)、增强本地 CI 诊断能力、同步云端 lint 排除规则。
 - v1.2.2.7: 架构分层修复 - 移除 core 层对 handlers 层的非法依赖、修复未定义名称错误、通过本地 CI 质量门禁。
 

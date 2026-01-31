@@ -137,11 +137,8 @@ async def resolve_entity_by_id_variants(
                     if isinstance(raw_id, int):
                         resolved_numeric = raw_id
                     else:
-                        resolved_numeric = (
-                            int(getattr(entity, "id", None))
-                            if hasattr(entity, "id")
-                            else None
-                        )
+                        val = getattr(entity, "id", None)
+                        resolved_numeric = int(val) if val is not None else None
                 except Exception:
                     resolved_numeric = None
 
@@ -165,19 +162,16 @@ async def resolve_entity_by_id_variants(
             try:
                 entity = await client.get_entity(variant)
                 # 返回数值 ID（若 variant 不是数字，尽可能从 entity.id 获取）
-                resolved_numeric: Optional[int] = None
+                numeric_id: Optional[int] = None
                 if isinstance(variant, int):
-                    resolved_numeric = variant
+                    numeric_id = variant
                 else:
                     try:
-                        resolved_numeric = (
-                            int(getattr(entity, "id", None))
-                            if hasattr(entity, "id")
-                            else None
-                        )
+                        val = getattr(entity, "id", None)
+                        numeric_id = int(val) if val is not None else None
                     except Exception:
-                        resolved_numeric = None
-                return entity, resolved_numeric
+                        numeric_id = None
+                return entity, numeric_id
             except Exception:
                 continue
 
@@ -286,16 +280,16 @@ from telethon import utils as telethon_utils
 
 def get_peer_id(peer: Any) -> int:
     """获取 Peer 的 ID (Wrapper for telethon.utils.get_peer_id)"""
-    return telethon_utils.get_peer_id(peer)
+    return int(telethon_utils.get_peer_id(peer))
 
 def format_entity_name(entity: Any) -> str:
     """获取实体的显示名称 (Wrapper for telethon.utils.get_display_name)"""
-    return telethon_utils.get_display_name(entity)
+    return str(telethon_utils.get_display_name(entity))
 
 async def get_display_name_async(chat_id: Union[int, str]) -> str:
     """异步获取聊天显示名称（带缓存）"""
     try:
         from core.container import container
-        return await container.chat_info_service.get_chat_name(chat_id)
+        return str(await container.chat_info_service.get_chat_name(chat_id))
     except Exception:
         return str(chat_id)

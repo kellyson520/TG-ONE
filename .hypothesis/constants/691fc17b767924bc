@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\rule\crud.py
+# hypothesis_version: 6.151.4
+
+[0.85, 'Deleted successfully', 'Rule creation failed', 'Rule deletion failed', 'Rule not found', 'Rule update failed', 'Unknown', 'created_at', 'delay_seconds', 'enable_dedup', 'enable_delay', 'enable_rule', 'enable_sync', 'enabled', 'error', 'force_pure_forward', 'forward_mode', 'handle_mode', 'id', 'is_ai', 'is_delete_original', 'is_filter_user_info', 'is_original_link', 'is_original_sender', 'is_original_time', 'is_preview', 'is_regex', 'is_summary', 'keywords', 'keywords_count', 'message', 'message_mode', 'name', 'page', 'page_size', 'pattern', 'replace_rules', 'replace_rules_count', 'replacement', 'rule_id', 'rules', 'settings', 'similarity_threshold', 'source_chat', 'source_chat_id', 'success', 'target_chat', 'target_chat_id', 'telegram_chat_id', 'title', 'total', 'total_pages', 'updated_at', 'use_bot', '规则不存在']

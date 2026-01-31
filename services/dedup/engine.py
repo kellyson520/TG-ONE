@@ -8,7 +8,6 @@ from collections import OrderedDict
 
 import asyncio
 import logging
-import os
 import re
 import time
 from typing import Dict, Optional, Tuple, Any
@@ -44,6 +43,8 @@ except ImportError:
 
         return decorator
 
+
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +88,7 @@ class SmartDeduplicator:
             "enable_smart_similarity": True,
             "cache_cleanup_interval": 3600,  # 1小时清理一次
             "enable_persistent_cache": True,  # 使用持久化缓存跨重启保留窗口命中
-            "persistent_cache_ttl_seconds": int(
-                os.getenv("DEDUP_PERSIST_TTL_SECONDS", "2592000")
-            ),  # 30天上限
+            "persistent_cache_ttl_seconds": settings.DEDUP_PERSIST_TTL_SECONDS,
             # 新增配置项
             "max_text_cache_size": 300,  # 每个会话最多缓存多少条文本用于相似度检查
             "min_text_length": 10,  # 触发相似度检查的最小清洗后文本长度
@@ -111,9 +110,7 @@ class SmartDeduplicator:
             * 1024
             * 1024,  # 小视频不做部分哈希（默认>=5MB）
             # 视频哈希持久化缓存（避免重复下载/重复计算）
-            "video_hash_persist_ttl_seconds": int(
-                os.getenv("VIDEO_HASH_PERSIST_TTL_SECONDS", "15552000")
-            ),  # 180天
+            "video_hash_persist_ttl_seconds": settings.VIDEO_HASH_PERSIST_TTL_SECONDS,
             # 视频严格复核：哈希命中后对时长/分辨率/大小范围做阈值校验
             "video_strict_verify": True,
             "video_duration_tolerance_sec": 2,
@@ -968,7 +965,7 @@ class SmartDeduplicator:
                             columns=["chat_id"],
                             order_by="created_at DESC",
                             limit=1,
-                            max_days=int(os.getenv("ARCHIVE_COLD_LOOKBACK_DAYS", "30")),
+                            max_days=settings.ARCHIVE_COLD_LOOKBACK_DAYS,
                         )
                         if rows:
                             DEDUP_HITS_TOTAL.labels(method="signature").inc()
@@ -1019,7 +1016,7 @@ class SmartDeduplicator:
                             columns=["chat_id"],
                             order_by="created_at DESC",
                             limit=1,
-                            max_days=int(os.getenv("ARCHIVE_COLD_LOOKBACK_DAYS", "30")),
+                            max_days=settings.ARCHIVE_COLD_LOOKBACK_DAYS,
                         )
                         if rows:
                             DEDUP_HITS_TOTAL.labels(method="content_hash").inc()

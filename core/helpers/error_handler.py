@@ -6,12 +6,13 @@
 import functools
 import asyncio
 import logging
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Type, Union, Callable, TypeVar, cast
 from telethon.errors import FloodWaitError
-
 from core.context import trace_id_var
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=Callable[..., Any])
 
 def handle_errors(
     default_return: Any = None,
@@ -19,13 +20,13 @@ def handle_errors(
     reraise: bool = False,
     error_message: Optional[str] = None,
     specific_errors: Optional[Union[Type[Exception], tuple]] = None,
-):
+) -> Callable[[T], T]:
     """
     统一错误处理装饰器
     """
-    def decorator(func):
+    def decorator(func: T) -> T:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
@@ -48,7 +49,7 @@ def handle_errors(
                 return default_return
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -67,20 +68,20 @@ def handle_errors(
                 return default_return
 
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
+            return cast(T, async_wrapper)
         else:
-            return sync_wrapper
+            return cast(T, sync_wrapper)
 
     return decorator
 
-def handle_telegram_errors(default_return: Any = None, max_retries: int = 3):
+def handle_telegram_errors(default_return: Any = None, max_retries: int = 3) -> Callable[[T], T]:
     """
     专门处理Telegram API错误的装饰器
     自动处理FloodWaitError等常见错误
     """
-    def decorator(func):
+    def decorator(func: T) -> T:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             retries = 0
             while retries < max_retries:
                 try:
@@ -93,7 +94,7 @@ def handle_telegram_errors(default_return: Any = None, max_retries: int = 3):
                     logger.error(f"Telegram API 执行失败: {str(e)}")
                     return default_return
             return default_return
-        return wrapper
+        return cast(T, wrapper)
     return decorator
 
 def retry_on_failure(
@@ -101,13 +102,13 @@ def retry_on_failure(
     delay: float = 1.0,
     backoff: float = 2.0,
     exceptions: Union[Type[Exception], tuple] = Exception,
-):
+) -> Callable[[T], T]:
     """
     失败自动重试装饰器
     """
-    def decorator(func):
+    def decorator(func: T) -> T:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             curr_delay = delay
             for i in range(max_retries):
                 try:
@@ -120,7 +121,7 @@ def retry_on_failure(
                     curr_delay *= backoff
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             import time
             curr_delay = delay
             for i in range(max_retries):
@@ -134,23 +135,24 @@ def retry_on_failure(
                     curr_delay *= backoff
 
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
+            return cast(T, async_wrapper)
         else:
-            return sync_wrapper
+            return cast(T, sync_wrapper)
 
     return decorator
+
 def log_execution(
     include_args: bool = False,
     include_result: bool = False,
     level: int = logging.DEBUG,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     记录函数执行详情的装饰器
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             cid = trace_id_var.get()
             func_logger = logging.getLogger(func.__module__ or __name__)
             
@@ -183,7 +185,7 @@ def log_execution(
                 raise
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             cid = trace_id_var.get()
             func_logger = logging.getLogger(func.__module__ or __name__)
             

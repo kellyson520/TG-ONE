@@ -1,6 +1,6 @@
 import hashlib
 import re
-from typing import List
+from typing import List, Dict, Set, Tuple
 
 class SimHash:
     """
@@ -56,7 +56,7 @@ class SimHash:
         tokens = text.split()
         
         # 使用 1-gram 和 2-gram 结合以提高短文本稳定性
-        features = {}
+        features: dict[str, int] = {}
         # 1-grams
         for token in tokens:
             features[token] = features.get(token, 0) + 1
@@ -101,7 +101,7 @@ class SimHashIndex:
         self.k = k
         self.f = f
         self.bucket_size = k + 1
-        self.buckets = [{} for _ in range(self.bucket_size)]
+        self.buckets: List[Dict[int, Set[Tuple[str, int]]]] = [{} for _ in range(self.bucket_size)]
 
     def _get_keys(self, val: int) -> List[int]:
         """将指纹分为 k+1 段作为搜索键"""
@@ -113,7 +113,7 @@ class SimHashIndex:
             keys.append((val >> shift) & mask)
         return keys
 
-    def add(self, obj_id: str, val: int):
+    def add(self, obj_id: str, val: int) -> None:
         """添加指纹到索引"""
         keys = self._get_keys(val)
         for i, key in enumerate(keys):
@@ -136,7 +136,7 @@ class SimHashIndex:
                 results.append(obj_id)
         return results
 
-    def remove(self, obj_id: str, val: int):
+    def remove(self, obj_id: str, val: int) -> None:
         """从索引中移除"""
         keys = self._get_keys(val)
         for i, key in enumerate(keys):

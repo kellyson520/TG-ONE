@@ -2,15 +2,16 @@
 转发记录系统
 记录所有转发操作的详细信息，方便追溯和分析
 """
-import os
 import json
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, cast
 from pathlib import Path
 import base64
 from enum import Enum
+import os
 
+from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,13 +19,12 @@ logger = get_logger(__name__)
 class ForwardRecorder:
     """转发记录器"""
     
-    def __init__(self, base_dir: str = "./zhuanfaji"):
-        # 写入模式：full/summary/off
-        self.mode = (os.getenv('FORWARD_RECORDER_MODE', 'summary') or 'summary').lower()
+    def __init__(self, base_dir: Optional[str] = None) -> None:
+        # 使用 settings 配置
+        self.mode = settings.FORWARD_RECORDER_MODE.lower()
         
-        # 允许通过环境变量覆写存储目录
-        env_dir = os.getenv("FORWARD_RECORDER_DIR")
-        base_dir = env_dir or base_dir
+        # 路径初始化
+        base_dir = base_dir or str(settings.FORWARD_RECORDER_DIR)
 
         self.base_dir = Path(base_dir).resolve()
         try:
@@ -88,14 +88,15 @@ class ForwardRecorder:
             return False
     
     async def record_forward(self, 
-                           message_obj,                    # Telegram消息对象
+                           message_obj: Any,                    # Telegram消息对象
                            source_chat_id: int,            # 源聊天ID
                            target_chat_id: int,            # 目标聊天ID  
                            rule_id: Optional[int] = None,  # 规则ID
                            forward_type: str = "auto",     # 转发类型: auto/manual/history
                            operator_id: Optional[int] = None, # 操作者ID
+                           operator_name: Optional[str] = None, # 操作者名称 (新增支持)
                            session_id: Optional[str] = None,  # 会话ID
-                           additional_info: Optional[Dict] = None) -> str:
+                           additional_info: Optional[Dict[str, Any]] = None) -> str:
         """
         记录转发操作
         返回记录ID
@@ -153,7 +154,7 @@ class ForwardRecorder:
                                    forward_type: str = "auto",
                                    operator_id: Optional[int] = None,
                                    session_id: Optional[str] = None,
-                                   additional_info: Optional[Dict] = None,
+                                   additional_info: Optional[Dict[str, Any]] = None,
                                    summary_only: bool = True) -> int:
         """批量记录转发，降低IOPS。
         返回成功记录的条数。
@@ -200,9 +201,9 @@ class ForwardRecorder:
             logger.error(f"批量记录转发失败: {e}")
             return 0
     
-    async def _extract_message_info(self, msg) -> Dict[str, Any]:
+    async def _extract_message_info(self, msg: Any) -> Dict[str, Any]:
         """提取消息详细信息"""
-        info = {
+        info: Dict[str, Any] = {
             'message_id': getattr(msg, 'id', 0),
             'date': getattr(msg, 'date', datetime.now()).isoformat() if hasattr(msg, 'date') else None,
             'text': getattr(msg, 'message', '')[:500],  # 限制文本长度
@@ -255,7 +256,7 @@ class ForwardRecorder:
         
         return info
     
-    async def _extract_media_info(self, msg, info: Dict[str, Any]):
+    async def _extract_media_info(self, msg: Any, info: Dict[str, Any]) -> None:
         """提取媒体信息"""
         try:
             media = msg.media
@@ -352,7 +353,7 @@ class ForwardRecorder:
         except Exception as e:
             logger.debug(f"提取媒体信息失败: {e}")
     
-    async def _save_record(self, record: Dict[str, Any], timestamp: datetime):
+    async def _save_record(self, record: Dict[str, Any], timestamp: datetime) -> None:
         """保存记录到多个分类目录"""
         record_json = json.dumps(record, ensure_ascii=False, indent=2, default=self._json_default)
         record_id = record['record_id']
@@ -382,7 +383,7 @@ class ForwardRecorder:
             user_file = self.dirs['users'] / f"user_{user_id}.jsonl"
             await self._append_to_file(user_file, record_json)
 
-    def _json_default(self, o: Any):
+    def _json_default(self, o: Any) -> Any:
         if isinstance(o, (datetime,)):
             return o.isoformat()
         if isinstance(o, (Path,)):
@@ -409,7 +410,7 @@ class ForwardRecorder:
                 pass
         return repr(o)
 
-    def _normalize_peer(self, peer: Any):
+    def _normalize_peer(self, peer: Any) -> Any:
         if isinstance(peer, (int, str)) or peer is None:
             return peer
         if hasattr(peer, 'channel_id'):
@@ -420,10 +421,10 @@ class ForwardRecorder:
             return {'type': 'chat', 'id': getattr(peer, 'chat_id', None)}
         return repr(peer)
     
-    async def _append_to_file(self, file_path: Path, content: str):
+    async def _append_to_file(self, file_path: Path, content: str) -> None:
         """异步追加内容到文件"""
         try:
-            def write_file():
+            def write_file() -> None:
                 # 确保父目录存在
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(file_path, 'a', encoding='utf-8') as f:
@@ -435,7 +436,7 @@ class ForwardRecorder:
         except Exception as e:
             logger.error(f"写入文件失败 {file_path}: {e}")
     
-    async def _update_statistics(self, record: Dict[str, Any], timestamp: datetime):
+    async def _update_statistics(self, record: Dict[str, Any], timestamp: datetime) -> None:
         """更新统计信息"""
         try:
             stats_file = self.dirs['summary'] / f"{timestamp.strftime('%Y-%m')}_stats.json"
@@ -489,7 +490,7 @@ class ForwardRecorder:
             day_stats['total_duration_seconds'] += record['message_info'].get('duration_seconds', 0)
             
             # 保存统计
-            def write_stats():
+            def write_stats() -> None:
                 # 原子写入以避免并发/崩溃导致的部分写入
                 stats_file.parent.mkdir(parents=True, exist_ok=True)
                 tmp_path = stats_file.with_suffix('.json.tmp')
@@ -503,7 +504,7 @@ class ForwardRecorder:
         except Exception as e:
             logger.error(f"更新统计失败: {e}", exc_info=True)
     
-    async def get_daily_summary(self, date: str = None) -> Dict[str, Any]:
+    async def get_daily_summary(self, date: Optional[str] = None) -> Dict[str, Any]:
         """获取日期统计摘要"""
         if not date:
             local_date = datetime.now().strftime('%Y-%m-%d')
@@ -528,12 +529,12 @@ class ForwardRecorder:
                     ures = ustats.get(utc_date, {'date': utc_date, 'total_forwards': 0})
                     if int(ures.get('total_forwards', 0)) > 0:
                         logger.info(f"本地日期 {local_date} 无数据，使用UTC日期 {utc_date} 的统计")
-                        return ures
+                        return cast(Dict[str, Any], ures)
             logger.debug(f"获取到 {local_date} 的统计数据: {result}")
-            return result
+            return cast(Dict[str, Any], result)
         except Exception as e:
             logger.error(f"获取日统计失败: {e}")
-            return {'date': local_date, 'total_forwards': 0, 'error': str(e)}
+            return cast(Dict[str, Any], {'date': local_date, 'total_forwards': 0, 'error': str(e)})
 
     async def get_hourly_distribution(self, date: str | None = None) -> Dict[str, int]:
         """获取指定日期内按小时的转发分布统计"""
@@ -569,12 +570,12 @@ class ForwardRecorder:
             return {f"{h:02d}": 0 for h in range(24)}
     
     async def search_records(self, 
-                           start_date: str = None,
-                           end_date: str = None, 
-                           chat_id: int = None,
-                           user_id: int = None,
-                           message_type: str = None,
-                           rule_id: int = None,
+                           start_date: Optional[str] = None,
+                           end_date: Optional[str] = None, 
+                           chat_id: Optional[int] = None,
+                           user_id: Optional[int] = None,
+                           message_type: Optional[str] = None,
+                           rule_id: Optional[int] = None,
                            limit: int = 100) -> List[Dict[str, Any]]:
         """搜索转发记录"""
         records = []
@@ -629,16 +630,15 @@ class ForwardRecorder:
     
     async def _read_jsonl_file(self, file_path: Path, limit: int = 100) -> List[Dict[str, Any]]:
         """读取JSONL文件"""
-        records = []
+        records: List[Dict[str, Any]] = []
         try:
-            def read_file():
-
+            def read_file() -> None:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     for line in f:
                         if len(records) >= limit:
                             break
                         try:
-                            record = json.loads(line.strip())
+                            record: Dict[str, Any] = json.loads(line.strip())
                             records.append(record)
                         except json.JSONDecodeError:
                             continue

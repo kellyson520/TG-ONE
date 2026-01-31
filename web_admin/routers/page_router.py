@@ -114,7 +114,7 @@ async def logout_page(request: Request):
     try:
         token = request.cookies.get("access_token")
         if token:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM], options={"verify_exp": False})
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM], options={"verify_exp": False})
             username = payload.get("sub") # In session token, sub is user_id usually, but verify this
             # Actually session token sub is NOT username but user_id. 
             # We need to fetch user? Or just log user_id.

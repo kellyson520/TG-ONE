@@ -1,6 +1,29 @@
 # Change Log
 
+## 📅 2026-01-31 更新摘要
+
+### 🚀 v1.2.3.0: Phase 9 Security Hardening & Audit System
+- **Security Engineering**:
+    - **AOP 审计系统**: 实现 `@audit_log` 装饰器，自动记录 Service 层敏感操作（创建、更新、删除规则/用户），支持异步非阻塞写入，实现操作全链路可追溯。
+    - **Context Awareness**: 引入 `ContextMiddleware`，自动提取并传播 Request Context (User ID, IP, Trace ID) 至业务深层。
+    - **Rate Limiting**: 为 Web Admin API 实现基于 IP 的滑动窗口限流 (`RateLimitMiddleware`)，防止恶意 API 爆破。
+- **User Service Refactor**:
+    - **Audit Integration**: 重构 `UserService`，新增显式的 `update_user` / `delete_user` 方法并集成审计日志，替代原有的 Repository 直接调用。
+    - **Robust Testing**: 修复 `test_user_service.py` 中的 Mock 逻辑，覆盖权限检查与审计触发路径。
+- **Documentation**:
+    - **Phase Completed**: 完成 Phase 9 所有 P1 任务，标记 Webhook 签名校验为 N/A (因使用 MTProto)。
+
 ## 📅 2026-01-30 更新摘要
+
+### 🚀 v1.2.2.9: CI 深度优化 & 测试稳定性修复
+- **CI 深度优化**:
+    - **超时修复**: 在本地及 GitHub CI 配置中增加 `--durations=10` 和 `-vv` 参数，便于快速定位慢速测试，修复了因资源泄露 (Teardown Generator) 导致的 CI 6小时超时问题。
+    - **配置同步**: 实现 Local CI 和 GitHub Actions 的完全参数对齐，确保本地环境能准确复现线上的超时和错误行为。
+- **Auth 模块修复**:
+    - **CSRF 漏洞**: 修复 `test_auth_router.py` 中 `test_refresh_token` 获取 CSRF Token 的逻辑，改为从 Client Cookie 持久化存储中读取，解决了 Response Header 丢失 Token 导致的 403 错误。
+- **基础设施增强**:
+    - **Mock 稳健性**: 增强 `conftest.py` 中的 `AsyncSafeMock`，使其递归返回 `AsyncMock` 以兼容 `await` 表达式，彻底解决了 `object MagicMock can't be used in 'await'` 错误。
+    - **Fixture 隔离**: 重构 `setup_database` fixture 的异常处理逻辑，分离 Setup 和 Teardown 的 `try-except` 块，防止 Teardown 失败时的二次 `yield` 异常。
 
 ### 🚀 v1.2.2.8: CI Resilience & Recursion Error Mitigation
 - **CI 稳定性修复 (RecursionError Fix)**:

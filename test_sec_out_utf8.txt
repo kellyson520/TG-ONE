@@ -1,0 +1,47 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\lihuo\Desktop\重构\TG ONE
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... 
+----------------------------- live log collection -----------------------------
+2026-01-30 18:26:05 [    INFO] Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)
+2026-01-30 18:26:05 [    INFO] cryptg module not installed and libssl not found, falling back to (slower) Python encryption
+2026-01-30 18:26:05 [    INFO] Bloom Filter (L0) 初始化成功
+2026-01-30 18:26:05 [    INFO] HLL (HyperLogLog) 初始化成功
+2026-01-30 18:26:05 [    INFO] SimHash 引擎与 LSH Forest 索引系统初始化成功
+2026-01-30 18:26:05 [    INFO] Bloom Filter Service initialized using consolidated utils implementation
+2026-01-30 18:26:05 [    INFO] 使用转发记录目录: C:\app\zhuanfaji
+2026-01-30 18:26:05 [    INFO] ForwardRecorder 初始化完成，模式: full
+2026-01-30 18:26:05 [    INFO] [Database] 初始化数据库连接，模式=共享引擎
+2026-01-30 18:26:05 [    INFO] [Database] 使用共享引擎: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-01-30 18:26:05 [    INFO] [Database] 会话工厂已初始化
+2026-01-30 18:26:05 [    INFO] Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-01-30 18:26:05 [    INFO] EventBus initialized
+collected 2 items
+
+tests/integration/test_security_phase3_api.py::test_full_2fa_flow 
+-------------------------------- live log call --------------------------------
+2026-01-30 18:26:05 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=ff6ab3c7-b531-4750-9060-5627ae96708c, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/login\n2026-01-30 18:26:05 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=ff6ab3c7-b531-4750-9060-5627ae96708c, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/login, \u72b6\u6001\u7801=200, \u8017\u65f6=3.21ms\n2026-01-30 18:26:05 [    INFO] HTTP Request: GET http://test/login "HTTP/1.1 200 OK"
+2026-01-30 18:26:05 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=8dbdb66f-0f16-4bd1-bd28-8d3f0d78519f, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login\n2026-01-30 18:26:05 [    INFO] 登录限流器已初始化
+2026-01-30 18:26:05 [    INFO] \U0001f510 [Auth] \u7528\u6237\u8ba4\u8bc1\u8bf7\u6c42: \u7528\u6237\u540d=2fa_integration_user\n2026-01-30 18:26:05 [    INFO] \u2705 [Auth] \u7528\u6237\u8ba4\u8bc1\u6210\u529f: \u7528\u6237\u540d=2fa_integration_user, \u7528\u6237ID=1\n2026-01-30 18:26:05 [    INFO] 登录成功，已清除限流记录: username=2fa_integration_user
+2026-01-30 18:26:05 [    INFO] \U0001f195 [Auth] \u521b\u5efa\u4f1a\u8bdd: \u7528\u6237ID=1, IP=127.0.0.1\n2026-01-30 18:26:05 [    INFO] \u2705 [Auth] \u4f1a\u8bdd\u521b\u5efa\u6210\u529f: \u7528\u6237ID=1, IP=127.0.0.1, \u4f1a\u8bddID=fc64bff9-93af-4399-ad8d-42b68ae4c2e2\n2026-01-30 18:26:05 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=8dbdb66f-0f16-4bd1-bd28-8d3f0d78519f, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login, \u72b6\u6001\u7801=200, \u8017\u65f6=92.92ms\n2026-01-30 18:26:05 [    INFO] HTTP Request: POST http://test/api/auth/login "HTTP/1.1 200 OK"
+2026-01-30 18:26:05 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=0385bb8a-d1af-4e5f-8507-942645d2fc5c, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/2fa/setup\n2026-01-30 18:26:05 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=0385bb8a-d1af-4e5f-8507-942645d2fc5c, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/2fa/setup, \u72b6\u6001\u7801=200, \u8017\u65f6=19.23ms\n2026-01-30 18:26:05 [    INFO] HTTP Request: POST http://test/api/auth/2fa/setup "HTTP/1.1 200 OK"
+2026-01-30 18:26:05 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=679d716b-748a-48ac-9667-98028ab32d9f, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/2fa/enable\n2026-01-30 18:26:05 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=679d716b-748a-48ac-9667-98028ab32d9f, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/2fa/enable, \u72b6\u6001\u7801=200, \u8017\u65f6=6.08ms\n2026-01-30 18:26:05 [    INFO] HTTP Request: POST http://test/api/auth/2fa/enable "HTTP/1.1 200 OK"
+2026-01-30 18:26:05 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=7542a146-43cf-43ff-a70c-464eb196af92, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login\n2026-01-30 18:26:05 [    INFO] \U0001f510 [Auth] \u7528\u6237\u8ba4\u8bc1\u8bf7\u6c42: \u7528\u6237\u540d=2fa_integration_user\n2026-01-30 18:26:06 [    INFO] \u2705 [Auth] \u7528\u6237\u8ba4\u8bc1\u6210\u529f: \u7528\u6237\u540d=2fa_integration_user, \u7528\u6237ID=1\n2026-01-30 18:26:06 [    INFO] 登录成功，已清除限流记录: username=2fa_integration_user
+2026-01-30 18:26:06 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=7542a146-43cf-43ff-a70c-464eb196af92, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login, \u72b6\u6001\u7801=202, \u8017\u65f6=83.93ms\n2026-01-30 18:26:06 [    INFO] HTTP Request: POST http://test/api/auth/login "HTTP/1.1 202 Accepted"
+2026-01-30 18:26:06 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=5dfe886b-e9ab-43d4-8732-16ef2bd8f78b, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login/2fa\n2026-01-30 18:26:06 [    INFO] \U0001f195 [Auth] \u521b\u5efa\u4f1a\u8bdd: \u7528\u6237ID=1, IP=127.0.0.1\n2026-01-30 18:26:06 [    INFO] \u2705 [Auth] \u4f1a\u8bdd\u521b\u5efa\u6210\u529f: \u7528\u6237ID=1, IP=127.0.0.1, \u4f1a\u8bddID=b8765706-0527-4c15-b2ba-984b3e8e30ec\n2026-01-30 18:26:06 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=5dfe886b-e9ab-43d4-8732-16ef2bd8f78b, IP=127.0.0.1, \u65b9\u6cd5=POST, \u8def\u5f84=/api/auth/login/2fa, \u72b6\u6001\u7801=200, \u8017\u65f6=7.09ms\n2026-01-30 18:26:06 [    INFO] HTTP Request: POST http://test/api/auth/login/2fa "HTTP/1.1 200 OK"
+2026-01-30 18:26:06 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=147eb475-824a-474d-874b-c999f2c8204d, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/stats\n2026-01-30 18:26:06 [    INFO] \U0001f4ca [\u8f6c\u53d1\u670d\u52a1] \u5f00\u59cb\u83b7\u53d6\u8f6c\u53d1\u7edf\u8ba1\u6570\u636e\n2026-01-30 18:26:06 [    INFO] \u2705 [\u8f6c\u53d1\u670d\u52a1] \u8f6c\u53d1\u7edf\u8ba1\u83b7\u53d6\u5b8c\u6210: \u4eca\u65e5\u8f6c\u53d1=0, \u6628\u65e5\u8f6c\u53d1=0, \u8d8b\u52bf=new\n2026-01-30 18:26:06 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=147eb475-824a-474d-874b-c999f2c8204d, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/stats, \u72b6\u6001\u7801=200, \u8017\u65f6=13.86ms\n2026-01-30 18:26:06 [    INFO] HTTP Request: GET http://test/api/system/stats "HTTP/1.1 200 OK"
+PASSED                                                                   [ 50%]
+tests/integration/test_security_phase3_api.py::test_ip_guard_integration_mocked 
+-------------------------------- live log call --------------------------------
+2026-01-30 18:26:06 [ WARNING] Blocked access attempt from 127.0.0.1 to /api/system/stats
+2026-01-30 18:26:06 [    INFO] HTTP Request: GET http://test/api/system/stats "HTTP/1.1 403 Forbidden"
+2026-01-30 18:26:06 [    INFO] \U0001f310 [WebAPI] \u8bf7\u6c42\u5f00\u59cb: TraceID=cd879e8c-1c98-45c2-b074-9377ebc91845, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/stats\n2026-01-30 18:26:06 [ WARNING] Authentication failed: No token found in header or cookie. Headers: ['host', 'accept', 'accept-encoding', 'connection', 'user-agent']
+2026-01-30 18:26:06 [ WARNING] Authentication failed: No refresh token cookie found. Cookies: dict_keys([])
+2026-01-30 18:26:06 [    INFO] \u2705 [WebAPI] \u8bf7\u6c42\u5b8c\u6210: TraceID=cd879e8c-1c98-45c2-b074-9377ebc91845, IP=127.0.0.1, \u65b9\u6cd5=GET, \u8def\u5f84=/api/system/stats, \u72b6\u6001\u7801=401, \u8017\u65f6=0.51ms\n2026-01-30 18:26:06 [    INFO] HTTP Request: GET http://test/api/system/stats "HTTP/1.1 401 Unauthorized"
+PASSED                                                                   [100%]
+
+============================== 2 passed in 1.18s ==============================

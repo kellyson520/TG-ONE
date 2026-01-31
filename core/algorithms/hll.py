@@ -30,7 +30,7 @@ class HyperLogLog:
         h = hashlib.sha256(str(item).encode('utf-8')).hexdigest()
         return int(h, 16)
 
-    def add(self, item: Any):
+    def add(self, item: Any) -> None:
         """添加元素"""
         x = self._hash(item)
         # 前 b 位作为寄存器索引
@@ -66,7 +66,7 @@ class HyperLogLog:
 
 class GlobalHLL:
     """全局 HLL 管理器"""
-    _instances: dict = {}
+    _instances: dict[str, HyperLogLog] = {}
 
     @classmethod
     def get_hll(cls, name: str, b: int = 10) -> HyperLogLog:

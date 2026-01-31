@@ -5,7 +5,7 @@
 
 import logging
 import re
-from typing import Tuple, Union
+from typing import Tuple, Union, Set
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 class EntityValidator:
     """实体有效性验证器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 已知的无效实体ID缓存（避免重复尝试）
-        self.invalid_entities = set()
+        self.invalid_entities: Set[str] = set()
 
     def is_likely_valid_user_id(self, user_id: Union[int, str]) -> bool:
         """

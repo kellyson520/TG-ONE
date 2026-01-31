@@ -32,7 +32,7 @@ class MessageContext:
     is_sim: bool = False
     trace: List[Dict[str, Any]] = field(default_factory=list)
 
-    def log_trace(self, step: str, status: str, details: Optional[Dict] = None):
+    def log_trace(self, step: str, status: str, details: Optional[Dict[str, Any]] = None) -> None:
         if self.is_sim:
             self.trace.append({
                 "step": step,
@@ -43,18 +43,18 @@ class MessageContext:
 
 class Middleware(ABC):
     @abstractmethod
-    async def process(self, ctx: MessageContext, next_call: Callable) -> None:
+    async def process(self, ctx: MessageContext, _next_call: Callable) -> None:
         pass
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self) -> None:
         self.middlewares: List[Middleware] = []
 
-    def add(self, middleware: Middleware):
+    def add(self, middleware: Middleware) -> "Pipeline":
         self.middlewares.append(middleware)
         return self
 
-    async def execute(self, ctx: MessageContext):
+    async def execute(self, ctx: MessageContext) -> None:
         # 生成唯一标识符 (Trace ID)
         trace_id = uuid.uuid4().hex[:8]
         token = trace_id_var.set(trace_id)
@@ -67,7 +67,7 @@ class Pipeline:
             chat_display = await get_display_name_async(ctx.chat_id)
             logger.debug(f"🔄 [Pipeline] 开始执行流程，TraceID={trace_id}, 任务ID={short_id(ctx.task_id)}, 来源={chat_display}({ctx.chat_id}), 消息ID={ctx.message_id}")
             
-            async def _next(index):
+            async def _next(index: int) -> None:
                 if index < len(self.middlewares) and not ctx.is_terminated:
                     middleware_name = type(self.middlewares[index]).__name__
                     logger.debug(f"🔀 [Pipeline] 执行中间件 {middleware_name}，TraceID={trace_id}")

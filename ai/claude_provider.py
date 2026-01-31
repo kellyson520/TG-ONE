@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 import anthropic
 from ai.base import BaseAIProvider
-import os
+from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,12 +14,12 @@ class ClaudeProvider(BaseAIProvider):
         
     async def initialize(self, **kwargs):
         """初始化Claude客户端"""
-        api_key = os.getenv('CLAUDE_API_KEY')
+        api_key = settings.CLAUDE_API_KEY
         if not api_key:
-            raise ValueError("未设置CLAUDE_API_KEY环境变量")
+            raise ValueError("未设置 CLAUDE_API_KEY")
             
         # 检查是否配置了自定义API基础URL
-        api_base = os.getenv('CLAUDE_API_BASE', '').strip()
+        api_base = (settings.CLAUDE_API_BASE or '').strip()
         if api_base:
             logger.info(f"使用自定义Claude API基础URL: {api_base}")
             self.client = anthropic.Anthropic(

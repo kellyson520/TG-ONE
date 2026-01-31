@@ -21,11 +21,12 @@ logger = logging.getLogger(__name__)
 
 class DatabaseHealthChecker:
     def __init__(self):
-        # 从环境变量获取数据库路径
-        database_url = os.getenv('DATABASE_URL', 'sqlite:///./db/forward.db')
-        if database_url.startswith('sqlite:///'):
-            raw_path = database_url.replace('sqlite:///', '')
-            base_dir = Path(__file__).resolve().parent.parent
+        from core.config import settings
+        database_url = settings.DATABASE_URL
+        if database_url.startswith('sqlite'):
+            # 提取路径部分
+            raw_path = database_url.split('///')[-1]
+            base_dir = settings.BASE_DIR
             p = Path(raw_path)
             if not p.is_absolute():
                 p = (base_dir / p).resolve()

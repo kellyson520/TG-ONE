@@ -5,7 +5,7 @@ from models.models import Base
 
 logger = logging.getLogger(__name__)
 
-async def init_db_tables(db_url: str):
+async def init_db_tables(db_url: str) -> None:
     """
     异步创建所有数据库表
     """

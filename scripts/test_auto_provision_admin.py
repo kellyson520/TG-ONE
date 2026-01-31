@@ -8,9 +8,10 @@ from models.models import get_session, User
 
 
 def run():
-    username = os.getenv('WEB_ADMIN_USERNAME') or ''
-    password = os.getenv('WEB_ADMIN_PASSWORD') or ''
-    assert username and password, 'WEB_ADMIN_USERNAME/WEB_ADMIN_PASSWORD must be set'
+    from core.config import settings
+    username = settings.WEB_ADMIN_USERNAME or ''
+    password = settings.WEB_ADMIN_PASSWORD or ''
+    assert username and password, 'WEB_ADMIN_USERNAME/WEB_ADMIN_PASSWORD must be set in settings or .env'
 
     with get_session() as s:
         u = s.query(User).filter(User.username == username).first()

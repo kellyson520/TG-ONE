@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\network\log_push.py
+# hypothesis_version: 6.151.4
+
+[5.0, '%(message)s', 'CRITICAL', 'DEBUG', 'ERROR', 'HTML', 'INFO', 'WARNING', 'chat_id', 'correlation_id', 'parse_mode', 'text', 'ℹ️', '⚠️', '❌', '🐞', '📣', '🛑']

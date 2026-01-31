@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\init_filter.py
+# hypothesis_version: 6.151.4
+
+['attributes', 'buttons', 'document', 'duration', 'file_name', 'h', 'mime_type', 'photo', 'size', 'sizes', 'w']

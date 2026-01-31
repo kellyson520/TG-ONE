@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\security\deps.py
+# hypothesis_version: 6.151.4
+
+['/', '/api/', '/login', 'Access denied', 'Authorization', 'Bearer ', 'Not authenticated', 'access_token', 'is_admin', 'lax', 'refresh_token']

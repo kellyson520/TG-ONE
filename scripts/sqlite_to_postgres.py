@@ -28,7 +28,9 @@ from sqlalchemy.orm import sessionmaker
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = int(os.getenv('MIGRATE_BATCH_SIZE', '5000'))
+from core.config import settings
+BATCH_SIZE = settings.MIGRATE_BATCH_SIZE
+
 
 
 def _create_engine(url: str) -> Engine:
@@ -107,8 +109,9 @@ def _copy_table(source_engine: Engine, target_engine: Engine, table: Table) -> i
 
 
 def main():
-	src_url = os.getenv('DATABASE_URL_SQLITE', 'sqlite:///./db/forward.db')
-	tgt_url = os.getenv('DATABASE_URL_TARGET')
+	src_url = settings.DATABASE_URL_SQLITE or settings.DATABASE_URL
+	tgt_url = settings.DATABASE_URL_TARGET
+
 	if not tgt_url:
 		logger.error('请设置 DATABASE_URL_TARGET 目标库连接串')
 		sys.exit(1)

@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\states.py
+# hypothesis_version: 6.151.4
+
+['completed', 'failed', 'pending', 'retrying', 'running']

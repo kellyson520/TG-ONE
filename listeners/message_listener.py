@@ -10,12 +10,9 @@ import logging
 from typing import Any
 
 from telethon import events
-from dotenv import load_dotenv
 
 from core.container import container
-
-# 加载环境变量
-load_dotenv()
+from core.helpers.sleep_manager import sleep_manager
 
 # 获取logger
 logger = logging.getLogger(__name__)
@@ -70,6 +67,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
     async def user_message_listener(event):
         """用户消息监听器 - 只写入任务队列"""
         try:
+            sleep_manager.record_activity()
             from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"📥 [监听器] 收到新消息: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 发送者ID={event.sender_id}, 媒体={bool(event.message.media)}")
@@ -144,6 +142,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
     async def bot_message_listener(event):
         """机器人消息监听器 - 只处理命令"""
         try:
+            sleep_manager.record_activity()
             # 过滤机器人自己发送的消息 (防自环)
             if event.out or event.sender_id == bot_id:
                 return

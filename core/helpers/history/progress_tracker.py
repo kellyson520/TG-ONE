@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class HistoryTaskProgress:
     """历史任务进度跟踪器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.total = 0  # 总消息数
         self.done = 0  # 已处理数
         self.forwarded = 0  # 已转发数
@@ -23,14 +23,14 @@ class HistoryTaskProgress:
         self.current_message_id = 0  # 当前处理的消息ID
         self.status = "running"  # running, paused, completed, failed, cancelled
 
-    def update(self, **kwargs):
+    def update(self, **kwargs: Any) -> None:
         """更新进度信息"""
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
         self.last_update_time = datetime.now()
 
-    def increment(self, field: str, amount: int = 1):
+    def increment(self, field: str, amount: int = 1) -> None:
         """增量更新指定字段"""
         if hasattr(self, field):
             current = getattr(self, field)
@@ -120,7 +120,7 @@ class HistoryTaskProgress:
 
         return summary
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<HistoryTaskProgress "
             f"done={self.done}/{self.total} "

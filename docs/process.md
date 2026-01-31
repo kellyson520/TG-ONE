@@ -1,7 +1,7 @@
 # 项目总进度文档 (Process)
 
 > **项目名称**: Telegram 转发器 Web 管理系统  
-> **最后更新**: 2026-01-13 21:00  
+> **最后更新**: 2026-01-31 17:57  
 > **文档规范**: 遵循 GUIDELINES.md v1.0 标准  
 
 ---
@@ -65,8 +65,18 @@
 | 20260115_DB_Malformed | 修复 Telethon Session 数据库损坏 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Fix_Malformed_Session_Database/report.md) |
 | 20260127_Fix_Encoding | 修复 WebAdmin 文件夹乱码 (Mojibake) | 2026-01-27 | 2026-01-27 | 100% | [[report.md]](./docs/Workstream_Maintenance/20260127_Fix_WebAdmin_Encoding/report.md) |
 | 20260127_Github_CI | 建立标准云端 CI (GitHub Actions) | 2026-01-27 | 2026-01-27 | 100% | [[report.md]](./docs/Workstream_Infrastructure/20260127_Github_CI/report.md) |
+| 20260131_DeadCode_Fuzz | 死代码分析与模糊测试建设 (Phase 8) | 2026-01-31 | 2026-01-31 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/20260131_DeadCode_and_Verification/report.md) |
+| 20260130_Config_SSOT | 环境变量单一来源 (SSOT) 验证测试 | 2026-01-30 | 2026-01-30 | 100% | [[report.md]](./Workstream_Architecture_Refactor/20260130_ConfigSSOT_Validation/report.md) |
+| 20260130_ConfigAudit_P1 | 配置审计与环境标准化 (Phase 1) | 2026-01-30 | 2026-01-30 | 100% | [[report.md]](./Workstream_Architecture_Refactor/20260130_ConfigAudit_Phase1/report.md) |
+| 20260131_Type_Hinting | 核心模块类型覆盖 (Mypy 100%) | 2026-01-31 | 2026-01-31 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/20260131_Type_Hinting_Coverage/report.md) |
+| 20260125_Infras_P2 | 基础设施抢修与死代码清除 (Phase 2) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./archive/Workstream_Architecture_Refactor/20260125_Core_Infrastructure_Cleanup_Phase2/report.md) |
+| 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3+) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report.md) |
+| 20260129_Align_Tests_UserHandler | UserHandler 测试适配与修复 | 2026-01-29 | 2026-01-29 | 100% | [[report.md]](./docs/Workstream_Core_Engineering/20260129_Align_Tests_UserHandler/report.md) |
+| 20260130_CI_Recursion_Fix | 修复 CI 递归错误与优化本地 CI 机制 | 2026-01-30 | 2026-01-30 | 100% | [[report.md]](./docs/Workstream_Core_Engineering/20260130_CI_Recursion_Fix/report.md) |
+| 20260126_Phase5_Stability | 稳定性、异步合规与静默失败治理 | 2026-01-26 | 2026-01-31 | 100% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Phase5_Stability_Async_Governance/todo.md) |
+| 20260126_Web_Admin_Refactor | Web Admin 与表现层重构 (P1/P2) | 2026-01-26 | 2026-01-31 | 100% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Web_Admin_Refactor_Phase6/todo.md) |
 
-
+| 20260131_Phase8_Exec | Phase 8 剩余项执行 (Performance/Sleep/Arch) | 2026-01-31 | 2026-01-31 | 100% | [[report.md]](./Workstream_Architecture_Refactor/20260131_Phase8_Remaining_Exec/report.md) |
 
 
 | 20260115_ChatName | 替换 ChatID 为频道/群组名称 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./archive/Workstream_Core_Engineering/20260115_Display_Chat_Name_Instead_Of_ID/report.md) |
@@ -77,16 +87,9 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
-| 20260125_Infras_P2 | 基础设施抢修与死代码清除 (Phase 2) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./archive/Workstream_Architecture_Refactor/20260125_Core_Infrastructure_Cleanup_Phase2/report.md) |
-| 20260125_Data_Security | 数据安全与核心层纯净化 (Phase 3+) | 2026-01-25 | 2026-01-26 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report.md) |
-| 20260126_Phase5_Stability | 稳定性、异步合规与静默失败治理 | 2026-01-26 | 进行中 | 5% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Phase5_Stability_Async_Governance/todo.md) |
-| 20260126_Web_Admin_Refactor | Web Admin 与表现层重构 (P1/P2) | 2026-01-26 | 进行中 | 0% | [[todo.md]](./Workstream_Architecture_Refactor/20260126_Web_Admin_Refactor_Phase6/todo.md) |
-| 20260129_Align_Tests_UserHandler | UserHandler 测试适配与修复 | 2026-01-29 | 2026-01-29 | 100% | [[report.md]](./docs/Workstream_Core_Engineering/20260129_Align_Tests_UserHandler/report.md) |
-| 20260129_Fix_Remaining_Tests | 修复残余集成测试 (WebFullLink/KeyError) | 2026-01-29 | 进行中 | 0% | [[todo.md]](./docs/Workstream_Core_Engineering/20260129_Fix_Remaining_Integration_Tests/todo.md) |
-| 20260130_CI_Recursion_Fix | 修复 CI 递归错误与优化本地 CI 机制 | 2026-01-30 | 2026-01-30 | 100% | [[report.md]](./docs/Workstream_Core_Engineering/20260130_CI_Recursion_Fix/report.md) |
-
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
+
 
 
     - [x] Model migration for compression flags

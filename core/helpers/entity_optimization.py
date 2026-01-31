@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class EntityResolver:
     """优化的实体解析器"""
 
-    def __init__(self, client: TelegramClient):
+    def __init__(self, client: TelegramClient) -> None:
         self.client = client
         self.entity_cache: Dict[str, Any] = {}
         self.cache_ttl = timedelta(hours=1)  # 缓存1小时
@@ -117,6 +117,7 @@ class EntityResolver:
         try:
             logger.info(f"开始解析实体: {identifier}")
             # 如果是数字ID，尝试多种格式
+            variants: List[Union[int, str]]
             try:
                 numeric_id = int(identifier)
                 variants = [
@@ -207,7 +208,7 @@ class EntityResolver:
             logger.error(f"获取聊天信息失败 {chat_id}: {str(e)}")
             return {"error": str(e)}
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """清理缓存"""
         self.entity_cache.clear()
         logger.info("实体解析缓存已清理")
@@ -235,7 +236,7 @@ class EntityResolver:
 class OptimizedChatFinder:
     """优化的聊天查找器"""
 
-    def __init__(self, client: TelegramClient):
+    def __init__(self, client: TelegramClient) -> None:
         self.client = client
         self.entity_resolver = EntityResolver(client)
 
@@ -256,7 +257,7 @@ class OptimizedChatFinder:
         try:
             logger.info(f"优化搜索聊天: {chat_name}")
 
-            matches = []
+            matches: List[Dict[str, Any]] = []
             chat_name_lower = chat_name.lower()
 
             # 使用安全的对话获取方法
@@ -319,7 +320,7 @@ entity_resolver: Optional[EntityResolver] = None
 chat_finder: Optional[OptimizedChatFinder] = None
 
 
-def initialize_entity_resolver(client: TelegramClient):
+def initialize_entity_resolver(client: TelegramClient) -> None:
     """初始化实体解析器"""
     global entity_resolver, chat_finder
     entity_resolver = EntityResolver(client)

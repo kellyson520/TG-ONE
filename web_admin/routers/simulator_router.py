@@ -8,7 +8,9 @@ from middlewares.loader import RuleLoaderMiddleware
 from middlewares.dedup import DedupMiddleware
 from middlewares.filter import FilterMiddleware
 from middlewares.sender import SenderMiddleware
+from web_admin.schemas.response import ResponseSchema
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +30,9 @@ class TraceItem(BaseModel):
     details: Dict[str, Any]
     timestamp: float
 
-@router.post("/simulate")
+@router.post("/simulate", response_model=ResponseSchema)
 async def simulate_message(req: SimulationRequest):
+
     """
     Simulate message processing through the pipeline
     """
@@ -97,4 +100,5 @@ async def simulate_message(req: SimulationRequest):
         logger.error(f"Simulation failed: {e}", exc_info=True)
         ctx.log_trace("Pipeline", "ERROR", {"error": str(e)})
 
-    return {"trace": ctx.trace}
+    return ResponseSchema(success=True, data={"trace": ctx.trace})
+

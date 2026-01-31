@@ -528,7 +528,7 @@ performance_analyzer = PerformanceAnalyzer()
 # SQLAlchemy事件监听器
 @event.listens_for(Engine, "before_cursor_execute")
 def receive_before_cursor_execute(
-    conn, cursor, statement, parameters, context, executemany
+    conn, cursor, statement, _parameters, context, _executemany
 ):
     """查询开始前的事件"""
     context._query_start_time = time.time()
@@ -536,7 +536,7 @@ def receive_before_cursor_execute(
 
 @event.listens_for(Engine, "after_cursor_execute")
 def receive_after_cursor_execute(
-    conn, cursor, statement, parameters, context, executemany
+    conn, cursor, statement, _parameters, context, _executemany
 ):
     """查询完成后的事件"""
     total_time = time.time() - context._query_start_time

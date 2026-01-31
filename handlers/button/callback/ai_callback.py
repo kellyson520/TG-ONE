@@ -2,7 +2,7 @@ import traceback
 
 import asyncio
 import logging
-import os
+from core.config import settings
 from sqlalchemy import select
 from telethon import Button
 from telethon.tl import types
@@ -92,7 +92,7 @@ async def callback_set_summary_prompt(event, rule_id, session, message, data):
         if not await is_admin(event):
             await event.answer("只有管理员可以修改设置")
             return
-        user_id = os.getenv("USER_ID")
+        user_id = settings.USER_ID
     else:
         user_id = event.sender_id
 
@@ -119,9 +119,7 @@ async def callback_set_summary_prompt(event, rule_id, session, message, data):
         logger.exception(e)
 
     try:
-        current_prompt = rule.summary_prompt or os.getenv(
-            "DEFAULT_SUMMARY_PROMPT", "未设置"
-        )
+        current_prompt = rule.summary_prompt or settings.DEFAULT_SUMMARY_PROMPT
         await message.edit(
             f"请发送新的AI总结提示词\n"
             f"当前规则ID: `{rule_id}`\n"
@@ -167,7 +165,7 @@ async def callback_set_ai_prompt(event, rule_id, session, message, data):
         if not await is_admin(event):
             await event.answer("只有管理员可以修改设置")
             return
-        user_id = os.getenv("USER_ID")
+        user_id = settings.USER_ID
     else:
         user_id = event.sender_id
 
@@ -194,7 +192,7 @@ async def callback_set_ai_prompt(event, rule_id, session, message, data):
         logger.exception(e)
 
     try:
-        current_prompt = rule.ai_prompt or os.getenv("DEFAULT_AI_PROMPT", "未设置")
+        current_prompt = rule.ai_prompt or settings.DEFAULT_AI_PROMPT
         await message.edit(
             f"请发送新的AI提示词\n"
             f"当前规则ID: `{rule_id}`\n"

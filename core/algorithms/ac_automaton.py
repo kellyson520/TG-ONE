@@ -8,7 +8,7 @@ class ACAutomaton:
     复杂度: 构建 O(sum of keyword lengths), 搜索 O(text length + total matches)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # trie[node][char] = next_node
         self.trie: List[Dict[str, int]] = [{}]
         # 失败指针: fail[node] = longest proper suffix node
@@ -20,7 +20,7 @@ class ACAutomaton:
         # 是否已构建完成
         self.built = False
 
-    def add_keyword(self, keyword: str):
+    def add_keyword(self, keyword: str) -> None:
         """添加一个关键词到字典树"""
         if self.built:
             raise RuntimeError("自动机已构建，无法添加新关键词。若要更新，请创建新实例。")
@@ -39,12 +39,12 @@ class ACAutomaton:
         
         self.output[node].add(idx)
 
-    def build(self):
+    def build(self) -> None:
         """构建失败指针 (BFS)"""
         if self.built:
             return
         
-        queue = collections.deque()
+        queue: collections.deque[int] = collections.deque()
         
         # 处理第一层子节点
         for char, next_node in self.trie[0].items():
@@ -123,7 +123,7 @@ class ACManager:
         return cls._instances[rule_id]
 
     @classmethod
-    def clear(cls):
+    def clear(cls) -> None:
         """清理所有实例"""
         cls._instances = {}
         cls._keywords_cache = {}

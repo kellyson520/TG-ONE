@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\button\new_menu_system.py
+# hypothesis_version: 6.151.4
+
+['new_menu:dedup_hub', 'new_menu:exit', 'new_menu:forward_hub', 'new_menu:system_hub', '⚙️ 系统设置中心', '❌ 退出', '🎯 选择功能模块:', '🏠 **主菜单**', '📊 数据分析中心', '🔄 转发管理中心', '🧹 智能去重中心']

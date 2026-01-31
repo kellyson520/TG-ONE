@@ -28,7 +28,9 @@ class RSSParser:
     优先使用 feedparser (如果安装)，否则使用内置 xml.etree (Zero-Dependency Fallback)
     """
 
-    def __init__(self):
+    from typing import Any
+    
+    def __init__(self) -> None:
         self.use_fallback = False
         try:
             import feedparser
@@ -89,7 +91,7 @@ class RSSParser:
         else:
             raise ValueError(f"不支持的 Feed 格式: {tag}")
 
-    def _parse_rss2(self, root) -> ParsedFeed:
+    def _parse_rss2(self, root: Any) -> ParsedFeed:
         channel = root.find('channel')
         if channel is None:
             raise ValueError("Invalid RSS: missing channel")
@@ -130,7 +132,7 @@ class RSSParser:
             
         return parsed_feed
 
-    def _parse_atom(self, root) -> ParsedFeed:
+    def _parse_atom(self, root: Any) -> ParsedFeed:
         # Atom 通常有命名空间，稍微麻烦一点
         # 这里做一个简单的忽略命名空间的处理 (Hack for simplicity)
         # 更好的做法是正确处理 NS，但为了代码可读性和兼容性，这里简化处理

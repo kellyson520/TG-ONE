@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\commands\admin_commands.py
+# hypothesis_version: 6.151.4
+
+['**🔧 管理员控制面板**', 'db_info', 'restart_bot', 'sys_status', '数据库信息', '系统状态', '重启 Bot']

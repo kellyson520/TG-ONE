@@ -5,6 +5,7 @@
 import logging
 from telethon import Button
 from telethon.tl import types
+from core.config import settings
 
 from services.session_service import session_manager
 from models.models import ForwardRule
@@ -84,9 +85,7 @@ async def callback_set_duration_range(event, rule_id, session, message, data):
         chat = await event.get_chat()
         # 处理频道ID差异
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)
@@ -121,9 +120,7 @@ async def callback_cancel_set_duration_range(event, rule_id, session, message, d
     try:
         chat = await event.get_chat()
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)
@@ -174,9 +171,7 @@ async def callback_set_resolution_range(event, rule_id, session, message, data):
 
         chat = await event.get_chat()
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)
@@ -203,9 +198,7 @@ async def callback_cancel_set_resolution_range(event, rule_id, session, message,
     try:
         chat = await event.get_chat()
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)
@@ -250,9 +243,7 @@ async def callback_set_file_size_range(event, rule_id, session, message, data):
 
         chat = await event.get_chat()
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)
@@ -278,9 +269,7 @@ async def callback_cancel_set_file_size_range(event, rule_id, session, message, 
     try:
         chat = await event.get_chat()
         if isinstance(chat, types.Channel):
-            import os
-
-            user_id = int(os.getenv("USER_ID"))
+            user_id = settings.USER_ID
             chat_id = int(f"100{abs(chat.id)}")
         else:
             user_id = int(event.sender_id)

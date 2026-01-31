@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class EventOptimizer:
     """事件驱动优化器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.event_handlers: Dict[str, List[Callable]] = {}
-        self.event_stats = {
+        self.event_stats: Dict[str, Any] = {
             "messages_processed": 0,
             "events_handled": 0,
             "errors_count": 0,
@@ -29,7 +29,7 @@ class EventOptimizer:
 
     async def setup_optimized_listeners(
         self, user_client: TelegramClient, bot_client: TelegramClient
-    ):
+    ) -> None:
         """
         设置优化的事件监听器
         使用事件驱动替代轮询，提升性能
@@ -38,7 +38,7 @@ class EventOptimizer:
 
         # 1. 新消息事件 - 替代消息轮询
         @user_client.on(events.NewMessage)
-        async def optimized_message_handler(event):
+        async def optimized_message_handler(event: events.NewMessage.Event) -> None:
             """优化的消息处理器 - 事件驱动"""
             try:
                 self.event_stats["messages_processed"] += 1
@@ -68,7 +68,7 @@ class EventOptimizer:
 
         # 2. 消息编辑事件 - 实时处理消息更新
         @user_client.on(events.MessageEdited)
-        async def optimized_edit_handler(event):
+        async def optimized_edit_handler(event: events.MessageEdited.Event) -> None:
             """优化的消息编辑处理器"""
             try:
                 logger.debug(f"消息编辑事件: {event.chat_id}")
@@ -83,7 +83,7 @@ class EventOptimizer:
 
         # 3. 消息删除事件 - 实时处理消息删除
         @user_client.on(events.MessageDeleted)
-        async def optimized_delete_handler(event):
+        async def optimized_delete_handler(event: events.MessageDeleted.Event) -> None:
             """优化的消息删除处理器"""
             try:
                 logger.debug(f"消息删除事件: {len(event.deleted_ids)} 条消息")
@@ -98,7 +98,7 @@ class EventOptimizer:
 
         # 4. 聊天动作事件 - 实时监控用户活动
         @user_client.on(events.UserUpdate)
-        async def optimized_user_update_handler(event):
+        async def optimized_user_update_handler(event: events.UserUpdate.Event) -> None:
             """优化的用户状态更新处理器"""
             try:
                 logger.debug(
@@ -122,7 +122,7 @@ class EventOptimizer:
 
         # 5. 聊天更新事件 - 实时监控聊天变化
         @user_client.on(events.ChatAction)
-        async def optimized_chat_action_handler(event):
+        async def optimized_chat_action_handler(event: events.ChatAction.Event) -> None:
             """优化的聊天动作处理器"""
             try:
                 logger.debug(f"聊天动作: {event.chat_id}")
@@ -156,17 +156,17 @@ class EventOptimizer:
             "messages_per_second": self.event_stats["messages_processed"]
             / max(runtime, 1),
             "events_per_second": self.event_stats["events_handled"] / max(runtime, 1),
-            "error_rate": self.event_stats["errors_count"]
+            "error_rate": float(self.event_stats["errors_count"])
             / max(
-                self.event_stats["messages_processed"]
-                + self.event_stats["events_handled"],
+                int(self.event_stats["messages_processed"])
+                + int(self.event_stats["events_handled"]),
                 1,
             ),
             "runtime_seconds": runtime,
             "optimization_enabled": True,
         }
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """重置统计"""
         self.event_stats = {
             "messages_processed": 0,
@@ -206,11 +206,11 @@ class RateLimiter:
 class EventDrivenMonitor:
     """事件驱动监控器 - 替代轮询机制"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.monitoring_active = False
         self.monitor_tasks: Set[asyncio.Task] = set()
 
-    async def start_monitoring(self, user_client: TelegramClient):
+    async def start_monitoring(self, user_client: TelegramClient) -> None:
         """
         启动事件驱动监控
         替代传统的轮询机制，减少API调用和资源消耗
@@ -223,7 +223,7 @@ class EventDrivenMonitor:
         self.monitoring_active = True
 
         # 定期统计任务（低频率）
-        async def periodic_stats():
+        async def periodic_stats() -> None:
             while self.monitoring_active:
                 try:
                     # 每10分钟收集一次统计
@@ -266,7 +266,7 @@ class EventDrivenMonitor:
 
         logger.info("事件驱动监控启动完成")
 
-    async def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         """停止监控"""
         logger.info("停止事件驱动监控...")
         self.monitoring_active = False

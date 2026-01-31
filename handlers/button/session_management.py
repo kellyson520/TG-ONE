@@ -472,7 +472,7 @@ class SessionManager:
     async def stop_delete_task(self, chat_id):
         return True
 
-    async def preview_history_messages(self, event, sample=10, collect_full=True, max_collect=800):
+    async def preview_history_messages(self, event, _sample=10, _collect_full=True, _max_collect=800):
         return 0, []
 
     async def count_history_in_range(self, event):

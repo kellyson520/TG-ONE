@@ -8,21 +8,30 @@ from core.config_initializer import load_dynamic_config_from_db
 from core.shutdown import get_shutdown_coordinator
 from listeners import setup_listeners
 from core.logging import get_logger
-from core.helpers.metrics import set_ready, update_heartbeat
+from core.helpers.resource_gate import ResourceGate
+from core.helpers.sleep_manager import sleep_manager
+from core.helpers.tombstone import tombstone
 from services.system_service import guard_service
 from scheduler.cron_service import cron_service
 from services.exception_handler import exception_handler
 
+from typing import Optional, Callable, Any
+
+send_welcome_message: Optional[Callable[[Any], Any]] = None
+start_heartbeat: Optional[Callable[[Any, Any], Any]] = None
+
 # Optional imports
 try:
-    from handlers.bot_handler import send_welcome_message
+    from handlers.bot_handler import send_welcome_message as _send_welcome_message
+    send_welcome_message = _send_welcome_message
 except ImportError:
-    send_welcome_message = None
+    pass
 
 try:
-    from services.network.bot_heartbeat import start_heartbeat
+    from services.network.bot_heartbeat import start_heartbeat as _start_heartbeat
+    start_heartbeat = _start_heartbeat
 except ImportError:
-    start_heartbeat = None
+    pass
 
 logger = get_logger(__name__)
 
@@ -34,7 +43,7 @@ class Bootstrap:
         self.bot_client = bot_client
         self.coordinator = get_shutdown_coordinator()
 
-    async def run(self):
+    async def run(self) -> None:
         """执行完整的系统启动序列"""
         logger.info("🚀 Starting system bootstrap sequence...")
         
@@ -63,10 +72,17 @@ class Bootstrap:
         # 7. 最终收尾
         await self._post_startup()
         
+        # 8. 初始资源检查
+        try:
+            ResourceGate.enforce_memory_limit()
+        except MemoryError as e:
+            logger.critical(f"Start-up Memory Violation: {e}")
+            # Consider exiting if crucial
+            
         logger.info("✅ Bootstrap Sequence Complete. System is now RUNNING.")
         set_ready(True)
 
-    async def _check_database(self):
+    async def _check_database(self) -> None:
         logger.info("执行数据库健康检查...")
         try:
             from scripts.database_health_check import DatabaseHealthChecker
@@ -79,7 +95,7 @@ class Bootstrap:
             logger.error(f"数据库健康检查异常: {e}")
             logger.warning("跳过健康检查，继续启动...")
 
-    async def _check_db_permissions(self):
+    async def _check_db_permissions(self) -> None:
         logger.info("检查数据库权限...")
         try:
             from services.db_maintenance_service import db_maintenance_service
@@ -91,7 +107,7 @@ class Bootstrap:
         except Exception as e:
             logger.error(f"数据库权限检查失败: {e}")
 
-    async def _init_db_tables(self):
+    async def _init_db_tables(self) -> None:
         try:
             from core.db_init import init_db_tables
             logger.info("正在初始化/迁移数据库表...")
@@ -100,12 +116,12 @@ class Bootstrap:
         except Exception as e:
             logger.error(f"数据库初始化失败: {e}")
 
-    async def _load_config(self):
+    async def _load_config(self) -> None:
         logger.info("加载动态配置...")
         await load_dynamic_config_from_db(settings)
         logger.info("动态配置加载完成")
 
-    async def _start_clients(self):
+    async def _start_clients(self) -> None:
         logger.info("正在连接 Telegram 客户端...")
         await self.user_client.start(phone=settings.PHONE_NUMBER)
         me_user = await self.user_client.get_me()
@@ -115,7 +131,7 @@ class Bootstrap:
         me_bot = await self.bot_client.get_me()
         logger.info(f'机器人客户端已启动: {me_bot.first_name} (@{me_bot.username})')
 
-    async def _init_optimizations(self):
+    async def _init_optimizations(self) -> None:
         # API 优化器
         try:
             from services.network.api_optimization import initialize_api_optimizer
@@ -144,7 +160,7 @@ class Bootstrap:
         except Exception as e:
              logger.error(f"事件驱动监控优化启用失败: {e}")
 
-    async def _setup_listeners(self):
+    async def _setup_listeners(self) -> None:
         # 普通监听器
         await setup_listeners(self.user_client, self.bot_client)
         
@@ -156,7 +172,7 @@ class Bootstrap:
              )
              update_heartbeat("running", source="init")
 
-    async def _init_and_start_container(self):
+    async def _init_and_start_container(self) -> None:
         # 初始化容器
         container.init_with_client(self.user_client, self.bot_client)
         
@@ -172,7 +188,7 @@ class Bootstrap:
         await container.start_all()
         logger.info("所有业务服务已启动")
 
-    def _start_auxiliary_services(self):
+    def _start_auxiliary_services(self) -> None:
         # 启动 Cron
         cron_service.start()
         
@@ -197,17 +213,48 @@ class Bootstrap:
                 logger.warning("Web Admin 模块未找到，Web 服务未启动")
             except Exception as e:
                 logger.error(f"Web 服务启动失败: {e}")
+
+        # 启动资源监控
+        this_bootstrap = self  # Capture self for the closure if needed, though method binding handles it
+        exception_handler.create_task(
+            self._resource_monitor_loop(),
+            name="resource_monitor"
+        )
         
-    def _register_shutdown_hooks(self):
+        # 启动智能休眠监控
+        exception_handler.create_task(
+            sleep_manager.start_monitor(),
+            name="sleep_manager_monitor"
+        )
+        
+        # [Integration] 绑定休眠策略与墓碑机制
+        # 当进入休眠时 -> 冻结状态释放内存
+        sleep_manager.register_on_sleep(lambda: exception_handler.create_task(tombstone.freeze(), name="auto_freeze"))
+        # 当唤醒时 -> 复苏状态
+        sleep_manager.register_on_wake(lambda: exception_handler.create_task(tombstone.resurrect(), name="auto_resurrect"))
+
+    async def _resource_monitor_loop(self) -> None:
+        """周期性资源监控"""
+        logger.info("资源监控器已启动 (Limit: 2GB)")
+        while not self.coordinator.is_shutting_down:
+            try:
+                if not ResourceGate.check_memory_safe():
+                    logger.critical("⚠️ Memory limit exceeded! System stability at risk.")
+                    # Future: trigger self.coordinator.shutdown() if strict mode enabled
+                await asyncio.sleep(60)
+            except Exception as e:
+                logger.error(f"Resource monitor error: {e}")
+                await asyncio.sleep(60)
+    def _register_shutdown_hooks(self) -> None:
         # Priority 0: Stop accepting requests
-        async def _stop_accepting_requests():
+        async def _stop_accepting_requests() -> None:
             set_ready(False)
             logger.info("系统已标记为非就绪状态")
         
         self.coordinator.register_cleanup(_stop_accepting_requests, priority=0, timeout=2.0)
         
         # Priority 1: Cron & Guards Stop
-        async def _stop_auxiliary():
+        async def _stop_auxiliary() -> None:
             await cron_service.stop()
             guard_service.stop_guards()
             await asyncio.sleep(0.1)
@@ -218,7 +265,7 @@ class Bootstrap:
         self.coordinator.register_cleanup(container.shutdown, priority=2, timeout=10.0, name="container_shutdown")
         
         # Priority 3: Disconnect Clients
-        async def _disconnect_clients():
+        async def _disconnect_clients() -> None:
             if self.user_client and self.user_client.is_connected():
                 await self.user_client.disconnect()
             if self.bot_client and self.bot_client.is_connected():
@@ -226,7 +273,7 @@ class Bootstrap:
         
         self.coordinator.register_cleanup(_disconnect_clients, priority=3, timeout=5.0, name="telegram_clients")
 
-    async def _post_startup(self):
+    async def _post_startup(self) -> None:
         # TODO: Implement unified bot command registration if needed
         pass
              

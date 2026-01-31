@@ -143,15 +143,16 @@ class MessageQueueService:
                 await asyncio.sleep(1) # Prevent busy loop on crash
 
 
+from core.config import settings
+
 class TelegramQueueService:
     """Telegram API 限流与并发管理服务"""
     
     def __init__(self):
-        import os
-        self._global_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_GLOBAL", "50"))
+        self._global_limit = settings.FORWARD_MAX_CONCURRENCY_GLOBAL
         self._global_sem = asyncio.Semaphore(self._global_limit)
-        self._target_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_PER_TARGET", "2"))
-        self._pair_limit = int(os.getenv("FORWARD_MAX_CONCURRENCY_PER_PAIR", "1"))
+        self._target_limit = settings.FORWARD_MAX_CONCURRENCY_PER_TARGET
+        self._pair_limit = settings.FORWARD_MAX_CONCURRENCY_PER_PAIR
         self._target_semaphores = {}
         self._pair_semaphores = {}
         self._flood_wait_until = _flood_wait_until
@@ -229,9 +230,7 @@ async def send_message_queued(client, target_chat_id, message, **kwargs):
 async def send_file_queued(client, target_chat_id, file, **kwargs):
     return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendFile", lambda: client.send_file(target_chat_id, file, **kwargs))
 async def forward_messages_queued(client, source_chat_id, target_chat_id, messages, **kwargs):
-    import os
-    eb = os.getenv("FORWARD_ENABLE_BATCH_API", "false")
-    use_batch = eb.lower() == "true"
+    use_batch = settings.ENABLE_BATCH_FORWARD_API
     
     # 获取消息 ID 列表供批量使用
     if isinstance(messages, int):

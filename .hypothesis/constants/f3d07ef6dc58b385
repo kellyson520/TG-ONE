@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\network\circuit_breaker.py
+# hypothesis_version: 6.151.4
+
+[0.0, 30.0, 'CLOSED', 'HALF_OPEN', 'OPEN', 'default']

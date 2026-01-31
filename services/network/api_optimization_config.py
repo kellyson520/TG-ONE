@@ -4,64 +4,40 @@ API优化配置管理
 """
 
 import logging
-import os
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class APIOptimizationConfig:
-    """API优化配置管理器"""
+    """API优化配置管理器 (已重构为 Settings 的代理)"""
 
     def __init__(self):
         self._load_config()
 
     def _load_config(self):
         """加载配置"""
-        # 关键词搜索优化
-        self.ENABLE_KEYWORD_SEARCH_API = os.getenv(
-            "ENABLE_KEYWORD_SEARCH_API", "true"
-        ).lower() in {"true", "1", "yes"}
+        # 从全局 settings 同步状态
+        self.ENABLE_KEYWORD_SEARCH_API = settings.ENABLE_KEYWORD_SEARCH_API
+        self.ENABLE_MEDIA_INFO_OPTIMIZATION = settings.ENABLE_MEDIA_INFO_OPTIMIZATION
+        self.ENABLE_BATCH_FORWARD_API = settings.ENABLE_BATCH_FORWARD_API
+        
+        self.MAX_BATCH_SIZE = settings.FORWARD_MAX_BATCH_SIZE
+        self.MIN_BATCH_SIZE = settings.FORWARD_MIN_BATCH_SIZE
+        
+        self.MEDIA_SAMPLE_SIZE = settings.MEDIA_SAMPLE_SIZE
+        self.ENABLE_MEDIA_CACHE = settings.ENABLE_MEDIA_CACHE
+        
+        self.SEARCH_CACHE_TTL = settings.SEARCH_CACHE_TTL
+        self.MAX_SEARCH_RESULTS = settings.MAX_SEARCH_RESULTS
+        
+        self.ENABLE_AUTO_FALLBACK = settings.ENABLE_AUTO_FALLBACK
+        self.FALLBACK_TIMEOUT = settings.API_FALLBACK_TIMEOUT
+        self.MAX_API_RETRIES = settings.MAX_API_RETRIES
+        
+        self.ENABLE_PERFORMANCE_MONITORING = settings.ENABLE_PERFORMANCE_MONITORING
 
-        # 媒体处理优化
-        self.ENABLE_MEDIA_INFO_OPTIMIZATION = os.getenv(
-            "ENABLE_MEDIA_INFO_OPTIMIZATION", "true"
-        ).lower() in {"true", "1", "yes"}
-
-        # 批量转发优化
-        self.ENABLE_BATCH_FORWARD_API = os.getenv(
-            "FORWARD_ENABLE_BATCH_API", "true"
-        ).lower() in {"true", "1", "yes"}
-
-        # 批量转发设置
-        self.MAX_BATCH_SIZE = int(os.getenv("FORWARD_MAX_BATCH_SIZE", "50"))
-        self.MIN_BATCH_SIZE = int(os.getenv("FORWARD_MIN_BATCH_SIZE", "2"))
-
-        # 媒体信息优化设置
-        self.MEDIA_SAMPLE_SIZE = int(os.getenv("MEDIA_SAMPLE_SIZE", "1024"))
-        self.ENABLE_MEDIA_CACHE = os.getenv("ENABLE_MEDIA_CACHE", "true").lower() in {
-            "true",
-            "1",
-            "yes",
-        }
-
-        # 搜索优化设置
-        self.SEARCH_CACHE_TTL = int(os.getenv("SEARCH_CACHE_TTL", "300"))  # 5分钟
-        self.MAX_SEARCH_RESULTS = int(os.getenv("MAX_SEARCH_RESULTS", "100"))
-
-        # 回退机制设置
-        self.ENABLE_AUTO_FALLBACK = os.getenv(
-            "ENABLE_AUTO_FALLBACK", "true"
-        ).lower() in {"true", "1", "yes"}
-
-        self.FALLBACK_TIMEOUT = int(os.getenv("API_FALLBACK_TIMEOUT", "10"))  # 10秒
-        self.MAX_API_RETRIES = int(os.getenv("MAX_API_RETRIES", "3"))
-
-        # 性能监控
-        self.ENABLE_PERFORMANCE_MONITORING = os.getenv(
-            "ENABLE_PERFORMANCE_MONITORING", "true"
-        ).lower() in {"true", "1", "yes"}
-
-        logger.info("API优化配置已加载")
+        logger.info("API优化配置已从全局 Settings 同步")
         self._log_config()
 
     def _log_config(self):

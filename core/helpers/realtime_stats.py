@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable, cast, List
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RealtimeStatsCache:
     """实时统计数据缓存"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, Any] = {}
         self._cache_time: Dict[str, datetime] = {}
         self._cache_ttl = {
@@ -25,9 +25,9 @@ class RealtimeStatsCache:
             "system_stats": 120,  # 系统统计缓存2分钟
             "rule_stats": 300,  # 规则统计缓存5分钟
         }
-        self._update_callbacks = weakref.WeakSet()
+        self._update_callbacks: weakref.WeakSet[Callable[..., Any]] = weakref.WeakSet()
 
-    def register_update_callback(self, callback):
+    def register_update_callback(self, callback: Callable[..., Any]) -> None:
         """注册数据更新回调"""
         self._update_callbacks.add(callback)
 
@@ -57,12 +57,12 @@ class RealtimeStatsCache:
                 if cached_data:
                     import json
 
-                    return json.loads(cached_data)
+                    return cast(Dict[str, Any], json.loads(cached_data))
         except Exception as e:
             logger.debug(f"从持久化缓存获取今日概览数据失败: {e}")
 
         if not force_refresh and self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
+            return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
             mod = __import__('services.forward_service', fromlist=['forward_service'])
@@ -95,11 +95,11 @@ class RealtimeStatsCache:
             except Exception as e:
                 logger.debug(f"保存今日统计数据到持久化缓存失败: {e}")
 
-            return stats
+            return cast(Dict[str, Any], stats)
 
         except Exception as e:
             logger.error(f"获取转发统计失败: {e}")
-            return self._cache.get(
+            return cast(Dict[str, Any], self._cache.get(
                 cache_key,
                 {
                     "today": {
@@ -109,14 +109,14 @@ class RealtimeStatsCache:
                     },
                     "trend": {"percentage": 0, "direction": "unknown"},
                 },
-            )
+            ))
 
     async def get_dedup_stats(self, force_refresh: bool = False) -> Dict[str, Any]:
         """获取去重统计数据"""
         cache_key = "dedup_stats"
 
         if not force_refresh and self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
+            return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
             mod = __import__('services.dedup_service', fromlist=['dedup_service'])
@@ -131,11 +131,11 @@ class RealtimeStatsCache:
             # 通知更新
             await self._notify_update("dedup_stats", stats)
 
-            return stats
+            return cast(Dict[str, Any], stats)
 
         except Exception as e:
             logger.error(f"获取去重统计失败: {e}")
-            return self._cache.get(
+            return cast(Dict[str, Any], self._cache.get(
                 cache_key,
                 {
                     "stats": {
@@ -145,14 +145,14 @@ class RealtimeStatsCache:
                     },
                     "enabled_features": [],
                 },
-            )
+            ))
 
     async def get_system_stats(self, force_refresh: bool = False) -> Dict[str, Any]:
         """获取系统统计数据"""
         cache_key = "system_stats"
 
         if not force_refresh and self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
+            return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
             mod = __import__('services.analytics_service', fromlist=['analytics_service'])
@@ -167,11 +167,11 @@ class RealtimeStatsCache:
             # 通知更新
             await self._notify_update("system_stats", stats)
 
-            return stats
+            return cast(Dict[str, Any], stats)
 
         except Exception as e:
             logger.error(f"获取系统统计失败: {e}")
-            return self._cache.get(
+            return cast(Dict[str, Any], self._cache.get(
                 cache_key,
                 {
                     "system_resources": {
@@ -181,9 +181,9 @@ class RealtimeStatsCache:
                     },
                     "overall_status": "unknown",
                 },
-            )
+            ))
 
-    async def invalidate_cache(self, key: Optional[str] = None):
+    async def invalidate_cache(self, key: Optional[str] = None) -> None:
         """使缓存失效"""
         if key:
             self._cache.pop(key, None)
@@ -194,7 +194,7 @@ class RealtimeStatsCache:
             self._cache_time.clear()
             logger.info("所有缓存已清空")
 
-    async def _notify_update(self, data_type: str, data: Dict[str, Any]):
+    async def _notify_update(self, data_type: str, data: Dict[str, Any]) -> None:
         """通知所有注册的回调数据已更新"""
         for callback in list(self._update_callbacks):
             try:
@@ -225,11 +225,12 @@ async def get_main_menu_stats(force_refresh: bool = False) -> Dict[str, Any]:
     """获取主菜单所需的统计数据（组合接口）"""
     try:
         # 并行获取所有统计数据
-        forward_stats, dedup_stats = await asyncio.gather(
+        results: List[Any] = await asyncio.gather(
             realtime_stats_cache.get_forward_stats(force_refresh),
             realtime_stats_cache.get_dedup_stats(force_refresh),
             return_exceptions=True,
         )
+        forward_stats, dedup_stats = results[0], results[1]
 
         # 处理异常情况
         if isinstance(forward_stats, Exception):

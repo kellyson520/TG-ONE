@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from telethon.network.connection.connection import Connection
 
 logger = logging.getLogger(__name__)
@@ -6,7 +7,7 @@ logger = logging.getLogger(__name__)
 # 保存原始的 _send 方法
 _original_send = Connection._send
 
-def _patched_send(self, data):
+def _patched_send(self: Connection, data: Any) -> Any:
     try:
         # 尝试调用原始发送逻辑
         return _original_send(self, data)
@@ -19,7 +20,7 @@ def _patched_send(self, data):
         # 如果是其他 Runtime 错误，原样抛出
         raise e
 
-def apply_uvloop_patch():
+def apply_uvloop_patch() -> None:
     """应用 uvloop 兼容性补丁"""
-    Connection._send = _patched_send
+    Connection._send = _patched_send  # type: ignore
     logger.info("已应用 uvloop TCPTransport 兼容性补丁")

@@ -11,14 +11,14 @@ class UnifiedSender:
     Abstracts differences between send_message and send_file.
     Now integrated with Rate Limit Protection.
     """
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         self.client = client
 
     async def send(self, 
                   target_id: int, 
                   text: Optional[str] = None, 
                   media: Union[Any, List[Any]] = None, 
-                  **kwargs):
+                  **kwargs: Any) -> None:
         """
         Send content to target_id with Rate Limiting protection.
         
@@ -51,7 +51,7 @@ class UnifiedSender:
         ]
         return {k: v for k, v in kwargs.items() if k in valid_keys and v is not None}
 
-    async def _send_media(self, target_id: int, media: Union[Any, List[Any]], text: Optional[str], kwargs: dict):
+    async def _send_media(self, target_id: int, media: Union[Any, List[Any]], text: Optional[str], kwargs: dict) -> None:
         """Handle media sending with rate limit."""
         # Use text as caption, pass explicitly to queued function
         caption = text
@@ -100,7 +100,7 @@ class UnifiedSender:
                 **kwargs
             )
 
-    async def _send_text(self, target_id: int, text: Optional[str], kwargs: dict):
+    async def _send_text(self, target_id: int, text: Optional[str], kwargs: dict) -> None:
         """Handle text sending with rate limit."""
         if not text:
             # Empty text fallback

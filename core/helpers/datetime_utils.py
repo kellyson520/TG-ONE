@@ -6,7 +6,7 @@
 from datetime import datetime
 
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, Callable, Any
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +126,9 @@ def is_valid_datetime_string(dt_string: str) -> bool:
         return False
 
 
+
 def safe_datetime_operation(
-    dt_value: Union[datetime, str, None], operation: callable
+    dt_value: Union[datetime, str, None], operation: Callable[[datetime], Any]
 ) -> Optional[str]:
     """
     安全地对日期时间执行操作并返回 ISO 格式字符串

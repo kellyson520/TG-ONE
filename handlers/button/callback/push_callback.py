@@ -1,10 +1,7 @@
 import traceback
-
 import asyncio
 import logging
-
-# aiohttp 在某些环境未安装会导致编辑器波浪线，这里仅在使用处做延迟导入
-import os
+from core.config import settings
 from sqlalchemy import select
 from telethon import Button
 from telethon.tl import types
@@ -140,7 +137,7 @@ async def callback_add_push_channel(event, rule_id, session, message, data):
             if not await is_admin(event):
                 await event.answer("只有管理员可以修改设置")
                 return
-            user_id = os.getenv("USER_ID")
+            user_id = settings.USER_ID
         else:
             user_id = event.sender_id
 
@@ -187,7 +184,7 @@ async def callback_cancel_add_push_channel(event, rule_id, session, message, dat
 
         # 清除状态
         if isinstance(event.chat, types.Channel):
-            user_id = os.getenv("USER_ID")
+            user_id = settings.USER_ID
         else:
             user_id = event.sender_id
 

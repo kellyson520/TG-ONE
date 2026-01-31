@@ -308,7 +308,8 @@ def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int 
     # 性能与交互优化
     # 改回 --tb=short 以捕获必要的堆栈信息供分析
     # --maxfail=10: 失败过多自动停止
-    cmd.extend(["-v", "--tb=short", "--maxfail=10"])
+    # 同步 GitHub CI: 增加 -vv 和 --durations=10 以便分析慢速测试
+    cmd.extend(["-vv", "--durations=10", "--tb=short", "--maxfail=10"])
 
     print(f"🔄 正在启动 Pytest: {' '.join(cmd)}")
     start_time = time.time()

@@ -93,20 +93,18 @@ class TelegramPushHandler(logging.Handler):
             pass
 
 
+from core.config import settings
+
 def install_log_push_handlers(root_logger: logging.Logger) -> None:
-    """按 env 安装统一日志推送。"""
-    tg_enable = os.getenv("LOG_PUSH_TG_ENABLE", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    """按 settings 安装统一日志推送。"""
+    tg_enable = settings.LOG_PUSH_TG_ENABLE
     if not tg_enable:
         return
 
-    bot_token = os.getenv("LOG_PUSH_TG_BOT_TOKEN") or os.getenv("BOT_TOKEN")
-    chat_id = os.getenv("LOG_PUSH_TG_CHAT_ID") or os.getenv("USER_ID")
-    level_name = os.getenv("LOG_PUSH_TG_LEVEL", "ERROR").upper()
+    # 优先使用具体的 PUSH 配置，回退到主 BOT/USER 配置
+    bot_token = settings.LOG_PUSH_TG_BOT_TOKEN or settings.BOT_TOKEN
+    chat_id = settings.LOG_PUSH_TG_CHAT_ID or settings.USER_ID
+    level_name = settings.LOG_PUSH_TG_LEVEL.upper()
     level = getattr(logging, level_name, logging.ERROR)
 
     if not bot_token or not chat_id:

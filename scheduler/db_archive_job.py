@@ -27,17 +27,11 @@ def _ensure_archive_system():
 _ensure_archive_system()
 
 
-def _env_int(key: str, default: int) -> int:
-    try:
-        return int(os.getenv(key, str(default)))
-    except Exception as e:
-        logger.debug(f"环境变量 {key} 解析为整数时出错: {e}，使用默认值 {default}")
-        return default
+from core.config import settings
 
-
-HOT_DAYS_SIGN = _env_int('HOT_DAYS_SIGN', 60)
-HOT_DAYS_LOG = _env_int('HOT_DAYS_LOG', 30)
-HOT_DAYS_STATS = _env_int('HOT_DAYS_STATS', 180)
+HOT_DAYS_SIGN = settings.HOT_DAYS_SIGN
+HOT_DAYS_LOG = settings.HOT_DAYS_LOG
+HOT_DAYS_STATS = settings.HOT_DAYS_STATS
 
 
 def _to_rows(objs: List[Any], columns: List[str]) -> List[Dict[str, Any]]:
@@ -64,7 +58,7 @@ def archive_once() -> None:
     with get_dedup_session() as session:
         # 1) media_signatures
         try:
-            batch = _env_int('ARCHIVE_BATCH_SIZE', 100000)
+            batch = settings.ARCHIVE_BATCH_SIZE
             logger.debug(f"查询 MediaSignature 数据，批次大小: {batch}")
             sigs = session.query(MediaSignature).filter(
                 (MediaSignature.last_seen != None) & (MediaSignature.last_seen < cutoff_sign)
@@ -82,7 +76,7 @@ def archive_once() -> None:
                 # 可选并发写：按 chat_id 分片并发
                 try:
                     import concurrent.futures
-                    use_parallel = os.getenv('ARCHIVE_WRITE_PARALLEL', '1').lower() in {'1','true','yes'}
+                    use_parallel = settings.ARCHIVE_WRITE_PARALLEL
                     logger.debug(f"并发写入设置: {use_parallel}")
                 except Exception as e:
                     logger.warning(f"检查并发写入设置时出错: {e}")
@@ -93,7 +87,7 @@ def archive_once() -> None:
                     grouped = defaultdict(list)
                     for r in rows:
                         grouped[str(r.get('chat_id','global'))].append(r)
-                    max_workers = max(2, _env_int('ARCHIVE_WRITE_MAX_WORKERS', 4))
+                    max_workers = settings.ARCHIVE_WRITE_MAX_WORKERS
                     logger.debug(f"使用并发写入，最大工作线程数: {max_workers}")
                     
                     success_rows = []
@@ -168,7 +162,7 @@ def archive_once() -> None:
     with get_session() as session:
         try:
             logger.debug("开始归档 ErrorLog")
-            errs = session.query(ErrorLog).filter(ErrorLog.created_at < cutoff_log).limit(_env_int('ARCHIVE_LOG_BATCH_SIZE', 200000)).all()
+            errs = session.query(ErrorLog).filter(ErrorLog.created_at < cutoff_log).limit(settings.ARCHIVE_LOG_BATCH_SIZE).all()
             logger.info(f"查询到 {len(errs)} 条 ErrorLog 记录待归档")
             
             if errs:
@@ -204,7 +198,7 @@ def archive_once() -> None:
 
         try:
             logger.debug("开始归档 RuleLog")
-            rlogs = session.query(RuleLog).filter(RuleLog.created_at < cutoff_log).limit(_env_int('ARCHIVE_LOG_BATCH_SIZE', 200000)).all()
+            rlogs = session.query(RuleLog).filter(RuleLog.created_at < cutoff_log).limit(settings.ARCHIVE_LOG_BATCH_SIZE).all()
             logger.info(f"查询到 {len(rlogs)} 条 RuleLog 记录待归档")
             
             if rlogs:
@@ -244,7 +238,7 @@ def archive_once() -> None:
                 TaskQueue.status.in_(['completed','failed']),
                 TaskQueue.completed_at != None,
                 TaskQueue.completed_at < cutoff_log
-            ).limit(_env_int('ARCHIVE_TASK_BATCH_SIZE', 100000)).all()
+            ).limit(settings.ARCHIVE_TASK_BATCH_SIZE).all()
             logger.info(f"查询到 {len(tasks)} 条 TaskQueue 记录待归档")
             
             if tasks:
@@ -270,7 +264,7 @@ def archive_once() -> None:
         # 3) 统计
         try:
             logger.debug("开始归档 ChatStatistics")
-            cstats = session.query(ChatStatistics).filter(ChatStatistics.created_at < cutoff_stats).limit(_env_int('ARCHIVE_STATS_BATCH_SIZE', 500000)).all()
+            cstats = session.query(ChatStatistics).filter(ChatStatistics.created_at < cutoff_stats).limit(settings.ARCHIVE_STATS_BATCH_SIZE).all()
             logger.info(f"查询到 {len(cstats)} 条 ChatStatistics 记录待归档")
             
             if cstats:
@@ -294,7 +288,7 @@ def archive_once() -> None:
 
         try:
             logger.debug("开始归档 RuleStatistics")
-            rstats = session.query(RuleStatistics).filter(RuleStatistics.created_at < cutoff_stats).limit(_env_int('ARCHIVE_STATS_BATCH_SIZE', 500000)).all()
+            rstats = session.query(RuleStatistics).filter(RuleStatistics.created_at < cutoff_stats).limit(settings.ARCHIVE_STATS_BATCH_SIZE).all()
             logger.info(f"查询到 {len(rstats)} 条 RuleStatistics 记录待归档")
             
             if rstats:
@@ -349,10 +343,10 @@ def archive_once() -> None:
 
     # 可选压实：通过环境变量启用
     try:
-        if os.getenv('ARCHIVE_COMPACT_ENABLED', '0') in {'1', 'true', 'TRUE'}:
+        if settings.ARCHIVE_COMPACT_ENABLED:
             logger.debug("开始归档压实")
             for table in ('media_signatures', 'error_logs', 'rule_logs', 'task_queue', 'chat_statistics', 'rule_statistics'):
-                res = compact_small_files(table, min_files=int(os.getenv('ARCHIVE_COMPACT_MIN_FILES', '10')))
+                res = compact_small_files(table, min_files=settings.ARCHIVE_COMPACT_MIN_FILES)
                 if res:
                     logger.info(f"归档压实完成: {table} -> {len(res)} 个分区")
                 else:
@@ -366,9 +360,12 @@ def garbage_collect_once() -> None:
     """执行一次垃圾清理：清理临时目录中过期文件。"""
     try:
         logger.debug("开始垃圾清理")
-        keep_days = _env_int('GC_KEEP_DAYS', 3)
+        keep_days = settings.GC_KEEP_DAYS
         cutoff = datetime.utcnow() - timedelta(days=max(0, keep_days))
-        tmp_dirs = [p.strip() for p in (os.getenv('GC_TEMP_DIRS', './temp').split(',')) if p.strip()]
+        tmp_dirs = settings.GC_TEMP_DIRS
+        if isinstance(tmp_dirs, str):
+            tmp_dirs = [p.strip() for p in tmp_dirs.split(',') if p.strip()]
+            
         removed = 0
         for d in tmp_dirs:
             p = Path(d)

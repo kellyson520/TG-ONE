@@ -193,8 +193,9 @@ def force_rebuild_system() -> bool:
                 logger.info("✅ 归档写入测试通过")
                 # 清理测试数据
                 try:
+                    from core.config import settings
                     test_path = os.path.join(
-                        os.getenv("ARCHIVE_ROOT", "./archive/parquet"), "system_test"
+                        str(settings.ARCHIVE_ROOT), "system_test"
                     )
                     if os.path.exists(test_path):
                         logger.debug(f"清理测试数据: {test_path}")

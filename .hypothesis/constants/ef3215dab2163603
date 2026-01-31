@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\db_maintenance_service.py
+# hypothesis_version: 6.151.4
+
+[10.0, 100, 420, 493, 1024, '*.db', '*.session', '*.sqlite', '*.sqlite3', '/grant', '/t', 'a', 'chat_cleanup', 'completed', 'disabled_rules', 'error', 'executable', 'exists', 'fragmentation', 'icacls', 'integrity_check', 'locked', 'marked_inactive', 'message', 'nt', 'path', 'readable', 'rule_cleanup', 'size', 'size_mb', 'sqlite+aiosqlite:///', 'status', 'success', 'tables', 'total_rows', 'total_rules', 'total_scanned', 'writable', '备份失败']

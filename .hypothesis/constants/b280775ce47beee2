@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\rule\logic.py
+# hypothesis_version: 6.151.4
+
+['Chat binding failed', 'Export failed', 'Import failed', 'Import successful', 'New', 'PyYAML not installed', 'Rule copy failed', 'Rule not found', 'added', 'as_source', 'as_target', 'bl', 'c', 'content', 'created_at', 'deleted', 'error', 'forward_mode', 'id', 'is_new', 'is_replace', 'json', 'k', 'keywords', 'message', 'message_mode', 'p', 'replace_rules', 'rule', 'rule_id', 'rx', 'source_chat_id', 'source_name', 'success', 'target_chat_id', 'target_name', 'total_rules', 'updated_at', 'use_bot', 'value', 'yaml']

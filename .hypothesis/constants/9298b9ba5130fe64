@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\media\excel_importer.py
+# hypothesis_version: 6.151.4
+
+['content', 'is_blacklist', 'is_regex', 'keyword', 'keywords', 'pattern', 'replacements', 'rule_id', '缺少 pandas 依赖，请安装后再试']

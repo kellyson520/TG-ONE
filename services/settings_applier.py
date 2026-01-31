@@ -1,54 +1,41 @@
-import os
 import logging
 from typing import Any
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 class SettingsApplier:
+    """
+    负责将后台配置页面的修改应用到运行时配置对象 (settings)。
+    同时处理一些特殊的副作用（如修改日志级别）。
+    """
     def apply(self, key: str, value: Any) -> None:
-        if key == 'HISTORY_MESSAGE_LIMIT':
-            os.environ['HISTORY_MESSAGE_LIMIT'] = str(value)
-            return
+        # 1. 更新全局 settings 对象
+        if hasattr(settings, key):
+            try:
+                # 尝试设置属性，Pydantic BaseSettings (frozen=False) 允许直接设置
+                setattr(settings, key, value)
+            except Exception as e:
+                logger.error(f"无法应用配置项 {key}={value}: {e}")
+
+        # 2. 处理特殊的运行时副作用 (比如 logging 级别这种不是单靠属性就能改变的)
         if key == 'LOG_LEVEL':
             try:
-                lvl = getattr(logging, str(value).upper(), logging.INFO)
+                lvl_str = str(value).upper()
+                lvl = getattr(logging, lvl_str, logging.INFO)
                 logging.getLogger().setLevel(lvl)
+                # 同时更新核心处理器的级别 (如果有的话)
             except Exception as e:
-                logger.warning(f"Failed to set log level to {value}: {e}")
-            return
-        if key == 'LOG_FORMAT':
-            os.environ['LOG_FORMAT'] = str(value)
-            return
-        if key == 'LOG_INCLUDE_TRACEBACK':
-            os.environ['LOG_INCLUDE_TRACEBACK'] = 'true' if bool(value) else 'false'
-            return
-        if key == 'LOG_LANGUAGE':
-            os.environ['LOG_LANGUAGE'] = str(value)
-            return
-        if key == 'LOG_LOCALIZE_MESSAGES':
-            os.environ['LOG_LOCALIZE_MESSAGES'] = 'true' if bool(value) else 'false'
-            return
-        if key == 'LOG_COLOR':
-            os.environ['LOG_COLOR'] = 'true' if bool(value) else 'false'
-            return
-        if key == 'LOG_DATETIME_FORMAT':
-            os.environ['LOG_DATETIME_FORMAT'] = str(value)
-            return
-        if key == 'LOG_LOCALIZE_PREFIXES':
-            os.environ['LOG_LOCALIZE_PREFIXES'] = str(value)
-            return
-        if key == 'TELETHON_LOG_LEVEL':
+                logger.warning(f"无法设置日志级别 {value}: {e}")
+        
+        elif key == 'TELETHON_LOG_LEVEL':
             try:
-                os.environ['TELETHON_LOG_LEVEL'] = str(value).upper()
-            except Exception as e:
-                logger.warning(f"Failed to set telethon log level to {value}: {e}")
-            return
-        if key == 'LOG_PUSH_TG_ENABLE':
-            os.environ['LOG_PUSH_TG_ENABLE'] = 'true' if bool(value) else 'false'
-            return
-        if key == 'LOG_PUSH_TG_LEVEL':
-            os.environ['LOG_PUSH_TG_LEVEL'] = str(value).upper()
-            return
-        os.environ[key] = str(value)
+                # Telethon 可能会在 settings 更新后由它自己的逻辑读取，
+                # 但这里我们也可以记录一下。
+                pass
+            except Exception:
+                pass
+
+        # 提示：不再同步更新 os.environ，强制所有模块使用 core.config.settings 获取配置。
 
 settings_applier = SettingsApplier()

@@ -59,14 +59,14 @@ class SearchFilter:
 
     search_type: SearchType = SearchType.ALL
     sort_by: SortBy = SortBy.TIME_DESC
-    chat_types: List[str] = None  # ['channel', 'group', 'supergroup']
-    media_types: List[str] = None  # ['photo', 'video', 'document']
+    chat_types: Optional[List[str]] = None  # ['channel', 'group', 'supergroup']
+    media_types: Optional[List[str]] = None  # ['photo', 'video', 'document']
     min_size: Optional[int] = None  # 最小文件大小(KB)
     max_size: Optional[int] = None  # 最大文件大小(KB)
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.chat_types is None:
             self.chat_types = []
         if self.media_types is None:
@@ -90,9 +90,9 @@ class SearchResult:
     telegram_id: Optional[int] = None
     username: Optional[str] = None
     link: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.metadata is None:
             self.metadata = {}
 
@@ -115,7 +115,7 @@ class SearchResponse:
 class SearchCache:
     """搜索缓存管理器"""
 
-    def __init__(self, ttl_hours: int = 24):
+    def __init__(self, ttl_hours: int = 24) -> None:
         self._cache: Dict[str, Dict] = {}
         self._ttl_hours = ttl_hours
 
@@ -165,7 +165,7 @@ class SearchCache:
 
     def set(
         self, query: str, filters: SearchFilter, page: int, response: SearchResponse
-    ):
+    ) -> None:
         """设置搜索结果缓存"""
         cache_key = self._get_cache_key(query, filters, page)
 
@@ -185,7 +185,7 @@ class SearchCache:
         except Exception as e:
             logger.warning(f"缓存搜索结果失败: {e}")
 
-    def _serialize_datetime_objects(self, obj):
+    def _serialize_datetime_objects(self, obj: Any) -> None:
         """递归处理字典中的datetime对象"""
         if isinstance(obj, dict):
             for key, value in obj.items():
@@ -200,7 +200,7 @@ class SearchCache:
                 elif isinstance(item, (dict, list)):
                     self._serialize_datetime_objects(item)
 
-    def _deserialize_datetime_objects(self, obj):
+    def _deserialize_datetime_objects(self, obj: Any) -> None:
         """递归处理字典中的datetime字符串，转换回datetime对象"""
         if isinstance(obj, dict):
             for key, value in obj.items():
@@ -232,7 +232,7 @@ class SearchCache:
             and value.count("-") >= 2
         )
 
-    def _cleanup_expired(self):
+    def _cleanup_expired(self) -> None:
         """清理过期缓存"""
         current_time = time.time()
         expired_keys = []
@@ -251,13 +251,13 @@ class SearchCache:
 class EnhancedSearchSystem:
     """增强搜索系统"""
 
-    def __init__(self, user_client=None):
+    def __init__(self, user_client: Any = None) -> None:
         self.user_client = user_client
         self.cache = SearchCache()
         self.per_page = 10
 
     async def search(
-        self, query: str, filters: SearchFilter = None, page: int = 1
+        self, query: str, filters: Optional[SearchFilter] = None, page: int = 1
     ) -> SearchResponse:
         """执行搜索"""
         if filters is None:
@@ -759,7 +759,7 @@ class EnhancedSearchSystem:
 
         return all_results
 
-    def _get_chat_type(self, chat) -> str:
+    def _get_chat_type(self, chat: Any) -> str:
         """获取聊天类型"""
         if hasattr(chat, "broadcast") and chat.broadcast:
             return "channel"
@@ -770,7 +770,7 @@ class EnhancedSearchSystem:
         else:
             return "group"
 
-    def _calculate_activity_score(self, chat) -> float:
+    def _calculate_activity_score(self, chat: Any) -> float:
         """计算活跃度评分"""
         score = 0.0
 
@@ -887,7 +887,7 @@ class EnhancedSearchSystem:
 
         return truncated + "..."
 
-    def _extract_media_info(self, message) -> Optional[Dict[str, Any]]:
+    def _extract_media_info(self, message: Any) -> Optional[Dict[str, Any]]:
         """提取消息中的媒体信息"""
         if not message.media:
             return None
@@ -914,7 +914,6 @@ class EnhancedSearchSystem:
                     else:
                         media_info["type"] = "document"
                         media_info["emoji"] = "📁"
-
                 # 提取文件名
                 for attr in doc.attributes:
                     if hasattr(attr, "file_name") and attr.file_name:
@@ -994,7 +993,7 @@ class EnhancedSearchSystem:
 _search_system = None
 
 
-def get_search_system(user_client=None) -> EnhancedSearchSystem:
+def get_search_system(user_client: Any = None) -> EnhancedSearchSystem:
     """获取全局搜索系统实例"""
     global _search_system
     if _search_system is None:

@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\compression_service.py
+# hypothesis_version: 6.151.4
+
+[0.0, 1.0, 100, 1024, 'compressed_count', 'compression_errors', 'decompressed_count', 'space_saved_bytes', 'space_saved_percent', 'total_original_bytes', 'utf-8']

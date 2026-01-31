@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\time_range.py
+# hypothesis_version: 6.151.4
+
+[2010, 3600, 'day', 'end_day', 'end_hour', 'end_minute', 'end_month', 'end_second', 'end_year', 'month', 'seconds', 'start_day', 'start_hour', 'start_minute', 'start_month', 'start_second', 'start_year', 'year', '∞', '不限', '全部时间 (将获取全部消息)']

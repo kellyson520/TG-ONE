@@ -48,7 +48,7 @@ class RuleQueryService:
         """获取当前聊天的当前选中规则"""
         from core.container import container
         
-        async def _logic(sess):
+        async def _logic(_sess):
             try:
                 current_chat = await event.get_chat()
                 current_chat_db = await container.rule_repo.find_chat(current_chat.id)

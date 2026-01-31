@@ -14,16 +14,18 @@ from models.models import Chat, ForwardRule
 from services.network.api_optimization import get_api_optimizer
 from core.helpers.entity_validator import get_entity_validator
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """数据库权限与备份管理器"""
 
     def __init__(self):
-        self.project_root = Path(__file__).parent.parent
-        self.session_dir = self.project_root / "sessions"
-        self.db_dir = self.project_root / "db"
-        self.backup_dir = self.project_root / "backups"
+        self.project_root = settings.BASE_DIR
+        self.session_dir = settings.SESSION_DIR
+        self.db_dir = settings.DB_DIR
+        self.backup_dir = settings.BACKUP_DIR
 
     def check_directory_permissions(self, directory: Path) -> Dict[str, bool]:
         """检查目录权限"""
@@ -67,7 +69,7 @@ class DatabaseManager:
                 try:
                     import subprocess
                     subprocess.run(
-                        ["icacls", str(directory), "/grant", f'{os.getenv("USERNAME")}:F', "/t"],
+                        ["icacls", str(directory), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
                         capture_output=True, check=False
                     )
                 except Exception:
@@ -89,7 +91,7 @@ class DatabaseManager:
                 try:
                     import subprocess
                     subprocess.run(
-                        ["icacls", str(file_path), "/grant", f'{os.getenv("USERNAME")}:F', "/t"],
+                        ["icacls", str(file_path), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
                         capture_output=True, check=False
                     )
                 except Exception:

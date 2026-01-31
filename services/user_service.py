@@ -8,6 +8,8 @@ from sqlalchemy import select
 from models.models import User
 from schemas.user import UserDTO
 
+from core.aop import audit_log
+
 logger = logging.getLogger(__name__)
 
 class UserService:
@@ -85,6 +87,16 @@ class UserService:
             result = await session.execute(stmt)
             users = result.scalars().all()
             return [UserDTO.model_validate(u) for u in users]
+
+    @audit_log(action="UPDATE_USER", resource_type="USER")
+    async def update_user(self, user_id: int, **kwargs) -> Any:
+        """更新用户信息 (Admin Only)"""
+        return await self.container.user_repo.update_user(user_id, **kwargs)
+
+    @audit_log(action="DELETE_USER", resource_type="USER")
+    async def delete_user(self, user_id: int) -> bool:
+        """删除用户 (Admin Only)"""
+        return await self.container.user_repo.delete_user(user_id)
 
     async def process_user_info(self, event: Any, rule_id: int, message_text: str) -> str:
         """处理用户信息过滤与前缀添加"""

@@ -1,8 +1,7 @@
 import logging
-import os
 import re
 import time
-from typing import Tuple, Union
+from typing import Tuple, Union, Any, Dict
 
 from core.helpers.auto_delete import send_message_and_delete
 
@@ -88,13 +87,13 @@ def normalize_error_reason(error: Union[BaseException, str]) -> Tuple[str, str]:
 
 
 async def notify_error_throttled(
-    client,
+    client: Any,
     chat_id: int,
     rule_id: Union[str, int, None],
     error: Union[BaseException, str],
     *,
-    throttle_seconds: int | None = None,
-    delete_after_seconds: int = 15,
+    throttle_seconds: Union[int, float, None] = None,
+    delete_after_seconds: Union[int, float] = 15,
 ) -> bool:
     """
     发送统一、人性化错误提示，并在同一 chat 同一错误 code 内进行节流去重。
@@ -103,7 +102,8 @@ async def notify_error_throttled(
     """
     try:
         if throttle_seconds is None:
-            throttle_seconds = int(os.getenv("ERROR_NOTIFY_THROTTLE_SECONDS", "30"))
+            from core.config import settings
+            throttle_seconds = settings.ERROR_NOTIFY_THROTTLE_SECONDS
 
         code, human = normalize_error_reason(error)
         key = (int(chat_id), str(code))

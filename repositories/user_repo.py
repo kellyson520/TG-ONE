@@ -126,17 +126,17 @@ class UserRepository:
 
     async def get_allow_registration(self) -> bool:
         """获取是否允许注册"""
-        # 这里应该从配置服务获取，暂时返回默认值
         try:
+            from core.config import settings
             mod = __import__('services.config_service', fromlist=['config_service'])
             config_service = mod.config_service
             v = await config_service.get('ALLOW_REGISTRATION')
             if v is None:
-                 import os
-                 v = os.getenv('ALLOW_REGISTRATION', 'false')
+                 return settings.ALLOW_REGISTRATION
             return str(v).lower() in ('1', 'true', 'yes')
         except Exception:
-            return False
+            from core.config import settings
+            return settings.ALLOW_REGISTRATION
 
     async def set_allow_registration(self, allow: bool) -> None:
         """设置是否允许注册"""

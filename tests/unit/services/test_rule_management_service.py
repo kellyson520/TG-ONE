@@ -4,7 +4,12 @@ from services.rule_management_service import rule_management_service
 from models.models import ForwardRule, Chat, Keyword
 from core.container import container
 
-@pytest.mark.asyncio
+@pytest.fixture(autouse=True)
+def mock_audit_service():
+    with patch("core.aop.audit_service") as mock_audit:
+        mock_audit.log_event = AsyncMock()
+        yield mock_audit
+
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("clear_data")
 class TestRuleManagementService:

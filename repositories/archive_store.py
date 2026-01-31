@@ -1,47 +1,21 @@
-import glob
-from datetime import datetime, timedelta
-
 import duckdb
 import logging
 import os
+import glob
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional, Tuple
 
-# 规范为绝对路径，避免相对路径在不同工作目录下丢失写入
-_ARCHIVE_ENV = os.getenv("ARCHIVE_ROOT", "./archive/parquet")
-try:
-    ARCHIVE_ROOT = (
-        _ARCHIVE_ENV
-        if (
-            ":" in _ARCHIVE_ENV
-            or _ARCHIVE_ENV.startswith("/")
-            or _ARCHIVE_ENV.startswith("s3://")
-            or "://" in _ARCHIVE_ENV
-        )
-        else os.path.abspath(_ARCHIVE_ENV)
-    )
-except Exception as e:
-    logger.warning(f"解析 ARCHIVE_ROOT 时出错: {e}，使用默认值")
-    ARCHIVE_ROOT = "./archive/parquet"
+from core.config import settings
 
-# Parquet 写入选项（通过环境变量可控）
-_PARQUET_COMPRESSION = os.getenv("ARCHIVE_PARQUET_COMPRESSION", "ZSTD").upper()
-_PARQUET_ROW_GROUP_SIZE = os.getenv("ARCHIVE_PARQUET_ROW_GROUP_SIZE", "100000")
+# 归档根路径
+ARCHIVE_ROOT = str(settings.ARCHIVE_ROOT)
 
-_VALID_CODECS = {"ZSTD", "GZIP", "SNAPPY", "UNCOMPRESSED"}
-if _PARQUET_COMPRESSION not in _VALID_CODECS:
-    logger.warning(f"无效的 Parquet 压缩格式: {_PARQUET_COMPRESSION}，使用默认值 ZSTD")
-    _PARQUET_COMPRESSION = "ZSTD"
-try:
-    _ROW_GROUP_SIZE_INT = max(1000, int(_PARQUET_ROW_GROUP_SIZE))
-except Exception as e:
-    logger.warning(
-        f"解析 ARCHIVE_PARQUET_ROW_GROUP_SIZE 时出错: {e}，使用默认值 100000"
-    )
-    _ROW_GROUP_SIZE_INT = 100000
-
-_QUERY_DEBUG = os.getenv("ARCHIVE_QUERY_DEBUG", "0") in {"1", "true", "TRUE"}
+# Parquet 写入选项
+_PARQUET_COMPRESSION = settings.ARCHIVE_PARQUET_COMPRESSION.upper()
+_ROW_GROUP_SIZE_INT = settings.ARCHIVE_PARQUET_ROW_GROUP_SIZE
+_QUERY_DEBUG = settings.ARCHIVE_QUERY_DEBUG
 
 
 def _ensure_dir(path: str) -> None:
@@ -81,19 +55,19 @@ def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
     try:
         logger.debug("配置 S3 访问参数")
         # 区域
-        region = os.getenv("AWS_REGION") or os.getenv("S3_REGION")
+        region = settings.AWS_REGION or settings.S3_REGION
         if region:
             logger.debug(f"设置 S3 区域: {region}")
             con.execute(f"SET s3_region='{region}';")
         # endpoint（如 MinIO）
-        endpoint = os.getenv("S3_ENDPOINT")
+        endpoint = settings.S3_ENDPOINT
         if endpoint:
             logger.debug(f"设置 S3 endpoint: {endpoint}")
             con.execute(f"SET s3_endpoint='{endpoint}';")
         # 凭据
-        ak = os.getenv("AWS_ACCESS_KEY_ID")
-        sk = os.getenv("AWS_SECRET_ACCESS_KEY")
-        st = os.getenv("AWS_SESSION_TOKEN")
+        ak = settings.AWS_ACCESS_KEY_ID
+        sk = settings.AWS_SECRET_ACCESS_KEY
+        st = settings.AWS_SESSION_TOKEN
         if ak and sk:
             logger.debug("设置 S3 访问密钥")
             con.execute(f"SET s3_access_key_id='{ak}';")
@@ -102,7 +76,7 @@ def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
             logger.debug("设置 S3 会话令牌")
             con.execute(f"SET s3_session_token='{st}';")
         # 允许 SSL 验证开关（默认开启）
-        verify = os.getenv("S3_SSL_ENABLE", "true").lower() in ("1", "true", "yes")
+        verify = settings.S3_SSL_ENABLE
         logger.debug(f"设置 S3 SSL 验证: {verify}")
         con.execute(f"SET s3_use_ssl={'true' if verify else 'false'};")
     except Exception as e:
@@ -138,13 +112,7 @@ def write_parquet(
     _ensure_dir(out_dir)
 
     # 如数据量过大，分块写入以降低峰值内存占用
-    try:
-        chunk_size_env = int(os.getenv("ARCHIVE_WRITE_CHUNK_SIZE", "200000"))
-        chunk_size = max(10000, chunk_size_env)
-        logger.debug(f"分块写入大小: {chunk_size}")
-    except Exception as e:
-        logger.warning(f"解析 ARCHIVE_WRITE_CHUNK_SIZE 时出错: {e}，使用默认值 200000")
-        chunk_size = 200000
+    chunk_size = settings.ARCHIVE_WRITE_CHUNK_SIZE
 
     if len(rows) > chunk_size:
         logger.debug(f"数据量 {len(rows)} 超过分块大小 {chunk_size}，进行分块写入")
@@ -183,14 +151,14 @@ def write_parquet(
             logger.debug("配置 DuckDB 连接")
             # 提升并行与扩展性：启用多核并行、向量化、内存限制与临时目录
             try:
-                threads = int(os.getenv("DUCKDB_THREADS", "0"))  # 0 = auto
+                threads = settings.DUCKDB_THREADS
                 logger.debug(f"设置 DuckDB 线程数: {threads}")
                 con.execute(f"PRAGMA threads={max(1, threads)}")
             except Exception as e:
                 logger.warning(f"设置 DuckDB 线程数时出错: {e}")
                 logger.debug("设置 DuckDB 线程数详细信息", exc_info=True)
             try:
-                mem_limit = os.getenv("DUCKDB_MEMORY_LIMIT")  # 例如 '4GB'
+                mem_limit = settings.DUCKDB_MEMORY_LIMIT
                 if mem_limit:
                     logger.debug(f"设置 DuckDB 内存限制: {mem_limit}")
                     con.execute(f"PRAGMA memory_limit='{mem_limit}'")
@@ -319,7 +287,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
         try:
             logger.debug("配置 DuckDB 连接")
             try:
-                threads = int(os.getenv("DUCKDB_THREADS", "0"))
+                threads = settings.DUCKDB_THREADS
                 logger.debug(f"设置 DuckDB 线程数: {threads}")
                 con.execute(f"PRAGMA threads={max(1, threads)}")
             except Exception as e:
@@ -468,14 +436,14 @@ def query_parquet_duckdb(
     try:
         logger.debug("配置 DuckDB 连接")
         try:
-            threads = int(os.getenv("DUCKDB_THREADS", "0"))
+            threads = settings.DUCKDB_THREADS
             logger.debug(f"设置 DuckDB 线程数: {threads}")
             con.execute(f"PRAGMA threads={max(1, threads)}")
         except Exception as e:
             logger.warning(f"设置 DuckDB 线程数时出错: {e}")
             logger.debug("设置 DuckDB 线程数详细信息", exc_info=True)
         try:
-            mem_limit = os.getenv("DUCKDB_MEMORY_LIMIT")
+            mem_limit = settings.DUCKDB_MEMORY_LIMIT
             if mem_limit:
                 logger.debug(f"设置 DuckDB 内存限制: {mem_limit}")
                 con.execute(f"PRAGMA memory_limit='{mem_limit}'")

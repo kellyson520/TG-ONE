@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\middlewares\sender.py
+# hypothesis_version: 6.151.4
+
+['FORWARD_FAILED', 'FORWARD_SUCCESS', 'SIMULATED_SEND', 'Sender', 'ai_summary', 'buttons', 'copy', 'ctx_task_id', 'delete_group_id', 'enable_dedup', 'error', 'failed_rules', 'force_pure_forward', 'forward', 'is_ai', 'is_original_sender', 'is_replace', 'is_sim', 'is_summary', 'message_id', 'message_thread_id', 'messages', 'mode', 'modified_text', 'msg_id', 'reply_to', 'reply_to_msg_id', 'rule_id', 'source_chat_id', 'target_chat_id', 'target_id', 'task_id', 'timestamp', 'trace_id', 'used_ai_summary', 'user_client', 'would_send_mode']

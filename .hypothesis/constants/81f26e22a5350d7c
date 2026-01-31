@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\task_service.py
+# hypothesis_version: 6.151.4
+
+['action', 'callback_info', 'chat_id', 'completed', 'completed_at', 'custom', 'custom_task', 'data', 'delete', 'done', 'done_count', 'error', 'failed', 'failed_count', 'failed_ids', 'filtered', 'filtered_count', 'forwarded', 'forwarded_count', 'history_forward', 'id', 'last_id', 'last_message_id', 'max_retries', 'message_delete', 'message_ids', 'pending', 'running', 'source_chat_id', 'started_at', 'status', 'success', 'target_chat_id', 'task', 'task_id', 'task_type', 'tasks', 'total', 'total_count', '未找到任务']

@@ -1,5 +1,5 @@
-import os
 import logging
+from core.config import settings
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse
@@ -159,10 +159,10 @@ async def get_db_pool_status(user = Depends(admin_required)):
         
         # 配置信息
         config = {
-            "DB_POOL_SIZE": os.environ.get('DB_POOL_SIZE', '20'),
-            "DB_MAX_OVERFLOW": os.environ.get('DB_MAX_OVERFLOW', '30'),
-            "DB_POOL_TIMEOUT": os.environ.get('DB_POOL_TIMEOUT', '60'),
-            "DB_POOL_RECYCLE": os.environ.get('DB_POOL_RECYCLE', '3600'),
+            "DB_POOL_SIZE": settings.DB_POOL_SIZE,
+            "DB_MAX_OVERFLOW": settings.DB_MAX_OVERFLOW,
+            "DB_POOL_TIMEOUT": settings.DB_POOL_TIMEOUT,
+            "DB_POOL_RECYCLE": settings.DB_POOL_RECYCLE,
         }
         
         return ResponseSchema(

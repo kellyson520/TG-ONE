@@ -1,11 +1,9 @@
 from typing import Optional, List, Dict
 import google.generativeai as genai
-# 移除对不存在的模块的导入
-# from google.genai import types
 from .base import BaseAIProvider
 from .openai_base_provider import OpenAIBaseProvider
-import os
 import logging
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +25,18 @@ class GeminiProvider(BaseAIProvider):
     async def initialize(self, **kwargs):
         """初始化Gemini客户端"""
         # 检查是否配置了GEMINI_API_BASE，如果有则使用兼容OpenAI的接口
-        api_base = os.getenv('GEMINI_API_BASE', '').strip()
+        api_base = (settings.GEMINI_API_BASE or '').strip()
         
         if api_base:
-            logger.info(f"检测到GEMINI_API_BASE环境变量: {api_base}，使用兼容OpenAI的接口")
+            logger.info(f"检测到GEMINI_API_BASE配置: {api_base}，使用兼容OpenAI的接口")
             self.provider = GeminiOpenAIProvider()
             await self.provider.initialize(**kwargs)
             return
             
         # 原来的Gemini API初始化代码
-        api_key = os.getenv('GEMINI_API_KEY')
+        api_key = settings.GEMINI_API_KEY
         if not api_key:
-            raise ValueError("未设置GEMINI_API_KEY环境变量")
+            raise ValueError("未设置 GEMINI_API_KEY")
 
         # 使用传入的model参数，如果没有才使用默认值
         if not self.model_name:  # 如果model_name还没设置

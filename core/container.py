@@ -1,3 +1,28 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, List, Optional, Any, Dict
+if TYPE_CHECKING:
+    from repositories.task_repo import TaskRepository
+    from repositories.rule_repo import RuleRepository
+    from repositories.stats_repo import StatsRepository
+    from repositories.user_repo import UserRepository
+    from repositories.dedup_repo import DedupRepository
+    from repositories.audit_repo import AuditRepository
+    from services.db_buffer import GroupCommitCoordinator
+    from services.queue_service import MessageQueueService
+    from services.dedup_service import dedup_service, DeduplicationService
+    from services.state_service import StateService
+    from services.media_service import MediaService
+    from services.forward_service import ForwardService
+    from services.remote_config_sync_service import RemoteConfigSyncService
+    from services.chat_info_service import ChatInfoService
+    from services.rule.facade import RuleManagementService
+    from services.rule.query import RuleQueryService
+    from services.rule.filter import RuleFilterService
+    from services.metrics_collector import MetricsCollector
+    from services.rate_limiter import RateLimiterPool
+    from aiohttp import ClientSession
+    from telethon import TelegramClient
+
 from core.event_bus import EventBus
 from core.pipeline import Pipeline
 # Heavy imports moved to cached_properties for Lazy Loading
@@ -20,7 +45,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Container:
-    def __init__(self):
+    def __init__(self) -> None:
         # [Critical Fix] 不再创建新的 Database 实例，而是包装现有的全局引擎
         # 这样 main.py, web admin, worker 都使用同一个连接池
         engine = get_async_engine()
@@ -28,21 +53,23 @@ class Container:
         logger.info(f"Container connected to shared database engine: {engine.url}")
 
         # Initialize global HTTP Session (Infrastructure Pooling)
-        self.http_session = None
+        self.http_session: Optional[ClientSession] = None
         
         # 初始化事件总线
         self.bus = EventBus()
         logger.info("EventBus initialized")
         
         # 服务列表，用于统一管理生命周期
-        self.services = []
+        self.services: List[asyncio.Task[Any]] = []
         
         # 服务实例 placeholders (for explicit typing if needed, otherwise rely on properties)
-        # self.downloader = None 
-        # self.worker = None      
-        # self.scheduler = None   
-        # self.chat_updater = None  
-        # self.rss_puller = None  
+        self.downloader: Optional[Any] = None 
+        self.worker: Optional[Any] = None      
+        self.scheduler: Optional[Any] = None   
+        self.chat_updater: Optional[Any] = None  
+        self.rss_puller: Optional[Any] = None  
+        self.user_client: Optional[TelegramClient] = None
+        self.bot_client: Optional[TelegramClient] = None
         
         # 注册核心事件监听 (延迟到属性访问或 start 时可能更好，但为了保证监听有效性，部分可能需要在 init 或第一次使用时注册)
         # 这里暂时保留核心的内部监听，外部服务的监听移至 dedicated setup 方法或 lazy property
@@ -55,42 +82,42 @@ class Container:
     # --- Repositories (Lazy) ---
 
     @property
-    def task_repo(self):
+    def task_repo(self) -> TaskRepository:
         if not hasattr(self, '_task_repo'):
             from repositories.task_repo import TaskRepository
             self._task_repo = TaskRepository(self.db)
         return self._task_repo
 
     @property
-    def rule_repo(self):
+    def rule_repo(self) -> RuleRepository:
         if not hasattr(self, '_rule_repo'):
             from repositories.rule_repo import RuleRepository
             self._rule_repo = RuleRepository(self.db)
         return self._rule_repo
 
     @property
-    def stats_repo(self):
+    def stats_repo(self) -> StatsRepository:
         if not hasattr(self, '_stats_repo'):
             from repositories.stats_repo import StatsRepository
             self._stats_repo = StatsRepository(self.db)
         return self._stats_repo
 
     @property
-    def user_repo(self):
+    def user_repo(self) -> UserRepository:
         if not hasattr(self, '_user_repo'):
             from repositories.user_repo import UserRepository
             self._user_repo = UserRepository(self.db)
         return self._user_repo
 
     @property
-    def dedup_repo(self):
+    def dedup_repo(self) -> DedupRepository:
         if not hasattr(self, '_dedup_repo'):
             from repositories.dedup_repo import DedupRepository
             self._dedup_repo = DedupRepository(self.db)
         return self._dedup_repo
 
     @property
-    def audit_repo(self):
+    def audit_repo(self) -> AuditRepository:
         if not hasattr(self, '_audit_repo'):
             from repositories.audit_repo import AuditRepository
             self._audit_repo = AuditRepository(self.db)
@@ -99,7 +126,7 @@ class Container:
     # --- Core Services (Lazy) ---
 
     @property
-    def group_commit_coordinator(self):
+    def group_commit_coordinator(self) -> GroupCommitCoordinator:
         if not hasattr(self, '_group_commit_coordinator'):
             from services.db_buffer import GroupCommitCoordinator
             self._group_commit_coordinator = GroupCommitCoordinator(self.db.session)
@@ -107,21 +134,21 @@ class Container:
         return self._group_commit_coordinator
 
     @property
-    def rate_limiter_pool(self):
-        if not hasattr(self, '_rate_limiter_pool'):
-            from services.rate_limiter import RateLimiterPool
-            self._rate_limiter_pool = RateLimiterPool
-        return self._rate_limiter_pool
-
-    @property
-    def metrics_collector(self):
+    def metrics_collector(self) -> Any:
         if not hasattr(self, '_metrics_collector'):
             from services.metrics_collector import metrics_collector
             self._metrics_collector = metrics_collector
         return self._metrics_collector
 
     @property
-    def queue_service(self):
+    def rate_limiter_pool(self) -> Any:
+        if not hasattr(self, '_rate_limiter_pool'):
+            from services.rate_limiter import RateLimiterPool
+            self._rate_limiter_pool = RateLimiterPool
+        return self._rate_limiter_pool
+
+    @property
+    def queue_service(self) -> MessageQueueService:
         if not hasattr(self, '_queue_service'):
             from services.queue_service import MessageQueueService
             self._queue_service = MessageQueueService(max_size=1000)
@@ -130,7 +157,7 @@ class Container:
         return self._queue_service
 
     @property
-    def dedup_service(self):
+    def dedup_service(self) -> DeduplicationService:
         if not hasattr(self, '_dedup_service'):
             from services.dedup_service import dedup_service
             dedup_service.set_db(self.db)
@@ -142,14 +169,14 @@ class Container:
         return self._dedup_service
 
     @property
-    def state_service(self):
+    def state_service(self) -> StateService:
         if not hasattr(self, '_state_service'):
             from services.state_service import state_service
             self._state_service = state_service
         return self._state_service
 
     @property
-    def media_service(self):
+    def media_service(self) -> MediaService:
         # Returns (media_service, media_group_cache) tuple or just service? 
         # Original code set both. Accessor usually just needs service.
         # But for compatibility we might need to expose media_group_cache too.
@@ -160,28 +187,28 @@ class Container:
         return self._media_service
     
     @property
-    def media_group_cache(self):
+    def media_group_cache(self) -> Any:
         if not hasattr(self, '_media_group_cache'):
             # Trigger init
             _ = self.media_service
         return self._media_group_cache
 
     @property
-    def forward_service(self):
+    def forward_service(self) -> ForwardService:
         if not hasattr(self, '_forward_service'):
             from services.forward_service import forward_service
             self._forward_service = forward_service
         return self._forward_service
 
     @property
-    def remote_config_sync_service(self):
+    def remote_config_sync_service(self) -> RemoteConfigSyncService:
         if not hasattr(self, '_remote_config_sync_service'):
             from services.remote_config_sync_service import remote_config_sync_service
             self._remote_config_sync_service = remote_config_sync_service
         return self._remote_config_sync_service
 
     @property
-    def chat_info_service(self):
+    def chat_info_service(self) -> ChatInfoService:
         if not hasattr(self, '_chat_info_service'):
             from services.chat_info_service import chat_info_service
             chat_info_service.set_db(self.db)
@@ -189,37 +216,27 @@ class Container:
         return self._chat_info_service
 
     @property
-    def rule_management_service(self):
+    def rule_management_service(self) -> RuleManagementService:
         if not hasattr(self, '_rule_management_service'):
             from services.rule.facade import RuleManagementService
             self._rule_management_service = RuleManagementService()
         return self._rule_management_service
 
     @property
-    def rule_query_service(self):
+    def rule_query_service(self) -> RuleQueryService:
         if not hasattr(self, '_rule_query_service'):
             from services.rule.query import RuleQueryService
             self._rule_query_service = RuleQueryService()
         return self._rule_query_service
         
     @property
-    def rule_filter_service(self):
+    def rule_filter_service(self) -> RuleFilterService:
         if not hasattr(self, '_rule_filter_service'):
             from services.rule.filter import RuleFilterService
             self._rule_filter_service = RuleFilterService()
         return self._rule_filter_service
-        
-        # 服务列表，用于统一管理生命周期
-        self.services = []
-        
-        # 服务实例
-        self.downloader = None  # 需要 client
-        self.worker = None      # 需要 client
-        self.scheduler = None   # 需要 client
-        self.chat_updater = None  # 需要 client
-        self.rss_puller = None  # 需要 client
 
-    def init_with_client(self, user_client, bot_client):
+    def init_with_client(self, user_client: TelegramClient, bot_client: TelegramClient) -> Any:
         self.user_client = user_client
         self.bot_client = bot_client
         # 初始化服务
@@ -269,7 +286,7 @@ class Container:
 
         return self.worker
 
-    async def start_all(self):
+    async def start_all(self) -> None:
         """统一启动所有服务"""
         if not self.worker or not self.scheduler or not self.chat_updater:
             raise RuntimeError("Clients not initialized. Call init_with_client() first.")
@@ -283,10 +300,14 @@ class Container:
             logger.info("Global HTTP Session initialized")
         
         # 使用 asyncio.create_task 启动并由 Container 持有引用
-        self.services.append(asyncio.create_task(self.worker.start(), name="Worker"))
-        self.services.append(asyncio.create_task(self.scheduler.start(), name="Scheduler"))
-        self.services.append(asyncio.create_task(self.chat_updater.start(), name="ChatUpdater"))
-        self.services.append(asyncio.create_task(self.rss_puller.start(), name="RSSPuller"))
+        if self.worker:
+            self.services.append(asyncio.create_task(self.worker.start(), name="Worker"))
+        if self.scheduler:
+            self.services.append(asyncio.create_task(self.scheduler.start(), name="Scheduler"))
+        if self.chat_updater:
+            self.services.append(asyncio.create_task(self.chat_updater.start(), name="ChatUpdater"))
+        if self.rss_puller:
+            self.services.append(asyncio.create_task(self.rss_puller.start(), name="RSSPuller"))
         
         # 启动 StatsRepository 的缓冲刷新任务 (H.5)
         await self.stats_repo.start()
@@ -300,7 +321,7 @@ class Container:
         # 可以在这里添加健康检查或启动顺序控制
         logger.info(f"✅ {len(self.services)} services started.")
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """统一优雅关闭"""
         logger.info("🛑 Stopping all services...")
         
@@ -377,7 +398,7 @@ class Container:
         # await self.db.close() 
         logger.info("✅ System shutdown complete")
     
-    async def _on_stats_update(self, data):
+    async def _on_stats_update(self, data: Dict[str, Any]) -> None:
         """处理转发成功事件，并发写入日志和统计表"""
         try:
             await asyncio.gather(
@@ -389,7 +410,7 @@ class Container:
         except Exception as e:
             logger.error(f"Failed to update stats: {str(e)}")
 
-    async def _on_forward_failed(self, data):
+    async def _on_forward_failed(self, data: Dict[str, Any]) -> None:
         """处理转发失败事件"""
         try:
             rule_id = data.get('rule_id')
@@ -404,7 +425,7 @@ class Container:
         except Exception as e:
             logger.error(f"Failed to log error: {str(e)}")
 
-    async def _process_ingestion_queue(self, items):
+    async def _process_ingestion_queue(self, items: List[Any]) -> None:
         """
         处理 ingestion 队列项 (Batch)
         items: List[(task_type, payload, priority)]
@@ -430,7 +451,7 @@ def get_container() -> Container:
 
 # 暂时保留全局变量以保持向后兼容，但通过 get_container() 代理 (不推荐直接使用)
 class ContainerProxy:
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(get_container(), name)
     
 container = ContainerProxy()

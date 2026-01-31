@@ -11,7 +11,7 @@ from services.bloom_filter import bloom_filter_service
 
 logger = logging.getLogger(__name__)
 
-class DedupService:
+class DeduplicationService:
     """智能去重业务逻辑服务"""
     
     def __init__(self, db=None):
@@ -366,4 +366,4 @@ class DedupService:
         self.db = db
 
 # 全局服务实例
-dedup_service = DedupService()
+dedup_service = DeduplicationService()

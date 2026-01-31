@@ -44,16 +44,8 @@ def setup_log_files(tmp_path):
     original_log_dir = settings.LOG_DIR
     settings.LOG_DIR = str(tmp_path)
     
-    # 也尝试 Mock env_config_manager 防止它被重新加载
-    from core.helpers.env_config import env_config_manager
-    
-    def get_config_side_effect(key, default=None):
-        if key == "LOG_DIR":
-            return str(tmp_path)
-        return getattr(settings, key, default)
-        
-    if hasattr(env_config_manager, "get_config"):
-        env_config_manager.get_config.side_effect = get_config_side_effect
+    # settings.LOG_DIR 已经指向 tmp_path，不需要再 Mock env_config_manager
+    pass
     
     # 创建测试日志文件
     log1 = tmp_path / "app.log"

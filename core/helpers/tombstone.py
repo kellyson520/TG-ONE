@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Callable
+from typing import Callable, Any, Dict, List, Optional
 
 # 尝试引入高性能序列化
 try:
@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 
 
 class TombstoneManager:
-    def __init__(self):
-        self._managed_objects = []
+    def __init__(self) -> None:
+        self._managed_objects: List[Dict[str, Any]] = []
         self._is_frozen = False
         self._tombstone_path = "./temp/tombstone_state.bin"
         # ✅ 新增：并发锁，防止同时冻结和复苏
         self._lock = asyncio.Lock()
         # ✅ 新增：冷却时间，防止频繁冻结（例如冻结后至少保持 5 分钟不再次冻结）
-        self._last_freeze_time = 0
+        self._last_freeze_time: float = 0.0
         self._freeze_cooldown = 300
 
         # 创建temp目录
@@ -42,14 +42,14 @@ class TombstoneManager:
                 pass
 
     def register(
-        self, name: str, get_state_func: Callable, restore_state_func: Callable
-    ):
+        self, name: str, get_state_func: Callable[[], Any], restore_state_func: Callable[[Any], None]
+    ) -> None:
         """注册需要被管理的组件"""
         self._managed_objects.append(
             {"name": name, "get": get_state_func, "restore": restore_state_func}
         )
 
-    def force_release_memory(self):
+    def force_release_memory(self) -> None:
         """强制归还系统内存 (核心黑科技)"""
         # 1. Python 层垃圾回收
         gc.collect()
@@ -62,7 +62,7 @@ class TombstoneManager:
             except Exception:
                 pass
 
-    def _write_to_disk(self, state_dump):
+    def _write_to_disk(self, state_dump: Dict[str, Any]) -> None:
         """同步的磁盘写入逻辑，供线程池调用"""
         dirname = os.path.dirname(self._tombstone_path)
         os.makedirs(dirname, exist_ok=True)
@@ -78,7 +78,7 @@ class TombstoneManager:
             os.unlink(temp_path)
             raise
 
-    async def freeze(self):
+    async def freeze(self) -> None:
         """安全冻结"""
         # ✅ 检查冷却时间
         if time.time() - self._last_freeze_time < self._freeze_cooldown:
@@ -126,7 +126,7 @@ class TombstoneManager:
                 # 发生错误时，确保不标记为 frozen，避免逻辑死锁
                 self._is_frozen = False
 
-    async def resurrect(self):
+    async def resurrect(self) -> None:
         """安全复苏"""
         # ✅ 加锁
         async with self._lock:

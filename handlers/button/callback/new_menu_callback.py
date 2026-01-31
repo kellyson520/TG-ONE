@@ -1346,10 +1346,12 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             try:
                 limit = int(extra_data[0]) if extra_data else 0
 
-                # 使用配置管理器更新配置
-                from core.helpers.env_config import env_config_manager
-
-                success = env_config_manager.set_history_message_limit(limit)
+                # 使用配置对象更新
+                from core.config import settings
+                from services.settings_applier import settings_applier
+                
+                settings_applier.apply("HISTORY_MESSAGE_LIMIT", limit)
+                success = True # settings_applier 内部不返回布尔，但只要没崩溃通常就是成功了
 
                 if success:
                     limit_text = f"{limit:,}" if limit > 0 else "无限制"

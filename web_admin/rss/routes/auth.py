@@ -19,25 +19,24 @@ templates = Jinja2Templates(directory="rss/app/templates")
 db_ops = None
 
 
+from core.config import settings
+
 # JWT 配置
-# 优先使用环境变量中的固定秘钥；否则从文件读取；再否则生成并持久化
+# 优先使用 Settings 中的配置（已包含环境变量和文件读取逻辑）
 def _load_or_create_secret_key() -> str:
-    env_key = os.getenv("RSS_SECRET_KEY", "").strip()
-    if env_key:
-        return env_key
+    if settings.RSS_SECRET_KEY:
+        return settings.RSS_SECRET_KEY
+    
+    # 彻底兜底：如果 Settings 也由于某种原因没拿到，则尝试生成
     try:
         key_path = Path("rss") / "secret.key"
-        if key_path.exists():
-            content = key_path.read_text(encoding="utf-8").strip()
-            if content:
-                return content
         # 生成并持久化
         generated = secrets.token_hex(32)
         key_path.parent.mkdir(parents=True, exist_ok=True)
         key_path.write_text(generated, encoding="utf-8")
         return generated
     except Exception:
-        # 兜底：内存秘钥（重启后会失效）
+        # 内存秘钥（重启后会失效）
         return secrets.token_hex(32)
 
 

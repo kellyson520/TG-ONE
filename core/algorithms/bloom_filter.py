@@ -23,7 +23,7 @@ class BloomFilter:
         capacity: int = 1000000, 
         error_rate: float = 0.001, 
         filepath: Optional[str] = None
-    ):
+    ) -> None:
         """
         Args:
             capacity: 预估处理的元素数量
@@ -61,7 +61,7 @@ class BloomFilter:
             hashes.append(pos)
         return hashes
 
-    def add(self, item: Any):
+    def add(self, item: Any) -> None:
         """添加元素"""
         for pos in self._get_hashes(item):
             byte_index = pos // 8
@@ -78,7 +78,7 @@ class BloomFilter:
                 return False
         return True
 
-    def save(self):
+    def save(self) -> None:
         """持久化到磁盘"""
         if not self.filepath:
             return
@@ -97,7 +97,7 @@ class BloomFilter:
         except Exception as e:
             logger.error(f"Failed to save Bloom Filter: {e}")
 
-    def load(self):
+    def load(self) -> None:
         """从磁盘加载"""
         if not self.filepath or not os.path.exists(self.filepath):
             return
@@ -115,16 +115,16 @@ class BloomFilter:
 
 class BloomFilterManager:
     """管理多个布隆过滤器单例"""
-    _filters: dict = {}
+    _filters: dict[str, BloomFilter] = {}
 
     @classmethod
-    def get_filter(cls, name: str, **kwargs) -> BloomFilter:
+    def get_filter(cls, name: str, **kwargs: Any) -> BloomFilter:
         if name not in cls._filters:
             cls._filters[name] = BloomFilter(**kwargs)
         return cls._filters[name]
 
     @classmethod
-    def clear(cls):
+    def clear(cls) -> None:
         """清理所有过滤器 (Test only)"""
         cls._filters.clear()
 

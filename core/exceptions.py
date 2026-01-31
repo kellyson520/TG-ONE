@@ -1,6 +1,6 @@
 class TFError(Exception):
     """系统基础异常类"""
-    def __init__(self, message: str, context: dict = None):
+    def __init__(self, message: str, context: dict | None = None) -> None:
         super().__init__(message)
         self.context = context or {}
 

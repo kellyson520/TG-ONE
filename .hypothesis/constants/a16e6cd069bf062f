@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\middlewares\ip_guard_middleware.py
+# hypothesis_version: 6.151.4
+
+[403, '/api/webhook', '/docs', '/favicon.ico', '/openapi.json', 'IP_BLOCKED', 'IP_GUARD', 'blocked', 'detail', 'method', 'path', 'unknown', 'user-agent']

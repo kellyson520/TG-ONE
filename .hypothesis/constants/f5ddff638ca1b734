@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\media\__init__.py
+# hypothesis_version: 6.151.4
+
+['get_max_media_size', 'get_media_size']

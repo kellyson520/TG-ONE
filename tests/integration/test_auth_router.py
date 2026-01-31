@@ -70,9 +70,11 @@ class TestAuthRouter:
         db.add(user)
         await db.commit()
         
-        login_resp = await client.post("/api/auth/login", json={"username": "refuser", "password": "pass"})
+        csrf = await self.get_csrf(client)
+        login_resp = await client.post("/api/auth/login", json={"username": "refuser", "password": "pass"}, headers={"X-CSRF-Token": csrf or ""})
         refresh_token = login_resp.json()["refresh_token"]
-        current_csrf = login_resp.cookies.get("csrf_token")
+        # Use client.cookies to get the persisted CSRF token, as response might not set it again if unchanged
+        current_csrf = client.cookies.get("csrf_token")
         
         await asyncio.sleep(1.1)
         

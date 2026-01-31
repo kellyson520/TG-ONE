@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Any
 
 # 优雅降级：未安装 prometheus_client 时提供空实现，避免启动报错
 PROMETHEUS_ENABLED = True
@@ -20,30 +20,30 @@ except Exception:  # pragma: no cover
     PROMETHEUS_ENABLED = False
 
     class _NoopMetric:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args: Any, **kwargs: Any) -> Any:
             return self
 
     class _NoopCounter(_NoopMetric):
-        def inc(self, *args, **kwargs):
+        def inc(self, *args: Any, **kwargs: Any) -> None:
             pass
 
     class _NoopGauge(_NoopMetric):
-        def set(self, *args, **kwargs):
+        def set(self, *args: Any, **kwargs: Any) -> None:
             pass
 
     class _NoopHistogram(_NoopMetric):
-        def observe(self, *args, **kwargs):
+        def observe(self, *args: Any, **kwargs: Any) -> None:
             pass
 
     # 轻量占位实现
     class CollectorRegistry:  # type: ignore
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    def generate_latest(*args, **kwargs):  # type: ignore
+    def generate_latest(*args: Any, **kwargs: Any) -> bytes:  # type: ignore
         return b""
 
     CONTENT_TYPE_LATEST = "text/plain; charset=utf-8"  # type: ignore
@@ -191,6 +191,11 @@ def set_ready(is_ready: bool) -> None:
 
 def set_health(is_healthy: bool) -> None:
     SERVICE_HEALTH.set(1 if is_healthy else 0)
+
+def update_heartbeat(status: str, source: str) -> None:
+    """Update heartbeat metric (stub implementation for now)"""
+    # In future this could update a Gauge with timestamp
+    pass
 
 
 def generate_metrics() -> Tuple[bytes, str]:

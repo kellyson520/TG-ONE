@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\button\callback\modules\rule_nav.py
+# hypothesis_version: 6.151.4
+
+[':', 'html', 'keyword', 'noop', 'replace', '➡️', '⬅️', '⬅️ 上一页', '下一页 ➡️', '处理翻页时出错，请检查日志', '已经是当前选中的规则', '已经选中该聊天', '当前聊天不存在', '没有任何规则', '规则不存在', '请先选择一个源聊天', '请选择要管理的转发规则:']

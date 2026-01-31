@@ -4,8 +4,10 @@
 """
 import asyncio
 import logging
-from typing import Callable, Any, Optional, Tuple
+from typing import Callable, Any, Optional, Tuple, Dict, TypeVar, cast
 from functools import wraps
+
+T = TypeVar("T", bound=Callable[..., Any])
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ NON_RETRYABLE_ERRORS = {
 class ErrorHandler:
     """错误处理器 - 提供智能重试和错误分类"""
 
-    def __init__(self, max_retries: int = 3, base_delay: float = 1.0):
+    def __init__(self, max_retries: int = 3, base_delay: float = 1.0) -> None:
         """
         初始化错误处理器
 
@@ -45,7 +47,7 @@ class ErrorHandler:
         # 统计信息
         self.total_retries = 0
         self.total_failures = 0
-        self.error_counts = {}
+        self.error_counts: Dict[str, int] = {}
 
     def is_retryable(self, error: Exception) -> bool:
         """
@@ -72,10 +74,10 @@ class ErrorHandler:
 
     async def retry_with_backoff(
         self,
-        func: Callable,
-        *args,
-        context: Optional[dict] = None,
-        **kwargs,
+        func: Callable[..., Any],
+        *args: Any,
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Tuple[bool, Any]:
         """
         使用指数退避重试函数
@@ -158,14 +160,14 @@ class ErrorHandler:
             if hasattr(error, "seconds"):
                 return float(error.seconds)
 
-        return base_wait
+        return float(base_wait)
 
     def log_error(
         self,
         error: Exception,
-        context: Optional[dict] = None,
+        context: Optional[Dict[str, Any]] = None,
         level: str = "error",
-    ):
+    ) -> None:
         """
         记录详细错误日志
 
@@ -189,7 +191,7 @@ class ErrorHandler:
         log_func = getattr(logger, level, logger.error)
         log_func(f"错误详情: {error_name} - {error_msg}", extra=log_data)
 
-    def get_statistics(self) -> dict:
+    def get_statistics(self) -> Dict[str, Any]:
         """获取错误统计信息"""
         return {
             "total_retries": self.total_retries,
@@ -202,7 +204,7 @@ class ErrorHandler:
             ),
         }
 
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         """重置统计信息"""
         self.total_retries = 0
         self.total_failures = 0
@@ -210,7 +212,7 @@ class ErrorHandler:
 
 
 # 装饰器版本
-def retry_on_error(max_retries: int = 3, base_delay: float = 1.0):
+def retry_on_error(max_retries: int = 3, base_delay: float = 1.0) -> Callable[[T], T]:
     """
     重试装饰器
 
@@ -224,15 +226,15 @@ def retry_on_error(max_retries: int = 3, base_delay: float = 1.0):
             return await client.get_messages(chat_id, ids=message_id)
     """
 
-    def decorator(func: Callable):
+    def decorator(func: T) -> T:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             handler = ErrorHandler(max_retries, base_delay)
             success, result = await handler.retry_with_backoff(func, *args, **kwargs)
             if not success:
                 raise result  # 重新抛出最后的错误
             return result
 
-        return wrapper
+        return cast(T, wrapper)
 
     return decorator

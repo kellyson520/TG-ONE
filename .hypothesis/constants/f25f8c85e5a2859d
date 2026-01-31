@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\schemas\rule.py
+# hypothesis_version: 6.151.4
+
+['**{name}**', '08:00', 'Single', 'main', 'zh-CN', '{time}', '原始连接：{original_link}']

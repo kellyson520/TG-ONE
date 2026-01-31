@@ -7,7 +7,7 @@ import asyncio
 import time
 from telethon.errors import FloodWaitError, RPCError
 from telethon.tl.types import Dialog
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Any, Union
 
 from core.logging import get_logger
 
@@ -17,15 +17,15 @@ logger = get_logger(__name__)
 class DialogHelper:
     """对话获取助手类"""
 
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         self.client = client
 
     async def iter_dialogs_safe(
         self,
-        limit: int = None,
-        offset_date=None,
+        limit: Optional[int] = None,
+        offset_date: Any = None,
         offset_id: int = 0,
-        offset_peer=None,
+        offset_peer: Any = None,
         max_retries: int = 3,
         base_delay: float = 1.0,
         timeout: float = 30.0,
@@ -55,8 +55,8 @@ class DialogHelper:
                     logger.warning(f"对话获取超时 ({timeout}秒)")
                     break
 
-                # 使用异步超时包装
-                async with asyncio.timeout(timeout):
+                # 使用异步超时包装 (Python 3.11+)
+                async with asyncio.timeout(timeout):  # type: ignore[attr-defined]
                     dialog_count = 0
                     async for dialog in self.client.iter_dialogs(
                         limit=limit,
@@ -174,7 +174,7 @@ class DialogHelper:
             return None
 
     async def get_dialogs_list(
-        self, limit: int = None, max_retries: int = 3
+        self, limit: Optional[int] = None, max_retries: int = 3
     ) -> List[Dialog]:
         """
         获取对话列表
@@ -202,20 +202,20 @@ class DialogHelper:
 
 
 # 便利函数
-async def safe_iter_dialogs(client, **kwargs):
+async def safe_iter_dialogs(client: Any, **kwargs: Any) -> AsyncGenerator[Dialog, None]:
     """便利函数：安全的对话迭代"""
     helper = DialogHelper(client)
     async for dialog in helper.iter_dialogs_safe(**kwargs):
         yield dialog
 
 
-async def safe_find_dialog_by_name(client, name: str, **kwargs) -> Optional[Dialog]:
+async def safe_find_dialog_by_name(client: Any, name: str, **kwargs: Any) -> Optional[Dialog]:
     """便利函数：根据名称安全查找对话"""
     helper = DialogHelper(client)
     return await helper.find_dialog_by_name(name, **kwargs)
 
 
-async def safe_get_dialogs_list(client, **kwargs) -> List[Dialog]:
+async def safe_get_dialogs_list(client: Any, **kwargs: Any) -> List[Dialog]:
     """便利函数：安全获取对话列表"""
     helper = DialogHelper(client)
     return await helper.get_dialogs_list(**kwargs)

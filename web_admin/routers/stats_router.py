@@ -3,11 +3,13 @@ import logging
 import traceback
 import psutil
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
+from pathlib import Path
+from web_admin.schemas.response import ResponseSchema
 from sqlalchemy import select
+
 from core.container import container
 from web_admin.security.deps import login_required
-# from core.helpers.env_config import env_config_manager
+
 from services.dedup.engine import smart_deduplicator
 from services.forward_service import forward_service
 from core.helpers.realtime_stats import realtime_stats_cache
@@ -15,14 +17,14 @@ from core.cache.unified_cache import get_cache_stats
 from services.network.bot_heartbeat import get_heartbeat
 from models.models import async_get_db_health
 from core.config import settings
-import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stats", tags=["Stats"])
 
-@router.get("/overview", response_class=JSONResponse)
+@router.get("/overview", response_model=ResponseSchema)
 async def api_stats_overview(request: Request, user = Depends(login_required)):
+
     """获取统计总览"""
     try:
         # 初始化统计数据
@@ -110,7 +112,7 @@ async def api_stats_overview(request: Request, user = Depends(login_required)):
         try:
             bt = settings.BOT_TOKEN
             api_id = settings.API_ID
-            user_id = os.getenv('USER_ID')
+            user_id = settings.USER_ID
             cfg_ready = bool(str(bt or '').strip()) and bool(str(api_id or '').strip()) and bool(str(user_id or '').strip())
             if not cfg_ready:
                 ready_status = 'warning'
@@ -170,13 +172,15 @@ async def api_stats_overview(request: Request, user = Depends(login_required)):
             }
         }
         
-        return JSONResponse({'success': True, 'data': data})
+        return ResponseSchema(success=True, data=data)
     except Exception as e:
         logger.error(f"Error in api_stats_overview: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)})
+        return ResponseSchema(success=False, error=str(e))
 
-@router.get("/system_resources", response_class=JSONResponse)
+
+@router.get("/system_resources", response_model=ResponseSchema)
 async def api_system_resources(request: Request, user = Depends(login_required)):
+
     """获取系统资源使用情况（CPU、内存、磁盘、网络）"""
     try:
         # CPU使用率 - 非阻塞模式，避免冻结事件循环
@@ -201,13 +205,9 @@ async def api_system_resources(request: Request, user = Depends(login_required))
         # 数据库大小
         db_size_mb = 0
         try:
-            import os
-            # Try to get path from settings.DB_URL if it is sqlite
-            db_url = str(settings.DB_URL or '')
-            if db_url.startswith('sqlite:///'):
-                db_path = db_url.replace('sqlite:///', '')
-                if os.path.exists(db_path):
-                    db_size_mb = os.path.getsize(db_path) / (1024 * 1024)
+            db_path = Path(settings.DB_PATH)
+            if db_path.exists():
+                db_size_mb = db_path.stat().st_size / (1024 * 1024)
         except Exception:
             pass
         
@@ -239,18 +239,20 @@ async def api_system_resources(request: Request, user = Depends(login_required))
             'queue_size': queue_size
         }
         
-        return JSONResponse({'success': True, 'data': data})
+        return ResponseSchema(success=True, data=data)
     except Exception as e:
         logger.error(f"Error getting system resources: {e}")
-        return JSONResponse({'success': False, 'error': str(e)})
+        return ResponseSchema(success=False, error=str(e))
 
-@router.get("/series", response_class=JSONResponse)
+
+@router.get("/series", response_model=ResponseSchema)
 async def api_stats_series(
     request: Request,
     period: str = Query('7d'),
     days: int = Query(7, ge=1, le=30),
     user = Depends(login_required)
 ):
+
     """获取统计系列数据"""
     try:
         from datetime import datetime, timedelta
@@ -271,14 +273,15 @@ async def api_stats_series(
                 labels.append(f"{hour_part}:00")
                 series.append(item['count'])
             
-            return JSONResponse({
-                'success': True, 
-                'data': {
+            return ResponseSchema(
+                success=True, 
+                data={
                     'labels': labels, 
                     'series': series,
                     'title': '24小时转发趋势'
                 }
-            })
+            )
+
         
         # 默认返回 7 天内的每日趋势
         # 我们可以从 RuleStatistics 表聚合
@@ -316,24 +319,27 @@ async def api_stats_series(
                     labels.append(d)
                     series.append(0)
             
-            return JSONResponse({
-                'success': True, 
-                'data': {
+            return ResponseSchema(
+                success=True, 
+                data={
                     'labels': labels, 
                     'series': series,
                     'title': f'{days}天转发趋势'
                 }
-            })
+            )
+
             
     except Exception as e:
         logger.error(f"Error in api_stats_series: {e}")
-        return JSONResponse({'success': False, 'error': str(e)})
+        return ResponseSchema(success=False, error=str(e))
 
-@router.get("/distribution", response_class=JSONResponse)
+
+@router.get("/distribution", response_model=ResponseSchema)
 async def api_stats_distribution(
     request: Request,
     user = Depends(login_required)
 ):
+
     """获取消息类型分布统计"""
     try:
         from services.analytics_service import analytics_service
@@ -348,13 +354,15 @@ async def api_stats_distribution(
                 'name': item.get('type', 'Unknown')
             })
             
-        return JSONResponse({'success': True, 'data': formatted_data})
+        return ResponseSchema(success=True, data=formatted_data)
     except Exception as e:
         logger.error(f"Error in api_stats_distribution: {e}")
-        return JSONResponse({'success': False, 'error': str(e)})
+        return ResponseSchema(success=False, error=str(e))
 
-@router.get("/system", response_class=JSONResponse)
+
+@router.get("/system", response_model=ResponseSchema)
 async def api_stats_system(request: Request, user = Depends(login_required)):
+
     """获取系统内部详细状态 (Scheduler, Cache, RSS Service)"""
     try:
         # RSS Service Stats
@@ -380,8 +388,9 @@ async def api_stats_system(request: Request, user = Depends(login_required)):
             "cache_system": cache_stats,
             "timestamp": "now"
         }
-        return JSONResponse({'success': True, 'data': data})
+        return ResponseSchema(success=True, data=data)
         
     except Exception as e:
         logger.error(f"Error in api_stats_system: {e}")
-        return JSONResponse({'success': False, 'error': str(e)})
+        return ResponseSchema(success=False, error=str(e))
+

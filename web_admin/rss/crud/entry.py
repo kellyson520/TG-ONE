@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import List, Dict, Any
 from ..models.entry import Entry
 from core.cache.unified_cache import get_smart_cache
-from ..core.config import settings
+from core.config import settings
+from core.constants import get_rule_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 # 确保数据存储目录存在
 def ensure_storage_exists():
     """确保数据存储目录存在"""
-    entries_dir = Path(settings.DATA_PATH)
+    entries_dir = settings.RSS_DATA_DIR
     entries_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -22,7 +23,7 @@ def ensure_storage_exists():
 def get_rule_entries_path(rule_id: int) -> Path:
     """获取规则对应的条目存储文件路径"""
     # 使用规则特定的数据目录
-    rule_data_path = settings.get_rule_data_path(rule_id)
+    rule_data_path = get_rule_data_dir(rule_id)
     return Path(rule_data_path) / "entries.json"
 
 

@@ -8,7 +8,7 @@ import logging
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, MessageNotModifiedError
 from telethon.tl.custom import Button
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from core.helpers.error_handler import handle_errors, handle_telegram_errors
 
@@ -29,7 +29,7 @@ class MessageHandler:
 
     @handle_telegram_errors(default_return=None, max_retries=3)
     async def safe_send(
-        self, chat_id: Union[int, str], text: str, **kwargs
+        self, chat_id: Union[int, str], text: str, **kwargs: Any
     ) -> Optional[Any]:
         """
         安全发送消息，自动处理错误和重试
@@ -45,7 +45,7 @@ class MessageHandler:
         return await self.client.send_message(chat_id, text, **kwargs)
 
     @handle_telegram_errors(default_return=False, max_retries=2)
-    async def safe_edit(self, message: Any, text: str, **kwargs) -> bool:
+    async def safe_edit(self, message: Any, text: str, **kwargs: Any) -> bool:
         """
         安全编辑消息，自动处理错误
 
@@ -82,7 +82,7 @@ class MessageHandler:
         return True
 
     @handle_errors(default_return=None)
-    async def safe_reply(self, event: Any, text: str, **kwargs) -> Optional[Any]:
+    async def safe_reply(self, event: Any, text: str, **kwargs: Any) -> Optional[Any]:
         """
         安全回复消息
 
@@ -97,7 +97,7 @@ class MessageHandler:
         return await event.reply(text, **kwargs)
 
     @handle_errors(default_return=None)
-    async def safe_respond(self, event: Any, text: str, **kwargs) -> Optional[Any]:
+    async def safe_respond(self, event: Any, text: str, **kwargs: Any) -> Optional[Any]:
         """
         安全响应消息
 
@@ -112,7 +112,7 @@ class MessageHandler:
         return await event.respond(text, **kwargs)
 
     async def send_with_retry(
-        self, chat_id: Union[int, str], text: str, max_retries: int = 3, **kwargs
+        self, chat_id: Union[int, str], text: str, max_retries: int = 3, **kwargs: Any
     ) -> Optional[Any]:
         """
         带重试机制的消息发送
@@ -159,7 +159,7 @@ class MessageHandler:
         chat_id: Union[int, str],
         media_files: List[Any],
         caption: str = "",
-        **kwargs,
+        **kwargs: Any,
     ) -> Optional[List[Any]]:
         """
         发送媒体组
@@ -183,9 +183,9 @@ class MessageHandler:
             ]
 
         # 多个文件使用媒体组发送
-        return await self.client.send_file(
+        return cast(Optional[List[Any]], await self.client.send_file(
             chat_id, media_files, caption=caption, **kwargs
-        )
+        ))
 
     @handle_errors(default_return=None)
     async def forward_message(
@@ -225,7 +225,7 @@ class MessageHandler:
         if not message_ids:
             return []
 
-        return await self.client.forward_messages(to_chat, message_ids, from_chat)
+        return cast(List[Any], await self.client.forward_messages(to_chat, message_ids, from_chat))
 
     async def schedule_delete(self, message: Any, delay_seconds: float) -> None:
         """
@@ -236,7 +236,7 @@ class MessageHandler:
             delay_seconds: 延迟秒数
         """
 
-        async def delete_after_delay():
+        async def delete_after_delay() -> None:
             await asyncio.sleep(delay_seconds)
             await self.safe_delete(message)
 
@@ -249,7 +249,7 @@ class MessageHandler:
         chat_id: Union[int, str],
         text: str,
         message_to_edit: Optional[Any] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Optional[Any]:
         """
         编辑消息或发送新消息
@@ -277,7 +277,7 @@ class MessageHandler:
 
     @handle_errors(default_return=None)
     async def send_button_message(
-        self, chat_id: Union[int, str], text: str, buttons: List[List[Button]], **kwargs
+        self, chat_id: Union[int, str], text: str, buttons: List[List[Button]], **kwargs: Any
     ) -> Optional[Any]:
         """
         发送带按钮的消息
@@ -335,7 +335,7 @@ class BulkMessageHandler:
         self.message_handler = MessageHandler(client)
 
     async def send_bulk_messages(
-        self, chat_id: Union[int, str], messages: List[str], **kwargs
+        self, chat_id: Union[int, str], messages: List[str], **kwargs: Any
     ) -> List[Optional[Any]]:
         """
         批量发送消息
@@ -444,14 +444,14 @@ def get_bulk_message_handler(
 
 # 便捷函数
 async def safe_send_message(
-    client: TelegramClient, chat_id: Union[int, str], text: str, **kwargs
+    client: TelegramClient, chat_id: Union[int, str], text: str, **kwargs: Any
 ) -> Optional[Any]:
     """便捷的安全发送消息函数"""
     handler = get_message_handler(client)
     return await handler.safe_send(chat_id, text, **kwargs)
 
 
-async def safe_edit_message(message: Any, text: str, **kwargs) -> bool:
+async def safe_edit_message(message: Any, text: str, **kwargs: Any) -> bool:
     """便捷的安全编辑消息函数"""
     # 从消息对象获取客户端（如果可能）
     if hasattr(message, "_client"):

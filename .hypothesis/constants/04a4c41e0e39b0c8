@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\commands\stats_commands.py
+# hypothesis_version: 6.151.4
+
+['%Y-%m-%d', '-', ':', 'total_forwards', 'total_size_bytes', 'types', '📱 **按类型统计:**\n', '🔍 未找到匹配的转发记录']

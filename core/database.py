@@ -1,11 +1,12 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional, Any
 import logging
 
 logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, db_url: str = None, engine = None):
+    def __init__(self, db_url: Optional[str] = None, engine: Optional[AsyncEngine] = None) -> None:
         logger.info(f"[Database] 初始化数据库连接，模式={'共享引擎' if engine else '新建引擎'}")
         
         if engine:
@@ -40,7 +41,7 @@ class Database:
         logger.info(f"[Database] 会话工厂已初始化")
 
     @asynccontextmanager
-    async def session(self):
+    async def session(self) -> AsyncIterator[AsyncSession]:
         session = None
         try:
             session = self.session_factory()
@@ -62,7 +63,7 @@ class Database:
                 await session.close()
                 logger.debug(f"[Database] 会话关闭成功: {id(session)}")
 
-    async def close(self):
+    async def close(self) -> None:
         logger.info(f"[Database] 关闭数据库引擎")
         await self.engine.dispose()
         logger.info(f"[Database] 数据库引擎已关闭")

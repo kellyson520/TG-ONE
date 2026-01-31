@@ -1,5 +1,4 @@
 ﻿import logging
-import os
 try:
     import pytz
     PYTZ_AVAILABLE = True
@@ -138,7 +137,8 @@ class InfoFilter(BaseFilter):
                 try:
                     # 创建时区对象
                     if PYTZ_AVAILABLE:
-                        timezone = pytz.timezone(os.getenv('DEFAULT_TIMEZONE', 'Asia/Shanghai'))
+                        from core.config import settings
+                        timezone = pytz.timezone(settings.TIMEZONE)
                         local_time = event.message.date.astimezone(timezone)
                     else:
                         # 如果pytz不可用，使用本地时间

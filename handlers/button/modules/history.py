@@ -1,8 +1,8 @@
 from datetime import datetime
 
 import logging
-import os
 from telethon import Button
+from core.config import settings
 
 from handlers.button.forward_management import forward_manager
 from services.session_service import session_manager
@@ -250,7 +250,7 @@ class HistoryModule(BaseMenu):
     async def show_message_filter_menu(self, event):
         settings = await forward_manager.get_global_media_settings()
         # 获取当前消息数量限制配置
-        message_limit = int(os.getenv("HISTORY_MESSAGE_LIMIT", "0"))
+        message_limit = settings.HISTORY_MESSAGE_LIMIT
         limit_text = f"{message_limit:,}" if message_limit > 0 else "无限制"
 
         buttons = [
@@ -351,7 +351,7 @@ class HistoryModule(BaseMenu):
 
     async def show_message_limit_menu(self, event):
         """显示消息数量限制设置菜单"""
-        current_limit = int(os.getenv("HISTORY_MESSAGE_LIMIT", "0"))
+        current_limit = settings.HISTORY_MESSAGE_LIMIT
 
         # 常用的数量选项
         options = [0, 1000, 2000, 5000, 10000, 20000, 50000, 100000]

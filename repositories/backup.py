@@ -26,7 +26,7 @@ def backup_database(db_path: str = None, backup_dir: str = None) -> str:
             return ""
 
     if backup_dir is None:
-        backup_dir = os.environ.get("BACKUP_DIR", "./backups")
+        backup_dir = settings.BACKUP_DIR
 
     if not os.path.exists(db_path):
         logger.error(f"Database file not found at: {db_path}")
@@ -65,7 +65,7 @@ def backup_database(db_path: str = None, backup_dir: str = None) -> str:
 def rotate_backups(backup_dir: str = None, retention_count: int = 5):
     """Keep only the latest N backups"""
     if backup_dir is None:
-        backup_dir = os.environ.get("BACKUP_DIR", "./backups")
+        backup_dir = str(settings.BACKUP_DIR)
         
     try:
         if not os.path.exists(backup_dir):

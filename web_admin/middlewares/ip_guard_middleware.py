@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class IPGuardMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, exclude_paths: list = None):
         super().__init__(app)
-        self.exclude_paths = exclude_paths or ["/docs", "/openapi.json", "/favicon.ico", "/api/webhook"]
+        self.exclude_paths = exclude_paths or ["/docs", "/openapi.json", "/favicon.ico"]
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path

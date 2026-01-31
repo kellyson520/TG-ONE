@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ContentEnhancer:
     """内容增强器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.watermark_templates = {
             "simple": "📤 转自: {source}",
             "detailed": "📤 转自: {source}\n🕐 {time}\n#转发",
@@ -112,7 +112,7 @@ class ContentEnhancer:
         # 短链接展开、危险链接警告等
         url_pattern = r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+"
 
-        def process_url(match):
+        def process_url(match: Any) -> str:
             url = match.group(0)
             # 这里可以添加链接安全检查、短链接展开等逻辑
             return f"🔗 {url}"

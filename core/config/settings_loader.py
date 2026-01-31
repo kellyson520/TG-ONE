@@ -2,17 +2,21 @@ import json
 import logging
 import os
 import time
+from typing import List, Dict, Union, Any, Optional
+import logging
+import os
+import time
 
 from core.helpers.media.file_creator import AI_MODELS_CONFIG, create_default_configs
 
 logger = logging.getLogger(__name__)
 
 # 带 TTL 的缓存，既能缓存又能感知配置变更（延迟）
-_AI_MODELS_CACHE = {"data": None, "ts": 0}
+_AI_MODELS_CACHE: Dict[str, Any] = {"data": None, "ts": 0}
 _CACHE_TTL = 60  # 60秒刷新一次
 
 
-def load_ai_models(type="list"):
+def load_ai_models(type: str = "list") -> Union[List[str], Dict[str, List[str]]]:
     """
     加载AI模型配置
 
@@ -35,7 +39,7 @@ def load_ai_models(type="list"):
         if _AI_MODELS_CACHE["data"] and (
             time.time() - _AI_MODELS_CACHE["ts"] < _CACHE_TTL
         ):
-            models_config = _AI_MODELS_CACHE["data"]
+            models_config: Dict[str, List[str]] = _AI_MODELS_CACHE["data"]
         else:
             # 2. 缓存失效，执行文件读取
             # 如果配置文件不存在，创建默认配置
@@ -52,7 +56,7 @@ def load_ai_models(type="list"):
 
         # 根据type参数返回不同格式
         if type.lower() in ["dict", "json"]:
-            return models_config
+            return models_config  # type: ignore
 
         # 默认返回模型列表
         all_models = []
@@ -74,7 +78,7 @@ def load_ai_models(type="list"):
     return ["gpt-3.5-turbo", "gemini-1.5-flash", "claude-3-sonnet"]
 
 
-def load_summary_times():
+def load_summary_times() -> List[str]:
     """加载总结时间列表"""
     try:
         times_path = os.path.join(
@@ -92,7 +96,7 @@ def load_summary_times():
     return ["00:00", "06:00", "12:00", "18:00"]
 
 
-def load_delay_times():
+def load_delay_times() -> List[int]:
     """加载延迟时间列表"""
     try:
         times_path = os.path.join(
@@ -102,7 +106,7 @@ def load_delay_times():
             create_default_configs()
 
         with open(times_path, "r", encoding="utf-8") as f:
-            times = [line.strip() for line in f if line.strip()]
+            times = [int(line.strip()) for line in f if line.strip()]
             if times:
                 return times
     except (FileNotFoundError, IOError) as e:
@@ -110,7 +114,7 @@ def load_delay_times():
     return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
-def load_max_media_size():
+def load_max_media_size() -> List[int]:
     """加载媒体大小限制"""
     try:
         size_path = os.path.join(
@@ -120,7 +124,7 @@ def load_max_media_size():
             create_default_configs()
 
         with open(size_path, "r", encoding="utf-8") as f:
-            size = [line.strip() for line in f if line.strip()]
+            size = [int(line.strip()) for line in f if line.strip()]
             if size:
                 return size
 
@@ -129,7 +133,7 @@ def load_max_media_size():
     return [5, 10, 15, 20, 50, 100, 200, 300, 500, 1024, 2048]
 
 
-def load_media_extensions():
+def load_media_extensions() -> List[str]:
     """加载媒体扩展名"""
     try:
         size_path = os.path.join(
@@ -235,7 +239,7 @@ def load_media_extensions():
         "webm",
     ]
 
-def load_settings():
+def load_settings() -> Any:
     """Dummy load_settings for backward compatibility"""
     from core.config import settings
     return settings

@@ -4,7 +4,7 @@
 """
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class BackpressureController:
         self.total_pause_time = 0.0
 
     async def check_and_wait(
-        self, task_repo: Any, processed_count: int, cancel_event: asyncio.Event = None
+        self, task_repo: Any, processed_count: int, cancel_event: Optional[asyncio.Event] = None
     ) -> bool:
         """
         检查队列状态并根据需要暂停
@@ -118,8 +118,8 @@ class BackpressureController:
             return 0.1
 
     async def _interruptible_sleep(
-        self, duration: float, cancel_event: asyncio.Event = None
-    ):
+        self, duration: float, cancel_event: Optional[asyncio.Event] = None
+    ) -> None:
         """
         可中断的睡眠
 
@@ -161,12 +161,12 @@ class BackpressureController:
             },
         }
 
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         """重置统计信息"""
         self.total_pauses = 0
         self.total_pause_time = 0.0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<BackpressureController "
             f"max_pending={self.max_pending} "

@@ -16,11 +16,9 @@ from contextlib import contextmanager
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List, Callable
 
 import structlog
-from dotenv import find_dotenv, load_dotenv
-
 # 导入 settings
 from core.config import settings
 from services.network.log_push import install_log_push_handlers
@@ -59,7 +57,7 @@ class JsonFormatter(logging.Formatter):
     """JSON 格式化器"""
 
     def __init__(
-        self, include_traceback: bool = True, datefmt: str = None
+        self, include_traceback: bool = True, datefmt: Optional[str] = None
     ) -> None:
         super().__init__(datefmt=datefmt)
         self.include_traceback = include_traceback
@@ -133,11 +131,12 @@ class _ContextFilter(logging.Filter):
     """Inject correlation_id if present in record.extra or env."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        cid = trace_id_var.get()
+        cid: Union[str, Any] = trace_id_var.get()
         if cid == "-":
             cid = getattr(record, "correlation_id", None)
             if cid is None:
-                cid = os.getenv("CORRELATION_ID", "-")
+                # Use settings or default
+                cid = "-"
         
         setattr(record, "correlation_id", cid)
         
@@ -177,15 +176,22 @@ class _ConsolidatedFilter(logging.Filter):
     def __init__(self) -> None:
         super().__init__()
         # 基本开关
-        self.key_only = os.getenv("LOG_KEY_ONLY", "true").lower() in {"1", "true", "yes", "on"}
+        self.key_only = settings.LOG_KEY_ONLY
+        
         # 前缀静音
-        self.mute_prefixes = [
-            p.strip() for p in os.getenv("LOG_MUTE_LOGGERS", "").split(",") if p.strip()
-        ]
+        mute_loggers = settings.LOG_MUTE_LOGGERS
+        if isinstance(mute_loggers, str):
+            self.mute_prefixes = [p.strip() for p in mute_loggers.split(",") if p.strip()]
+        else:
+            self.mute_prefixes = mute_loggers
+            
         # 类别静音
-        self.mute_categories = {
-            c.strip() for c in os.getenv("LOG_MUTE_CATEGORIES", "").split(",") if c.strip()
-        }
+        mute_cats = settings.LOG_MUTE_CATEGORIES
+        if isinstance(mute_cats, str):
+            self.mute_categories = {c.strip() for c in mute_cats.split(",") if c.strip()}
+        else:
+            self.mute_categories = set(mute_cats)
+
         self.category_map = {
             "db": ["models.", "repositories_", "utils.query_", "repositories_optimization_suite", "repositories_monitor", "scheduler.db_archive_job"],
             "cache": ["utils.unified_cache", "utils.query_optimizer"],
@@ -198,23 +204,23 @@ class _ConsolidatedFilter(logging.Filter):
         import re as _re
 
         self.drop_patterns = [
-            self._compile(_re, p) for p in os.getenv("LOG_DROP_PATTERNS", "").split(";") if p.strip()
+            self._compile(_re, p) for p in settings.LOG_DROP_PATTERNS.split(";") if p.strip()
         ]
         self.allow_patterns = [
-            self._compile(_re, p) for p in os.getenv("LOG_ALLOW_PATTERNS", "").split(";") if p.strip()
+            self._compile(_re, p) for p in settings.LOG_ALLOW_PATTERNS.split(";") if p.strip()
         ]
         self.global_drop_patterns = [
-            self._compile(_re, p) for p in os.getenv("LOG_GLOBAL_DROP_PATTERNS", "").split(";") if p.strip()
+            self._compile(_re, p) for p in settings.LOG_GLOBAL_DROP_PATTERNS.split(";") if p.strip()
         ]
 
     @staticmethod
-    def _compile(_re, pat: str):
+    def _compile(_re: Any, pat: str) -> Optional[Any]:
         try:
             return _re.compile(pat)
         except Exception:
             return None
 
-    def _match_any(self, patterns, text: str) -> bool:
+    def _match_any(self, patterns: List[Optional[Any]], text: str) -> bool:
         for pat in patterns:
             if not pat:
                 continue
@@ -274,7 +280,7 @@ class _ConsolidatedFilter(logging.Filter):
 
 class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
     """确保 logger name 永远是字符串"""
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         if args and args[0] is None:
             args = ("root",) + args[1:]
         elif not args:
@@ -282,7 +288,7 @@ class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
         return super().__call__(*args, **kwargs)
 
 
-def configure_structlog():
+def configure_structlog() -> None:
     """配置 structlog 以对接标准 logging 系统"""
     structlog.configure(
         processors=[
@@ -293,7 +299,7 @@ def configure_structlog():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.stdlib.LoggerFactory(),
+            structlog.stdlib.LoggerFactory(),  # type: ignore[list-item]
         ],
         context_class=dict,
         logger_factory=SafeLoggerFactory(),
@@ -302,29 +308,19 @@ def configure_structlog():
     )
 
 
-def setup_logging():
+def setup_logging() -> logging.Logger:
     """配置日志系统，包括滚动归档"""
-    # 优先加载 .env
-    try:
-        loaded = load_dotenv(find_dotenv(usecwd=True))
-        if not loaded:
-            alt_path = Path.cwd() / "env"
-            if alt_path.exists():
-                load_dotenv(dotenv_path=str(alt_path), override=True)
-    except Exception as e:
-        print(f"Error loading .env: {e}")
-
     configure_structlog()
 
     root_logger = logging.getLogger()
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = settings.LOG_LEVEL.upper()
     try:
         root_logger.setLevel(getattr(logging, level, logging.INFO))
     except Exception:
         root_logger.setLevel(logging.INFO)
 
-    log_format = os.getenv("LOG_FORMAT", "text").lower()
-    include_tb = os.getenv("LOG_INCLUDE_TRACEBACK", "false").lower() in {"1", "true", "yes", "on"}
+    log_format = settings.LOG_FORMAT.lower()
+    include_tb = settings.LOG_INCLUDE_TRACEBACK
 
     # 移除现有处理器
     for handler in list(root_logger.handlers):
@@ -332,10 +328,11 @@ def setup_logging():
 
     # Console Handler
     console_handler = logging.StreamHandler()
+    formatter: Union[JsonFormatter, ColorTextFormatter]
     if log_format == "json":
         formatter = JsonFormatter(include_traceback=include_tb)
     else:
-        use_color = os.getenv("LOG_COLOR", "true").lower() in {"1", "true", "yes", "on"}
+        use_color = settings.LOG_COLOR
         formatter = ColorTextFormatter(use_color=use_color)
     console_handler.setFormatter(formatter)
     console_handler.addFilter(_ContextFilter())
@@ -346,9 +343,9 @@ def setup_logging():
     log_dir = str(settings.LOG_DIR)
     if log_dir:
         Path(log_dir).mkdir(parents=True, exist_ok=True)
-        # 默认 10MB per file, keep 5 backups
-        max_bytes = int(os.getenv("LOG_MAX_BYTES", "10485760"))
-        backup_count = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+        # 默认使用 settings 中的值
+        max_bytes = settings.LOG_MAX_BYTES
+        backup_count = settings.LOG_BACKUP_COUNT
         
         file_handler = RotatingFileHandler(
             filename=str(Path(log_dir) / "app.log"),
@@ -357,6 +354,7 @@ def setup_logging():
             encoding="utf-8",
         )
         
+        file_formatter: Union[JsonFormatter, ColorTextFormatter]
         if log_format == "json":
             file_formatter = JsonFormatter(include_traceback=include_tb)
         else:
@@ -369,14 +367,14 @@ def setup_logging():
 
     # Telethon 日志级别控制
     try:
-        telethon_level = os.getenv("TELETHON_LOG_LEVEL", "WARNING").upper()
+        telethon_level = settings.TELETHON_LOG_LEVEL.upper()
         logging.getLogger("telethon").setLevel(getattr(logging, telethon_level, logging.WARNING))
     except Exception:
         pass
 
     # Logger Overrides
     try:
-        overrides = os.getenv("LOG_LEVEL_OVERRIDES", "").split(",")
+        overrides = settings.LOG_LEVEL_OVERRIDES.split(",")
         for item in overrides:
             item = item.strip()
             if not item or "=" not in item:
@@ -397,8 +395,8 @@ def setup_logging():
             "Log system initialized (Core)",
             level=eff,
             format=log_format,
-            max_bytes=os.getenv("LOG_MAX_BYTES", "10MB"),
-            backup_count=os.getenv("LOG_BACKUP_COUNT", "5")
+            max_bytes=settings.LOG_MAX_BYTES,
+            backup_count=settings.LOG_BACKUP_COUNT
         )
     except Exception:
         pass
@@ -415,7 +413,7 @@ def setup_logging():
 class StandardLogger:
     """标准化日志记录器 (from logger_utils)"""
 
-    def __init__(self, name: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, context: Optional[Dict[str, Any]] = None) -> None:
         if not isinstance(name, str):
             name = str(name) if name is not None else "unknown"
         self.name = name
@@ -423,7 +421,7 @@ class StandardLogger:
         self.module_name = name.split(".")[-1] if "." in name else name
         self.context = context or {}
 
-    def _log(self, level: str, message: str, *args, **kwargs) -> None:
+    def _log(self, level: str, message: str, *args: Any, **kwargs: Any) -> None:
         standard_params = {"exc_info", "stack_info", "stacklevel", "extra"}
         log_kwargs = {k: v for k, v in kwargs.items() if k in standard_params}
         
@@ -443,14 +441,14 @@ class StandardLogger:
 
         getattr(self.logger, level.lower())(message, *args, **log_kwargs)
 
-    def debug(self, message: str, *args, **kwargs) -> None: self._log("debug", message, *args, **kwargs)
-    def info(self, message: str, *args, **kwargs) -> None: self._log("info", message, *args, **kwargs)
-    def warning(self, message: str, *args, **kwargs) -> None: self._log("warning", message, *args, **kwargs)
-    def error(self, message: str, *args, **kwargs) -> None: self._log("error", message, *args, **kwargs)
-    def critical(self, message: str, *args, **kwargs) -> None: self._log("critical", message, *args, **kwargs)
-    def exception(self, message: str, *args, **kwargs) -> None: self._log("exception", message, *args, **kwargs)
+    def debug(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("debug", message, *args, **kwargs)
+    def info(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("info", message, *args, **kwargs)
+    def warning(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("warning", message, *args, **kwargs)
+    def error(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("error", message, *args, **kwargs)
+    def critical(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("critical", message, *args, **kwargs)
+    def exception(self, message: str, *args: Any, **kwargs: Any) -> None: self._log("exception", message, *args, **kwargs)
 
-    def bind(self, **kwargs) -> "StandardLogger":
+    def bind(self, **kwargs: Any) -> "StandardLogger":
         new_context = {**self.context, **kwargs}
         return StandardLogger(self.name, context=new_context)
     
@@ -489,6 +487,12 @@ class StandardLogger:
             for key, value in metrics.items(): msg += f" | {key}: {value}"
         self._log("info", msg)
 
+    def log_data_flow(self, operation: str, count: int, unit: str = "条目", details: Optional[Dict[str, Any]] = None) -> None:
+        msg = f"[{self.module_name}] {operation} 数据流 | 数量: {count} {unit}"
+        if details:
+            msg += f" | 详情: {json.dumps(details, ensure_ascii=False, default=str)}"
+        self._log("debug", msg)
+
 
 class PerformanceLogger:
     def __init__(self, logger: StandardLogger):
@@ -519,7 +523,7 @@ class StructuredLogger:
         event_data: Dict[str, Any],
         user_id: Optional[Union[int, str]] = None,
     ) -> None:
-        event = {
+        event: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "event_type": event_type,
             "data": event_data,
@@ -565,14 +569,14 @@ def get_structured_logger(name: str) -> StructuredLogger:
 
 # 性能监控装饰器 (Moved out of class for easy import)
 def log_performance(
-    operation_name: str = None,
+    operation_name: Optional[str] = None,
     log_args: bool = False,
-    log_result: bool = False,
+    _log_result: bool = False,
     threshold_seconds: float = 1.0,
-):
-    def decorator(func):
+) -> Callable:
+    def decorator(func: Any) -> Any:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             logger = get_logger(func.__module__ or __name__)
             perf_logger = PerformanceLogger(logger)
             token = None
@@ -599,7 +603,7 @@ def log_performance(
                 if token: trace_id_var.reset(token)
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             logger = get_logger(func.__module__ or __name__)
             op_name = operation_name or func.__name__
             token = None
@@ -624,10 +628,10 @@ def log_performance(
     return decorator
 
 # User Action Decorator
-def log_user_action(action_name: str = None, extract_user_id: callable = None):
-    def decorator(func):
+def log_user_action(action_name: Optional[str] = None, extract_user_id: Optional[Callable] = None) -> Callable:
+    def decorator(func: Any) -> Any:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             logger = get_logger(func.__module__ or __name__)
             user_id = "unknown"
             if extract_user_id:
@@ -642,7 +646,7 @@ def log_user_action(action_name: str = None, extract_user_id: callable = None):
                 raise
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             logger = get_logger(func.__module__ or __name__)
             user_id = "unknown"
             if extract_user_id:
@@ -662,7 +666,7 @@ def log_user_action(action_name: str = None, extract_user_id: callable = None):
     return decorator
 
 
-def log_startup(module_name: str, version: str = None, config: Dict[str, Any] = None):
+def log_startup(module_name: str, version: Optional[str] = None, config: Optional[Dict[str, Any]] = None) -> None:
     logger = get_cached_logger(module_name)
     msg = f"{module_name} 启动"
     if version: msg += f" | 版本: {version}"
@@ -670,7 +674,7 @@ def log_startup(module_name: str, version: str = None, config: Dict[str, Any] = 
     logger.log_system_state("启动", msg)
 
 
-def log_shutdown(module_name: str, cleanup_info: Dict[str, Any] = None):
+def log_shutdown(module_name: str, cleanup_info: Optional[Dict[str, Any]] = None) -> None:
     logger = get_cached_logger(module_name)
     msg = f"{module_name} 关闭"
     if cleanup_info: msg += f" | 清理信息: {json.dumps(cleanup_info, ensure_ascii=False, default=str)}"
@@ -711,7 +715,7 @@ def get_logger_with_ids(
 
 
 @contextmanager
-def correlation_context(cid: Optional[str]):
+def correlation_context(cid: Optional[str]) -> Any:
     token = None
     if cid:
         token = trace_id_var.set(str(cid))

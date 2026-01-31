@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, Optional, Union, Dict
 
 from core.constants import BOT_MESSAGE_DELETE_TIMEOUT, USER_MESSAGE_DELETE_ENABLE
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 # 从环境变量获取默认超时时间
 
 
-async def delete_after(message, seconds):
+async def delete_after(message: Any, seconds: Union[int, float]) -> None:
     """等待指定秒数后删除消息 - 已弃用，使用 message_task_manager.schedule_delete
 
     参数:
@@ -31,7 +32,7 @@ async def delete_after(message, seconds):
         logger.error(f"删除消息失败: {e}")
 
 
-async def reply_and_delete(event, text, delete_after_seconds=None, **kwargs):
+async def reply_and_delete(event: Any, text: str, delete_after_seconds: Optional[Union[int, float]] = None, **kwargs: Any) -> Any:
     """回复消息并安排自动删除
 
     参数:
@@ -41,6 +42,7 @@ async def reply_and_delete(event, text, delete_after_seconds=None, **kwargs):
         **kwargs: 传递给reply方法的其他参数
     """
     # 如果没有指定删除时间，使用环境变量中的默认值
+    deletion_timeout: Union[int, float]
     if delete_after_seconds is None:
         deletion_timeout = BOT_MESSAGE_DELETE_TIMEOUT
     else:
@@ -63,7 +65,7 @@ async def reply_and_delete(event, text, delete_after_seconds=None, **kwargs):
     return message
 
 
-async def respond_and_delete(event, text, delete_after_seconds=None, **kwargs):
+async def respond_and_delete(event: Any, text: str, delete_after_seconds: Optional[Union[int, float]] = None, **kwargs: Any) -> Any:
     """使用respond回复消息并安排自动删除
 
     参数:
@@ -73,6 +75,7 @@ async def respond_and_delete(event, text, delete_after_seconds=None, **kwargs):
         **kwargs: 传递给respond方法的其他参数
     """
     # 如果没有指定删除时间，使用环境变量中的默认值
+    deletion_timeout: Union[int, float]
     if delete_after_seconds is None:
         deletion_timeout = BOT_MESSAGE_DELETE_TIMEOUT
     else:
@@ -96,8 +99,8 @@ async def respond_and_delete(event, text, delete_after_seconds=None, **kwargs):
 
 
 async def send_message_and_delete(
-    client, entity, text, delete_after_seconds=None, **kwargs
-):
+    client: Any, entity: Any, text: str, delete_after_seconds: Optional[Union[int, float]] = None, **kwargs: Any
+) -> Any:
     """发送消息并安排自动删除
 
     参数:
@@ -108,6 +111,7 @@ async def send_message_and_delete(
         **kwargs: 传递给send_message方法的其他参数
     """
     # 如果没有指定删除时间，使用环境变量中的默认值
+    deletion_timeout: Union[int, float]
     if delete_after_seconds is None:
         deletion_timeout = BOT_MESSAGE_DELETE_TIMEOUT
     else:
@@ -131,7 +135,7 @@ async def send_message_and_delete(
 
 
 # 删除用户消息
-async def async_delete_user_message(client, chat_id, message_id, seconds):
+async def async_delete_user_message(client: Any, chat_id: Union[int, str], message_id: int, seconds: Union[int, float]) -> None:
     """删除用户消息
 
     参数:
@@ -152,7 +156,7 @@ async def async_delete_user_message(client, chat_id, message_id, seconds):
         message_task_manager = mod.message_task_manager
 
         # 创建删除任务的回调函数
-        async def delete_callback():
+        async def delete_callback() -> None:
             try:
                 await client.delete_messages(chat_id, message_id)
             except Exception as e:

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Callable, Any, Dict, List
+from typing import Callable, Any, Dict, List, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -24,15 +24,16 @@ class EventBus:
     # 需要记录日志的事件前缀
     LOG_EVENT_PREFIXES = ("FORWARD_", "ERROR_", "SYSTEM_", "AUTH_", "RULE_")
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._listeners: Dict[str, List[Callable]] = defaultdict(list)
         self._wildcard_listeners: List[Callable] = []  # 通配符监听器
         self._log_enabled = True  # 是否启用事件日志
         self._broadcast_enabled = True  # 是否启用 WebSocket 广播
-        self._stats = defaultdict(int)  # 事件计数统计
+        self._stats: Dict[str, int] = defaultdict(int)  # 事件计数统计
         self._last_event_time: Dict[str, datetime] = {}  # 最后事件时间
+        self._broadcaster: Optional[Callable] = None  # WebSocket 广播器回调
     
-    def subscribe(self, event_type: str, handler: Callable):
+    def subscribe(self, event_type: str, handler: Callable) -> None:
         """
         订阅事件
         
@@ -47,7 +48,7 @@ class EventBus:
             self._listeners[event_type].append(handler)
             logger.debug(f"Event listener registered: {event_type} -> {handler.__name__}")
     
-    def unsubscribe(self, event_type: str, handler: Callable):
+    def unsubscribe(self, event_type: str, handler: Callable) -> None:
         """取消订阅"""
         if event_type == "*":
             if handler in self._wildcard_listeners:
@@ -56,7 +57,7 @@ class EventBus:
             if handler in self._listeners[event_type]:
                 self._listeners[event_type].remove(handler)
 
-    async def publish(self, event_type: str, data: Any = None, wait: bool = False):
+    async def publish(self, event_type: str, data: Any = None, wait: bool = False) -> None:
         """
         发布事件
         
@@ -95,7 +96,7 @@ class EventBus:
             for handler in handlers:
                 asyncio.create_task(self._safe_execute(handler, event_type, data))
 
-    async def _safe_execute(self, handler, event_type: str, data):
+    async def _safe_execute(self, handler: Callable, event_type: str, data: Any) -> None:
         """安全执行处理器"""
         try:
             if asyncio.iscoroutinefunction(handler):
@@ -119,7 +120,7 @@ class EventBus:
         """判断是否需要记录日志"""
         return any(event_type.startswith(prefix) for prefix in self.LOG_EVENT_PREFIXES)
     
-    def _log_event(self, event_type: str, data: Any):
+    def _log_event(self, event_type: str, data: Any) -> None:
         """记录事件日志"""
         # 根据事件类型选择日志级别
         if event_type.startswith("ERROR_"):
@@ -127,9 +128,9 @@ class EventBus:
         else:
             logger.debug(f"📢 Event: {event_type}")
     
-    async def _broadcast_event(self, event_type: str, data: Any):
+    async def _broadcast_event(self, event_type: str, data: Any) -> None:
         """广播事件到 WebSocket"""
-        if hasattr(self, '_broadcaster') and self._broadcaster:
+        if self._broadcaster is not None:
             try:
                 if asyncio.iscoroutinefunction(self._broadcaster):
                     await self._broadcaster(event_type, data)
@@ -138,15 +139,15 @@ class EventBus:
             except Exception as e:
                 logger.debug(f"Event broadcast failed: {e}")
 
-    def set_broadcaster(self, broadcaster: Callable):
+    def set_broadcaster(self, broadcaster: Callable) -> None:
         """设置广播器的回调"""
         self._broadcaster = broadcaster
     
-    def set_log_enabled(self, enabled: bool):
+    def set_log_enabled(self, enabled: bool) -> None:
         """启用/禁用事件日志"""
         self._log_enabled = enabled
     
-    def set_broadcast_enabled(self, enabled: bool):
+    def set_broadcast_enabled(self, enabled: bool) -> None:
         """启用/禁用 WebSocket 广播"""
         self._broadcast_enabled = enabled
     
@@ -165,7 +166,7 @@ class EventBus:
             }
         }
     
-    def clear_stats(self):
+    def clear_stats(self) -> None:
         """清除统计数据"""
         self._stats.clear()
         self._last_event_time.clear()

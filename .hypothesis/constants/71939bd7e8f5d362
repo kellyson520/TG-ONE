@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\system.py
+# hypothesis_version: 6.151.4
+
+[300, 600, 3600, 'error_logs', 'pending', 'rss_subscriptions', 'string', 'task_queue']

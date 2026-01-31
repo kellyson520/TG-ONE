@@ -39,7 +39,7 @@ from web_admin.routers.websocket_router import router as websocket_router
 from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
 from core.helpers.realtime_stats import realtime_stats_cache
-# from core.helpers.env_config import env_config_manager
+
 from web_admin.core.templates import STATIC_DIR
 from web_admin.routers.page_router import router as page_router
 from web_admin.rss.routes.rss import router as rss_page_router
@@ -51,7 +51,10 @@ from web_admin.security.csrf import CSRFMiddleware
 from web_admin.middlewares.ip_guard_middleware import IPGuardMiddleware
 from web_admin.routers.settings_router import router as settings_router
 from web_admin.security.exceptions import PageRedirect
+from web_admin.security.exceptions import PageRedirect
 from web_admin.middlewares.trace_middleware import TraceMiddleware
+from web_admin.middlewares.context_middleware import ContextMiddleware
+from web_admin.middlewares.rate_limit_middleware import RateLimitMiddleware
 
 # 模板和静态文件路径配置
 # 模板和静态文件路径配置 (Refactored to web_admin.core.templates)
@@ -154,11 +157,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Context Middleware (Initialize security context)
+app.add_middleware(ContextMiddleware)
+
 # Trace ID 追踪 (最外层，确保捕获所有逻辑)
 app.add_middleware(TraceMiddleware)
 
 # CSRF 防护 (Phase 2)
 app.add_middleware(CSRFMiddleware)
+
+# Rate Limiting (Phase 9)
+app.add_middleware(RateLimitMiddleware)
 
 # IP 访问控制 (Phase 3)
 # 注意：最后添加的中间件最先执行。IP检查应在CSRF和鉴权之前。
@@ -184,7 +193,7 @@ def _issue_token(user_id: int) -> str:
     expire = datetime.utcnow() + expires_delta
     to_encode = {"sub": str(user_id), "exp": expire, "type": "access"}
     
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 # 鉴权依赖
@@ -261,4 +270,11 @@ async def metrics():
 
 
 # 导出 app 对象供外部使用
-__all__ = ["app"]
+__all__ = ["app", "start_web_server"]
+
+async def start_web_server(host: str, port: int) -> None:
+    """异步启动 Web 服务器"""
+    import uvicorn
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()

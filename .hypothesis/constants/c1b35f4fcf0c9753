@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\edit_filter.py
+# hypothesis_version: 6.151.4
+
+['user_client', 'was not modified', '媒体组消息列表为空，无法编辑', '尝试获取用户客户端', '成功获取用户客户端', '无法获取用户客户端，无法执行编辑操作', '消息文本没有变化，跳过编辑']

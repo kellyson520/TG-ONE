@@ -25,6 +25,7 @@ except ImportError:
 
 from datetime import datetime
 from core.config import settings
+from core.constants import get_rule_media_dir
 from web_admin.rss.models.entry import Entry
 from typing import List
 import logging
@@ -140,7 +141,7 @@ class FeedService:
         rss_config = None
         # 如果没有提供base_url，使用配置中的默认值
         if base_url is None:
-            base_url = f"http://{settings.HOST}:{settings.PORT}"
+            base_url = f"http://{settings.RSS_HOST}:{settings.RSS_PORT}"
         logger.info(
             f"生成Feed - 规则ID: {rule_id}, 条目数量: {len(entries)}, 基础URL: {base_url}"
         )
@@ -236,7 +237,7 @@ class FeedService:
                         if media.type.startswith("image/"):
                             try:
                                 # 构建媒体文件路径
-                                rule_media_path = settings.get_rule_media_path(
+                                rule_media_path = get_rule_media_dir(
                                     entry.rule_id
                                 )
                                 media_path = os.path.join(
@@ -337,13 +338,13 @@ class FeedService:
                 if "127.0.0.1" in content or "localhost" in content:
                     logger.warning(f"内容中包含硬编码的本地地址，将替换 {base_url}")
                     content = content.replace(
-                        f"http://127.0.0.1:{settings.PORT}", base_url
+                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
                     )
                     content = content.replace(
-                        f"http://localhost:{settings.PORT}", base_url
+                        f"http://localhost:{settings.RSS_PORT}", base_url
                     )
                     content = content.replace(
-                        f"http://{settings.HOST}:{settings.PORT}", base_url
+                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
                     )
                 # 添加媒体附件，并确保内容中包含所有媒
                 if entry.media:
@@ -469,7 +470,7 @@ class FeedService:
         rss_config = None
         # 如果没有提供base_url，使用配置中的默认值
         if base_url is None:
-            base_url = f"http://{settings.HOST}:{settings.PORT}"
+            base_url = f"http://{settings.RSS_HOST}:{settings.RSS_PORT}"
         logger.info(f"生成测试Feed - 规则ID: {rule_id}, 基础URL: {base_url}")
         # 从数据库获取RSS配置
         session = get_session()
