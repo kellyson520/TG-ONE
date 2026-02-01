@@ -21,8 +21,19 @@ else:
 
 from telethon import TelegramClient
 from core.config import settings
-from core.logging import get_logger
+from core.logging import setup_logging
 
+# 2. 初始日志系统
+root_logger = setup_logging()
+
+# 3. 安装日志推送 (可选)
+try:
+    from services.network.log_push import install_log_push_handlers
+    install_log_push_handlers(root_logger)
+except ImportError:
+    pass
+
+from core.logging import get_logger
 logger = get_logger(__name__)
 
 # 2. 初始化全局客户端 (保持兼容性)

@@ -3,6 +3,9 @@ from __future__ import annotations
 import io
 
 from typing import List, Tuple
+from core.helpers.lazy_import import LazyImport
+
+pd = LazyImport("pandas")
 
 
 def parse_excel(content: bytes) -> Tuple[List[dict], List[dict]]:
@@ -13,7 +16,8 @@ def parse_excel(content: bytes) -> Tuple[List[dict], List[dict]]:
       - Sheet "replacements": 列 rule_id, pattern, content
     """
     try:
-        import pandas as pd  # type: ignore
+        # 触发/检查 pandas 是否可用
+        _ = pd.DataFrame
     except Exception as e:
         raise RuntimeError("缺少 pandas 依赖，请安装后再试") from e
 

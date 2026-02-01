@@ -1,5 +1,8 @@
 from typing import Optional, List, Dict
-from openai import AsyncOpenAI
+from core.helpers.lazy_import import LazyImport
+
+openai = LazyImport("openai")
+# from openai import AsyncOpenAI (Moved to local scope)
 from .base import BaseAIProvider
 from core.config import settings
 import logging
@@ -34,7 +37,8 @@ class OpenAIBaseProvider(BaseAIProvider):
 
             api_base = getattr(settings, f'{self.env_prefix}_API_BASE', None) or self.default_api_base
 
-            self.client = AsyncOpenAI(
+            # from openai import AsyncOpenAI
+            self.client = openai.AsyncOpenAI(
                 api_key=api_key,
                 base_url=api_base
             )

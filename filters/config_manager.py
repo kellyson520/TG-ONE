@@ -1,4 +1,4 @@
-﻿"""
+"""
 过滤器配置管理器
 负责默认配置、规则迁移和配置管理
 """
@@ -113,7 +113,7 @@ class FilterConfigManager:
             'info': True,  # 信息过滤器总是启用
             'comment_button': rule.enable_comment_button,
             'rss': rule.only_rss,
-            'edit': rule.handle_mode.value == 'edit' if hasattr(rule.handle_mode, 'value') else False,
+            'edit': str(rule.handle_mode.value if hasattr(rule.handle_mode, 'value') else rule.handle_mode).upper() == 'EDIT',
             'sender': True,  # 发送过滤器总是启用
             'reply': True,  # 回复过滤器总是启用
             'push': rule.enable_push,

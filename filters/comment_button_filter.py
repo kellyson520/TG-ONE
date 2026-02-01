@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import asyncio
 import traceback
 from telethon import Button

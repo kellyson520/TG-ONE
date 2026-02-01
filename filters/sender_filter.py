@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 from filters.base_filter import BaseFilter
 from enums.enums import PreviewMode

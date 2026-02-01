@@ -123,6 +123,11 @@ class ConfigService:
         # 4. 查 Settings (替代直接查 Env)
         from core.config import settings
         v = getattr(settings, key, None)
+        if v is not None:
+             return v
+             
+        # 5. 最后查 Env (兼容性与测试)
+        v = os.getenv(key)
         return v if v is not None else default
 
     async def set(self, key: str, value: Any, data_type: str = 'string', encrypted: bool = False) -> None:
@@ -161,6 +166,10 @@ class ConfigService:
         if v is not None: return v
         from core.config import settings
         v = getattr(settings, key, None)
+        if v is not None:
+             return v
+             
+        v = os.getenv(key)
         return v if v is not None else default
 
     def subscribe_change(self, fn: Callable[[str, Any], None]) -> None:

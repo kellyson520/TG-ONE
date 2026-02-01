@@ -69,7 +69,11 @@ class SenderMiddleware(Middleware):
                         elif ctx.message_obj.media:
                             media_to_send = ctx.message_obj.media
                             
-                        await sender.send(
+                        from core.helpers.smart_retry import retry_manager
+                        
+                        # Execute with Smart Retry
+                        await retry_manager.execute(
+                            sender.send,
                             target_id, 
                             text=final_text, 
                             media=media_to_send, 
@@ -101,9 +105,14 @@ class SenderMiddleware(Middleware):
                         
                         
                         from core.helpers.id_utils import get_display_name_async
+                        from core.helpers.smart_retry import retry_manager
+                        
                         chat_display = await get_display_name_async(ctx.chat_id)
                         logger.info(f"🚀 [发送器] 开始纯转发: 来源={chat_display}({ctx.chat_id}), 目标={target_id}, 消息ID列表={messages_to_forward}")
-                        await forward_messages_queued(
+                        
+                        # Execute with Smart Retry
+                        await retry_manager.execute(
+                            forward_messages_queued,
                             ctx.client,
                             **forward_kwargs
                         )

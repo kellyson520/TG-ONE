@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import asyncio
 from typing import List, Protocol, runtime_checkable
 from filters.base_filter import BaseFilter

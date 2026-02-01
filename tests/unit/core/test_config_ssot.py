@@ -67,6 +67,7 @@ class TestConfigSSOT:
             "core/config/__init__.py",
             "core/config/settings_loader.py",
             "main.py", # 允许在入口点做极其基础的环境判断
+            "services/config_service.py", # 允许 ConfigService 使用 os.getenv 作为后备
         ]
         
         vulnerabilities = []

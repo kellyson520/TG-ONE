@@ -3,7 +3,7 @@ import logging
 import asyncio
 from typing import Any
 from core.context import user_id_var, username_var, ip_address_var, user_agent_var
-from services.audit_service import audit_service
+# from services.audit_service import audit_service (Moved to lazy inside finally)
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +55,22 @@ def audit_log(action: str, resource_type: str = None):
                 resource_id = str(valid_id) if valid_id is not None else None
                 
                 # If valid user action (even if anonymous/system), log it
-                asyncio.create_task(
-                    audit_service.log_event(
-                        action=action,
-                        user_id=user_id,
-                        username=username,
-                        resource_type=resource_type,
-                        resource_id=resource_id,
-                        ip_address=ip,
-                        user_agent=ua,
-                        status=status,
-                        details=details
+                try:
+                    from services.audit_service import audit_service
+                    asyncio.create_task(
+                        audit_service.log_event(
+                            action=action,
+                            user_id=user_id,
+                            username=username,
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                            ip_address=ip,
+                            user_agent=ua,
+                            status=status,
+                            details=details
+                        )
                     )
-                )
+                except ImportError:
+                    logger.warning("Audit service not available for AOP logging")
         return wrapper
     return decorator

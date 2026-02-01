@@ -1,7 +1,8 @@
-VERSION = "1.2.3.0"
+VERSION = "1.2.3.1"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制，实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载，大幅降低启动内存与耗时。
 - v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP)，增加 Web Admin IP 频率限制与访问控制。
 - v1.2.2.9: CI 深度优化 - 修复单元测试超时问题，同步 CI 配置 (增加运行时长统计)，修复 Auth CSRF 测试漏洞，增强 Mock 机制稳定性。
 - v1.2.2.8: CI 稳定性修复 - 解决 GitHub CI 递归错误 (RecursionError)、增强本地 CI 诊断能力、同步云端 lint 排除规则。
@@ -22,3 +23,11 @@ UPDATE_INFO = """
 
 def get_version():
     return VERSION
+
+WELCOME_TEXT = f"""
+🚀 **TG ONE 系统 v{VERSION}**
+
+{UPDATE_INFO.strip()}
+
+使用 /menu 唤起主菜单
+"""

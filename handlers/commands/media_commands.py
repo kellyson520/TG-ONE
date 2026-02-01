@@ -1,4 +1,4 @@
-﻿from core.logging import get_logger
+from core.logging import get_logger
 from core.helpers.auto_delete import reply_and_delete
 from services.rule_service import RuleQueryService
 

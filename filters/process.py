@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from filters.factory import get_filter_chain_factory
 
 logger = logging.getLogger(__name__)

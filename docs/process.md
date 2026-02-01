@@ -81,6 +81,7 @@
 
 | 20260115_ChatName | 替换 ChatID 为频道/群组名称 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./archive/Workstream_Core_Engineering/20260115_Display_Chat_Name_Instead_Of_ID/report.md) |
 | 20260115_Verification_Skill | 创建 Full System Verification 技能 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Create_Full_System_Verification_Skill/report.md) |
+| 20260201_Observability | Phase 11: 可观测性、监控与健康检查 | 2026-02-01 | 2026-02-01 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report_phase11_observability.md) |
 
 
 ### 进行中任务 ⏳

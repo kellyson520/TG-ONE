@@ -11,9 +11,10 @@ from core.logging import get_logger
 from core.helpers.resource_gate import ResourceGate
 from core.helpers.sleep_manager import sleep_manager
 from core.helpers.tombstone import tombstone
-from services.system_service import guard_service
-from scheduler.cron_service import cron_service
-from services.exception_handler import exception_handler
+# from services.system_service import guard_service (Moved to local)
+# from scheduler.cron_service import cron_service (Moved to local)
+# from services.exception_handler import exception_handler (Moved to local)
+from core.helpers.metrics import set_ready, update_heartbeat
 
 from typing import Optional, Callable, Any
 
@@ -166,6 +167,7 @@ class Bootstrap:
         
         # 心跳
         if start_heartbeat:
+             from services.exception_handler import exception_handler
              exception_handler.create_task(
                  start_heartbeat(self.user_client, self.bot_client),
                  name="bot_heartbeat"
@@ -190,9 +192,13 @@ class Bootstrap:
 
     def _start_auxiliary_services(self) -> None:
         # 启动 Cron
+        from scheduler.cron_service import cron_service
         cron_service.start()
         
         # 启动 Guards
+        from services.system_service import guard_service
+        from services.exception_handler import exception_handler
+        
         guard_service.start_guards()
         exception_handler.create_task(
             guard_service.start_guards_async(), 
@@ -215,7 +221,7 @@ class Bootstrap:
                 logger.error(f"Web 服务启动失败: {e}")
 
         # 启动资源监控
-        this_bootstrap = self  # Capture self for the closure if needed, though method binding handles it
+        from services.exception_handler import exception_handler
         exception_handler.create_task(
             self._resource_monitor_loop(),
             name="resource_monitor"
@@ -229,6 +235,7 @@ class Bootstrap:
         
         # [Integration] 绑定休眠策略与墓碑机制
         # 当进入休眠时 -> 冻结状态释放内存
+        from services.exception_handler import exception_handler
         sleep_manager.register_on_sleep(lambda: exception_handler.create_task(tombstone.freeze(), name="auto_freeze"))
         # 当唤醒时 -> 复苏状态
         sleep_manager.register_on_wake(lambda: exception_handler.create_task(tombstone.resurrect(), name="auto_resurrect"))
@@ -255,6 +262,8 @@ class Bootstrap:
         
         # Priority 1: Cron & Guards Stop
         async def _stop_auxiliary() -> None:
+            from scheduler.cron_service import cron_service
+            from services.system_service import guard_service
             await cron_service.stop()
             guard_service.stop_guards()
             await asyncio.sleep(0.1)

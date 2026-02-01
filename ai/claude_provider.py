@@ -1,5 +1,8 @@
 from typing import Optional, List, Dict
-import anthropic
+from core.helpers.lazy_import import LazyImport
+
+anthropic = LazyImport("anthropic")
+# import anthropic (Moved to local scope)
 from ai.base import BaseAIProvider
 from core.config import settings
 import logging

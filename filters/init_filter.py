@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 try:
     import pytz
     PYTZ_AVAILABLE = True

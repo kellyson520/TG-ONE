@@ -49,7 +49,45 @@ async def get_ai_provider(model=None):
     if not provider:
         raise ValueError(f"不支持的模型: {model}")
 
-    return provider
+    # Wrap provider with Circuit Breaker Proxy
+    from core.helpers.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
+    
+    # Store breakers in a static dict within the function or module scope
+    if not hasattr(get_ai_provider, "breakers"):
+        get_ai_provider.breakers = {}
+        
+    cb_key = f"ai_provider_{model}"
+    if cb_key not in get_ai_provider.breakers:
+        # P1 Requirement: 5 failures, 60s recovery (aggressive protection)
+        get_ai_provider.breakers[cb_key] = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
+    
+    cb = get_ai_provider.breakers[cb_key]
+
+    # Create a proxy wrapper
+    class CircuitBreakerProxy:
+        def __init__(self, target, breaker):
+            self._target = target
+            self._breaker = breaker
+            
+        async def process_message(self, *args, **kwargs):
+            async def _call():
+                return await self._target.process_message(*args, **kwargs)
+            
+            try:
+                return await self._breaker.call(_call)
+            except CircuitBreakerOpenException:
+                logger.warning(f"AI Provider {model} is circuit broken. Downgrading...")
+                # Fallback logic: return empty string or specific marker to skip AI
+                # The caller (AIMiddleware) should handle empty response
+                return ""
+            except Exception as e:
+                # Rethrow other exceptions so CB counts them
+                raise e
+                
+        def __getattr__(self, name):
+            return getattr(self._target, name)
+
+    return CircuitBreakerProxy(provider, cb)
 
 
 __all__ = [

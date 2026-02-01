@@ -1,4 +1,4 @@
-﻿
+
 import logging
 from filters.base_filter import BaseFilter
 from core.helpers.common import check_keywords

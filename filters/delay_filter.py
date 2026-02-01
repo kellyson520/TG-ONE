@@ -1,5 +1,5 @@
-﻿import logging
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from filters.base_filter import BaseFilter
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class DelayFilter(BaseFilter):
         # 我们约定：如果检测到消息非常新（age < delay），则推迟。
         
         msg_date = message.message.date.timestamp()
-        now = datetime.utcnow().timestamp()
+        now = datetime.now(timezone.utc).timestamp()
         age = now - msg_date
         
         if age < rule.delay_seconds:

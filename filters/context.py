@@ -1,4 +1,4 @@
-﻿import copy
+import copy
 
 class MessageContext:
     """
@@ -107,3 +107,11 @@ class MessageContext:
     def clone(self):
         """创建上下文的副本"""
         return copy.deepcopy(self)
+
+    @property
+    def correlation_id(self):
+        return self.trace_id
+
+    @correlation_id.setter
+    def correlation_id(self, value):
+        self.trace_id = value

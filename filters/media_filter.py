@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 from core.helpers.media import get_media_size
 from core.constants import TEMP_DIR

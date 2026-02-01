@@ -61,6 +61,7 @@ version: 1.1
 - `--skip-arch`: 跳过架构检查
 - `--skip-flake`: 跳过代码质量检查
 - `--skip-test`: 跳过测试阶段（新增）
+- **报告生成**: 测试日志会自动保存至 `tests/temp/reports/`，避免污染根目录。
 
 详细示例请参考 `PROGRESS_DEMO.md`。
 

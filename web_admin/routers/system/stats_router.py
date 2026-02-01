@@ -1,6 +1,6 @@
 import logging
 from core.config import settings
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse
 
@@ -57,12 +57,12 @@ async def get_tasks_list(
 
 @router.get("/stats", response_model=ResponseSchema)
 async def get_system_stats(
-    user = Depends(login_required),
-    task_repo = Depends(deps.get_task_repo),
-    forward_service = Depends(deps.get_forward_service),
-    dedup = Depends(deps.get_dedup_engine),
-    guard_service = Depends(deps.get_guard_service),
-    stats_repo = Depends(deps.get_stats_repo)
+    user: Optional[dict] = Depends(login_required),
+    task_repo: Optional[Any] = Depends(deps.get_task_repo),
+    forward_service: Optional[Any] = Depends(deps.get_forward_service),
+    dedup: Optional[Any] = Depends(deps.get_dedup_engine),
+    guard_service: Optional[Any] = Depends(deps.get_guard_service),
+    stats_repo: Optional[Any] = Depends(deps.get_stats_repo)
 ):
     """获取系统运行核心指标"""
     try:

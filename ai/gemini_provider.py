@@ -1,5 +1,8 @@
 from typing import Optional, List, Dict
-import google.generativeai as genai
+from core.helpers.lazy_import import LazyImport
+
+genai = LazyImport("google.generativeai")
+# import google.generativeai as genai (Moved to local scope)
 from .base import BaseAIProvider
 from .openai_base_provider import OpenAIBaseProvider
 import logging
@@ -67,6 +70,8 @@ class GeminiProvider(BaseAIProvider):
             }
         ]
             
+
+        # import google.generativeai as genai # Replaced by LazyImport
         genai.configure(api_key=api_key)
         # 使用self.model_name初始化模型
         self.model = genai.GenerativeModel(

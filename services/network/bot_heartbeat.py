@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Any, Dict, Optional
 
-from repositories.persistent_cache import dumps_json, get_persistent_cache, loads_json
+from core.cache.persistent_cache import dumps_json, get_persistent_cache, loads_json
 
 HEARTBEAT_KEY = "bot_heartbeat"
 

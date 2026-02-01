@@ -11,6 +11,7 @@ class ForwardRule(Base):
     
     # 基础设置
     enable_rule = Column(Boolean, default=True)
+    enabled_filters = Column(Text, nullable=True) # JSON string of enabled filters and config
     forward_mode = Column(String, default='blacklist') # Match ForwardMode.BLACKLIST.value
     handle_mode = Column(String, default='FORWARD') # Match HandleMode.FORWARD.value
     message_mode = Column(String, default='Markdown') # Match MessageMode.MARKDOWN.value

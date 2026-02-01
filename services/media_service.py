@@ -6,6 +6,9 @@ import os
 import asyncio
 import time
 from typing import List, Dict, Any, Optional, Tuple
+from core.helpers.lazy_import import LazyImport
+
+Image = LazyImport("PIL.Image")
 from telethon import TelegramClient
 from core.logging import get_logger
 from core.helpers.error_handler import handle_errors, handle_telegram_errors
@@ -204,39 +207,81 @@ import mimetypes
 class AIMediaProcessor:
     """AI媒体预处理器"""
     
+    MAX_DIMENSION = 1536  # Max dimension for AI images to prevent OOM
+    JPEG_QUALITY = 85
+
+    @staticmethod
+    def _resize_and_encode(image_data: bytes) -> Tuple[str, str]:
+        """
+        Internal: Resize image bytes and return (base64_str, mime_type)
+        Uses PIL to resize if larger than MAX_DIMENSION.
+        """
+        try:
+            # from PIL import Image # Replaced by LazyImport
+            with io.BytesIO(image_data) as bio:
+                with Image.open(bio) as img:
+                    # Convert to RGB if needed (e.g. RGBA -> RGB for JPEG)
+                    if img.mode in ('RGBA', 'P'):
+                         img = img.convert('RGB')
+                    
+                    width, height = img.size
+                    if width > AIMediaProcessor.MAX_DIMENSION or height > AIMediaProcessor.MAX_DIMENSION:
+                        img.thumbnail((AIMediaProcessor.MAX_DIMENSION, AIMediaProcessor.MAX_DIMENSION))
+                        logger.debug(f"AI Image resized from {width}x{height} to {img.size}")
+                    
+                    output_bio = io.BytesIO()
+                    img.save(output_bio, format='JPEG', quality=AIMediaProcessor.JPEG_QUALITY)
+                    output_bytes = output_bio.getvalue()
+                    
+                    return base64.b64encode(output_bytes).decode('utf-8'), "image/jpeg"
+        except ImportError:
+            logger.warning("Pillow not installed, skipping resize. OOM risk high.")
+            return base64.b64encode(image_data).decode('utf-8'), "image/jpeg"
+        except Exception as e:
+            logger.error(f"Image resize failed: {e}")
+            # Fallback to original
+            return base64.b64encode(image_data).decode('utf-8'), "image/jpeg"
+
     @staticmethod
     async def load_file_to_memory(file_path: str) -> Optional[Dict[str, str]]:
-        """安全读取本地文件到内存 (Base64)"""
+        """安全读取本地文件到内存 (Base64) + Resize"""
         if not os.path.exists(file_path):
             return None
         try:
-            with open(file_path, 'rb') as f:
-                content = f.read()
-            mime_type = mimetypes.guess_type(file_path)[0] or "image/jpeg"
-            return {
-                "data": base64.b64encode(content).decode('utf-8'),
-                "mime_type": mime_type
-            }
+            # Run blocking I/O in executor
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, AIMediaProcessor._read_and_resize_sync, file_path)
         except Exception as e:
             logger.error(f"读取文件失败: {e}")
             return None
 
     @staticmethod
+    def _read_and_resize_sync(file_path: str) -> Optional[Dict[str, str]]:
+        with open(file_path, 'rb') as f:
+            content = f.read()
+            
+        b64_data, mime = AIMediaProcessor._resize_and_encode(content)
+        return {
+            "data": b64_data,
+            "mime_type": mime
+        }
+
+    @staticmethod
     async def download_message_media_to_memory(message) -> Optional[Dict[str, str]]:
-        """下载消息媒体直接到内存"""
+        """下载消息媒体直接到内存 + Resize"""
         try:
             buffer = io.BytesIO()
             await message.download_media(file=buffer)
             buffer.seek(0)
             content = buffer.read()
             
-            mime_type = "image/jpeg"
-            if getattr(message, 'document', None):
-                mime_type = getattr(message.document, 'mime_type', mime_type)
-                
+            # Run CPU-bound resize in executor
+            loop = asyncio.get_running_loop()
+            b64_data, mime = await loop.run_in_executor(None, AIMediaProcessor._resize_and_encode, content)
+            
             return {
-                "data": base64.b64encode(content).decode('utf-8'),
-                "mime_type": mime_type
+                "data": b64_data,
+                "mime_type": mime
             }
         except Exception as e:
             logger.error(f"内存下载失败: {e}")

@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from telethon import Button
 from filters.base_filter import BaseFilter
 import traceback

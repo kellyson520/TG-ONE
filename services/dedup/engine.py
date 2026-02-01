@@ -1468,7 +1468,7 @@ class SmartDeduplicator:
             if not self.config.get("enable_persistent_cache", True):
                 logger.debug("持久化缓存已禁用")
                 return False
-            from repositories.persistent_cache import get_persistent_cache
+            from core.cache.persistent_cache import get_persistent_cache
 
             pc = get_persistent_cache()
             key = f"dedup:{kind}:{target_chat_id}:{value}"
@@ -1488,7 +1488,7 @@ class SmartDeduplicator:
             logger.debug("持久化缓存已禁用，跳过写入")
             return
         try:
-            from repositories.persistent_cache import dumps_json, get_persistent_cache
+            from core.cache.persistent_cache import dumps_json, get_persistent_cache
 
             pc = get_persistent_cache()
             ttl = int(self.config.get("persistent_cache_ttl_seconds", 30 * 24 * 3600))
@@ -1846,7 +1846,7 @@ class SmartDeduplicator:
     async def _check_video_hash_pcache(self, file_id: str) -> Optional[str]:
         """从持久化缓存中读取视频 partial-hash。"""
         try:
-            from repositories.persistent_cache import get_persistent_cache, loads_json
+            from core.cache.persistent_cache import get_persistent_cache, loads_json
 
             pc = get_persistent_cache()
             key = f"video:hash:{file_id}"
@@ -1870,7 +1870,7 @@ class SmartDeduplicator:
     ) -> None:
         """写入视频 partial-hash 到持久化缓存。"""
         try:
-            from repositories.persistent_cache import dumps_json, get_persistent_cache
+            from core.cache.persistent_cache import dumps_json, get_persistent_cache
 
             pc = get_persistent_cache()
             key = f"video:hash:{file_id}"
@@ -1902,7 +1902,7 @@ class SmartDeduplicator:
             # Remove from Persistent Cache
             if self.config.get("enable_persistent_cache", True):
                 try:
-                    from repositories.persistent_cache import get_persistent_cache
+                    from core.cache.persistent_cache import get_persistent_cache
                     pc = get_persistent_cache()
                     if signature:
                         pc.delete(f"dedup:sig:{target_chat_id}:{signature}")

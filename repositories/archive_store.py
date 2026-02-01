@@ -1,4 +1,5 @@
-import duckdb
+from core.helpers.lazy_import import LazyImport
+duckdb = LazyImport("duckdb")
 import logging
 import os
 import glob

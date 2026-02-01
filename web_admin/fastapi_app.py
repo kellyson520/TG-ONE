@@ -13,6 +13,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
+from web_admin.middlewares.metrics_middleware import MetricsMiddleware
+from core.observability.metrics import metrics_manager
 from datetime import datetime, timedelta
 import jwt
 import asyncio
@@ -163,6 +166,9 @@ app.add_middleware(ContextMiddleware)
 # Trace ID 追踪 (最外层，确保捕获所有逻辑)
 app.add_middleware(TraceMiddleware)
 
+# Metrics Middleware (Collect metrics)
+app.add_middleware(MetricsMiddleware)
+
 # CSRF 防护 (Phase 2)
 app.add_middleware(CSRFMiddleware)
 
@@ -214,12 +220,41 @@ async def healthz():
         db = get_db_health()
     except Exception:
         db = {}
+
+    temp_storage = {}
+    try:
+        import shutil
+        total, used, free = shutil.disk_usage(settings.TEMP_DIR)
+        temp_storage = {
+            "total_gb": round(total / (1024**3), 2),
+            "free_gb": round(free / (1024**3), 2),
+            "warning": free < 1024 * 1024 * 500  # Warning if less than 500MB
+        }
+    except Exception as e:
+        temp_storage = {"error": str(e)}
+
+    # Check Telegram Client
+    telegram_status = "unknown"
+    try:
+        from core.container import container
+        if container.bot_client:
+             telegram_status = "connected" if await container.bot_client.is_connected() else "disconnected"
+    except Exception:
+        pass
+
     sys_stats = {}
     try:
         sys_stats = await realtime_stats_cache.get_system_stats()
     except Exception:
         sys_stats = {}
-    return JSONResponse({'status': 'ok', 'db_connected': bool((db or {}).get('connected')), 'system': sys_stats})
+
+    return JSONResponse({
+        'status': 'ok', 
+        'db_connected': bool((db or {}).get('connected')), 
+        'telegram_status': telegram_status,
+        'temp_storage': temp_storage,
+        'system': sys_stats
+    })
 
 @app.get("/readyz")
 async def readyz():
@@ -238,21 +273,9 @@ async def readyz():
     st = 'ready' if (cfg_ready and db_ok) else 'not_ready'
     return JSONResponse({'status': st, 'config_ready': cfg_ready, 'db_connected': db_ok})
 
-@app.get("/metrics")
-async def metrics():
-    cpu = 0.0
-    mem = 0.0
-    try:
-        import psutil
-        cpu = psutil.cpu_percent(interval=0.05)
-        mem = psutil.virtual_memory().percent
-    except Exception:
-        pass
-    text = []
-    text.append('web_admin_up 1')
-    text.append(f'web_admin_cpu_percent {cpu}')
-    text.append(f'web_admin_memory_percent {mem}')
-    return "\n".join(text), 200, {'Content-Type': 'text/plain; version=0.0.4'}
+# Mount Prometheus Metrics
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 

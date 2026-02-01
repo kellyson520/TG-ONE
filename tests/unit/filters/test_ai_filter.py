@@ -1,0 +1,85 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from filters.ai_filter import AIFilter
+
+@pytest.fixture
+def ai_filter():
+    return AIFilter()
+
+@pytest.fixture
+def mock_context():
+    context = MagicMock()
+    context.rule = MagicMock()
+    context.message_text = "test message"
+    context.media_files = []
+    context.is_media_group = False
+    context.errors = []
+    return context
+
+@pytest.mark.asyncio
+async def test_ai_filter_skip_non_ai(ai_filter, mock_context):
+    mock_context.rule.is_ai = False
+    result = await ai_filter._process(mock_context)
+    assert result is True
+
+@pytest.mark.asyncio
+async def test_ai_filter_basic_processing(ai_filter, mock_context):
+    # Setup
+    mock_context.rule.is_ai = True
+    mock_context.rule.enable_ai_upload_image = False
+    mock_context.rule.is_keyword_after_ai = False
+    
+    mock_ai_service = AsyncMock()
+    mock_ai_service.process_message.return_value = "AI processed text"
+    
+    # Path of imports in filters/ai_filter.py
+    with patch("services.ai_service.ai_service", mock_ai_service):
+        result = await ai_filter._process(mock_context)
+        
+        assert result is True
+        assert mock_context.message_text == "AI processed text"
+        mock_ai_service.process_message.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_ai_filter_with_images(ai_filter, mock_context):
+    # Setup
+    mock_context.rule.is_ai = True
+    mock_context.rule.enable_ai_upload_image = True
+    mock_context.rule.is_keyword_after_ai = False
+    mock_context.media_files = ["path/to/img.png"]
+    
+    mock_ai_service = AsyncMock()
+    mock_ai_service.process_message.return_value = "AI with image"
+    
+    mock_media_processor = AsyncMock()
+    mock_media_processor.load_file_to_memory.return_value = b"image_data"
+    
+    with patch("services.ai_service.ai_service", mock_ai_service):
+        with patch("services.media_service.ai_media_processor", mock_media_processor):
+            result = await ai_filter._process(mock_context)
+            
+            assert result is True
+            assert mock_context.message_text == "AI with image"
+            mock_media_processor.load_file_to_memory.assert_called_once_with("path/to/img.png")
+            # Verify images were passed to ai_service
+            called_kwargs = mock_ai_service.process_message.call_args.kwargs
+            assert called_kwargs["images"] == [b"image_data"]
+
+@pytest.mark.asyncio
+async def test_ai_filter_keyword_after_ai_fail(ai_filter, mock_context):
+    # Setup
+    mock_context.rule.is_ai = True
+    mock_context.rule.enable_ai_upload_image = False
+    mock_context.rule.is_keyword_after_ai = True
+    
+    mock_ai_service = AsyncMock()
+    mock_ai_service.process_message.return_value = "bad content"
+    
+    with patch("services.ai_service.ai_service", mock_ai_service):
+        with patch("filters.ai_filter.check_keywords", new_callable=AsyncMock) as mock_check:
+            mock_check.return_value = False
+            
+            result = await ai_filter._process(mock_context)
+            
+            assert result is False
+            assert mock_context.should_forward is False

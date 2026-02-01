@@ -1,0 +1,4 @@
+# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\metrics.py
+# hypothesis_version: 6.151.4
+
+['Archive job runs', 'Dedup decisions', 'Dedup hits', 'Dedup queries', 'Messages forwarded', 'Messages received', 'Task queue length', 'algo', 'archive_run_seconds', 'archive_runs_total', 'dedup_check_seconds', 'dedup_fp_hits_total', 'dedup_hits_total', 'dedup_queries_total', 'forward_send_seconds', 'method', 'reason', 'result', 'route', 'service_ready_status', 'source', 'status', 'table', 'task_queue_length']

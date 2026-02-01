@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from core.helpers.common import get_main_module
 from filters.base_filter import BaseFilter
 

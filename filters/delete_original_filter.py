@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from filters.base_filter import BaseFilter
 
 logger = logging.getLogger(__name__)

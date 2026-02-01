@@ -3,7 +3,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from models.models import ForwardRule, ForwardMapping, Chat
 from core.helpers.id_utils import build_candidate_telegram_ids
-from repositories.persistent_cache import get_persistent_cache, dumps_json, loads_json
+from core.cache.persistent_cache import get_persistent_cache, dumps_json, loads_json
 from schemas.rule import RuleDTO
 from schemas.chat import ChatDTO
 import logging

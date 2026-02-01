@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import re
 from filters.base_filter import BaseFilter
 

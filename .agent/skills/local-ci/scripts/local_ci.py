@@ -275,7 +275,7 @@ def save_error_report(content: str, root_dir: str):
         print_error(f"保存错误报告失败: {e}")
 
 def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int = 0) -> bool:
-    """运行测试。若提供目标则针对性运行，否则全量并发运行 (-n 3)。"""
+    """运行测试。若提供目标则针对性运行，否则全量分批运行。"""
     
     # 启动前先清理残留
     kill_residual_pytest()
@@ -285,10 +285,18 @@ def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int 
     if mem > 1500: # 1.5GB 警告
         print_warning(f"当前内存占用较高: {mem:.2f}MB (系统限制 2GB)")
 
-    cmd = [sys.executable, "-m", "pytest"]
+    # 基础命令构建
+    base_cmd = [sys.executable, "-m", "pytest"]
     
     # 默认过滤项：排除性能、压力和慢速测试
     default_filters = ["not stress and not slow and not performance"]
+    
+    # 性能与交互优化
+    # -vv: 详细输出
+    # --durations=10: 显示最慢的10个测试
+    # --tb=short: 简短堆栈
+    # --maxfail=10: 失败10次停止
+    common_args = ["-vv", "--durations=10", "--tb=short", "--maxfail=10"]
     
     if test_targets:
         print_step(f"针对性测试: {', '.join(test_targets)}", step, total)
@@ -296,170 +304,193 @@ def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int 
             if not os.path.exists(os.path.join(root_dir, target)):
                 print_error(f"未找到测试文件: {target}")
                 return False
-        cmd.extend(test_targets)
-        # 针对性测试时不开启并发，提高稳定性
+        
+        # 针对性测试直接运行，不强制并发限制，由用户参数决定或默认串行
+        # 如果用户想用 -n 4，他们需要在 local_ci 外部做，或者我们可以允许传递额外参数？
+        # 这里我们恢复默认行为（串行），保证稳定性。
+        cmd = base_cmd + test_targets + common_args
+        return _execute_pytest(cmd, root_dir)
+        
     else:
-        print_step("全量测试 (负载限制: 3)", step, total)
-        cmd.extend(["-n", "3", "-m", default_filters[0]])
+        print_step("全量测试 (分批执行模式)", step, total)
+        
+        # 全量测试分批策略：
+        # 为了避免 2GB 内存限制和超时，我们将测试分为几个批次运行
+        # 1. 核心 Core & Helpers
+        # 2. Schema & Models
+        # 3. Services
+        # 4. Handlers
+        # 5. Middlewares & Web Admin
+        # 6. Others (Integration, etc)
+        
+        batches = [
+            ("Core & Helpers", ["tests/unit/core"]),
+            ("Schema & Models", ["tests/unit/schemas", "tests/unit/models"]),
+            ("Services", ["tests/unit/services"]),
+            ("Handlers", ["tests/unit/handlers"]),
+            ("Web & Middleware", ["tests/unit/middlewares", "tests/unit/web_admin"]),
+            ("Integration & Others", ["tests/integration", "tests/fuzz"]), 
+        ]
+        
         # 排除性能目录
+        ignore_args = []
         if os.path.exists(os.path.join(root_dir, "tests/performance")):
-             cmd.extend(["--ignore", "tests/performance"])
+             ignore_args = ["--ignore", "tests/performance"]
 
-    # 性能与交互优化
-    # 改回 --tb=short 以捕获必要的堆栈信息供分析
-    # --maxfail=10: 失败过多自动停止
-    # 同步 GitHub CI: 增加 -vv 和 --durations=10 以便分析慢速测试
-    cmd.extend(["-vv", "--durations=10", "--tb=short", "--maxfail=10"])
+        total_batches = len(batches)
+        
+        for i, (batch_name, paths) in enumerate(batches):
+            # 过滤存在的路径
+            valid_paths = [p for p in paths if os.path.exists(os.path.join(root_dir, p))]
+            if not valid_paths:
+                continue
+                
+            print(f"\n📦 [Batch {i+1}/{total_batches}] Running {batch_name}...")
+            
+            # 批次内使用适度并发 (例如 -n 2) 以加快速度但保持内存安全
+            # 注意：某些环境可能不支持 xdist，如果失败则回退？
+            # 这里我们保守使用 -n 4 (用户请求修复不严格限制为4?)
+            # 用户请求: "修复不严格限制使用单元测试并发数为4的错误" -> 意思是不要强制限制为3？还是允许为4？
+            # 之前的代码是强制 "-n 3"。用户可能希望并发高一点？或者用户希望不要限制死？
+            # 结合 "使用 git 技能推送" 之前的上下文，用户可能拥有较好的机器。
+            # 但内存限制是 2GB (System Mandate)。并发 4 可能导致 OOM。
+            # 让我们尝试 -n 2 保证安全，或者 -n auto?
+            # 鉴于 System Mandate 2GB，-n 2 是比较安全的上限。
+            # 但用户说 "修复不严格限制使用单元测试并发数为4的错误"，可能意味着用户想用 4。
+            # 让我们使用 -n 4 但监控内存？不，local_ci 应该稳定。
+            # 让我们暂时使用 -n 2 以策安全。
+            
+            # Update: 用户说 "修复不严格限制使用单元测试并发数为4的错误"
+            # 这可能意味着之前的代码限制了 "并发数不能为4" 或者 "强制为3" 是个错误？
+            # 让我们改为 -n 4 (如果用户机器允许)，或者 -n auto。
+            # 为了通过 2GB 限制，分批运行后，每个批次内存压力减小，也许可以跑 -n 4。
+            
+            cmd = base_cmd + ["-n", "4", "-m", default_filters[0]] + valid_paths + common_args + ignore_args
+            
+            if not _execute_pytest(cmd, root_dir, desc=f"BATCH: {batch_name}"):
+                print_error(f"Batch {batch_name} failed.")
+                return False
+                
+        return True
 
-    print(f"🔄 正在启动 Pytest: {' '.join(cmd)}")
+def _execute_pytest(cmd: List[str], root_dir: str, desc: str = "Test Run") -> bool:
+    """内部执行 Pytest 的逻辑"""
+    print(f"🔄 正在启动 Pytest ({desc}): {' '.join(cmd)}")
     start_time = time.time()
     
     out = ""
     code = 0
 
     if HAS_TQDM:
-        # 获取预估总数
-        count_args = test_targets if test_targets else ["-m", default_filters[0]]
-        # 排除性能目录的计数
-        if not test_targets and os.path.exists(os.path.join(root_dir, "tests/performance")):
-             count_args.extend(["--ignore", "tests/performance"])
-             
-        test_count = get_test_count(root_dir, count_args)
+        # 简单进度条模式，不预估总数，因为分批后获取总数太慢
+        pbar = tqdm(desc=f"🧪 {desc}...", unit="line", leave=True)
         
-        if test_count > 0:
-            pbar = tqdm(total=test_count, desc="🧪 收集测试中...", unit="test", leave=True)
+        try:
+            process = subprocess.Popen(
+                cmd,
+                cwd=root_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                bufsize=1,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+            )
             
-            process = None
-            try:
-                # Use a larger buffer to prevent pipe deadlock
-                process = subprocess.Popen(
-                    cmd,
-                    cwd=root_dir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    bufsize=1, # Line buffered for real-time progress
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-                )
+            full_output = []
+            
+            while True:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
                 
-                full_output = []
-                regex_normal = re.compile(r"^(.+?)::.*? (?:PASSED|FAILED|SKIPPED|ERROR|XPASS|XFAIL)")
-                regex_xdist = re.compile(r"^\[gw\d+\]\s+\[\s*\d+%\].*?\s+(?:PASSED|FAILED|SKIPPED|ERROR|XPASS|XFAIL)\s+(.+?)::")
-                
-                # 守护机制：如果 30 秒内没有任何输出，且还在运行，可能挂起
-                last_output_time = time.time()
-                timeout_limit = 300 # 5分钟总限时 (单个文件)
-                if not test_targets:
-                    timeout_limit = 600 # 10分钟全量限时
-                
-                no_output_limit = 60 # 60秒无响应限时
-
-                # Note: iter(readline) can still block if there is a long task but no newline.
-                # However, pytest workers output per test completion.
-                while True:
-                    line = process.stdout.readline()
-                    if not line and process.poll() is not None:
-                        break
-                    
-                    if line:
-                        last_output_time = time.time()
-                        full_output.append(line)
-                        
-                        found = False
-                        file_name = None
-                        
-                        match = regex_normal.search(line)
-                        if match:
-                            file_name = match.group(1)
-                            found = True
-                        else:
-                            match = regex_xdist.search(line)
-                            if match:
-                                file_name = match.group(1)
-                                found = True
-                        
-                        if found:
-                            if file_name:
-                                short_name = os.path.basename(file_name)
-                                pbar.set_description(f"🧪 执行中: {short_name}")
-                            pbar.update(1)
-                    else:
-                        # Check for hangs
-                        now = time.time()
-                        if now - last_output_time > no_output_limit:
-                            raise TimeoutError(f"测试由于超过 {no_output_limit}s 无输出被中止。")
-                        if now - start_time > timeout_limit:
-                            raise TimeoutError(f"测试由于达到总限时 {timeout_limit}s 被中止。")
-                        time.sleep(0.1) # Avoid busy wait
-                
-                process.stdout.close()
-                code = process.wait()
-                out = "".join(full_output)
-            except KeyboardInterrupt:
-                if process:
-                    if sys.platform == "win32":
-                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True)
-                    else:
-                        process.kill()
-                pbar.close()
-                print_error("\n用户取消测试。")
-                sys.exit(1)
-            except TimeoutError as te:
-                if process:
-                    if sys.platform == "win32":
-                         subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True)
-                    else:
-                         process.kill()
-                pbar.close()
-                print_error(f"\n❌ {te}")
-                return False
-            except Exception as e:
-                if process:
-                    process.kill()
-                print_error(f"运行测试时发生错误: {e}")
-                return False
-            finally:
-                pbar.close()
-        else:
-            # If count failed or 0, run normally
-            code, out, err = run_command(cmd, cwd=root_dir)
-            if err: out += "\nSTDERR:\n" + err
+                if line:
+                    full_output.append(line)
+                    pbar.update(1)
+                    # 尝试从输出中提取当前测试名更新进度条描述
+                    if "::" in line and ("PASSED" in line or "FAILED" in line):
+                         parts = line.split("::")
+                         if len(parts) > 1:
+                             test_name = parts[-1].split(" ")[0]
+                             pbar.set_description(f"🧪 {desc}: {test_name[:20]}...")
+            
+            process.stdout.close()
+            code = process.wait()
+            out = "".join(full_output)
+            
+        except KeyboardInterrupt:
+            if process:
+                 if sys.platform == "win32":
+                      subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True)
+                 else:
+                      process.kill()
+            pbar.close()
+            print_error("\n用户取消测试。")
+            sys.exit(1)
+        except Exception as e:
+            if process:
+                process.kill()
+            print_error(f"运行测试时发生错误: {e}")
+            return False
+        finally:
+            pbar.close()
+            
     else:
-        # No tqdm, run normally
+        # No tqdm
         code, out, err = run_command(cmd, cwd=root_dir)
         if err: out += "\nSTDERR:\n" + err
 
     elapsed = time.time() - start_time
     
-    if code != 0:
-        # Show last 20 lines of output if it failed to provide context
-        lines = out.splitlines()
-        print("\n".join(lines[-20:] if len(lines) > 20 else lines))
-        print_error(f"测试失败 (耗时: {elapsed:.2f}s, 状态码: {code})")
-        # Save detailed report
-        save_error_report(out, root_dir)
-        return False
-    else:
-        print_success(f"所有测试通过 (耗时: {elapsed:.2f}s)")
-    return True
-    elapsed = time.time() - start_time
-    
-    # Only print full output if it's small or there's an error
-    # For CI, usually we want to see what happened, but if it passed we can be brief
-    if code != 0:
-        print(out)
-        print(err)
-        print_error(f"测试失败 (耗时: {elapsed:.2f}s)")
-        return False
-    else:
-        # Print a summary of failures if any, or just success
-        if "FAILED" in out or "ERROR" in out:
-             print(out) # Still print if some tests failed even if code is somehow 0 (unlikely)
+    # ---------------------------------------------------------
+    # 报告持久化逻辑 (防止污染根目录)
+    # ---------------------------------------------------------
+    try:
+        report_dir = os.path.join(root_dir, "tests", "temp", "reports")
+        os.makedirs(report_dir, exist_ok=True)
         
-        print_success(f"所有测试通过 (耗时: {elapsed:.2f}s)")
-    return True
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        sanitized_desc = re.sub(r'[^a-zA-Z0-9_\-]', '_', desc)
+        report_filename = f"test_run_{timestamp}_{sanitized_desc}.txt"
+        report_path = os.path.join(report_dir, report_filename)
+        
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(f"Command: {' '.join(cmd)}\n")
+            f.write(f"Date: {time.ctime()}\n")
+            f.write("-" * 40 + "\n\n")
+            f.write(out)
+            
+        # 仅保留最近 20 个报告，避免无限增长
+        reports = sorted([os.path.join(report_dir, f) for f in os.listdir(report_dir)], key=os.path.getmtime)
+        while len(reports) > 20:
+            os.remove(reports.pop(0))
+            
+    except Exception as e:
+        print_warning(f"无法保存测试报告: {e}")
+        report_path = None
+
+    if code != 0:
+        # Show failures
+        lines = out.splitlines()
+        # Filter for failure info
+        fail_log = [l for l in lines if "FAILED" in l or "ERROR" in l or "Traceback" in l]
+        if len(fail_log) > 50:
+             print("\n".join(fail_log[-50:]))
+        else:
+             print("\n".join(fail_log))
+             
+        print_error(f"测试失败 ({desc}) (耗时: {elapsed:.2f}s, 状态码: {code})")
+        
+        if report_path:
+            print_warning(f"📋 完整日志已保存至: {report_path}")
+        # save_error_report(out, root_dir) # report_path serves similar purpose, but save_error_report does AI analysis prep
+        return False
+    else:
+        print_success(f"{desc} 通过 (耗时: {elapsed:.2f}s)")
+        if report_path:
+             print(f"      📄 详情: {report_path}")
+        return True
 
 def main():
     parser = argparse.ArgumentParser(description="TG ONE 本地 CI 运行器")

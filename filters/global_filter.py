@@ -1,4 +1,4 @@
-﻿"""
+"""
 全局过滤器
 处理全局媒体筛选设置，应用于所有规则
 """
@@ -179,13 +179,7 @@ class GlobalFilter(BaseFilter):
                     context.should_forward = False
                     return False
 
-        # 如果媒体被屏蔽但允许文本，将媒体去除，仅保留文本（若有）
-        if getattr(context, 'media_blocked', False):
-            try:
-                # 标记为不要转发媒体，后续发送阶段可据此仅发文本
-                context.should_forward = bool(getattr(message, 'message', '').strip())
-            except Exception:
-                pass
+
         
         # 检查媒体时长（全局设置）
         if settings.get('media_duration_enabled', False):
@@ -284,5 +278,21 @@ class GlobalFilter(BaseFilter):
                                     return False
             except Exception as e:
                 logger.warning(f"检查媒体扩展名失败: {str(e)}")
+        
+                logger.warning(f"检查媒体扩展名失败: {str(e)}")
+        
+        # [Bug Fix] 将媒体屏蔽处理移至最后，确保覆盖所有检查（时长、大小等）
+        # 如果媒体被屏蔽但允许文本，将媒体去除，仅保留文本（若有）
+        if getattr(context, 'media_blocked', False):
+            try:
+                # 标记为不要转发媒体，后续发送阶段可据此仅发文本
+                # 如果没有文本，should_forward 将变为 False
+                context.should_forward = bool(getattr(message, 'message', '').strip())
+                if context.should_forward:
+                    logger.info("全局设置：媒体被屏蔽，仅转发文本")
+                else:
+                    logger.info("全局设置：媒体被屏蔽且无文本，取消转发")
+            except Exception:
+                pass
         
         return True

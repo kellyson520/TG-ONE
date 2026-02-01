@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from abc import ABC, abstractmethod
 from models.models import MediaSignature
 from repositories.db_context import async_safe_db_operation

@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Union, List, Callable
 import structlog
 # 导入 settings
 from core.config import settings
-from services.network.log_push import install_log_push_handlers
+# from services.network.log_push import install_log_push_handlers (Moved to bootstrap/main)
 # 导入 ContextVar
 from core.context import trace_id_var
 
@@ -401,11 +401,11 @@ def setup_logging() -> logging.Logger:
     except Exception:
         pass
 
-    # Log Push
-    try:
-        install_log_push_handlers(root_logger)
-    except Exception:
-        pass
+    # Log Push (Decoupled: moved to Bootstrap or Main)
+    # try:
+    #     install_log_push_handlers(root_logger)
+    # except Exception:
+    #     pass
 
     return root_logger
 

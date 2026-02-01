@@ -1,0 +1,504 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.0.1, pluggy-1.6.0 -- E:\python\python313\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\lihuo\Desktop\重构\TG ONE
+configfile: pytest.ini
+plugins: anyio-4.12.1, hypothesis-6.151.4, asyncio-1.3.0, cov-7.0.0, mock-3.15.1, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... 
+----------------------------- live log collection -----------------------------
+2026-02-01 13:38:35 [    INFO] Failed to load SSL library: <class 'OSError'> (no library called "ssl" found)
+2026-02-01 13:38:35 [    INFO] cryptg module not installed and libssl not found, falling back to (slower) Python encryption
+collected 101 items
+
+tests/unit/filters/test_advanced_media_filter.py::test_adv_media_filter_no_media PASSED [  0%]
+tests/unit/filters/test_advanced_media_filter.py::test_adv_media_filter_duration_pass 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 媒体时长 30s 通过时长过滤
+PASSED                                                                   [  1%]
+tests/unit/filters/test_advanced_media_filter.py::test_adv_media_filter_duration_fail 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 媒体时长 30s 小于最小时长 60s
+2026-02-01 13:38:35 [    INFO] 消息被时长过滤器拦截
+PASSED                                                                   [  2%]
+tests/unit/filters/test_advanced_media_filter.py::test_adv_media_filter_resolution_pass 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 媒体分辨率 1280x720 通过分辨率过滤
+PASSED                                                                   [  3%]
+tests/unit/filters/test_advanced_media_filter.py::test_adv_media_filter_size_range_fail 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 文件大小 512.0KB 小于最小大小 1000KB
+2026-02-01 13:38:35 [    INFO] 消息被文件大小范围过滤器拦截
+PASSED                                                                   [  4%]
+tests/unit/filters/test_ai_filter.py::test_ai_filter_skip_non_ai PASSED  [  5%]
+tests/unit/filters/test_ai_filter.py::test_ai_filter_basic_processing PASSED [  6%]
+tests/unit/filters/test_ai_filter.py::test_ai_filter_with_images PASSED  [  7%]
+tests/unit/filters/test_ai_filter.py::test_ai_filter_keyword_after_ai_fail PASSED [  8%]
+tests/unit/filters/test_comment_button_filter.py::test_comment_button_filter_skip_if_disabled PASSED [  9%]
+tests/unit/filters/test_comment_button_filter.py::test_comment_button_filter_not_broadcast 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 获取到频道用户名: <MagicMock name='mock.resolve_single_entity().username' id='2712197325424'>
+2026-02-01 13:38:35 [    INFO] 处理频道ID: <MagicMock name='mock.resolve_single_entity().id' id='2712196135440'>
+PASSED                                                                   [ 10%]
+tests/unit/filters/test_comment_button_filter.py::test_comment_button_filter_success_public 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 获取到频道用户名: my_channel
+2026-02-01 13:38:35 [    INFO] 处理频道ID: 1234567890
+2026-02-01 13:38:35 [    INFO] 等待2秒，确保消息同步完成...
+2026-02-01 13:38:35 [    INFO] 构建公开频道评论区链接: https://t.me/my_channel/100?comment=1
+2026-02-01 13:38:35 [    INFO] 尝试使用用户客户端获取群组 987654 的消息
+2026-02-01 13:38:35 [    INFO] 成功获取关联群组 987654 的 0 条消息
+2026-02-01 13:38:35 [    INFO] 尝试查找内容完全匹配的消息，原始内容长度: 5
+2026-02-01 13:38:35 [    INFO] 尝试基于时间匹配，原消息时间: None
+2026-02-01 13:38:35 [    INFO] 未找到匹配消息，尝试使用最新消息
+2026-02-01 13:38:35 [    INFO] 生成群组备用链接: https://t.me/<MagicMock name='mock.username' id='2712197709904'>
+2026-02-01 13:38:35 [    INFO] 为消息添加了评论区按钮，链接: https://t.me/my_channel/100?comment=1
+PASSED                                                                   [ 11%]
+tests/unit/filters/test_comment_button_filter.py::test_comment_button_filter_media_group 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 处理频道ID: 1234567890
+2026-02-01 13:38:35 [    INFO] 检测到媒体组消息，组ID: 555
+2026-02-01 13:38:35 [    INFO] 使用媒体组中ID最小的消息: 98
+2026-02-01 13:38:35 [    INFO] 等待2秒，确保消息同步完成...
+2026-02-01 13:38:35 [    INFO] 构建私有频道评论区链接: https://t.me/c/1234567890/98?comment=1
+2026-02-01 13:38:35 [    INFO] 尝试使用用户客户端获取群组 987654 的消息
+2026-02-01 13:38:35 [    INFO] 成功获取关联群组 987654 的 0 条消息
+2026-02-01 13:38:35 [    INFO] 尝试查找内容完全匹配的消息，原始内容长度: 5
+2026-02-01 13:38:35 [    INFO] 尝试基于时间匹配，原消息时间: None
+2026-02-01 13:38:35 [    INFO] 未找到匹配消息，尝试使用最新消息
+2026-02-01 13:38:35 [    INFO] 生成群组备用链接: https://t.me/<MagicMock name='mock.username' id='2712197721328'>
+2026-02-01 13:38:35 [    INFO] 媒体组消息的评论区按钮将由ReplyFilter处理
+PASSED                                                                   [ 12%]
+tests/unit/filters/test_config_manager.py::test_get_default_config PASSED [ 13%]
+tests/unit/filters/test_config_manager.py::test_generate_config_for_rule PASSED [ 14%]
+tests/unit/filters/test_config_manager.py::test_validate_rule_config_valid PASSED [ 15%]
+tests/unit/filters/test_config_manager.py::test_validate_rule_config_invalid_json PASSED [ 16%]
+tests/unit/filters/test_config_manager.py::test_validate_rule_config_missing_filters PASSED [ 17%]
+tests/unit/filters/test_config_manager.py::test_validate_rule_config_invalid_type PASSED [ 18%]
+tests/unit/filters/test_config_manager.py::test_migrate_filter_configs 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 成功迁移规则 1 的过滤器配置
+2026-02-01 13:38:35 [    INFO] 过滤器配置迁移完成: {'total_rules': 1, 'migrated_rules': 1, 'failed_rules': 0, 'errors': []}
+PASSED                                                                   [ 19%]
+tests/unit/filters/test_config_manager.py::test_save_filter_config_success 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 成功更新规则 1 的过滤器配置
+PASSED                                                                   [ 20%]
+tests/unit/filters/test_config_manager.py::test_save_filter_config_fail_validation 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [   ERROR] 配置验证失败: ['error']
+PASSED                                                                   [ 21%]
+tests/unit/filters/test_config_manager.py::test_update_global_config 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 成功更新全局禁用过滤器: ['init']
+PASSED                                                                   [ 22%]
+tests/unit/filters/test_config_manager.py::test_update_global_config_invalid 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [   ERROR] 无效的过滤器名称: ['invalid_filter']
+PASSED                                                                   [ 23%]
+tests/unit/filters/test_delay_filter.py::test_delay_filter_skip_if_disabled PASSED [ 24%]
+tests/unit/filters/test_delay_filter.py::test_delay_filter_reschedule 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] [Rule 1] Message age 0.0s < delay 10s. Rescheduling task in 10.0s.
+PASSED                                                                   [ 25%]
+tests/unit/filters/test_delay_filter.py::test_delay_filter_refresh_success 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] [Rule 1] Fetching latest version of message 123...
+2026-02-01 13:38:35 [    INFO] [Rule 1] Message text updated detected.
+PASSED                                                                   [ 26%]
+tests/unit/filters/test_delay_filter.py::test_delay_filter_refresh_no_message 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] [Rule 1] Fetching latest version of message 123...
+2026-02-01 13:38:35 [ WARNING] Message 123 not found during refresh.
+PASSED                                                                   [ 27%]
+tests/unit/filters/test_delete_original_filter.py::test_delete_original_filter_skip PASSED [ 28%]
+tests/unit/filters/test_delete_original_filter.py::test_delete_original_filter_single 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] [Rule 1] Marking message 123 (Group: None) for later deletion.
+PASSED                                                                   [ 29%]
+tests/unit/filters/test_delete_original_filter.py::test_delete_original_filter_group 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] [Rule 1] Marking message 123 (Group: 999) for later deletion.
+PASSED                                                                   [ 30%]
+tests/unit/filters/test_dummy.py::test_dummy PASSED                      [ 31%]
+tests/unit/filters/test_edit_filter.py::test_edit_filter_skip_not_edit PASSED [ 32%]
+tests/unit/filters/test_edit_filter.py::test_edit_filter_not_channel 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 不是频道消息 (聊天类型: MagicMock)，跳过编辑
+PASSED                                                                   [ 33%]
+tests/unit/filters/test_edit_filter.py::test_edit_filter_success 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 成功编辑消息 123
+PASSED                                                                   [ 34%]
+tests/unit/filters/test_edit_filter.py::test_edit_filter_no_text_change 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 消息文本没有变化，跳过编辑
+PASSED                                                                   [ 35%]
+tests/unit/filters/test_factory.py::test_factory_initialization PASSED   [ 36%]
+tests/unit/filters/test_factory.py::test_factory_set_global_disabled 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 设置全局禁用过滤器: ['ai', 'delay']
+PASSED                                                                   [ 37%]
+tests/unit/filters/test_factory.py::test_create_chain_for_rule_basic PASSED [ 38%]
+tests/unit/filters/test_factory.py::test_create_chain_with_explicit_config PASSED [ 39%]
+tests/unit/filters/test_factory.py::test_generate_cache_key PASSED       [ 40%]
+tests/unit/filters/test_factory.py::test_create_chain_parallel_group PASSED [ 41%]
+tests/unit/filters/test_factory.py::test_cache_functionality 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 已清空过滤器链缓存
+PASSED                                                                   [ 42%]
+tests/unit/filters/test_filter_chain.py::test_filter_node_execution 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f2
+2026-02-01 13:38:35 [    INFO] 过滤器 f2 处理结果: 不通过
+2026-02-01 13:38:35 [    INFO] 过滤器 f2 中断了处理链
+PASSED                                                                   [ 43%]
+tests/unit/filters/test_filter_chain.py::test_parallel_node_execution 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f2
+2026-02-01 13:38:35 [    INFO] 过滤器 f2 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f3
+2026-02-01 13:38:35 [    INFO] 过滤器 f3 处理结果: 不通过
+2026-02-01 13:38:35 [    INFO] 过滤器 f3 中断了处理链
+PASSED                                                                   [ 44%]
+tests/unit/filters/test_filter_chain.py::test_filter_chain_sequential 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始过滤器链处理 (Plan Nodes: 2) [TraceID: test-trace]
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f2
+2026-02-01 13:38:35 [    INFO] 过滤器 f2 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 过滤器链处理完成
+PASSED                                                                   [ 45%]
+tests/unit/filters/test_filter_chain.py::test_filter_chain_interruption 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始过滤器链处理 (Plan Nodes: 2) [TraceID: test-trace]
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 不通过
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 中断了处理链
+2026-02-01 13:38:35 [    INFO] 节点 0 (FilterNode) 拦截了执行
+PASSED                                                                   [ 46%]
+tests/unit/filters/test_filter_chain.py::test_filter_chain_with_parallel_group 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始过滤器链处理 (Plan Nodes: 2) [TraceID: test-trace]
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: f1
+2026-02-01 13:38:35 [    INFO] 过滤器 f1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: p1
+2026-02-01 13:38:35 [    INFO] 过滤器 p1 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 开始执行过滤器: p2
+2026-02-01 13:38:35 [    INFO] 过滤器 p2 处理结果: 通过
+2026-02-01 13:38:35 [    INFO] 过滤器链处理完成
+PASSED                                                                   [ 47%]
+tests/unit/filters/test_global_filter.py::test_global_filter_allow_text PASSED [ 48%]
+tests/unit/filters/test_global_filter.py::test_global_filter_block_text 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 全局设置：文本消息被屏蔽
+PASSED                                                                   [ 49%]
+tests/unit/filters/test_global_filter.py::test_global_filter_block_emoji_only 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 全局设置：表情包消息被屏蔽
+PASSED                                                                   [ 50%]
+tests/unit/filters/test_global_filter.py::test_global_filter_allow_mixed_emoji PASSED [ 51%]
+tests/unit/filters/test_global_filter.py::test_global_filter_block_media_type 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 全局设置：图片类型被屏蔽
+2026-02-01 13:38:35 [    INFO] 全局设置：媒体被屏蔽且无文本，取消转发
+PASSED                                                                   [ 52%]
+tests/unit/filters/test_global_filter.py::test_global_filter_block_voice 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 全局设置：语音类型被屏蔽
+2026-02-01 13:38:35 [    INFO] 全局设置：媒体被屏蔽且无文本，取消转发
+PASSED                                                                   [ 53%]
+tests/unit/filters/test_global_filter.py::test_global_filter_block_video_document 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] Checking attributes: [<test_global_filter.test_global_filter_block_video_document.<locals>.DocumentAttributeVideo object at 0x000002777B94D2B0>]
+2026-02-01 13:38:35 [    INFO] Attribute class: DocumentAttributeVideo
+2026-02-01 13:38:35 [    INFO] 全局设置：视频文档被屏蔽
+2026-02-01 13:38:35 [    INFO] 全局设置：媒体被屏蔽且无文本，取消转发
+PASSED                                                                   [ 54%]
+tests/unit/filters/test_global_filter.py::test_global_filter_duration_limit 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 全局设置：媒体时长 20s 大于最大时长 10s
+2026-02-01 13:38:35 [    INFO] 全局设置：媒体被屏蔽且无文本，取消转发
+PASSED                                                                   [ 55%]
+tests/unit/filters/test_info_filter.py::test_info_filter_link_default 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 添加原始链接: 
+
+原始消息: https://t.me/c/1234567890/100
+PASSED                                                                   [ 56%]
+tests/unit/filters/test_info_filter.py::test_info_filter_link_template 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 添加原始链接: 
+
+Source: https://t.me/c/1234567890/100
+PASSED                                                                   [ 57%]
+tests/unit/filters/test_info_filter.py::test_info_filter_sender_user 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始获取发送者信息
+2026-02-01 13:38:35 [    INFO] 使用发送者信息: John Doe (ID: 555)
+2026-02-01 13:38:35 [    INFO] 添加发送者信息: John Doe
+
+
+PASSED                                                                   [ 58%]
+tests/unit/filters/test_info_filter.py::test_info_filter_sender_chat 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 开始获取发送者信息
+2026-02-01 13:38:35 [    INFO] 使用频道信息: Awesome Channel (ID: -100999)
+2026-02-01 13:38:35 [    INFO] 添加发送者信息: Awesome Channel
+
+
+PASSED                                                                   [ 59%]
+tests/unit/filters/test_info_filter.py::test_info_filter_time_default 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 添加时间信息: 
+
+2023-01-01 12:00:00
+PASSED                                                                   [ 60%]
+tests/unit/filters/test_init_filter.py::test_init_filter_basic PASSED    [ 61%]
+tests/unit/filters/test_init_filter.py::test_init_filter_photo_sig PASSED [ 62%]
+tests/unit/filters/test_init_filter.py::test_init_filter_media_group_text 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 获取到媒体组文本并添加到context: group caption
+PASSED                                                                   [ 63%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_success PASSED [ 64%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_fail PASSED [ 65%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_sender_match_id PASSED [ 66%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_sender_mismatch_id PASSED [ 67%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_sender_regex_match PASSED [ 68%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_sender_regex_mismatch PASSED [ 69%]
+tests/unit/filters/test_keyword_filter.py::test_keyword_filter_dedup PASSED [ 70%]
+tests/unit/filters/test_media_filter.py::test_media_filter_skip_no_media PASSED [ 71%]
+tests/unit/filters/test_media_filter.py::test_media_filter_single_media_pass 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 处理单条媒体消息
+2026-02-01 13:38:35 [    INFO] event.message.document: None
+2026-02-01 13:38:35 [    INFO] 媒体文件大小: 1.0MB (优化检测)
+2026-02-01 13:38:35 [    INFO] 规则最大媒体大小: 100MB
+2026-02-01 13:38:35 [    INFO] 是否启用媒体大小过滤: True
+2026-02-01 13:38:35 [    INFO] 媒体文件已下载到: temp/path/file.jpg
+PASSED                                                                   [ 72%]
+tests/unit/filters/test_media_filter.py::test_media_filter_size_limit_hit 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 处理单条媒体消息
+2026-02-01 13:38:35 [    INFO] event.message.document: None
+2026-02-01 13:38:35 [    INFO] 媒体文件大小: 10.0MB (优化检测)
+2026-02-01 13:38:35 [    INFO] 规则最大媒体大小: 5MB
+2026-02-01 13:38:35 [    INFO] 是否启用媒体大小过滤: True
+2026-02-01 13:38:35 [    INFO] 媒体文件超过大小限制 (5MB)
+PASSED                                                                   [ 73%]
+tests/unit/filters/test_media_filter.py::test_media_filter_media_type_blocked 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] Bloom Filter (L0) 初始化成功
+2026-02-01 13:38:35 [    INFO] HLL (HyperLogLog) 初始化成功
+2026-02-01 13:38:35 [    INFO] SimHash 引擎与 LSH Forest 索引系统初始化成功
+2026-02-01 13:38:35 [    INFO] Bloom Filter Service initialized using consolidated utils implementation
+2026-02-01 13:38:35 [    INFO] 使用转发记录目录: C:\app\zhuanfaji
+2026-02-01 13:38:35 [    INFO] ForwardRecorder 初始化完成，模式: full
+2026-02-01 13:38:35 [    INFO] [Database] 初始化数据库连接，模式=共享引擎
+2026-02-01 13:38:35 [    INFO] [Database] 使用共享引擎: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-02-01 13:38:35 [    INFO] [Database] 会话工厂已初始化
+2026-02-01 13:38:35 [    INFO] Container connected to shared database engine: sqlite+aiosqlite:///file:testdb_master?cache=shared&mode=memory&uri=true
+2026-02-01 13:38:35 [    INFO] EventBus initialized
+2026-02-01 13:38:35 [    INFO] 处理单条媒体消息
+2026-02-01 13:38:35 [    INFO] 媒体类型为图片，已被屏蔽
+2026-02-01 13:38:35 [    INFO] \U0001f6ab [\u5a92\u4f53\u8fc7\u6ee4\u5668] \u5a92\u4f53\u7c7b\u578b\u88ab\u5c4f\u853d (\u89c4\u5219ID=1)\uff0c\u539f\u56e0: \u76f8\u5e94\u5a92\u4f53\u9879\u5728\u89c4\u5219\u8bbe\u7f6e\u4e2d\u88ab\u8bbe\u4e3a"\u5c4f\u853d"\nPASSED                                                                   [ 74%]
+tests/unit/filters/test_media_filter.py::test_media_filter_media_group 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 处理媒体组消息
+2026-02-01 13:38:35 [    INFO] 找到媒体组消息: ID=101, 类型=MagicMock
+2026-02-01 13:38:35 [    INFO] 共找到 1 条媒体组消息，0 条超限
+PASSED                                                                   [ 75%]
+tests/unit/filters/test_process_manager.py::test_process_forward_rule_success 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 使用配置化过滤器链处理规则 ID: 1
+2026-02-01 13:38:35 [    INFO] 规则 1 过滤器链处理完成，结果: True
+PASSED                                                                   [ 76%]
+tests/unit/filters/test_process_manager.py::test_process_forward_rule_exception 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 使用配置化过滤器链处理规则 ID: 1
+2026-02-01 13:38:35 [   ERROR] 规则 1 过滤器链处理异常: factory error
+Traceback (most recent call last):
+  File "C:\Users\lihuo\Desktop\重构\TG ONE\filters\process.py", line 23, in process_forward_rule
+    factory = get_filter_chain_factory()
+  File "E:\python\python313\Lib\unittest\mock.py", line 1167, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\unittest\mock.py", line 1171, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "E:\python\python313\Lib\unittest\mock.py", line 1226, in _execute_mock_call
+    raise effect
+Exception: factory error
+PASSED                                                                   [ 77%]
+tests/unit/filters/test_push_filter.py::test_push_filter_skip_if_disabled 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 推送未启用，跳过推送
+PASSED                                                                   [ 78%]
+tests/unit/filters/test_push_filter.py::test_push_filter_no_configs 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 推送过滤器开始处理 - 规则ID: 1
+2026-02-01 13:38:35 [    INFO] 是否是媒体组: False
+2026-02-01 13:38:35 [    INFO] 媒体组消息数量: 0
+2026-02-01 13:38:35 [    INFO] 已有媒体文件数量: 0
+2026-02-01 13:38:35 [    INFO] 是否只推送不转发: False
+2026-02-01 13:38:35 [    INFO] 规则 1 没有启用的推送配置，跳过推送
+PASSED                                                                   [ 79%]
+tests/unit/filters/test_push_filter.py::test_push_filter_text_notification 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 推送过滤器开始处理 - 规则ID: 1
+2026-02-01 13:38:35 [    INFO] 是否是媒体组: False
+2026-02-01 13:38:35 [    INFO] 媒体组消息数量: 0
+2026-02-01 13:38:35 [    INFO] 已有媒体文件数量: 0
+2026-02-01 13:38:35 [    INFO] 是否只推送不转发: False
+2026-02-01 13:38:35 [    INFO] 成功添加推送服务: tgram://bot_token/chat_id
+2026-02-01 13:38:35 [    INFO] 发送纯文本推送
+2026-02-01 13:38:35 [    INFO] 推送发送成功: tgram://bot_token/chat_id
+2026-02-01 13:38:35 [    INFO] 文本消息推送已发送
+2026-02-01 13:38:35 [    INFO] 推送已发送到 1 个配置
+PASSED                                                                   [ 80%]
+tests/unit/filters/test_push_filter.py::test_push_filter_single_media 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 推送过滤器开始处理 - 规则ID: 1
+2026-02-01 13:38:35 [    INFO] 是否是媒体组: False
+2026-02-01 13:38:35 [    INFO] 媒体组消息数量: 0
+2026-02-01 13:38:35 [    INFO] 已有媒体文件数量: 1
+2026-02-01 13:38:35 [    INFO] 是否只推送不转发: False
+2026-02-01 13:38:35 [    INFO] 推送单条媒体消息
+2026-02-01 13:38:35 [    INFO] 使用SenderFilter已下载的文件: 1个
+2026-02-01 13:38:35 [    INFO] 成功添加推送服务: mailto://user:pass@example.com
+2026-02-01 13:38:35 [    INFO] 发送带单个附件的推送: test.jpg
+2026-02-01 13:38:35 [    INFO] 推送发送成功: mailto://user:pass@example.com
+2026-02-01 13:38:35 [    INFO] 推送已发送到 1 个配置
+2026-02-01 13:38:35 [    INFO] 清理已处理的媒体文件，共 1 个
+2026-02-01 13:38:35 [    INFO] 删除已处理的媒体文件: temp/test.jpg
+PASSED                                                                   [ 81%]
+tests/unit/filters/test_push_filter.py::test_push_filter_media_group 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 推送过滤器开始处理 - 规则ID: 1
+2026-02-01 13:38:35 [    INFO] 是否是媒体组: True
+2026-02-01 13:38:35 [    INFO] 媒体组消息数量: 0
+2026-02-01 13:38:35 [    INFO] 已有媒体文件数量: 2
+2026-02-01 13:38:35 [    INFO] 是否只推送不转发: False
+2026-02-01 13:38:35 [    INFO] 使用SenderFilter已下载的文件: 2个
+2026-02-01 13:38:35 [    INFO] 尝试一次性发送 2 个文件到 pushed://user/token，模式: Multiple
+2026-02-01 13:38:35 [    INFO] 成功添加推送服务: pushed://user/token
+2026-02-01 13:38:35 [    INFO] 发送带2个附件的推送，模式: Multiple
+2026-02-01 13:38:35 [    INFO] 推送发送成功: pushed://user/token
+2026-02-01 13:38:35 [    INFO] 推送已发送到 1 个配置
+2026-02-01 13:38:35 [    INFO] 清理已处理的媒体文件，共 2 个
+2026-02-01 13:38:35 [    INFO] 删除已处理的媒体文件: temp/img1.png
+2026-02-01 13:38:35 [    INFO] 删除已处理的媒体文件: temp/img2.png
+PASSED                                                                   [ 82%]
+tests/unit/filters/test_registry.py::test_registry_initialization PASSED [ 83%]
+tests/unit/filters/test_registry.py::test_registry_register_custom PASSED [ 84%]
+tests/unit/filters/test_registry.py::test_registry_register_invalid_type PASSED [ 85%]
+tests/unit/filters/test_registry.py::test_registry_validate_config PASSED [ 86%]
+tests/unit/filters/test_registry.py::test_registry_optimize_order PASSED [ 87%]
+tests/unit/filters/test_registry.py::test_get_filter_info PASSED         [ 88%]
+tests/unit/filters/test_replace_filter.py::test_replace_filter_skip_if_no_replace PASSED [ 89%]
+tests/unit/filters/test_replace_filter.py::test_replace_filter_no_rules PASSED [ 90%]
+tests/unit/filters/test_replace_filter.py::test_replace_filter_full_replace 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 执行全文替换:
+原文: "original text with some pattern"
+替换为: "completely new text"
+PASSED                                                                   [ 91%]
+tests/unit/filters/test_replace_filter.py::test_replace_filter_regex_replace 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 执行部分替换:
+原文: "original text with some pattern"
+匹配内容: ['original']
+替换规则: "original" -> "modified"
+替换后: "modified text with some pattern"
+2026-02-01 13:38:35 [    INFO] 执行部分替换:
+原文: "modified text with some pattern"
+匹配内容: ['pattern']
+替换规则: "pattern" -> "style"
+替换后: "modified text with some style"
+PASSED                                                                   [ 92%]
+tests/unit/filters/test_replace_filter.py::test_replace_filter_invalid_regex 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [   ERROR] 替换规则格式错误: [invalid, 错误: unterminated character set at position 0
+PASSED                                                                   [ 93%]
+tests/unit/filters/test_reply_filter.py::test_reply_filter_skip_if_not_enabled PASSED [ 94%]
+tests/unit/filters/test_reply_filter.py::test_reply_filter_skip_if_not_media_group PASSED [ 95%]
+tests/unit/filters/test_reply_filter.py::test_reply_filter_send_reply 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 正在使用Bot给已转发的媒体组消息 999 发送评论区按钮回复
+2026-02-01 13:38:35 [    INFO] 成功发送评论区按钮回复
+PASSED                                                                   [ 96%]
+tests/unit/filters/test_sender_filter.py::test_sender_filter_skip_if_not_forward 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 消息不满足转发条件，跳过发送
+PASSED                                                                   [ 97%]
+tests/unit/filters/test_sender_filter.py::test_sender_filter_text_only 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 使用消息格式: HTML
+2026-02-01 13:38:35 [    INFO] 准备发送纯文本消息
+2026-02-01 13:38:35 [    INFO] 带预览的文本消息已发送
+2026-02-01 13:38:35 [    INFO] 消息已发送到: Target (123456)
+PASSED                                                                   [ 98%]
+tests/unit/filters/test_sender_filter.py::test_sender_filter_pure_forward 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 使用消息格式: HTML
+2026-02-01 13:38:35 [    INFO] 启用强制纯转发，使用 forward_messages 而非下载后上传
+2026-02-01 13:38:35 [    INFO] 纯转发单条消息完成
+2026-02-01 13:38:35 [    INFO] 消息已发送到: Target (123456)
+PASSED                                                                   [ 99%]
+tests/unit/filters/test_sender_filter.py::test_sender_filter_send_file 
+-------------------------------- live log call --------------------------------
+2026-02-01 13:38:35 [    INFO] 使用消息格式: HTML
+2026-02-01 13:38:35 [    INFO] 准备发送单条媒体消息
+2026-02-01 13:38:35 [    INFO] 发送单条媒体消息
+2026-02-01 13:38:35 [    INFO] 媒体消息已发送
+2026-02-01 13:38:35 [    INFO] 删除临时文件: temp/file.jpg
+2026-02-01 13:38:35 [    INFO] 消息已发送到: Target (123456)
+PASSED                                                                   [100%]
+
+============================== warnings summary ===============================
+tests/unit/filters/test_media_filter.py::test_media_filter_media_group
+  C:\Users\lihuo\Desktop\重构\TG ONE\filters\media_filter.py:42: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    await self._process_media_group(context)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.13.0-final-0 _______________
+
+Name                                Stmts   Miss  Cover
+-------------------------------------------------------
+filters\advanced_media_filter.py      123     53    57%
+filters\ai_filter.py                   37     11    70%
+filters\base_filter.py                 38     14    63%
+filters\comment_button_filter.py      158     56    65%
+filters\config_manager.py             136     43    68%
+filters\context.py                     39     30    23%
+filters\delay_filter.py                54     11    80%
+filters\delete_original_filter.py      21      5    76%
+filters\edit_filter.py                 74     33    55%
+filters\factory.py                    129     17    87%
+filters\filter_chain.py                76     17    78%
+filters\global_filter.py              179    103    42%
+filters\info_filter.py                 98     45    54%
+filters\init_filter.py                127     82    35%
+filters\keyword_filter.py             140     87    38%
+filters\media_filter.py               290    171    41%
+filters\process.py                     14      0   100%
+filters\push_filter.py                258    118    54%
+filters\registry.py                    76      2    97%
+filters\replace_filter.py              44      7    84%
+filters\reply_filter.py                30      6    80%
+filters\rss_filter.py                  24     18    25%
+filters\sender_filter.py              253    161    36%
+-------------------------------------------------------
+TOTAL                                2418   1090    55%
+======================= 101 passed, 1 warning in 1.43s ========================

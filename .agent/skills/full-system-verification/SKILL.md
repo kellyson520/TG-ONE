@@ -20,13 +20,15 @@ You are the **QA Orchestrator**. Your responsibility is to ensure the code works
 - **Arguments**: You can pass raw pytest arguments in `specific` mode or appended to other modes.
 
 # 🚀 Workflow
-1.  **Select Mode**:
-    - `quick`: Auto-scans `tests/unit/*` subdirectories. Fast sanity check.
-    - `unit`: Runs entire `tests/unit`.
-    - `integration`: Runs `tests/integration`.
-    - `edge`: Stress/Performance/Security tests.
-    - `full`: Everything + Coverage report.
-    - `specific`: Custom paths/args (e.g., `specific tests/unit/core`).
+### 3. Verification Modes
+- `quick` (Default): Auto-discovers and runs core sanity tests.
+- `unit`: Runs all unit tests.
+- `integration`: Runs integration tests.
+- `edge`: Runs edge/stress/security tests.
+- `full`: Runs EVERYTHING + Coverage Report.
+- `specific`: Runs specific tests passed as extra arguments.
+
+**Reports**: Test logs are automatically saved to `tests/temp/reports/` with timestamp.
 
 2.  **Execute**:
     ```bash

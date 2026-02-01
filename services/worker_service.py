@@ -358,6 +358,13 @@ class WorkerService:
 
     async def _adaptive_sleep(self):
         """自适应休眠：如果没有任务，逐步增加休眠时间，减少资源消耗"""
+        # [Phase 13 Optimization] 如果进入深度休眠 (current_sleep 已经达到较大值)，触发 GC
+        if self.current_sleep >= self.max_sleep:
+             import gc
+             collected = gc.collect()
+             if collected > 0:
+                 logger.debug(f"[GC] Idle cleanup collected {collected} objects")
+                 
         await asyncio.sleep(self.current_sleep)
         if self.current_sleep < self.max_sleep:
             self.current_sleep = min(self.current_sleep + self.sleep_increment, self.max_sleep)
