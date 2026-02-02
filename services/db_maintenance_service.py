@@ -116,7 +116,8 @@ class DatabaseManager:
                 conn.commit()
             return True
         except Exception as e:
-            logger.error(f"数据库写入测试失败 {db_path}: {e}")
+            # Use warning instead of error for write tests (common for locked files)
+            logger.warning(f"数据库写入测试失败 {db_path}: {e}")
             return False
 
     def backup_database(self, db_path: Path) -> Optional[Path]:
@@ -135,14 +136,23 @@ class DatabaseManager:
             return None
 
     def scan_database_files(self) -> List[Path]:
-        """扫描所有数据库文件"""
+        """扫描所有数据库文件 (排除备份)"""
         db_files = []
         search_patterns = ["*.db", "*.sqlite", "*.sqlite3", "*.session"]
         for directory in [self.session_dir, self.db_dir]:
             if directory.exists():
                 for pattern in search_patterns:
-                    db_files.extend(directory.glob(pattern))
-                    db_files.extend(directory.glob(f"**/{pattern}"))
+                    # Scan current dir
+                    files = list(directory.glob(pattern))
+                    # Scan subdirs recursively
+                    files.extend(directory.glob(f"**/{pattern}"))
+                    
+                    for f in files:
+                        # Exclude backup directories and files
+                        if "backup" in str(f).lower() or ".backup." in f.name:
+                            continue
+                        db_files.append(f)
+                        
         return sorted(list(set(db_files)))
 
     def fix_all_permissions(self) -> Tuple[int, int]:

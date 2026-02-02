@@ -1,5 +1,20 @@
 # Change Log
 
+## 📅 2026-02-02 更新摘要
+
+### 🚀 v1.2.3.2: 运维稳定性增强 & 日志降噪 (Maintenance & Stability)
+- **Log System Noise Reduction**:
+    - **Auth Spam Fix**: 将未鉴权访问（"No token found"）的日志级别从 `WARNING` 降级为 `DEBUG`，消除非恶意扫描产生的海量噪音。
+    - **DB Maintenance Guard**: 优化数据库维护服务 (`db_maintenance_service`)，在扫描数据库文件时自动排除 `*_backup_*` 及 `*/backup/*` 路径，解决因已损坏的备份文件诱发的错误报告。
+    - **Graceful Failure**: 将数据库写权限测试的失败日志降级为 `WARNING`，防止临时文件锁定导致 ERROR 刷屏。
+- **Web Admin Fixes**:
+    - **API 补全**: 新增 `/api/system/resources` 接口，解决仪表盘 CPU/Memory 监控数据 404 问题。
+    - **Template Repair**: 修复 `tasks.html` 中的 Jinja2 语法错误 (重复的 `{% endblock %}`)。
+    - **Static Resources**: 补充缺失的 `bootstrap-icons.woff2` 字体文件，消除控制台 Font 404 警告。
+- **Boot Sequence & Integrity**:
+    - **Import Fix**: 修正 `core/bootstrap.py` 中 `database_health_check` 的导入路径 (`scripts.ops...`)，恢复启动时数据库自检能力。
+    - **Cache Recovery**: 在升级过程中自动识别并清理损坏的 `cache.db` 持久化缓存文件。
+
 ## 📅 2026-01-31 更新摘要
 
 ### 🚀 v1.2.3.0: Phase 9 Security Hardening & Audit System

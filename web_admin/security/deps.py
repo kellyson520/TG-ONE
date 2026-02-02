@@ -28,7 +28,7 @@ async def get_current_user(
     if not token:
         token = access_token
         if not token:
-            logger.warning(f"Authentication failed: No token found in header or cookie. Headers: {request.headers.keys()}")
+            logger.debug(f"Authentication failed: No token found in header or cookie. Headers: {request.headers.keys()}")
             
     if token:
         user = await authentication_service.get_user_from_token(token)
@@ -73,7 +73,7 @@ async def get_current_user(
         else:
              logger.warning("Authentication failed: Refresh token invalid or revoked.")
     else:
-        logger.warning(f"Authentication failed: No refresh token cookie found. Cookies: {request.cookies.keys()}")
+        logger.debug(f"Authentication failed: No refresh token cookie found. Cookies: {request.cookies.keys()}")
 
     return None
 

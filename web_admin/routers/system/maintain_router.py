@@ -224,3 +224,23 @@ async def trigger_archive(
         return ResponseSchema(success=True, message='归档任务已在后台启动')
     except Exception as e:
         return ResponseSchema(success=False, error=str(e))
+
+@router.get("/resources", response_model=ResponseSchema)
+async def get_system_resources(user = Depends(login_required)):
+    """获取系统资源使用情况 (CPU/Memory)"""
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=None)
+        memory = psutil.virtual_memory()
+        
+        return ResponseSchema(success=True, data={
+            'cpu': cpu_percent,
+            'memory': memory.percent,
+            'memory_used': memory.used,
+            'memory_total': memory.total
+        })
+    except ImportError:
+        return ResponseSchema(success=True, data={'cpu': 0, 'memory': 0}, message="psutil module not installed")
+    except Exception as e:
+        logger.error(f"Error getting system resources: {e}")
+        return ResponseSchema(success=False, error=str(e))

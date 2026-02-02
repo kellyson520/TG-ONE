@@ -87,7 +87,7 @@ class Bootstrap:
     async def _check_database(self) -> None:
         logger.info("执行数据库健康检查...")
         try:
-            from scripts.database_health_check import DatabaseHealthChecker
+            from scripts.ops.database_health_check import DatabaseHealthChecker
             health_checker = DatabaseHealthChecker()
             if not await asyncio.to_thread(health_checker.auto_fix_if_needed):
                 logger.error("数据库健康检查失败，程序启动中止")
