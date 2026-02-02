@@ -275,8 +275,13 @@ callback_router.add_route("toggle_media_extension{rest}", handle_media_callback)
 callback_router.add_route("toggle_media_allow_text{rest}", handle_media_callback)
 callback_router.add_route("open_duration_picker{rest}", handle_advanced_media_callback)
 callback_router.add_route("ai_settings{rest}", handle_ai_callback)
+callback_router.add_route("ai_settings{rest}", handle_ai_callback)
 callback_router.add_route("set_summary_time{rest}", handle_ai_callback)
 callback_router.add_route("other_callback{rest}", handle_other_callback)
+
+# 更新日志翻页
+from handlers.button.callback.modules.changelog_callback import callback_changelog_page
+callback_router.add_route("cl_page:{page}", callback_changelog_page)
 
 
 async def handle_callback(event):

@@ -299,6 +299,21 @@ class Bootstrap:
         if settings.RSS_ENABLED:
             logger.info("RSS 面板统一挂载模式开启（/rss）")
         
+        # 注册 Bot 命令
+        try:
+            from telethon.tl.functions.bots import SetBotCommandsRequest
+            from telethon.tl.types import BotCommandScopeDefault
+            from handlers.bot_commands_list import BOT_COMMANDS
+            
+            await self.bot_client(SetBotCommandsRequest(
+                scope=BotCommandScopeDefault(),
+                lang_code='en',
+                commands=BOT_COMMANDS
+            ))
+            logger.info(f"已成功注册 {len(BOT_COMMANDS)} 个 Bot 命令")
+        except Exception as e:
+            logger.warning(f"注册 Bot 命令失败: {e}")
+
         # 发送欢迎消息
         if send_welcome_message:
             await send_welcome_message(self.bot_client)

@@ -1365,4 +1365,6 @@ async def handle_changelog_command(event):
     await async_delete_user_message(
         event.client, event.message.chat_id, event.message.id, 0
     )
-    await reply_and_delete(event, UPDATE_INFO, parse_mode="html")
+    # 使用分页显示逻辑
+    from handlers.button.callback.modules.changelog_callback import show_changelog
+    await show_changelog(event, page=1)

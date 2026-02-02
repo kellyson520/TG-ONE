@@ -14,6 +14,10 @@ from core.helpers.media.media import *
 from .button.callback.callback_handlers import handle_callback
 from .command_handlers import *
 from .link_handlers import handle_message_link
+# [Phase 7 Fix] 导入新增命令处理函数
+from .commands.media_commands import handle_download_command
+from .commands.cancel_command import handle_cancel_command
+from .commands.system_commands import handle_logs_command, handle_download_logs_command
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +178,11 @@ async def handle_command(client, event):
             "set_size": lambda: handle_set_size_command(event, parts),
             "update": lambda: handle_update_command(event),
             "rollback": lambda: handle_rollback_command(event),
+            "logs": lambda: handle_logs_command(event, parts),
+            "download_logs": lambda: handle_download_logs_command(event, parts),
+            "download": lambda: handle_download_command(event, client, parts),
+            "cancel": lambda: handle_cancel_command(event),
+            "menu": lambda: handle_settings_command(event, "menu", parts), # /menu is alias for /settings
         }
 
         handler = command_handlers.get(command)
