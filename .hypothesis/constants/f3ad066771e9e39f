@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\middlewares\trace_middleware.py
-# hypothesis_version: 6.151.4
-
-[1000, 1024, 'Content-Type', 'PATCH', 'POST', 'PUT', 'X-Trace-ID', 'application/json', 'unknown']

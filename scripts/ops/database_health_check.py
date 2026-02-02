@@ -40,7 +40,13 @@ class DatabaseHealthChecker:
             # 非 SQLite 数据库，跳过检查
             self.db_path = None
         
+        # 缓存数据库路径
+        self.cache_db_path = settings.PERSIST_CACHE_SQLITE
+        
         self.fixer = DatabaseFixer(self.db_path) if self.db_path else None
+        
+        # 简单的缓存修复器 (不备份，直接重建)
+        self.cache_fixer = DatabaseFixer(self.cache_db_path) if self.cache_db_path else None
     
     def is_sqlite_database(self):
         """检查是否为 SQLite 数据库"""
@@ -78,10 +84,42 @@ class DatabaseHealthChecker:
             return True  # 非 SQLite 数据库跳过检查
         
         return self.fixer.check_database_integrity()
+
+    def check_cache_health(self):
+        """检查缓存数据库健康状况"""
+        if not self.cache_db_path:
+            return True
+            
+        logger.info(f"检查缓存数据库: {self.cache_db_path.name}")
+        
+        # 1. 检查存在性
+        if not self.cache_db_path.exists():
+            return True # 缓存文件不存在是正常的，会在使用时创建
+            
+        # 2. 检查完整性
+        if not self.cache_fixer.check_database_integrity():
+            logger.warning(f"⚠️ 缓存数据库损坏: {self.cache_db_path}")
+            try:
+                # 直接删除重建
+                if self.cache_db_path.exists():
+                    os.remove(self.cache_db_path)
+                for ext in ["-shm", "-wal"]:
+                    p = self.cache_db_path.with_suffix(self.cache_db_path.suffix + ext)
+                    if p.exists():
+                        os.remove(p)
+                logger.info("✅ 已删除损坏的缓存数据库 (将在下次运行时自动重建)")
+                return True
+            except Exception as e:
+                logger.error(f"❌ 无法删除缓存数据库: {e}")
+                return False
+        return True
     
     def perform_health_check(self):
         """执行健康检查"""
         logger.info("开始数据库健康检查...")
+        
+        # 0. 优先检查缓存 (因为它容易坏且容易修)
+        self.check_cache_health()
         
         if not self.is_sqlite_database():
             logger.info("检测到非 SQLite 数据库，跳过健康检查")

@@ -375,7 +375,8 @@ class UpdateService:
                 
                 zip_data = io.BytesIO(resp.content)
                 
-            # 备份当前版本 (简单策略：快照 state)
+            # 备份当前版本
+            backup_path = await self._create_local_backup()
             state = self._get_state()
             prev_version = state.get("current_version", "unknown")
 
@@ -400,12 +401,30 @@ class UpdateService:
                         continue
                     
                     target_path = settings.BASE_DIR / filename
+                    
+                    # 如果是目录，创建通过
+                    if member.endswith('/'):
+                        target_path.mkdir(parents=True, exist_ok=True)
+                        continue
+
+                    # 确保父目录存在
                     target_path.parent.mkdir(parents=True, exist_ok=True)
                     
-                    # 提取文件
-                    source = z.open(member)
-                    with open(target_path, "wb") as f:
-                        shutil.copyfileobj(source, f)
+                    # Atomic Write with Retry (Windows Robustness)
+                    for i in range(3):
+                        try:
+                            source = z.open(member)
+                            with open(target_path, "wb") as f:
+                                shutil.copyfileobj(source, f)
+                            break
+                        except PermissionError:
+                            if i == 2: 
+                                logger.error(f"无法写入文件 (被占用): {filename}")
+                                # 这里如果失败，可能导致不完整更新。但有了 backup，我们可以回滚。
+                                # 暂时继续，或抛出异常触发整体失败？
+                                # 考虑到原子性难保证，抛出异常比较安全
+                                raise
+                            await asyncio.sleep(0.5)
             
             # 获取最新的 SHA 用于下次对比
             _, remote_sha = await self._check_via_http()
@@ -413,6 +432,7 @@ class UpdateService:
             state.update({
                 "status": "restarting",
                 "prev_version": prev_version,
+                "backup_file": str(backup_path) if backup_path else None,
                 "current_version": remote_sha,
                 "timestamp": datetime.now().isoformat(),
                 "fail_count": 0
@@ -449,20 +469,102 @@ class UpdateService:
         except Exception:
             return False
 
-    async def rollback(self) -> Tuple[bool, str]:
-        """执行紧急回滚流程"""
-        state = self._get_state()
-        prev = state.get("prev_version")
-        if not prev:
-            return False, "未找到有效的记录版本，无法回滚。"
+    async def _create_local_backup(self) -> Optional[Path]:
+        """为 HTTP 更新创建本地文件备份 (Zip)"""
+        import zipfile
+        
+        backup_dir = settings.BASE_DIR / "data" / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(datetime.now().timestamp())
+        backup_path = backup_dir / f"update_backup_{timestamp}.zip"
+        
+        try:
+            with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as z:
+                # 备份核心代码，排除数据文件
+                for root, dirs, files in os.walk(settings.BASE_DIR):
+                    # 排除目录
+                    dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", "venv", ".venv", ".mypy_cache", ".pytest_cache", "logs", "temp", "data", "sessions", "db"]]
+                    
+                    for file in files:
+                        if file.endswith((".pyc", ".db", ".sqlite", ".log", ".zip")):
+                            continue
+                            
+                        file_path = Path(root) / file
+                        arcname = file_path.relative_to(settings.BASE_DIR)
+                        z.write(file_path, arcname)
+                        
+            logger.info(f"已创建本地备份: {backup_path}")
+            return backup_path
+        except Exception as e:
+            logger.error(f"创建本地备份失败: {e}")
+            return None
+
+    async def _restore_from_local_backup(self, backup_path_str: str) -> Tuple[bool, str]:
+        """从本地 Zip 备份还原"""
+        import zipfile
+        import shutil
+        
+        backup_path = Path(backup_path_str)
+        if not backup_path.exists():
+            return False, "备份文件已不存在"
             
-        logger.critical(f"🚑 [回滚] 正在执行紧急还原至版本: {prev[:8]}...")
-        process = await asyncio.create_subprocess_exec(
-            "git", "reset", "--hard", prev,
-            cwd=str(settings.BASE_DIR)
-        )
-        await process.wait()
-        return process.returncode == 0, f"已回滚至 {prev[:8]}"
+        try:
+            logger.info(f"正在从备份还原: {backup_path}")
+            
+            # 解压还原
+            with zipfile.ZipFile(backup_path, 'r') as z:
+                for member in z.namelist():
+                     # 安全检查
+                    if '..' in member or member.startswith('/') or  '\\' in member:
+                        continue
+                        
+                    target = settings.BASE_DIR / member
+                    
+                    if member.endswith('/'):
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        # 重试逻辑用于 Windows 文件占用
+                        for i in range(3):
+                            try:
+                                with z.open(member) as source, open(target, "wb") as dest:
+                                    shutil.copyfileobj(source, dest)
+                                break
+                            except PermissionError:
+                                if i == 2: raise
+                                await asyncio.sleep(0.5)
+                                
+            return True, "已成功从本地备份还原"
+        except Exception as e:
+            return False, f"还原失败: {e}"
+
+    async def rollback(self) -> Tuple[bool, str]:
+        """执行紧急回滚流程 (支持 Git 和 HTTP)"""
+        state = self._get_state()
+        
+        # 1. 如果有 Git
+        if self._git_available and self._is_git_repo:
+            prev = state.get("prev_version")
+            if not prev:
+                return False, "未找到有效的 Git 版本记录"
+            
+            logger.critical(f"🚑 [回滚] Git Reset 至: {prev[:8]}...")
+            process = await asyncio.create_subprocess_exec(
+                "git", "reset", "--hard", prev,
+                cwd=str(settings.BASE_DIR)
+            )
+            await process.wait()
+            return process.returncode == 0, f"Git 回滚至 {prev[:8]}"
+            
+        # 2. 如果是 HTTP 模式
+        else:
+            backup_file = state.get("backup_file")
+            if not backup_file:
+                return False, "未找到 HTTP 更新的本地备份文件"
+            
+            logger.critical(f"🚑 [回滚] 正在还原备份包: {Path(backup_file).name}...")
+            return await self._restore_from_local_backup(backup_file)
 
     def stop(self):
         """停止更新监控"""

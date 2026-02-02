@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\models.py
-# hypothesis_version: 6.151.4
-
-['AccessControlList', 'ActiveSession', 'AsyncSessionManager', 'AuditLog', 'Base', 'Chat', 'ChatStatistics', 'ErrorLog', 'ForwardMapping', 'ForwardRule', 'Keyword', 'MediaExtensions', 'MediaSignature', 'MediaTypes', 'PushConfig', 'RSSConfig', 'RSSPattern', 'RSSSubscription', 'ReplaceRule', 'RuleLog', 'RuleStatistics', 'RuleSync', 'SessionManager', 'SystemConfiguration', 'TaskQueue', 'User', 'analyze_database', 'async_get_db_health', 'backup_database', 'get_async_engine', 'get_async_session', 'get_db_health', 'get_dedup_session', 'get_engine', 'get_read_session', 'get_session', 'get_session_factory', 'migrate_db', 'vacuum_database']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\common.py
-# hypothesis_version: 6.151.4
-
-[',', 'DBOperations', 'RuleFilterService', 'RuleQueryService', 'admin_ids', 'core.db_factory', 'get_api_optimizer', 'get_session', 'sender_chat', 'sender_name', 'services.rule.filter', 'timestamp', 'title', 'user_service', '当前聊天没有任何转发规则', '未找到任何转发规则', '未找到当前聊天或未选择源聊天', '未配置 USER_ID', '获取当前规则时出错，请检查日志', '获取规则时出错，请检查日志', '请先使用 /switch 选择一个源聊天']

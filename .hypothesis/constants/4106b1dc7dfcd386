@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\page_router.py
-# hypothesis_version: 6.151.4
-
-[302, '/', '/archive', '/audit_logs', '/dashboard', '/downloads', '/history', '/login', '/logout', '/logs', '/register', '/rules', '/security', '/settings', '/tasks', '/users', '/visualization', 'LOGOUT', 'Pages', 'Templates not loaded', 'access_token', 'allow_register', 'archive.html', 'audit_logs.html', 'dashboard.html', 'downloads.html', 'history.html', 'index.html', 'login.html', 'logs.html', 'refresh_token', 'register.html', 'request', 'rules.html', 'security.html', 'settings.html', 'sub', 'success', 'tasks.html', 'unknown', 'user', 'users.html', 'verify_exp', 'visualization.html']

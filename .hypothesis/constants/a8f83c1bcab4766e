@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\command_handlers.py
-# hypothesis_version: 6.151.4
-
-['/cancel', '/download', '^/admin', '^/bind', '^/changelog', '^/clear_all$', '^/clear_all_replace', '^/copy_replace', '^/copy_rule', '^/db_', '^/dedup', '^/delete_rss_user', '^/delete_rule', '^/download_logs', '^/export_', '^/forward_search', '^/forward_stats', '^/help', '^/import_', '^/list_keyword', '^/list_replace', '^/list_rule', '^/logs', '^/remove_replace', '^/replace(_all)?\\b', '^/set_duration', '^/set_resolution', '^/set_size', '^/settings', '^/start', '^/switch', '^/system_status', '^/ufb_', '^/video_cache_clear', '^/video_cache_stats', '_all', 'backup', 'bind', 'clear_all_replace', 'copy_replace', 'copy_rule', 'delete_rss_user', 'delete_rule', 'excel', 'health', 'help', 'info', 'item_change', 'keyword', 'list_rule', 'optimize', 'regex', 'remove_all_keyword', 'remove_replace', 'replace', 'scan', 'settings', 'unbind', '已退出下载模式。']

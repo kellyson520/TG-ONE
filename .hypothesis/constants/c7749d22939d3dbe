@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\db_factory.py
-# hypothesis_version: 6.151.4
-
-['.db', '.db-wal', 'ANALYZE', 'AUTOCOMMIT', 'SELECT 1', 'VACUUM', '_async_read_engine', '_async_write_engine', '_read_factory', '_write_factory', 'check_same_thread', 'connect', 'connected', 'db_size', 'error', 'forwarder.db', 'healthy', 'index_count', 'sqlite', 'sqlite+aiosqlite', 'status', 'table_count', 'timeout', 'total_size', 'wal_size']

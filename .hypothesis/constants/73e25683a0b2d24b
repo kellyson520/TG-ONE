@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\cache\unified_cache.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, -100, 100, 300, 500, 900, 1000, 1800, 2000, 3600, 7200, 'T', 'args', 'caches', 'enable_persistent', 'failed', 'frequency_per_second', 'global_hit_rate', 'key', 'kwargs', 'l1_maxsize', 'l1_ttl', 'l2_ttl', 'patterns', 'recent_access_count', 'success_rate', 'successful', 'time_span_seconds', 'total_caches', 'total_hits', 'total_keys', 'total_misses', 'total_size', '全局缓存优化', '初始化完成', '完成', '智能缓存管理器', '条目', '缓存预热', '缓存预热完成', '缓存预热开始']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\prompt_handlers.py
-# hypothesis_version: 6.151.4
-
-[':', '=>', 'AI', 'AI总结', 'Multiple', 'Single', '[\\s,，]+', 'add_push_channel:', 'ai', 'ai_prompt', 'email://', 'kw_add:', 'kw_delete:', 'link', 'mailto://', 'mailtos://', 'rr_add:', 'rr_delete:', 'set_ai_prompt:', 'set_summary_prompt:', 'set_time_template:', 'summary_prompt', 'time', 'time_template', 'userinfo', 'userinfo_template', '准备发送更新后的设置消息', '原始链接', '当前无状态,返回False', '成功添加推送配置', '所有同步提示词/模板更改已提交', '时间', '用户信息', '设置消息发送成功']

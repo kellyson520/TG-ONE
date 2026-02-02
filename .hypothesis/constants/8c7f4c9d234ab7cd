@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\security\csrf.py
-# hypothesis_version: 6.151.4
-
-[403, '/', '/healthz', '/readyz', '/static', 'CSRF Cookie Missing', 'GET', 'HEAD', 'OPTIONS', 'TRACE', 'X-CSRF-Token', 'content-type', 'csrf_token', 'csrf_token_new', 'detail', 'lax', 'multipart/form-data']

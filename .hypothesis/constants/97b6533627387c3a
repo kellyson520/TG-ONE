@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\__init__.py
-# hypothesis_version: 6.151.4
-
-['AccessControlList', 'ActiveSession', 'AuditLog', 'Base', 'Chat', 'ChatStatistics', 'ErrorLog', 'ForwardMapping', 'ForwardRule', 'Keyword', 'MediaExtensions', 'MediaSignature', 'MediaTypes', 'PushConfig', 'RSSConfig', 'RSSPattern', 'RSSSubscription', 'ReplaceRule', 'RuleLog', 'RuleStatistics', 'RuleSync', 'SystemConfiguration', 'TaskQueue', 'User']

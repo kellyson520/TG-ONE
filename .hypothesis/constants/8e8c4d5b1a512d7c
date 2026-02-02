@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\system\log_router.py
-# hypothesis_version: 6.151.4
-
-[200, 400, 404, 500, 1000, 1024, '*.log', '-', '.', './logs', '/', '/api/system', '/audit/logs', '/logs/download', '/logs/error_logs', '/logs/list', '/logs/view', '/trace/download', 'ALL', 'Content-Disposition', 'File not found', 'Invalid filename', 'LOG_DIR', 'LOG_VIEW_MAX_BYTES', 'System Logs', '\\', 'action', 'app.log', 'application/json', 'content', 'context', 'created_at', 'details', 'filename', 'function', 'id', 'ip_address', 'items', 'json', 'level', 'limit', 'logs', 'markdown', 'message', 'module', 'mtime', 'name', 'page', 'rb', 'replace', 'resource_id', 'resource_type', 'size', 'status', 'text/markdown', 'text/plain', 'timestamp', 'total', 'total_pages', 'total_size', 'traceback', 'truncated', 'user_agent', 'user_id', 'username', 'utf-8', '文件不存在', '无效的文件名']

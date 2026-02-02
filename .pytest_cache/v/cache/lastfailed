@@ -1,8 +1,0 @@
-{
-  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_whitelist_mode": true,
-  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_blacklist_mode": true,
-  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_whitelist_reversed_blacklist": true,
-  "tests/unit/utils/test_common.py::TestCommonHelpers::test_check_keywords_blacklist_reversed_whitelist": true,
-  "tests/integration/bot/test_bot_db_pipeline.py::TestBotToDBPipeline::test_add_rule_pipeline": true,
-  "tests/unit/handlers/test_bot_handler.py": true
-}

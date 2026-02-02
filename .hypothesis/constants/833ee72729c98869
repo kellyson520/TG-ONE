@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\mappers\rule_mapper.py
-# hypothesis_version: 6.151.4
-
-['Unknown', 'action', 'ai_model', 'ai_prompt', 'content', 'created_at', 'delay_seconds', 'description', 'enable_dedup', 'enable_delay', 'enabled', 'error', 'error_message', 'errors', 'filtered', 'force_pure_forward', 'forward_mode', 'forwarded', 'forwards', 'id', 'is_ai', 'is_blacklist', 'is_delete_original', 'is_original_link', 'is_original_sender', 'is_original_time', 'is_preview', 'is_regex', 'is_replace', 'keyword', 'keywords', 'keywords_count', 'max_media_size', 'message_mode', 'pattern', 'priority', 'processed', 'replace_rules', 'replace_rules_count', 'result', 'rule_id', 'source_chat', 'source_chat_id', 'source_message_id', 'target_chat', 'target_chat_id', 'telegram_chat_id', 'title', 'updated_at', 'use_bot', 'username', 'value']

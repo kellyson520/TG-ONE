@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\commands\media_commands.py
-# hypothesis_version: 6.151.4
-
-[100, 1024, 'G', 'K', 'KB', 'M', 'chat_id', 'download_file', 'manual_trigger', 'max_duration', 'max_file_size', 'max_height', 'max_width', 'message_id', '✅ 已加入下载队列，即将开始...', '❌ 分辨率不能为负数', '❌ 参数必须为整数', '❌ 大小参数格式错误，支持K/M/G单位', '❌ 文件大小不能为负数', '❌ 时长不能为负数', '❌ 最小大小不能大于最大大小', '❌ 最小宽度不能大于最大宽度', '❌ 最小时长不能大于最大时长', '❌ 最小高度不能大于最大高度', '❌ 设置分辨率范围失败，请检查日志', '❌ 设置文件大小范围失败，请检查日志', '❌ 设置时长范围失败，请检查日志', '请回复一条包含媒体的消息。', '这条消息没有媒体文件。']

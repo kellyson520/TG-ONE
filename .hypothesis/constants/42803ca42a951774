@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\middlewares\rate_limit_middleware.py
-# hypothesis_version: 6.151.4
-
-[300, 429, '/docs', '/favicon.ico', '/healthz', '/openapi.json', '/static', '127.0.0.1', '::1', 'detail', 'localhost', 'unknown']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\rules\rule_content_router.py
-# hypothesis_version: 6.151.4
-
-['/api/rules', '/{rule_id}/keywords', 'Rules Content', 'error', 'pattern', 'success', '删除关键字失败', '删除失败', '替换规则已删除', '替换规则添加成功', '未指定要删除的模式', '添加关键字失败', '添加替换规则失败']

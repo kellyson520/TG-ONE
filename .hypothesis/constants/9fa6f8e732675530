@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\dedup_service.py
-# hypothesis_version: 6.151.4
-
-[0.5, 0.85, 1.0, 168, 300, 3600, 86400, '__class__.__name__', 'advantages', 'after', 'before', 'cached_signatures', 'cleaned', 'cleared_items', 'config', 'content_hash', 'document_example', 'enable_content_hash', 'enable_time_window', 'enabled_features', 'error', 'features', 'file', 'hash', 'hashes', 'last_cleanup', 'message', 'original', 'photo_example', 'signatures', 'similarity_threshold', 'smart_similarity', 'stats', 'success', 'text_example', 'time_window', 'time_window_hours', 'tracked_chats', 'unknown', 'updated_config', '今天天气真好', '内容哈希', '基于实际内容而非表面格式', '忽略时间戳、链接等变化部分', '所有缓存已清空', '时间窗口', '智能相似度', '清理间隔必须在300-86400秒之间', '相似度阈值必须在0.5-1.0之间', '缓存清理完成', '配置已重置为默认值', '配置更新成功', '高效的MD5哈希算法']

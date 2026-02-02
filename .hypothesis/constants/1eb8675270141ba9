@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\repositories\bloom_index.py
-# hypothesis_version: 6.151.4
-
-[b'\x00', 0.0, '*.parquet', ':memory:', '_', 'big', 'chat', 'chat_id', 'content_hash', 'global', 'ignore', 'media_signatures', 'month=*', 'r+b', 'rb', 'signature', 'utf-8', 'wb', 'year=*', '从磁盘加载位图', '位数组保存完成', '位数组已更新，mmap 自动回写', '位数组未发生变化', '使用缓存数据', '保存位数组文件失败详细信息', '关闭 DuckDB 连接', '创建Bloom索引文件失败详细信息', '创建目录失败详细信息', '加载位图文件失败详细信息', '处理文件失败详细信息', '文件不存在，创建新的位图', '未找到任何文件', '缓存同步完成', '缓存已清除，确保数据一致性', '获取文件修改时间失败详细信息']

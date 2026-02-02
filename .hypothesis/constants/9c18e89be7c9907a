@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\forward_service.py
-# hypothesis_version: 6.151.4
-
-[100, '%Y-%m-%d', 'Unknown', 'active_chats', 'chats', 'created_at', 'direction', 'down', 'enable_dedup', 'enable_rule', 'enabled', 'error', 'error_count', 'estimated_total', 'has_task', 'id', 'message', 'name', 'new', 'page', 'page_size', 'percentage', 'progress', 'rule_id', 'rules', 'source_chat_id', 'stable', 'status', 'success', 'target_chat_id', 'task_id', 'today', 'total_count', 'total_forwards', 'total_pages', 'trend', 'unknown', 'up', 'yesterday', '任务启动', '源聊天或目标聊天不存在', '规则不存在', '转发规则创建成功', '转发规则删除成功', '转发规则更新成功', '📊 [转发服务] 开始获取转发统计数据']

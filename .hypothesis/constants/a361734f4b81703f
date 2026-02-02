@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\user_handler.py
-# hypothesis_version: 6.151.4
-
-[5.0, 'auto', 'delay', 'filters', 'id', 'init', 'keyword', 'replace', 'sender', 'unknown', 'user_mode_filters', 'warning', '使用降级处理逻辑', '关键词检查完成', '单条消息转发', '处理转发', '处理转发规则', '媒体组转发', '开始处理转发规则（用户模式）', '开始执行转发', '成功', '添加用户信息', '用户模式过滤器链处理异常', '获取发送者信息失败', '规则已禁用', '解析用户模式过滤器配置失败', '记录转发', '跳过处理', '转发记录完成']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\sender_filter.py
-# hypothesis_version: 6.151.4
-
-['auto', 'dup_signatures', 'enable_push', 'failed_rules', 'force_pure_forward', 'id', 'invalid message', 'media_files', 'message', 'protected chat', 'target_chat', 'target_chat_id', 'temp', 'updates', 'user_client', 'value', '只转发到推送配置，跳过发送', '媒体组管理器未初始化，使用传统方法', '无法确定目标聊天，取消发送', '无法获取客户端进行纯转发', '无法获取用户客户端，跳过转发记录', '没有文本内容，不发送消息', '消息不满足转发条件，跳过发送', '纯转发单条消息完成']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\system\stats_router.py
-# hypothesis_version: 6.151.4
-
-[100, 200, 500, '/api/system', '/db-pool', '/eventbus/stats', '/exceptions/stats', '/stats', '/stats_fragment', '/tasks', '/websocket/stats', '@', 'DB_MAX_OVERFLOW', 'DB_POOL_RECYCLE', 'DB_POOL_SIZE', 'DB_POOL_TIMEOUT', 'System Stats', '_invalidate_time', 'active', 'active_rules', 'cached_signatures', 'checkedin', 'checkedout', 'config', 'created_at', 'database_url', 'dedup', 'enabled_rate', 'error_log', 'forwards', 'grouped_id', 'id', 'invalidated', 'items', 'limit', 'note', 'overflow', 'page', 'pool', 'pool_type', 'priority', 'retry_count', 'rules', 'scheduled_at', 'size', 'status', 'system', 'timeout', 'today', 'total', 'total_cached', 'total_forwards', 'total_pages', 'total_rules', 'trend', 'type', 'unique_key', 'updated_at']

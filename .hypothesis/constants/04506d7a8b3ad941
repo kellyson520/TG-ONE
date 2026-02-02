@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\context.py
-# hypothesis_version: 6.151.4
-
-['-', 'buttons', 'chat_id', 'check_message_text', 'client', 'comment_link', 'errors', 'event', 'forwarded_messages', 'is_media_group', 'is_sim', 'media_files', 'media_group_id', 'media_group_messages', 'message_text', 'original_link', 'rule', 'sender_info', 'should_forward', 'skipped_media', 'time_info', 'trace', 'trace_id']

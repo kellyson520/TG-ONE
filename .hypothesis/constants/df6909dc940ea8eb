@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\middlewares\filter.py
-# hypothesis_version: 6.151.4
-
-['errors', 'failed_rules', 'group_messages', 'is_group', 'is_sim', 'message_text', 'metadata', 'rule_id', 'text']

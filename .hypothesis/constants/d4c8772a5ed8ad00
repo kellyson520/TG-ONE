@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\network\telegram_utils.py
-# hypothesis_version: 6.151.4
-
-[0.1, 300, 'admin required', 'author required', 'edit time expired', 'message', 'not modified', 'safe_edit: 内容一致，跳过编辑', 'safe_edit: 内容未修改，忽略', 'safe_edit: 编辑成功', '已更新']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\listeners\message_listener.py
-# hypothesis_version: 6.151.4
-
-[100, '- 回调处理器：处理内联按钮回调', '- 机器人消息监听器：处理命令和设置', '- 用户消息监听器：处理转发规则', '/', '/cancel', 'chat_id', 'grouped_id', 'has_media', 'manual_download', 'manual_trigger', 'message_id', 'process_message', 'state', 'target_chat_id', 'waiting_for_file', '⚠️ 请发送文件。', '✅ 已加入下载队列。', '❌ 下载已取消。', '开始设置统一消息监听器', '统一消息监听器设置完成']

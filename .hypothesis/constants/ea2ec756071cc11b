@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\media_filter.py
-# hypothesis_version: 6.151.4
-
-[1024, '.', 'attributes', 'audio', 'document', 'enable_push', 'extension', 'file_name', 'force_pure_forward', 'media_files', 'media_types', 'photo', 'size', 'video', 'voice', 'webpage', '使用传统方法获取媒体大小', '处理单条媒体消息', '处理媒体组消息', '媒体类型为原生视频，已被屏蔽', '媒体类型为图片，已被屏蔽', '媒体类型为文档，已被屏蔽', '媒体类型为视频文档，已被屏蔽', '媒体类型为语音，已被屏蔽', '媒体类型为音频文档，已被屏蔽', '媒体类型为音频，已被屏蔽', '媒体组中所有媒体都被屏蔽，设置不转发', '媒体被屏蔽但允许文本通过', '媒体超限但允许文本通过', '无扩展名', '无法获取文件名，无法判断扩展名', '这是一条纯链接预览消息']

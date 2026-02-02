@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\models\rule.py
-# hypothesis_version: 6.151.4
-
-[600, '**{name}**', '08:00', 'Chat', 'FORWARD', 'ForwardRule', 'Keyword', 'Markdown', 'MediaExtensions', 'MediaTypes', 'PushConfig', 'RSSConfig', 'RSSPattern', 'ReplaceRule', 'RuleLog', 'RuleStatistics', 'RuleSync', 'Single', 'all, delete-orphan', 'blacklist', 'chats.id', 'content', 'extension', 'follow', 'forward_mappings', 'forward_rules', 'forward_rules.id', 'is_blacklist', 'is_regex', 'keyword', 'keywords', 'main', 'media_extensions', 'media_types', 'pattern', 'pattern_type', 'patterns', 'push_config', 'push_configs', 'replace_rules', 'rss_config', 'rss_config_id', 'rss_configs', 'rss_configs.id', 'rss_patterns', 'rule', 'rule_id', 'rule_syncs', 'source_rules', 'target_rules', 'unique_rss_pattern', '{time}', '原始连接：{original_link}']

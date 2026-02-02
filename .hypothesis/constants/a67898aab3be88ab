@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\rules\rule_viz_router.py
-# hypothesis_version: 6.151.4
-
-[200, '/api/rules', '/chats', '/logs', '/visualization', 'Rules Visualization', 'items', 'total']

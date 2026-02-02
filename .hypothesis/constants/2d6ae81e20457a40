@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\event_bus.py
-# hypothesis_version: 6.151.4
-
-['*', 'AUTH_', 'ERROR_', 'FORWARD_', 'RULE_', 'SYSTEM_', '_broadcaster', 'event_counts', 'event_type', 'handler', 'last_events', 'listener_counts', 'total_events', 'unique_event_types', 'wildcard_listeners']

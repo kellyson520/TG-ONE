@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\user_router.py
-# hypothesis_version: 6.151.4
-
-['/api/users', '/me', '/settings', '/{user_id}', 'Users', 'allow_registration', 'created_at', 'id', 'is_2fa_enabled', 'is_active', 'is_admin', 'last_login', 'username', '内置管理员不能删除', '删除失败', '用户不存在', '用户已删除', '设置已更新']

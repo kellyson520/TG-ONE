@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\repositories\backup.py
-# hypothesis_version: 6.151.4
-
-['%Y%m%d_%H%M%S', '.bak', '///', 'sqlite']

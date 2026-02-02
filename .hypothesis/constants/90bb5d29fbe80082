@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\services\metrics_collector.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, 0.95, 0.99, 1000, 1024, '/', 'api_call', 'avg_ms', 'compression', 'count', 'cpu_percent', 'custom', 'db_read', 'db_write', 'disk_free_gb', 'disk_percent', 'file_io', 'inf', 'io_latency', 'max_ms', 'memory_available_mb', 'memory_percent', 'min_ms', 'p50_ms', 'p95_ms', 'p99_ms', 'rate_limit', 'system', 'timestamp', 'uptime_seconds']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\websocket_router.py
-# hypothesis_version: 6.151.4
-
-[100, 1000, '/realtime', '/stats', '/ws', 'ALERT_', 'ERROR_', 'FORWARD_', 'Invalid JSON format', 'LOG_', 'NOTIFICATION_', 'NOTIFY_', 'STATS_', 'WebSocket', 'action', 'action_url', 'alert', 'alert_type', 'alerts', 'available_topics', 'batch', 'body', 'broadcast_stats', 'client_id', 'connected', 'count', 'data', 'details', 'error', 'event', 'items', 'last_time', 'level', 'log', 'logs', 'message', 'messages_merged', 'module', 'notification', 'notifications', 'pending', 'ping', 'pong', 'rule_change', 'rule_id', 'rules', 'severity', 'stats', 'stats_update', 'subscribe', 'subscription', 'subscriptions', 'success', 'system', 'system_event', 'throttled_count', 'timestamp', 'title', 'topic', 'total_broadcasts', 'total_connections', 'type', 'unsubscribe', 'unsubscription', 'user_id', 'warning']

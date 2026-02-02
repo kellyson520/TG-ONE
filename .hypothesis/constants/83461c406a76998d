@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\push_filter.py
-# hypothesis_version: 6.151.4
-
-['Multiple', 'temp', '发送纯文本推送', '推送未启用，跳过推送', '没有内容可推送', '没有文本内容，不发送推送']

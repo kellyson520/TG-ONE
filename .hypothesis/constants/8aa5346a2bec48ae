@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\system\maintain_router.py
-# hypothesis_version: 6.151.4
-
-[1.0, 400, 500, '*.bak', '/api/system', '/archive-status', '/archive/trigger', '/backups', '/backups/trigger', '/config', '/reload', '/restart', '/settings', 'System Maintenance', 'api_id_set', 'archive_config', 'bot_token_set', 'chat_statistics', 'error', 'error_logs', 'integer', 'is_running', 'media_signatures', 'mtime', 'name', 'path', 'rule_logs', 'rule_statistics', 'size', 'sqlite_counts', 'success', 'task_queue', 'unknown', 'user_id_set', '动态配置已重新加载', '备份失败', '归档任务已在后台启动', '配置已更新']

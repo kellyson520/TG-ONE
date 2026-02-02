@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\keyword_filter.py
-# hypothesis_version: 6.151.4
-
-[0.85, 5.0, 'enable_content_hash', 'enable_dedup', 'enable_time_window', 'keyword', 'keywords', 'required_sender_id', 'sender_id', 'sender_name', 'similarity_threshold', 'telegram_chat_id', 'time_window_hours', '无法获取用户客户端，使用基本结果', '🧹 已去重，重复消息已删除']

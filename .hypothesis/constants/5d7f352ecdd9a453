@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\advanced_media_filter.py
-# hypothesis_version: 6.151.4
-
-[1024, 3600, 'audio', 'document', 'duration', 'h', 'photo', 'size', 'sizes', 'voice', 'w', '消息被分辨率过滤器拦截', '消息被文件大小范围过滤器拦截', '消息被时长过滤器拦截']

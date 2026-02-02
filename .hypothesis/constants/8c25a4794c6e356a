@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\filters\info_filter.py
-# hypothesis_version: 6.151.4
-
-['%Y-%m-%d %H:%M:%S', 'Unknown', 'Unknown Channel', 'Unknown Sender', 'channel_id', 'first_name', 'last_name', 'peer_id', 'sender_chat', 'time_template', 'title', 'userinfo_template', '{id}', '{name}', '{original_link}', '{time}', '实体解析器未初始化，使用默认频道名称', '开始获取发送者信息']

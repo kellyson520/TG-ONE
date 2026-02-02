@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\ai\__init__.py
-# hypothesis_version: 6.151.4
-
-['BaseAIProvider', 'claude', 'deepseek', 'dict', 'gemini', 'get_ai_provider', 'grok', 'openai', 'qwen']

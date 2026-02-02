@@ -94,12 +94,58 @@ class SQLitePersistentCache(BasePersistentCache):
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA synchronous=NORMAL")
             cur.execute("PRAGMA foreign_keys=ON")
+        except sqlite3.DatabaseError:
+            conn.close()
+            if self._handle_corruption():
+                # Retry connection after reset
+                return sqlite3.connect(self._db_path, timeout=30)
+            raise
         except Exception:
             pass
         return conn
 
+    def _handle_corruption(self) -> bool:
+        """Handle database corruption by deleting the file."""
+        import os
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            logger.error(f"❌ SQLite Cache Corruption Detected: {self._db_path}")
+            if os.path.exists(self._db_path):
+                # Try to backup? No, cache is disposable.
+                os.remove(self._db_path)
+                logger.warning(f"🧹 Corrupted cache file deleted: {self._db_path}")
+            
+            # Clean up SHM/WAL files if they exist
+            for ext in ["-shm", "-wal"]:
+                p = f"{self._db_path}{ext}"
+                if os.path.exists(p):
+                    os.remove(p)
+            
+            # Re-initialize schema
+            self._ensure_schema()
+            logger.info("✅ Cache database re-initialized successfully.")
+            return True
+        except Exception as e:
+            logger.critical(f"☠️ Failed to recover from cache corruption: {e}")
+            return False
+
     def _ensure_schema(self) -> None:
-        conn = self._conn()
+        try:
+            conn = self._conn()
+        except sqlite3.DatabaseError:
+            # If _conn fails even after retry logic (recursive risk if not careful, but _conn handles it once)
+            # Actually _conn calls _handle_corruption which calls _ensure_schema... recursion risk!
+            # We need to break recursion. 
+            # Simple way: _conn calls sqlite3.connect. If that fails, it's OS level.
+            # If PRAGMA fails with DatabaseError, _conn calls _handle_corruption.
+            # _handle_corruption deletes file and calls _ensure_schema.
+            # _ensure_schema calls _conn.
+            # The new file should be clean, so _conn PRAGMA should pass.
+            # So recursion depth = 1. Safe.
+            return
+
         try:
             cur = conn.cursor()
             cur.execute(
@@ -115,12 +161,19 @@ class SQLitePersistentCache(BasePersistentCache):
                 "CREATE INDEX IF NOT EXISTS idx_expires ON kv_cache(expires_at)"
             )
             conn.commit()
+        except sqlite3.DatabaseError:
+            conn.close()
+            self._handle_corruption()
         finally:
             conn.close()
 
     def get(self, key: str) -> Optional[str]:
         now = int(time.time())
-        conn = self._conn()
+        try:
+            conn = self._conn()
+        except Exception: 
+            return None
+
         try:
             cur = conn.cursor()
             cur.execute(
@@ -131,12 +184,21 @@ class SQLitePersistentCache(BasePersistentCache):
             cur.execute("SELECT value FROM kv_cache WHERE key = ?", (key,))
             row = cur.fetchone()
             return row[0] if row else None
+        except sqlite3.DatabaseError:
+            # If error happens during query (even if connect worked)
+            conn.close()
+            self._handle_corruption()
+            return None
         finally:
             conn.close()
 
     def set(self, key: str, value: str, ttl: int) -> None:
         expires_at = int(time.time()) + max(1, int(ttl))
-        conn = self._conn()
+        try:
+            conn = self._conn()
+        except Exception:
+            return
+
         try:
             cur = conn.cursor()
             cur.execute(
@@ -144,15 +206,25 @@ class SQLitePersistentCache(BasePersistentCache):
                 (key, value, expires_at),
             )
             conn.commit()
+        except sqlite3.DatabaseError:
+            conn.close()
+            self._handle_corruption()
         finally:
             conn.close()
 
     def delete(self, key: str) -> None:
-        conn = self._conn()
+        try:
+            conn = self._conn()
+        except Exception:
+            return
+
         try:
             cur = conn.cursor()
             cur.execute("DELETE FROM kv_cache WHERE key = ?", (key,))
             conn.commit()
+        except sqlite3.DatabaseError:
+            conn.close()
+            self._handle_corruption()
         finally:
             conn.close()
 

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\button\session_management.py
-# hypothesis_version: 6.151.4
-
-[0.5, 0.8, 1.0, 100, 800, 1000, 'all', 'cancel_event', 'cancelled', 'chat_id', 'completed', 'current_message_id', 'current_scan_results', 'delay', 'deleted', 'done', 'error', 'failed', 'filtered', 'forwarded', 'future', 'history_task', 'is_history', 'message', 'message_id', 'picker_context', 'process_message', 'progress', 'rule_id', 'running', 'selected_rule_id', 'session', 'session_manager', 'start_time', 'status', 'success', 'target_chat_id', 'time_range', 'total', 'user_id', 'user_sessions', '功能开发中', '历史消息转发任务已启动', '已有正在运行的任务', '无问题', '未选择转发规则']

@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\security\rate_limiter.py
-# hypothesis_version: 6.151.4
-
-['config', 'locked', 'locked_accounts', 'max_attempts', 'remaining_minutes', 'remaining_seconds', 'time_window_minutes', 'total_attempts', 'unlock_at', '登录限流器已初始化']

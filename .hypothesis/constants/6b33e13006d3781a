@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\security\password_validator.py
-# hypothesis_version: 6.151.4
-
-[100, 128, '#10b981', '#22c55e', '#94a3b8', '#eab308', '#ef4444', '#f59e0b', '(.)\\1{2,}', '123', '[A-Z]', '[a-z]', '\\d', 'abc', 'admin', 'asdf', 'color', 'message', 'missing', 'password', 'qwer', 'score', 'strength', 'strength_enum', 'user', 'valid', 'zxcv', '中等', '大写字母', '密码不能为空', '密码强度合格', '密码必须包含至少1个大写字母', '密码必须包含至少1个小写字母', '密码必须包含至少1个数字', '小写字母', '弱', '强', '数字', '未知', '特殊字符', '非常弱', '非常强']

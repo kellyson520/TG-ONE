@@ -1,7 +1,8 @@
-VERSION = "1.2.3.2"
+VERSION = "1.2.3.2-A"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖，完全转向本地 CI 驱动；修复日志与任务重复问题；增强菜单系统稳健性 (Callback/AttributeError Fixes)。
 - v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB)，优化数据库维护扫描逻辑 (排除备份)，修复 Web Admin 模板语法与资源缺失 (Font/API)，纠正启动引导的模块依赖路径。
 - v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制，实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载，大幅降低启动内存与耗时。
 - v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP)，增加 Web Admin IP 频率限制与访问控制。

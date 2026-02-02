@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\core\helpers\entity_validator.py
-# hypothesis_version: 6.151.4
-
-['@', 'access denied', 'channel private', 'chat not found', 'connection', 'deleted account', 'flood wait', 'forbidden', 'network', 'no such peer', 'permission denied', 'rate limit', 'timeout', 'user not found', '临时网络或限频错误', '实体不存在或无法访问', '无效实体缓存已清理', '未知错误类型', '权限或访问错误']

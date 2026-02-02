@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\handlers\advanced_media_prompt_handlers.py
-# hypothesis_version: 6.151.4
-
-[1024, 'G', 'K', 'KB', 'M', 'max_duration', 'max_file_size', 'max_height', 'max_width', 'message', 'rule_id', 'state', 'state_type', '∞', '❌ 分辨率不能为负数', '❌ 文件大小不能为负数', '❌ 时长不能为负数', '❌ 最小大小不能大于最大大小', '❌ 最小宽度不能大于最大宽度', '❌ 最小时长不能大于最大时长', '❌ 最小高度不能大于最大高度', '❌ 规则不存在', '❌ 设置失败，请重试', '❌ 请输入有效的数字', '❌ 请输入有效的数字或大小格式', '无限制']

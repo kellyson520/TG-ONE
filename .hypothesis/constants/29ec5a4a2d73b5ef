@@ -1,4 +1,0 @@
-# file: C:\Users\lihuo\Desktop\重构\TG ONE\web_admin\routers\security_router.py
-# hypothesis_version: 6.151.4
-
-[404, 500, '/acl', '/acl/{ip_address}', '/api/security', 'ACL', 'ACL_ADD', 'ACL_DELETE', 'Rule not found', 'Security', 'created_at', 'id', 'ip', 'ip_address', 'is_active', 'reason', 'success', 'type']
