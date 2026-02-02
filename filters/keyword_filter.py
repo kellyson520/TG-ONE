@@ -141,9 +141,8 @@ class KeywordFilter(BaseFilter):
                 
                 if search_results:
                     logger.info(f"API搜索找到 {len(search_results)} 条相关消息，关键词: {keyword_text}")
-                    # 这里可以根据具体业务逻辑决定是否调整结果
-                    # 暂时保持原有逻辑
-                    break
+                    # 如果找到了相关消息，说明该关键词在上下文中确实存在，通过检查
+                    return True
             
             return basic_result
             

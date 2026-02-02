@@ -133,3 +133,14 @@ __all__ = [
     'async_cleanup_old_logs', 'async_get_database_info',
     'backup_database'
 ]
+
+if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("models.migration_runner")
+    try:
+        engine = get_engine()
+        migrate_db(engine)
+        logger.info("Database migration completed successfully.")
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")

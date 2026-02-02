@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from models.base import Base
 
@@ -11,6 +11,12 @@ class Chat(Base):
     type = Column(String, nullable=True)
     title = Column(String, nullable=True)
     current_add_id = Column(String, nullable=True)
+    chat_type = Column(String, nullable=True)
+    created_at = Column(String, nullable=True)
+    updated_at = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    member_count = Column(Integer, nullable=True)
+    description = Column(String, nullable=True)
     
     # Relationships
     source_rules = relationship('ForwardRule', foreign_keys='ForwardRule.source_chat_id', back_populates='source_chat')

@@ -24,18 +24,18 @@ def mock_clients():
     return user_client, bot_client
 
 @pytest.fixture
-def mock_task_repo():
-    container.task_repo = AsyncMock()
-    return container.task_repo
+def mock_queue_service():
+    container.queue_service = AsyncMock()
+    return container.queue_service
 
 @pytest.fixture
 def mock_session_manager():
-    with patch('handlers.button.session_management.session_manager') as mock:
+    with patch('services.session_service.session_manager') as mock:
         mock.user_sessions = {}
         yield mock
 
 @pytest.mark.asyncio
-async def test_user_message_listener_normal_flow(mock_clients, mock_task_repo, mock_session_manager):
+async def test_user_message_listener_normal_flow(mock_clients, mock_queue_service, mock_session_manager):
     user_client, bot_client = mock_clients
     
     # Setup listeners to capture the internal user_message_listener
@@ -54,17 +54,20 @@ async def test_user_message_listener_normal_flow(mock_clients, mock_task_repo, m
     # Execute listener
     await listener(event)
     
-    # Verify task_repo push
-    mock_task_repo.push.assert_called_once()
-    args = mock_task_repo.push.call_args
-    assert args[0][0] == "process_message"
-    payload = args[0][1]
+    # Verify queue_service enqueue
+    mock_queue_service.enqueue.assert_called_once()
+    args = mock_queue_service.enqueue.call_args
+    # enqueue takes a tuple: (task_type, payload, priority)
+    call_arg = args[0][0]
+    assert call_arg[0] == "process_message"
+    payload = call_arg[1]
     assert payload["chat_id"] == 888
     assert payload["message_id"] == 1001
     assert payload["has_media"] is False
+    assert call_arg[2] == 0 # Priority
 
 @pytest.mark.asyncio
-async def test_user_message_listener_manual_download(mock_clients, mock_task_repo, mock_session_manager):
+async def test_user_message_listener_manual_download(mock_clients, mock_queue_service, mock_session_manager):
     user_client, bot_client = mock_clients
     await setup_listeners(user_client, bot_client)
     listener = user_client.listener_func
@@ -92,13 +95,14 @@ async def test_user_message_listener_manual_download(mock_clients, mock_task_rep
     # Execute
     await listener(event)
     
-    # Verify task_repo push to manual_download
-    mock_task_repo.push.assert_called_once()
-    args = mock_task_repo.push.call_args
-    assert args[0][0] == "manual_download"
-    assert args[1]["priority"] == 100
+    # Verify queue_service enqueue manual_download
+    mock_queue_service.enqueue.assert_called_once()
+    args = mock_queue_service.enqueue.call_args
+    call_arg = args[0][0]
+    assert call_arg[0] == "manual_download"
+    assert call_arg[2] == 100 # Priority
     
-    payload = args[0][1]
+    payload = call_arg[1]
     assert payload["manual_trigger"] is True
     assert payload["target_chat_id"] == 666
     
@@ -120,7 +124,7 @@ async def test_user_message_listener_manual_download(mock_clients, mock_task_rep
     assert chat_id not in mock_session_manager.user_sessions[user_id]
 
 @pytest.mark.asyncio
-async def test_user_message_listener_manual_download_invalid_input(mock_clients, mock_task_repo, mock_session_manager):
+async def test_user_message_listener_manual_download_invalid_input(mock_clients, mock_queue_service, mock_session_manager):
     user_client, bot_client = mock_clients
     await setup_listeners(user_client, bot_client)
     listener = user_client.listener_func
@@ -146,7 +150,7 @@ async def test_user_message_listener_manual_download_invalid_input(mock_clients,
     await listener(event)
     
     # Verify NO task push
-    mock_task_repo.push.assert_not_called()
+    mock_queue_service.enqueue.assert_not_called()
     
     # Verify warning response
     event.respond.assert_called_with("⚠️ 请发送文件。")

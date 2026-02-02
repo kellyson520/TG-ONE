@@ -205,6 +205,24 @@ class Settings(BaseSettings):
     # === 监控与健康检查 ===
     HEALTH_HOST: str = Field(default="0.0.0.0")
     HEALTH_PORT: int = Field(default=9000)
+    
+    # === 联网更新配置 ===
+    AUTO_UPDATE_ENABLED: bool = Field(
+        default=False,
+        description="是否开启定时自动检查更新"
+    )
+    UPDATE_CHECK_INTERVAL: int = Field(
+        default=86400,
+        description="检查更新的间隔时间 (秒)"
+    )
+    UPDATE_REMOTE_URL: str = Field(
+        default="https://github.com/kellyson520/TG-ONE.git",
+        description="远程更新源 (Git Repo 或版本信息 URL)"
+    )
+    UPDATE_BRANCH: str = Field(
+        default="main",
+        description="用于更新的 Git 分支"
+    )
 
     # 限流并发控制 (Legacy & New)
     # 限流并发控制
@@ -528,6 +546,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    MAX_ACTIVE_SESSIONS: int = Field(
+        default=10,
+        description="每个用户最大允许的活跃会话数"
+    )
 
     # === 通知配置 ===
     ADMIN_IDS: Union[List[int], str] = Field(

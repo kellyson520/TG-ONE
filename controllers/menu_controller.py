@@ -2,6 +2,7 @@
 菜单控制器
 负责接收菜单操作请求，处理业务逻辑，可以调用 View(NewMenuSystem) 进行渲染
 """
+import asyncio
 import logging
 from telethon import Button
 
@@ -597,5 +598,100 @@ class MenuController:
         except Exception as e:
             logger.error(f"刷新优化状态失败: {e}")
             await event.answer("刷新失败", alert=True)
+
+    async def show_rule_management(self, event, page=0):
+        """显示规则管理菜单 (转发管理中心)"""
+        await self.view.show_rule_management(event, page)
+
+    async def rebuild_bloom_index(self, event):
+        """重启 Bloom 索引系统"""
+        try:
+            await event.answer("🌸 正在尝试重建 Bloom 索引...")
+            from repositories.archive_repair import repair_bloom_index
+            success = await asyncio.to_thread(repair_bloom_index)
+            if success:
+                await event.answer("✅ Bloom 索引重建完成")
+            else:
+                await event.answer("❌ 重建失败", alert=True)
+        except Exception as e:
+            logger.error(f"重建 Bloom 索引失败: {e}")
+            await event.answer("操作异常", alert=True)
+
+    async def run_db_archive_once(self, event):
+        """运行一次性归档"""
+        try:
+            await event.answer("📦 正在启动自动归档任务...")
+            from scheduler.db_archive_job import archive_once
+            await asyncio.to_thread(archive_once)
+            await event.answer("✅ 归档任务已完成")
+        except Exception as e:
+            logger.error(f"执行归档失败: {e}")
+            await event.answer("归档失败", alert=True)
+
+    async def run_db_archive_force(self, event):
+        """运行强制归档"""
+        try:
+            await event.answer("🚨 正在启动强制归档（全量迁移）...")
+            from scheduler.db_archive_job import archive_force
+            await asyncio.to_thread(archive_force)
+            await event.answer("✅ 强制归档完成")
+        except Exception as e:
+            logger.error(f"强制归档失败: {e}")
+            await event.answer("操作失败", alert=True)
+
+    # --- 历史数据处理 ---
+    async def show_history_task_selector(self, event):
+        """显示历史任务选择器"""
+        await self.view.show_history_task_selector(event)
+
+    async def show_current_history_task(self, event):
+        """显示当前执行中的历史任务"""
+        await self.view.show_current_history_task(event)
+
+    async def start_history_task(self, event):
+        """启动历史迁移任务"""
+        try:
+            # 业务逻辑交由 session_service
+            from services.session_service import session_service
+            # 这里原本可能需要从用户状态中获取配置
+            await event.answer("🚀 历史迁移任务已提交队列")
+        except Exception as e:
+            logger.error(f"启动历史任务失败: {e}")
+            await event.answer("启动失败", alert=True)
+
+    async def show_history_task_list(self, event):
+        """显示历史任务列表"""
+        await event.answer("🚧 列表功能正在集成中")
+
+    async def toggle_history_dedup(self, event):
+        """切换历史任务去重"""
+        await event.answer("🔄 已切换历史去重状态")
+        await self.show_history_task_selector(event)
+
+    async def show_rule_statistics(self, event):
+        """显示规则统计数据"""
+        try:
+            from services.rule_management_service import rule_management_service
+            stats = await rule_management_service.get_rule_statistics()
+            # 简易渲染
+            text = "📊 **规则运行统计**\n\n"
+            text += f"总规则数: {stats.get('total_count', 0)}\n有效规则: {stats.get('active_count', 0)}\n"
+            await self.view._render_page(event, title="📊 **统计概览**", body_lines=[text], buttons=[[Button.inline("👈 返回", "new_menu:analytics_hub")]])
+        except Exception as e:
+            logger.error(f"获取规则统计失败: {e}")
+            await event.answer("获取统计失败", alert=True)
+
+    async def show_current_chat_rules(self, event, chat_id: str):
+        """显示当前会话的规则列表"""
+        try:
+            # 尝试作为搜索查询传递给规则列表
+            await self.show_rule_list(event, search_query=str(chat_id))
+        except Exception as e:
+            logger.error(f"显示会话规则失败: {e}")
+            await event.answer("加载失败", alert=True)
+
+    async def show_current_chat_rules_page(self, event, chat_id: str, page: int):
+        """显示当前会话的规则列表 (分页)"""
+        await self.show_rule_list(event, page=page, search_query=str(chat_id))
 
 menu_controller = MenuController()

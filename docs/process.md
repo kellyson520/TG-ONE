@@ -82,7 +82,7 @@
 | 20260115_ChatName | 替换 ChatID 为频道/群组名称 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./archive/Workstream_Core_Engineering/20260115_Display_Chat_Name_Instead_Of_ID/report.md) |
 | 20260115_Verification_Skill | 创建 Full System Verification 技能 | 2026-01-15 | 2026-01-15 | 100% | [[report.md]](./finish/Workstream_Core_Engineering/20260115_Create_Full_System_Verification_Skill/report.md) |
 | 20260201_Observability | Phase 11: 可观测性、监控与健康检查 | 2026-02-01 | 2026-02-01 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report_phase11_observability.md) |
-
+| 20260202_Fix_Duplicate_Fetch | 修复任务重复获取问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Duplicate_Task_Fetching/todo.md) |
 
 ### 进行中任务 ⏳
 
@@ -90,6 +90,16 @@
 |--------|----------|----------|----------|--------|----------|
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
+| 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
+| 20260202_Fix_Menu_Error | 修复菜单回调 AttributeError | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Menu_Callback_Error/todo.md) |
+| 20260202_Menu_Structural_Fix | 菜单系统架构重构与方法补全 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Menu_Structural_Fix/todo.md) |
+| 20260202_Fix_JSON_Serialization_Error | 修复 JSON 序列化失败 (Object of type function) | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_JSON_Serialization_Error/todo.md) |
+| 20260202_Fix_Chat_Attribute_Error | 修复 Chat 模型缺失 is_active 属性错误 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Chat_Attribute_Error/) |
+| 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
+
+
+### 2026-02-02
+| 20260202_Orchestration | 修复 Docker 编排路径空格问题 | 2026-02-02 | 2026-02-02 | 100% | [[report.md]](./Workstream_Infrastructure/20260202_Fix_Orchestration_Error/report.md) |
 
 
 

@@ -274,7 +274,7 @@ def save_error_report(content: str, root_dir: str):
     except Exception as e:
         print_error(f"保存错误报告失败: {e}")
 
-def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int = 0) -> bool:
+def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int = 0, args: argparse.Namespace = None) -> bool:
     """运行测试。若提供目标则针对性运行，否则全量分批运行。"""
     
     # 启动前先清理残留
@@ -347,25 +347,12 @@ def run_tests(root_dir: str, test_targets: List[str], step: int = 0, total: int 
                 
             print(f"\n📦 [Batch {i+1}/{total_batches}] Running {batch_name}...")
             
-            # 批次内使用适度并发 (例如 -n 2) 以加快速度但保持内存安全
-            # 注意：某些环境可能不支持 xdist，如果失败则回退？
-            # 这里我们保守使用 -n 4 (用户请求修复不严格限制为4?)
-            # 用户请求: "修复不严格限制使用单元测试并发数为4的错误" -> 意思是不要强制限制为3？还是允许为4？
-            # 之前的代码是强制 "-n 3"。用户可能希望并发高一点？或者用户希望不要限制死？
-            # 结合 "使用 git 技能推送" 之前的上下文，用户可能拥有较好的机器。
-            # 但内存限制是 2GB (System Mandate)。并发 4 可能导致 OOM。
-            # 让我们尝试 -n 2 保证安全，或者 -n auto?
-            # 鉴于 System Mandate 2GB，-n 2 是比较安全的上限。
-            # 但用户说 "修复不严格限制使用单元测试并发数为4的错误"，可能意味着用户想用 4。
-            # 让我们使用 -n 4 但监控内存？不，local_ci 应该稳定。
-            # 让我们暂时使用 -n 2 以策安全。
+            # 批次内使用适度并发. 默认 -n 2 以符合 2GB 内存限制
+            # 用户可以通过 --concurrency 参数调整
             
-            # Update: 用户说 "修复不严格限制使用单元测试并发数为4的错误"
-            # 这可能意味着之前的代码限制了 "并发数不能为4" 或者 "强制为3" 是个错误？
-            # 让我们改为 -n 4 (如果用户机器允许)，或者 -n auto。
-            # 为了通过 2GB 限制，分批运行后，每个批次内存压力减小，也许可以跑 -n 4。
+            concurrency = str(args.concurrency) if hasattr(args, 'concurrency') else "2"
             
-            cmd = base_cmd + ["-n", "4", "-m", default_filters[0]] + valid_paths + common_args + ignore_args
+            cmd = base_cmd + ["-n", concurrency, "-m", default_filters[0]] + valid_paths + common_args + ignore_args
             
             if not _execute_pytest(cmd, root_dir, desc=f"BATCH: {batch_name}"):
                 print_error(f"Batch {batch_name} failed.")
@@ -499,6 +486,7 @@ def main():
     parser.add_argument("--skip-arch", action="store_true", help="跳过架构检查")
     parser.add_argument("--skip-flake", action="store_true", help="跳过 flake8 检查")
     parser.add_argument("--skip-test", action="store_true", help="跳过测试")
+    parser.add_argument("--concurrency", "-n", type=int, default=2, help="测试并发数 (默认: 2)")
     
     args = parser.parse_args()
     root_dir = os.getcwd()
@@ -548,7 +536,7 @@ def main():
     if passes and not args.skip_test:
         current_step += 1
         step_start = time.time()
-        if not run_tests(root_dir, args.test, current_step, total_steps):
+        if not run_tests(root_dir, args.test, current_step, total_steps, args):
             passes = False
             results.append(("测试", False, time.time() - step_start))
         else:

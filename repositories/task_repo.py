@@ -13,38 +13,42 @@ class TaskRepository:
 
     async def push(self, task_type: str, payload: dict, priority: int = 0, scheduled_at: datetime = None):
         import json
+        from sqlalchemy import insert
         
         # 提取用于去重的关键信息
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
-        grouped_id = payload.get('grouped_id')  # 提取 grouped_id
+        grouped_id = payload.get('grouped_id')
         
         unique_key = None
         if chat_id and message_id:
             unique_key = f"{task_type}:{chat_id}:{message_id}"
 
         async with self.db.session() as session:
-            # 检查去重
-            if unique_key:
-                exists = await session.execute(
-                    select(TaskQueue.id).where(TaskQueue.unique_key == unique_key)
-                )
-                if exists.scalar():
-                    logger.warning(f"⚠️ 任务已存在，跳过入列: {unique_key}")
-                    return # 幂等返回，不报错
-
-            task = TaskQueue(
-                task_type=task_type, 
+            # [Scheme 7 Optimization] 使用原子化 INSERT OR IGNORE 替代先查后增
+            # 彻底解决多并发场景下的重复推送问题
+            stmt = insert(TaskQueue).values(
+                task_type=task_type,
                 task_data=json.dumps(payload),
-                unique_key=unique_key, # 存入唯一键
-                grouped_id=str(grouped_id) if grouped_id else None, # 存入 grouped_id
+                unique_key=unique_key,
+                grouped_id=str(grouped_id) if grouped_id else None,
                 priority=priority,
-                attempts=0,
-                scheduled_at=scheduled_at  # 直接使用datetime对象，不再转换为字符串
-            )
-            session.add(task)
+                status='pending',
+                scheduled_at=scheduled_at,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            ).prefix_with('OR IGNORE')
+            
+            result = await session.execute(stmt)
             await session.commit()
-            logger.info(f"✅ 任务入列: {task.id} (Key: {unique_key})")
+            
+            if result.rowcount > 0:
+                logger.info(f"✅ 任务入列成功 (Key: {unique_key})")
+            else:
+                if unique_key:
+                    logger.warning(f"⚠️ 任务已存在，跳过入列: {unique_key}")
+                else:
+                    logger.warning("⚠️ 任务入列被忽略 (rowcount=0)")
 
     async def push_batch(self, tasks_data: list):
         """
@@ -98,16 +102,16 @@ class TaskRepository:
                  raise
 
     async def fetch_next(self):
-        """[Scheme 7 Standard] 原子化拉取任务
-        使用 UPDATE ... RETURNING 确保取出任务的同时锁定状态，
+        """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合)
+        使用 UPDATE ... RETURNING 确保取出任务的同时锁定状态。
+        如果任务属于媒体组，则原子化锁定该组内所有 'pending' 任务，
         彻底根除多 Worker 并发下的竞态条件。
         """
         async with self.db.session() as session:
             now = datetime.utcnow()
             
-            # 构造子查询：查找优先级最高、最老的待处理任务 ID
-            # 注意：SQLite 的 UPDATE FROM 语法或子查询支持
-            subquery = (
+            # 1. 定位最老、优先级最高的待处理任务 ID
+            target_id_sub = (
                 select(TaskQueue.id)
                 .where(TaskQueue.status == 'pending')
                 .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= now))
@@ -117,29 +121,44 @@ class TaskRepository:
                 .scalar_subquery()
             )
 
-            # 原子执行：更新状态并返回被更新的行
-            # 这是一条 SQL 语句，数据库保证了原子性
+            # 2. 获取该任务的 grouped_id
+            target_group_sub = (
+                select(TaskQueue.grouped_id)
+                .where(TaskQueue.id == target_id_sub)
+                .scalar_subquery()
+            )
+
+            # 3. 原子执行：锁定该任务及其关联的媒体组任务
             stmt = (
                 update(TaskQueue)
-                .where(TaskQueue.id == subquery)
+                .where(
+                    (TaskQueue.id == target_id_sub) |
+                    (
+                        (TaskQueue.status == 'pending') &
+                        (TaskQueue.grouped_id != None) &
+                        (TaskQueue.grouped_id == target_group_sub)
+                    )
+                )
                 .values(
                     status='running',
                     started_at=now,
                     updated_at=now
                 )
                 .execution_options(synchronize_session=False)
-                .returning(TaskQueue)  # 关键：直接返回对象
+                .returning(TaskQueue)
             )
 
             result = await session.execute(stmt)
-            task = result.scalar_one_or_none()
+            tasks = result.scalars().all()
             
-            if task:
+            if tasks:
                 await session.commit()
-                logger.info(f"🔒 原子锁定并获取任务: {task.id}, 类型: {task.task_type}")
-                return task
+                # 排序：确保最早的任务或 target_id 放在首位 (Worker 以此作为主 Task)
+                tasks.sort(key=lambda x: x.created_at)
+                logger.debug(f"🔒 原子锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
+                return tasks
             
-            return None
+            return []
 
     async def complete(self, task_id: int):
         async with self.db.session() as session:

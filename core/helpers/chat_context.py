@@ -33,16 +33,16 @@ async def extract_chat_context(event: Any) -> ChatContext:
         ChatContext: 聊天上下文信息
     """
     try:
-        chat = await event.get_chat()
-        raw_chat_id = abs(chat.id)
-        chat_id = raw_chat_id
-        is_channel = isinstance(event.chat, types.Channel)
-
-        # 处理频道消息的ID格式
-        if is_channel:
-            logger.debug("检测到频道消息")
-            # 频道ID需要加上100前缀
-            chat_id = int(f"100{raw_chat_id}")
+        # 获取最直接的 chat_id
+        chat_id = event.chat_id
+        is_channel = getattr(event, 'is_channel', False)
+        
+        # 如果 event 中没有 is_channel，尝试从 chat 对象判断
+        if not is_channel:
+            chat = await event.get_chat()
+            is_channel = isinstance(chat, types.Channel)
+        
+        raw_chat_id = chat_id # 在这里我们保持原始形式
 
         # 获取发送者ID
         sender_id = event.sender_id

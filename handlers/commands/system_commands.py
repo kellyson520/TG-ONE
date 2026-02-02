@@ -1,4 +1,5 @@
 from services.system_service import system_service
+from services.update_service import update_service
 from services.db_maintenance_service import db_maintenance_service
 from core.logging import get_logger
 from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
@@ -83,6 +84,14 @@ async def handle_system_status_command(event):
     text += f"运行时间: `{status['uptime']}`\n"
     text += f"版本: `{status['version']}`\n"
     
+    # 异步检查更新并追加到状态中
+    try:
+        has_update, remote_ver = await update_service.check_for_updates()
+        if has_update:
+            text += f"\n🆕 **检测到新版本**: `{remote_ver}`\n使用 `/update` 进行更新。"
+    except Exception:
+        pass
+    
     await msg.edit(text)
     
 async def handle_video_cache_stats_command(event):
@@ -119,3 +128,41 @@ async def handle_dedup_command(event):
 async def handle_admin_panel_command(event):
     # This usually involves buttons, might be complex. Stub for now.
     await reply_and_delete(event, "Admin panel coming soon.")
+
+async def handle_update_command(event):
+    """处理 /update 命令，手动触发更新"""
+    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    msg = await event.respond("🔍 正在检查更新...", parse_mode="md")
+    
+    has_update, remote_ver = await update_service.check_for_updates()
+    
+    if not has_update:
+        await msg.edit(f"✅ **当前已是最新版本**\n\n本地版本/Commit: `{remote_ver}`")
+        return
+
+    await msg.edit(f"🆕 **检测到新版本**: `{remote_ver}`\n\n正在尝试更新本体...")
+    
+    success, result_msg = await update_service.perform_update()
+    
+    if success:
+        await msg.edit(f"🚀 **系统更新成功！**\n\n{result_msg}\n\n系统将在 3 秒后自动重启。")
+        await asyncio.sleep(3)
+        from services.system_service import guard_service
+        guard_service.trigger_restart()
+    else:
+        await msg.edit(f"❌ **更新失败**\n\n原因: `{result_msg}`")
+
+async def handle_rollback_command(event):
+    """紧急回滚命令"""
+    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    msg = await event.respond("🚑 正在启动紧急回滚流程...", parse_mode="md")
+    
+    success, result_msg = await update_service.rollback()
+    
+    if success:
+        await msg.edit(f"🏥 **回滚指令执行成功**\n\n{result_msg}\n\n正在强制重启...")
+        await asyncio.sleep(2)
+        from services.system_service import guard_service
+        guard_service.trigger_restart()
+    else:
+        await msg.edit(f"❌ **回滚失败**\n\n原因: `{result_msg}`")

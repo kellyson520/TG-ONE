@@ -160,9 +160,17 @@ class TaskService:
             return {'success': False, 'error': str(e), 'failed_ids': []}
 
     async def schedule_custom_task(self, callback_info: Dict, delay_seconds: float, task_id: Optional[str] = None, max_retries: int = 3) -> str:
-        """安排自定义任务"""
+        """安排自定义任务 (注: callback_info 必须是可 JSON 序列化的)"""
         import time
         if task_id is None: task_id = f"custom_{time.time()}_{id(callback_info)}"
+        
+        # 验证序列化
+        try:
+            json.dumps(callback_info)
+        except TypeError as e:
+            logger.error(f"[TaskService] schedule_custom_task 失败: callback_info 不可序列化: {e}")
+            raise ValueError(f"callback_info must be JSON serializable: {e}")
+
         payload = {"action": "custom", "callback_info": callback_info, "max_retries": max_retries, "task_id": task_id}
         from datetime import datetime, timedelta
         execute_time = datetime.now() + timedelta(seconds=delay_seconds)
@@ -202,23 +210,32 @@ class TaskService:
 
     async def schedule_delete(
         self,
-        message: Any,
-        delay_seconds: float,
+        message: Any = None,
+        delay_seconds: float = 0,
         task_id: Optional[str] = None,
         max_retries: int = 3,
+        chat_id: Optional[int] = None,
+        message_ids: Optional[List[int]] = None
     ) -> str:
         """安排消息删除任务 - 持久化版本"""
         if delay_seconds == -1:
             return ""
 
+        effective_chat_id = chat_id or (message.chat_id if message else None)
+        effective_message_ids = message_ids or ([message.id] if message else [])
+
+        if not effective_chat_id or not effective_message_ids:
+            logger.warning("[TaskService] schedule_delete 失败: 缺少 chat_id 或 message_ids")
+            return ""
+
         if task_id is None:
             import time
-            task_id = f"delete_{id(message)}_{time.time()}"
+            task_id = f"delete_{effective_chat_id}_{time.time()}"
 
         payload = {
             "action": "delete",
-            "chat_id": message.chat_id,
-            "message_ids": [message.id],
+            "chat_id": effective_chat_id,
+            "message_ids": effective_message_ids,
             "max_retries": max_retries,
             "task_id": task_id,
         }

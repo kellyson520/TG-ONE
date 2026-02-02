@@ -172,6 +172,8 @@ async def handle_command(client, event):
             "set_duration": lambda: handle_set_duration_command(event, parts),
             "set_resolution": lambda: handle_set_resolution_command(event, parts),
             "set_size": lambda: handle_set_size_command(event, parts),
+            "update": lambda: handle_update_command(event),
+            "rollback": lambda: handle_rollback_command(event),
         }
 
         handler = command_handlers.get(command)

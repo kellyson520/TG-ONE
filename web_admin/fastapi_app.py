@@ -13,7 +13,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+try:
+    from prometheus_client import make_asgi_app
+    HAS_PROMETHEUS = True
+except ImportError:
+    HAS_PROMETHEUS = False
+    def make_asgi_app(): return None
+
 from web_admin.middlewares.metrics_middleware import MetricsMiddleware
 from core.observability.metrics import metrics_manager
 from datetime import datetime, timedelta
@@ -274,8 +280,11 @@ async def readyz():
     return JSONResponse({'status': st, 'config_ready': cfg_ready, 'db_connected': db_ok})
 
 # Mount Prometheus Metrics
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
+if HAS_PROMETHEUS:
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
+else:
+    logger.warning("Prometheus client not found, skipping /metrics endpoint")
 
 
 
@@ -298,6 +307,19 @@ __all__ = ["app", "start_web_server"]
 async def start_web_server(host: str, port: int) -> None:
     """异步启动 Web 服务器"""
     import uvicorn
-    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    import logging
+    
+    # 确保 uvicorn 日志传播到 root logger
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        log = logging.getLogger(logger_name)
+        log.handlers = []  # 移除 uvicorn 默认处理器
+        log.propagate = True
+        
+    config = uvicorn.Config(
+        app, 
+        host=host, 
+        port=port, 
+        log_config=None,  # 禁用 uvicorn 内部日志配置，直接使用已经配置好的 root logger
+    )
     server = uvicorn.Server(config)
     await server.serve()

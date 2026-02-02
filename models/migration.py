@@ -259,17 +259,54 @@ def migrate_db(engine):
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_scheduled ON task_queue(scheduled_at)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_type_status ON task_queue(task_type, status)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_type_id_desc ON task_queue(task_type, id DESC)',
-                    'CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_configurations(key)',
-                    'CREATE INDEX IF NOT EXISTS idx_task_queue_unique_key ON task_queue(unique_key)',
+                    'CREATE UNIQUE INDEX IF NOT EXISTS idx_system_config_key ON system_configurations(key)',
+                    'CREATE UNIQUE INDEX IF NOT EXISTS idx_task_queue_unique_key ON task_queue(unique_key)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_grouped_id ON task_queue(grouped_id)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_next_retry ON task_queue(next_retry_at)'
                 ]
                 
-                for sql in indexes:
+                # 在创建唯一索引前，先清理重复数据
+                cleanup_sqls = [
+                    """
+                    DELETE FROM task_queue 
+                    WHERE id NOT IN (
+                        SELECT MIN(id) 
+                        FROM task_queue 
+                        GROUP BY unique_key
+                    ) AND unique_key IS NOT NULL
+                    """,
+                    """
+                    DELETE FROM system_configurations 
+                    WHERE id NOT IN (
+                        SELECT MIN(id) 
+                        FROM system_configurations 
+                        GROUP BY key
+                    )
+                    """
+                ]
+                for cleanup_sql in cleanup_sqls:
                     try:
-                        connection.execute(text(sql))
+                        connection.execute(text(cleanup_sql))
                     except Exception:
                         pass
+
+                for sql in indexes:
+                    try:
+                        # 检查是否需要从非唯一索引升级到唯一索引
+                        if 'UNIQUE' in sql:
+                            idx_name = sql.split(' ')[-2] if 'IF NOT EXISTS' not in sql else sql.split(' ')[-3]
+                            # 简单的升级逻辑：如果存在且不是唯一的，则先删除
+                            # SQLite 不支持 ALTER INDEX，只能先 DROP
+                            # 注意：这里我们保守一点，如果失败说明可能已经存在唯一索引或者正在使用
+                            check_sql = f"SELECT sql FROM sqlite_master WHERE name='{idx_name}'"
+                            res = connection.execute(text(check_sql)).fetchone()
+                            if res and 'UNIQUE' not in res[0].upper():
+                                logger.info(f"升级索引 {idx_name} 为 UNIQUE...")
+                                connection.execute(text(f"DROP INDEX {idx_name}"))
+                        
+                        connection.execute(text(sql))
+                    except Exception as e:
+                        logger.warning(f"创建索引 {sql[:30]}... 出错: {e}")
                         
                 logger.info('已创建所有性能优化索引')
             except Exception as e:
@@ -277,7 +314,7 @@ def migrate_db(engine):
             
             if 'media_types' not in existing_tables:
                 logger.info("创建media_types表...")
-                MediaTypes.__table__.create(engine)
+                MediaTypes.__table__.create(connection)
                 forward_rules_columns = {column['name'] for column in inspector.get_columns('forward_rules')}
                 if 'selected_media_types' in forward_rules_columns:
                     logger.info("迁移媒体类型数据...")
@@ -291,7 +328,9 @@ def migrate_db(engine):
                             )
             if 'media_extensions' not in existing_tables:
                 logger.info("创建media_extensions表...")
-                MediaExtensions.__table__.create(engine)
+                MediaExtensions.__table__.create(connection)
+            
+            connection.commit()
                 
     except Exception as e:
         logger.error(f'迁移过程中出错: {str(e)}')

@@ -25,7 +25,7 @@ async def test_audit_log_success():
     
     try:
         # Patch audit_service
-        with patch("core.aop.audit_service") as mock_audit:
+        with patch("services.audit_service.audit_service") as mock_audit:
             mock_audit.log_event = AsyncMock()
             
             # Execute
@@ -57,7 +57,7 @@ async def test_audit_log_success():
 async def test_audit_log_failure():
     service = MockService()
     
-    with patch("core.aop.audit_service") as mock_audit:
+    with patch("services.audit_service.audit_service") as mock_audit:
         mock_audit.log_event = AsyncMock()
         
         # Execute expecting error

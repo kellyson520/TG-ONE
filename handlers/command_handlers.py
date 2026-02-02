@@ -54,7 +54,9 @@ from handlers.commands.system_commands import (
     handle_logs_command,
     handle_download_logs_command,
     handle_video_cache_stats_command,
-    handle_video_cache_clear_command
+    handle_video_cache_clear_command,
+    handle_update_command,
+    handle_rollback_command
 )
 from handlers.commands.admin_commands import handle_admin_panel_command
 from handlers.commands.stats_commands import (
@@ -254,6 +256,14 @@ async def register_handlers(client):
     @client.on(events.NewMessage(pattern=r"^/video_cache_clear"))
     async def vcc_wrapper(event):
         await handle_video_cache_clear_command(event, event.message.text.split())
+
+    @client.on(events.NewMessage(pattern=r"^/update"))
+    async def update_wrapper(event):
+        await handle_update_command(event)
+
+    @client.on(events.NewMessage(pattern=r"^/rollback"))
+    async def rollback_wrapper(event):
+        await handle_rollback_command(event)
 
     # --- 统计与去重 ---
     @client.on(events.NewMessage(pattern=r"^/forward_stats"))

@@ -36,36 +36,6 @@ class EventOptimizer:
         """
         logger.info("设置优化的事件监听器...")
 
-        # 1. 新消息事件 - 替代消息轮询
-        @user_client.on(events.NewMessage)
-        async def optimized_message_handler(event: events.NewMessage.Event) -> None:
-            """优化的消息处理器 - 事件驱动"""
-            try:
-                self.event_stats["messages_processed"] += 1
-
-                # 使用批量用户服务预处理用户信息
-                mod = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
-                batch_service = mod.get_batch_user_service()
-
-                # 预加载发送者信息（避免后续单独API调用）
-                if event.sender_id:
-                    asyncio.create_task(batch_service.get_users_info([event.sender_id]))
-
-                # 调用重构后的消息处理逻辑
-                from listeners.business_handlers import UserMessageHandler
-                from listeners.event_adapters import TelegramEventAdapter
-
-                event_adapter = TelegramEventAdapter()
-                user_handler = UserMessageHandler()
-
-                # 适配事件并处理
-                message_event = await event_adapter.adapt_event(event)
-                await user_handler.handle(message_event, user_client, bot_client)
-
-            except Exception as e:
-                logger.error(f"优化消息处理失败: {str(e)}")
-                self.event_stats["errors_count"] += 1
-
         # 2. 消息编辑事件 - 实时处理消息更新
         @user_client.on(events.MessageEdited)
         async def optimized_edit_handler(event: events.MessageEdited.Event) -> None:

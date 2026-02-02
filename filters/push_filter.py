@@ -67,7 +67,7 @@ class PushFilter(BaseFilter):
                 if context.is_media_group or (context.media_group_messages and context.skipped_media):
                     processed_files = await self._push_media_group(context, push_configs)
                 # 对单条媒体消息进行推送
-                elif context.media_files or context.skipped_media:
+                elif context.media_files or context.skipped_media or (event.message and event.message.media):
                     processed_files = await self._push_single_media(context, push_configs)
                 # 对纯文本消息进行推送
                 else:

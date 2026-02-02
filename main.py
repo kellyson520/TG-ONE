@@ -55,7 +55,14 @@ except Exception as e:
 
 async def main():
     """主入口函数"""
-    # 3. 运行引导程序 (使用统一生命周期管理器)
+    # 3. 运行会话向导检测 (新增)
+    from core.session_wizard import session_wizard
+    if not await session_wizard.ensure_session():
+        logger.critical("❌ 会话文件检查不通过或向导中止。系统将尝试继续启动，但可能会因为未认证而失败。")
+        # 此时不一定会失败，如果用户按 Ctrl+C 中止向导，应该优雅退出
+        # 但如果是非交互环境，则继续让 telethon 报错
+
+    # 4. 运行引导程序 (使用统一生命周期管理器)
     from core.lifecycle import get_lifecycle
     lifecycle = get_lifecycle(user_client, bot_client)
     

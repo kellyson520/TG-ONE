@@ -26,14 +26,18 @@ def main():
         
         # 导入并启动应用
         from web_admin.app import app
+        from core.config import settings
+        
+        host = settings.WEB_HOST
+        port = settings.WEB_PORT
         
         print("🚀 Telegram转发器Web管理系统启动中...")
         print("=" * 50)
         print("📱 访问地址:")
-        print("   主页: http://localhost:8080")
-        print("   仪表板: http://localhost:8080/dashboard")
-        print("   规则管理: http://localhost:8080/rules")
-        print("   可视化图: http://localhost:8080/visualization")
+        print(f"   主页: http://localhost:{port}")
+        print(f"   仪表板: http://localhost:{port}/dashboard")
+        print(f"   规则管理: http://localhost:{port}/rules")
+        print(f"   可视化图: http://localhost:{port}/visualization")
         print("=" * 50)
         print("🔧 功能特性:")
         print("   ✅ 图形化规则配置")
@@ -52,8 +56,8 @@ def main():
         
         # 启动Flask应用
         app.run(
-            host='0.0.0.0',
-            port=8080,
+            host=host,
+            port=port,
             debug=False,  # 生产环境关闭调试模式
             threaded=True
         )

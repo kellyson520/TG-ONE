@@ -76,8 +76,7 @@ class ChatInfoService:
             
             async with self.db.session() as session:
                 stmt = select(Chat).where(Chat.telegram_chat_id.in_(candidates))
-                result = await session.execute(stmt)
-                chat = result.scalar_one_or_none()
+                chat = (await session.execute(stmt)).scalars().first()
                 if chat and chat.name:
                     return chat.name
         except Exception as e:
@@ -94,19 +93,18 @@ class ChatInfoService:
             norm_id = normalize_chat_id(chat_id)
             
             async with self.db.session() as session:
-                stmt = select(Chat).where(Chat.telegram_chat_id == norm_id)
-                result = await session.execute(stmt)
-                chat = result.scalar_one_or_none()
+                stmt = select(Chat).filter_by(telegram_chat_id=norm_id)
+                chat = (await session.execute(stmt)).scalars().first()
                 
                 if chat:
                     chat.name = name
-                    chat.updated_at = datetime.utcnow().isoformat()
+                    # chat.updated_at does not exist in the model
                 else:
                     # 如果不存在，可能是因为还没有规则用到它，但既然查了就记下来
                     chat = Chat(
                         telegram_chat_id=norm_id,
                         name=name,
-                        chat_type=self._get_chat_type(entity)
+                        type=self._get_chat_type(entity)
                     )
                     session.add(chat)
                 

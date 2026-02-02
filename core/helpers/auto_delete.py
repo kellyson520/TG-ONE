@@ -155,15 +155,12 @@ async def async_delete_user_message(client: Any, chat_id: Union[int, str], messa
         mod = __import__('services.task_service', fromlist=['message_task_manager'])
         message_task_manager = mod.message_task_manager
 
-        # 创建删除任务的回调函数
-        async def delete_callback() -> None:
-            try:
-                await client.delete_messages(chat_id, message_id)
-            except Exception as e:
-                logger.error(f"删除用户消息失败: {e}")
-
-        # 由于schedule_custom_task返回空字符串，这里不需要await
-        await message_task_manager.schedule_custom_task(delete_callback, seconds)
+        # 使用持久化删除任务方案
+        await message_task_manager.schedule_delete(
+            chat_id=chat_id,
+            message_ids=[message_id],
+            delay_seconds=seconds
+        )
 
     except ImportError:
         # 兜底：使用原有方式

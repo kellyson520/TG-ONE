@@ -42,9 +42,8 @@ class RuleRepository:
         """根据telegram_chat_id查找聊天"""
         async with self.db.session() as session:
             # 尝试直接匹配
-            stmt = select(Chat).filter(Chat.telegram_chat_id == str(chat_id))
-            result = await session.execute(stmt)
-            chat = result.scalar_one_or_none()
+            stmt = select(Chat).filter_by(telegram_chat_id=str(chat_id))
+            chat = (await session.execute(stmt)).scalars().first()
             if chat:
                 logger.debug(f"✅ [find_chat] 直接匹配成功: {chat_id}")
                 return ChatDTO.model_validate(chat)

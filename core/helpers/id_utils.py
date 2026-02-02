@@ -80,26 +80,22 @@ def build_candidate_telegram_ids(raw_id: Union[int, str]) -> Set[str]:
     try:
         n = int(s)
         candidates.add(str(n))
-        abs_n = abs(n)
-        abs_s = str(abs_n)
-        candidates.add(abs_s)
-
-        # 添加各种格式
-        candidates.add(f"-100{abs_s}")  # 超级群组格式
-        candidates.add(f"-{abs_s}")  # 普通群组格式
-
-        # 如果原数字是正数，也尝试负数版本
-        if n > 0:
-            candidates.add(f"-{n}")
-            candidates.add(f"-100{n}")
-
-        # 如果原数字是负数，也尝试去掉-100前缀的版本
-        if n < 0:
-            if s.startswith("-100"):
-                # 如果是-100开头，尝试去掉-100前缀
-                without_prefix = s[4:]  # 去掉"-100"
-                candidates.add(without_prefix)
-                candidates.add(f"-{without_prefix}")
+        
+        # 获取绝对值的基础数字 (去掉负号和 -100 标识)
+        abs_val = abs(n)
+        abs_s = str(abs_val)
+        
+        # 如果原始数字已经包含 100 前缀 (如 100123 或 -100123)
+        if abs_s.startswith('100') and len(abs_s) > 3:
+            pure_id = abs_s[3:]
+            candidates.add(pure_id)
+            candidates.add(f"-{pure_id}")
+            candidates.add(f"-100{pure_id}")
+        else:
+            # 普通 ID 格式
+            candidates.add(abs_s)
+            candidates.add(f"-{abs_s}")
+            candidates.add(f"-100{abs_s}")
 
     except Exception:
         # 非数字场景仅保留原字符串

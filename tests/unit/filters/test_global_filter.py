@@ -173,3 +173,124 @@ async def test_global_filter_duration_limit(global_filter, mock_context, mock_fo
     result = await global_filter._process(mock_context)
     assert result is True
     assert mock_context.should_forward is False
+@pytest.mark.asyncio
+async def test_global_filter_extension_blacklist(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'media_extension_enabled': True,
+        'media_extensions': ['exe', 'bat'],
+        'extension_filter_mode': 'blacklist'
+    }
+    
+    mock_media = MagicMock()
+    mock_media.photo = None
+    mock_media.voice = None
+    mock_media.audio = None
+    mock_media.video = None
+    
+    attr = MagicMock()
+    attr.file_name = "test.exe"
+    mock_doc = MagicMock()
+    mock_doc.attributes = [attr]
+    mock_media.document = mock_doc
+    
+    mock_context.event.message.media = mock_media
+    mock_context.event.message.message = ""
+    
+    result = await global_filter._process(mock_context)
+    assert result is True
+    assert mock_context.should_forward is False
+
+@pytest.mark.asyncio
+async def test_global_filter_extension_whitelist(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'media_extension_enabled': True,
+        'media_extensions': ['jpg', 'png'],
+        'extension_filter_mode': 'whitelist'
+    }
+    
+    mock_media = MagicMock()
+    mock_media.photo = None
+    mock_media.voice = None
+    mock_media.audio = None
+    mock_media.video = None
+    
+    attr = MagicMock()
+    attr.file_name = "secret.pdf"
+    mock_doc = MagicMock()
+    mock_doc.attributes = [attr]
+    mock_media.document = mock_doc
+    
+    mock_context.event.message.media = mock_media
+    mock_context.event.message.message = ""
+    
+    result = await global_filter._process(mock_context)
+    assert result is True
+    assert mock_context.should_forward is False
+
+@pytest.mark.asyncio
+async def test_global_filter_size_limit(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'media_size_filter_enabled': True,
+        'media_size_limit': 5 # 5MB
+    }
+    
+    mock_media = MagicMock()
+    # Trigger media loop
+    mock_media.photo = True 
+    mock_context.event.message.media = mock_media
+    mock_context.event.message.message = ""
+    
+    with patch("core.helpers.media.get_media_size", new_callable=AsyncMock) as mock_size:
+        mock_size.return_value = 10 * 1024 * 1024 # 10MB
+        result = await global_filter._process(mock_context)
+        assert result is True
+        assert mock_context.should_forward is False
+
+@pytest.mark.asyncio
+async def test_global_filter_duration_min(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'media_duration_enabled': True,
+        'duration_min_seconds': 30
+    }
+    
+    mock_media = MagicMock()
+    mock_media.video = MagicMock()
+    mock_media.video.duration = 10 
+    mock_media.photo = None
+    mock_media.voice = None
+    mock_media.audio = None
+    mock_media.document = None
+    
+    mock_context.event.message.media = mock_media
+    mock_context.event.message.message = ""
+    
+    result = await global_filter._process(mock_context)
+    assert result is True
+    assert mock_context.should_forward is False
+
+@pytest.mark.asyncio
+async def test_global_filter_message_with_blocked_media(global_filter, mock_context, mock_forward_manager):
+    # Test line 291-294 logic
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'media_types': {'image': False}
+    }
+    
+    mock_media = MagicMock()
+    mock_media.photo = True
+    mock_media.video = None
+    mock_media.audio = None
+    mock_media.voice = None
+    mock_media.document = None
+    
+    mock_context.event.message.media = mock_media
+    mock_context.event.message.message = "This text should be forwarded"
+    
+    result = await global_filter._process(mock_context)
+    assert result is True
+    assert mock_context.should_forward is True # Media blocked, but text allowed
+    assert mock_context.media_blocked is True

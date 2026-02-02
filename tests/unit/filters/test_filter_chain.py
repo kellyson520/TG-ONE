@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from filters.filter_chain import FilterChain, FilterNode, ParallelNode
 from filters.base_filter import BaseFilter
 from filters.context import MessageContext
@@ -86,3 +86,55 @@ async def test_filter_chain_with_parallel_group(mock_context):
     
     res = await chain.process_context(mock_context)
     assert res is True
+
+@pytest.mark.asyncio
+async def test_filter_node_timeout(mock_context):
+    f = MockFilter("timeout", delay=0.1)
+    node = FilterNode(f)
+    # Patch asyncio.wait_for timeout
+    with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
+        res = await node.execute(mock_context)
+        assert res is False
+        assert any("执行超时" in e for e in mock_context.errors)
+
+@pytest.mark.asyncio
+async def test_filter_node_exception(mock_context):
+    f = MockFilter("error", error=ValueError("oops"))
+    node = FilterNode(f)
+    res = await node.execute(mock_context)
+    assert res is False
+    assert any("oops" in str(e) for e in mock_context.errors)
+
+@pytest.mark.asyncio
+async def test_parallel_node_mixed_failure(mock_context):
+    f1 = MockFilter("ok")
+    f2 = MockFilter("fail", should_continue=False)
+    node = ParallelNode([FilterNode(f1), FilterNode(f2)])
+    res = await node.execute(mock_context)
+    assert res is False
+
+@pytest.mark.asyncio
+async def test_parallel_node_exception(mock_context):
+    # This specifically tests the branch where gather returns an Exception as a result
+    f1 = FilterNode(MockFilter("f1"))
+    # Mocking execute directly to return an Exception
+    f2 = MagicMock(spec=FilterNode)
+    f2.execute = AsyncMock(side_effect=Exception("parallel error"))
+    
+    node = ParallelNode([f1, f2])
+    # Note: gather(return_exceptions=True) will return the exception object in results list
+    res = await node.execute(mock_context)
+    assert res is False
+    assert any("parallel error" in e for e in mock_context.errors)
+
+@pytest.mark.asyncio
+async def test_filter_chain_legacy_process(mock_context):
+    chain = FilterChain()
+    chain.add_filter(MockFilter("f1"))
+    
+    # Mock MessageContext constructor
+    with patch("filters.filter_chain.MessageContext") as mock_ctx_cls:
+        mock_ctx_cls.return_value = mock_context
+        # Use MagicMock for others
+        res = await chain.process(MagicMock(), MagicMock(), 123, MagicMock())
+        assert res is True

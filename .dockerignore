@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Data & Logs (Huge folders)
+logs/
+db/
+archive/
+sessions/
+downloads/
+temp/
+# data/ # If data contains critical config, keep it. If it's just runtime data, ignore. 
+# based on file list, data/ seems to exist. entrypoint mounts lots of things.
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Tests
+tests/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Documentation
+docs/
+# except maybe essential ones? usually docs are not needed in prod image.
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Misc
+*.md
+LICENSE
+AGENTS.md

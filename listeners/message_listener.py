@@ -7,12 +7,14 @@
 
 from __future__ import annotations
 import logging
+import asyncio
 from typing import Any
 
 from telethon import events
 
 from core.container import container
 from core.helpers.sleep_manager import sleep_manager
+from core.config import settings
 
 # 获取logger
 logger = logging.getLogger(__name__)
@@ -41,13 +43,27 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
         logger.info(f"机器人监听器设置完成，ID: {bot_id}")
     except Exception as e:
         logger.error(f"获取机器人ID时出错: {str(e)}")
-        # 继续运行，但可能无法过滤机器人消息
+        # 尝试从 Token 解析 (Fallback)
+        if settings.BOT_TOKEN:
+            try:
+                bot_id = int(settings.BOT_TOKEN.split(":")[0])
+                logger.info(f"从Token降级解析机器人ID: {bot_id}")
+            except Exception:
+                pass
     
     # 优化的消息过滤函数：区分命令和普通消息
     def should_process(event):
         # 不处理机器人自己发送的消息
-        if event.sender_id == bot_id:
+        if bot_id and event.sender_id == bot_id:
             return False
+
+        # 强制过滤系统日志消息 (防止死循环: Log Push -> Bot Receives -> Worker Error -> Log Push)
+        # 特征: 包含 ❌ 和 "ERROR" 且来源可能不明
+        msg_text = event.message.text or ""
+        if "❌" in msg_text and ("ERROR" in msg_text or "CRITICAL" in msg_text):
+            # 进一步检查是否符合日志格式 (e.g. "| core.")
+            if " | " in msg_text:
+                return False
         
         # 如果是自己发送的消息 (Outgoing)
         if event.out:
@@ -71,6 +87,17 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
             logger.info(f"📥 [监听器] 收到新消息: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 发送者ID={event.sender_id}, 媒体={bool(event.message.media)}")
+            
+            # [Optimization] 预加载发送者信息及缓存
+            if event.sender_id:
+                try:
+                    from services.network.api_optimization import get_api_optimizer
+                    api_optimizer = get_api_optimizer()
+                    if api_optimizer:
+                         # 预热用户缓存 (使用异步任务，不阻塞主监听流程)
+                         asyncio.create_task(api_optimizer.get_users_batch([event.sender_id]))
+                except Exception:
+                    pass
             
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager

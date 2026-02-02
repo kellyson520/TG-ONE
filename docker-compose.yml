@@ -6,7 +6,7 @@ services:
     container_name: telegram-forwarder-opt
     ports:
       - "9810:9000"
-    restart: unless-stopped
+    restart: always
     environment:
       - ARCHIVE_ROOT=/app/archive/parquet
       - BLOOM_ROOT=/app/archive/bloom

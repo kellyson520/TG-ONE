@@ -14,6 +14,7 @@ from core.helpers.tombstone import tombstone
 # from services.system_service import guard_service (Moved to local)
 # from scheduler.cron_service import cron_service (Moved to local)
 # from services.exception_handler import exception_handler (Moved to local)
+from services.update_service import update_service
 from core.helpers.metrics import set_ready, update_heartbeat
 
 from typing import Optional, Callable, Any
@@ -210,15 +211,23 @@ class Bootstrap:
             try:
                 from web_admin.fastapi_app import start_web_server
                 # 使用 exception_handler 启动 web server
+                from services.exception_handler import exception_handler
                 exception_handler.create_task(
                     start_web_server(settings.WEB_HOST, settings.WEB_PORT), 
                     name="web_server"
                 )
                 logger.info(f"Web服务已启动: http://{settings.WEB_HOST}:{settings.WEB_PORT}")
-            except ImportError:
-                logger.warning("Web Admin 模块未找到，Web 服务未启动")
+            except ImportError as e:
+                logger.warning(f"Web Admin 模块加载失败: {e}", exc_info=True)
             except Exception as e:
-                logger.error(f"Web 服务启动失败: {e}")
+                logger.error(f"Web 服务启动失败: {e}", exc_info=True)
+        
+        # 启动更新服务 (内部处理自动检查逻辑)
+        exception_handler.create_task(
+            update_service.start_periodic_check(),
+            name="update_service"
+        )
+        logger.info("更新服务已初始化")
 
         # 启动资源监控
         from services.exception_handler import exception_handler

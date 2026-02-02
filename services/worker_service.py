@@ -22,10 +22,10 @@ class WorkerService:
         self.downloader = downloader
         self.running = False
         # 动态休眠策略配置
-        self.min_sleep = 0.1  # 最小休眠时间 (秒)
-        self.max_sleep = 2.0   # 最大休眠时间 (秒)
+        self.min_sleep = 0.5  # 最小休眠时间 (秒)
+        self.max_sleep = 30.0  # 最大休眠时间 (秒)
         self.current_sleep = self.min_sleep
-        self.sleep_increment = 0.1  # 每次增加的休眠时间
+        self.sleep_increment = 1.0  # 每次增加的休眠时间
 
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""
@@ -107,15 +107,19 @@ class WorkerService:
                 # 获取任务
                 # 注意：Worker cancel 时，这里可能会抛出 CancelledError
                 try:
-                     task = await self.repo.fetch_next()
+                      tasks = await self.repo.fetch_next()
                 except asyncio.CancelledError:
                      logger.debug(f"[{worker_id}] Cancelled during fetch")
                      raise
 
-                if not task:
+                if not tasks:
                     # 没任务时，增加休眠
                     await self._adaptive_sleep() 
                     continue
+                
+                # 第一个是主任务
+                task = tasks[0]
+                group_tasks = tasks[1:] if len(tasks) > 1 else []
                 
                 self._reset_sleep() # 有任务，重置休眠
                 
@@ -127,7 +131,7 @@ class WorkerService:
                 log = logger.bind(worker_id=worker_id, task_id=task.id, task_type=task.task_type)
                 
                 # Worker Logic (Simplified for integration)
-                await self._process_task_safely(task, log)
+                await self._process_task_safely(task, log, group_tasks=group_tasks)
                 # -----------------------------------------------------------------
 
             except asyncio.CancelledError:
@@ -137,10 +141,37 @@ class WorkerService:
                 logger.error(f"[{worker_id}] Loop Error: {e}")
                 await asyncio.sleep(1)
 
-    async def _process_task_safely(self, task, log):
-        """处理单个任务的安全封装"""
+    async def _process_task_safely(self, task, log, group_tasks: list = None):
+        """处理基础任务的安全封装，支持传入预先锁定的媒体组任务"""
         try:
             payload = json.loads(task.task_data)
+            
+            # [Optimization] 处理不需要预取消息的任务类型
+            if task.task_type == "message_delete":
+                chat_id = payload.get('chat_id')
+                message_ids = payload.get('message_ids', [])
+                if not chat_id or not message_ids:
+                    log.error("delete_task_invalid_payload", payload=payload)
+                    await self.repo.fail(task.id, "Invalid Delete Payload")
+                    return
+                
+                try:
+                    log.info(f"🗑️ [Worker] 执行删除消息任务: Chat={chat_id}, IDs={message_ids}")
+                    await self.client.delete_messages(chat_id, message_ids)
+                    await self.repo.complete(task.id)
+                    return
+                except Exception as e:
+                    log.error(f"delete_messages_failed", error=str(e))
+                    await self._retry_task(task, e, log)
+                    return
+
+            if task.task_type == "custom_task":
+                log.info(f"⚙️ [Worker] 处理自定义任务: {payload.get('action')}")
+                # TODO: 以后可扩展基于 action 的路由
+                await self.repo.complete(task.id)
+                return
+
+            # --- 以下是需要获取原始消息的任务类型 (process_message, download_file, manual_download) ---
             chat_id = payload.get('chat_id')
             msg_id = payload.get('message_id')
             
@@ -156,13 +187,10 @@ class WorkerService:
                 await self.repo.fail(task.id, "Invalid Payload")
                 return
 
-            # === 媒体组聚合逻辑 ===
-            group_tasks = []
-            if grouped_id:
-                # 尝试获取同组的其他任务
-                group_tasks = await self.repo.fetch_group_tasks(grouped_id, task.id)
-                if group_tasks:
-                    log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
+            if group_tasks:
+                log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
+            else:
+                group_tasks = []
             
             # 收集所有相关任务（当前任务 + 同组任务）
             all_related_tasks = [task] + group_tasks
@@ -304,8 +332,14 @@ class WorkerService:
                     return
             
             # === 任务成功 ===
+            # [Fix] 必须完成所有相关的媒体组任务，否则它们会被其他 Worker 重复获取
             await self.repo.complete(task.id)
-            log.info("task_completed")
+            if group_tasks:
+                for t in group_tasks:
+                    await self.repo.complete(t.id)
+                log.info(f"task_completed_with_group", count=len(group_tasks))
+            else:
+                log.info("task_completed")
 
         except Exception as e:
             if isinstance(e, RescheduleTaskException):

@@ -1,10 +1,18 @@
-from prometheus_client import Counter, Histogram, Gauge, Info
-from prometheus_client import REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR, GC_COLLECTOR
-
-# Unregister default collectors to keep it clean (optional, keeping for now)
-# REGISTRY.unregister(PROCESS_COLLECTOR)
-# REGISTRY.unregister(PLATFORM_COLLECTOR)
-# REGISTRY.unregister(GC_COLLECTOR)
+try:
+    from prometheus_client import Counter, Histogram, Gauge, Info
+    from prometheus_client import REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR, GC_COLLECTOR
+    HAS_PROMETHEUS = True
+except ImportError:
+    HAS_PROMETHEUS = False
+    # Dummy classes for when prometheus is missing
+    class DummyMetric:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, *args, **kwargs): return self
+        def inc(self, *args, **kwargs): pass
+        def set(self, *args, **kwargs): pass
+        def observe(self, *args, **kwargs): pass
+    Counter = Histogram = Gauge = Info = DummyMetric
+    REGISTRY = None
 
 # --- Web Metrics ---
 HTTP_REQUESTS_TOTAL = Counter(

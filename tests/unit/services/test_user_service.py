@@ -16,7 +16,7 @@ class TestUserService:
     @pytest.fixture(autouse=True)
     def mock_audit_service(self):
         # Patch audit_service in core.aop to prevent real calls during tests
-        with patch("core.aop.audit_service") as mock_audit:
+        with patch("services.audit_service.audit_service") as mock_audit:
             mock_audit.log_event = AsyncMock()
             yield mock_audit
 

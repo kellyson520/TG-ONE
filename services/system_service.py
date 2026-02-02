@@ -351,9 +351,34 @@ class GuardService:
         coordinator = get_shutdown_coordinator()
         try:
             await coordinator.shutdown()
+            
+            # 物理重启尝试
+            logger.info("Attempting physical process re-exec...")
+            import os
+            import sys
+            import time
+            
+            # 获取当前运行的 Python 解释器和参数
+            executable = sys.executable
+            args = sys.argv[:]
+            
+            # [成熟方案] 给予一小段时间释放资源和日志句柄
+            # 虽然 coordinator.shutdown 已完成，但在 Windows 上文件锁释放有时有延迟
+            time.sleep(0.5)
+            
+            if os.name == 'nt':
+                # Windows 下 os.execl 是通过 spawn 模拟的，会生成新进程并终止当前进程
+                # 这种方式在 Windows 下是高度可靠的，能确保锁被释放
+                os.execl(executable, executable, *args)
+            else:
+                # Unix 下 os.execl 替换当前进程映像，极致平滑
+                os.execl(executable, executable, *args)
+                
+            # 理论上 execl 不会执行到这里，除非找不到文件
             sys.exit(0)
         except Exception as e:
             logger.error(f"Graceful restart failed: {e}")
+            # 最后的保底退出
             sys.exit(1)
 
     def trigger_restart(self):

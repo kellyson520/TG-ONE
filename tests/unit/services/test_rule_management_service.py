@@ -6,7 +6,7 @@ from core.container import container
 
 @pytest.fixture(autouse=True)
 def mock_audit_service():
-    with patch("core.aop.audit_service") as mock_audit:
+    with patch("services.audit_service.audit_service") as mock_audit:
         mock_audit.log_event = AsyncMock()
         yield mock_audit
 

@@ -143,3 +143,61 @@ async def test_push_filter_media_group(push_filter, mock_context):
                     call_kwargs = mock_ap_instance.notify.call_args.kwargs
                     assert call_kwargs["attach"] == ["temp/img1.png", "temp/img2.png"]
                     assert mock_remove.call_count == 2
+@pytest.mark.asyncio
+async def test_push_filter_skipped_media_only(push_filter, mock_context):
+    # Case where all media are skipped (size limit)
+    mock_context.media_group_messages = []
+    mock_context.skipped_media = [(MagicMock(), 50, "large.jpg")]
+    
+    mock_config = SimpleNamespace(push_channel="mock://", media_send_mode="Single")
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = [mock_config]
+    
+    with patch("filters.push_filter.AsyncSessionManager") as mock_manager:
+        mock_manager.return_value.__aenter__.return_value = mock_session
+        with patch("apprise.Apprise") as mock_apprise:
+            mock_ap_instance = mock_apprise.return_value
+            mock_ap_instance.add.return_value = True
+            mock_ap_instance.notify = MagicMock(return_value=True)
+            
+            await push_filter._process(mock_context)
+            
+            call_kwargs = mock_ap_instance.notify.call_args.kwargs
+            assert "超过大小限制" in call_kwargs["body"]
+
+@pytest.mark.asyncio
+async def test_push_filter_manual_download_and_cleanup(push_filter, mock_context):
+    # Only push enabled, need to download manually
+    mock_context.rule.enable_only_push = True
+    msg = MagicMock()
+    msg.media = True
+    msg.download_media = AsyncMock(return_value="temp/manual.jpg")
+    mock_context.event.message = msg
+    
+    mock_config = SimpleNamespace(push_channel="mock://", media_send_mode="Single")
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = [mock_config]
+    
+    with patch("filters.push_filter.AsyncSessionManager") as mock_manager:
+        mock_manager.return_value.__aenter__.return_value = mock_session
+        with patch("apprise.Apprise") as mock_apprise:
+            mock_ap_instance = mock_apprise.return_value
+            mock_ap_instance.add.return_value = True
+            mock_ap_instance.notify = MagicMock(return_value=True)
+            
+            with patch("os.path.exists", return_value=True):
+                with patch("os.remove") as mock_remove:
+                    await push_filter._process(mock_context)
+                    # Cleanup from push_single_media (need_cleanup branch)
+                    assert mock_remove.call_count == 1
+
+@pytest.mark.asyncio
+async def test_push_filter_exception_returns_false(push_filter, mock_context):
+    mock_session = MagicMock()
+    mock_session.query.side_effect = Exception("db crash")
+    
+    with patch("filters.push_filter.AsyncSessionManager") as mock_manager:
+        mock_manager.return_value.__aenter__.return_value = mock_session
+        result = await push_filter._process(mock_context)
+        assert result is False
+        assert any("db crash" in e for e in mock_context.errors)

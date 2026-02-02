@@ -11,9 +11,14 @@ import logging
 from pathlib import Path
 
 # 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# 修正项目根目录添加到路径的逻辑
+# __file__ 是 scripts/ops/database_health_check.py
+# parent 是 scripts/ops
+# parent.parent 是 scripts
+# parent.parent.parent 是 . (项目根目录)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.fix_database import DatabaseFixer
+from scripts.ops.fix_database import DatabaseFixer
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

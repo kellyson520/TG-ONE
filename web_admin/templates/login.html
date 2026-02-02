@@ -137,6 +137,7 @@
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const preAuthToken = document.getElementById('pre_auth_token').value;
+      const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
 
       loginButton.disabled = true;
       loginButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在验证...';
@@ -146,7 +147,10 @@
           const code = document.getElementById('2fa_code').value;
           const res = await fetch('/api/auth/login/2fa', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({ pre_auth_token: preAuthToken, token: code })
           });
           if (res.ok) window.location.href = '/';
@@ -156,7 +160,10 @@
           const password = passInput.value;
           const res = await fetch('/api/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({ username, password })
           });
           const data = await res.json();

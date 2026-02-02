@@ -31,7 +31,21 @@ class Database:
                 pool_size=20,  # 增大连接池
                 max_overflow=10  # 允许溢出连接
             )
-            logger.info(f"[Database] 创建新引擎: {db_url}")
+
+            # 关键修复: 显式启用 WAL 模式
+            if 'sqlite' in db_url:
+                from sqlalchemy import event
+                
+                def set_sqlite_pragma(dbapi_connection, connection_record):
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                    cursor.execute("PRAGMA synchronous=NORMAL")
+                    cursor.close()
+
+                # 监听连接事件，确保每次连接都启用 WAL
+                event.listen(self.engine.sync_engine, "connect", set_sqlite_pragma)
+
+            logger.info(f"[Database] 创建新引擎: {db_url} (已启用 WAL)")
         else:
             raise ValueError("Must provide either db_url or engine")
         

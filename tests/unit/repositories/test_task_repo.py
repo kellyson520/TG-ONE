@@ -38,19 +38,23 @@ class TestTaskRepository:
         await repo.push("high", {"id": 2}, priority=10)
         
         # 拉取第一个
-        task = await repo.fetch_next()
-        assert task is not None
+        tasks = await repo.fetch_next()
+        assert tasks
+        task = tasks[0]
         assert task.task_type == "high"
         assert task.status == "running"
         assert task.started_at is not None
         
         # 再次拉取
-        task2 = await repo.fetch_next()
-        assert task2.task_type == "low"
+        tasks2 = await repo.fetch_next()
+        assert tasks2
+        assert tasks2[0].task_type == "low"
 
     async def test_complete_and_fail(self, repo, db):
         await repo.push("task", {"id": 1})
-        task = await repo.fetch_next()
+        tasks = await repo.fetch_next()
+        assert tasks
+        task = tasks[0]
         tid = task.id
         
         # 完成
@@ -67,7 +71,9 @@ class TestTaskRepository:
 
     async def test_fail_or_retry(self, repo, db):
         await repo.push("retry_task", {"id": 1})
-        task = await repo.fetch_next()
+        tasks = await repo.fetch_next()
+        assert tasks
+        task = tasks[0]
         tid = task.id
         
         # 第一次失败 -> 重试 (pending)

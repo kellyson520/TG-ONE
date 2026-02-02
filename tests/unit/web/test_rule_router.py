@@ -91,36 +91,47 @@ class TestRuleRouterGetDetail:
     @pytest.mark.asyncio
     async def test_get_rule_detail_success(self, mock_rule, mock_user):
         """测试成功获取规则详情"""
-        from web_admin.routers.rule_router import get_rule_detail
-        from core.container import container
+        from web_admin.routers.rules.rule_crud_router import get_rule_detail
         
         # Mock 依赖
-        with patch.object(container.rule_repo, 'get_by_id', new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_rule
-            
-            # 调用端点
-            response = await get_rule_detail(rule_id=1, user=mock_user)
-            
-            # 验证
-            assert response.status_code == 200
-            data = response.body.decode()
-            assert '"success": true' in data or '"success":true' in data
-            assert '"id": 1' in data or '"id":1' in data
+        mock_repo = MagicMock()
+        mock_repo.get_by_id = AsyncMock(return_value=mock_rule)
+        
+        mock_stats_repo = MagicMock()
+        mock_stats_repo.get_rules_stats_batch = AsyncMock(return_value={})
+        
+        # 调用端点
+        response = await get_rule_detail(
+            rule_id=1, 
+            user=mock_user,
+            rule_repo=mock_repo,
+            stats_repo=mock_stats_repo
+        )
+        
+        # 验证
+        assert response.success is True
+        assert response.data is not None
+        assert response.data['id'] == 1
     
     @pytest.mark.asyncio
     async def test_get_rule_detail_not_found(self, mock_user):
         """测试规则不存在"""
-        from web_admin.routers.rule_router import get_rule_detail
-        from core.container import container
+        from web_admin.routers.rules.rule_crud_router import get_rule_detail
         
-        with patch.object(container.rule_repo, 'get_by_id', new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
-            
-            response = await get_rule_detail(rule_id=999, user=mock_user)
-            
-            assert response.status_code == 404
-            data = response.body.decode()
-            assert '"success": false' in data or '"success":false' in data
+        mock_repo = MagicMock()
+        mock_repo.get_by_id = AsyncMock(return_value=None)
+        
+        mock_stats_repo = MagicMock()
+        
+        response = await get_rule_detail(
+            rule_id=999, 
+            user=mock_user, 
+            rule_repo=mock_repo,
+            stats_repo=mock_stats_repo
+        )
+        
+        assert response.success is False
+        assert response.error == '规则不存在'
 
 
 class TestRuleRouterUpdate:
@@ -129,8 +140,8 @@ class TestRuleRouterUpdate:
     @pytest.mark.asyncio
     async def test_update_rule_success(self, mock_user):
         """测试成功更新规则"""
-        from web_admin.routers.rule_router import update_rule, RuleUpdateRequest
-        from core.container import container
+        from web_admin.routers.rules.rule_crud_router import update_rule
+        from web_admin.schemas.rule_schemas import RuleUpdateRequest
         
         payload = RuleUpdateRequest(
             enabled=False,
@@ -138,30 +149,42 @@ class TestRuleRouterUpdate:
             description="Updated description"
         )
         
-        with patch.object(container.rule_management_service, 'update_rule', new_callable=AsyncMock) as mock_update:
-            mock_update.return_value = {'success': True}
-            
-            response = await update_rule(rule_id=1, payload=payload, user=mock_user)
-            
-            assert response.status_code == 200
-            mock_update.assert_called_once()
-            call_kwargs = mock_update.call_args[1]
-            assert call_kwargs['enable_rule'] == False
-            assert call_kwargs['enable_dedup'] == True
-            assert call_kwargs['description'] == "Updated description"
+        mock_service = MagicMock()
+        mock_service.update_rule = AsyncMock(return_value={'success': True})
+        
+        response = await update_rule(
+            rule_id=1, 
+            payload=payload, 
+            user=mock_user,
+            service=mock_service
+        )
+        
+        assert response.success is True
+        assert response.message == '规则更新成功'
+        mock_service.update_rule.assert_called_once()
+        call_kwargs = mock_service.update_rule.call_args[1]
+        assert call_kwargs['enable_rule'] == False
+        assert call_kwargs['enable_dedup'] == True
+        assert call_kwargs['description'] == "Updated description"
     
     @pytest.mark.asyncio
     async def test_update_rule_no_changes(self, mock_user):
         """测试无更新项"""
-        from web_admin.routers.rule_router import update_rule, RuleUpdateRequest
+        from web_admin.routers.rules.rule_crud_router import update_rule
+        from web_admin.schemas.rule_schemas import RuleUpdateRequest
         
         payload = RuleUpdateRequest()  # 空请求
+        mock_service = MagicMock()
         
-        response = await update_rule(rule_id=1, payload=payload, user=mock_user)
+        response = await update_rule(
+            rule_id=1, 
+            payload=payload, 
+            user=mock_user,
+            service=mock_service
+        )
         
-        assert response.status_code == 200
-        data = response.body.decode()
-        assert '没有更新项' in data
+        assert response.success is True
+        assert response.message == '没有更新项'
 
 
 class TestRuleRouterKeywords:
@@ -170,8 +193,8 @@ class TestRuleRouterKeywords:
     @pytest.mark.asyncio
     async def test_add_keywords_success(self, mock_user):
         """测试添加关键字"""
-        from web_admin.routers.rule_router import add_keywords, KeywordAddRequest
-        from core.container import container
+        from web_admin.routers.rules.rule_content_router import add_keywords
+        from web_admin.schemas.rule_schemas import KeywordAddRequest
         
         payload = KeywordAddRequest(
             keywords=["keyword1", "keyword2"],
@@ -179,14 +202,18 @@ class TestRuleRouterKeywords:
             is_negative=False
         )
         
-        with patch.object(container.rule_management_service, 'add_keywords', new_callable=AsyncMock) as mock_add:
-            mock_add.return_value = {'success': True, 'count': 2}
-            
-            response = await add_keywords(rule_id=1, payload=payload, user=mock_user)
-            
-            assert response.status_code == 200
-            data = response.body.decode()
-            assert '"success": true' in data or '"success":true' in data
+        mock_service = MagicMock()
+        mock_service.add_keywords = AsyncMock(return_value={'success': True, 'count': 2})
+        
+        response = await add_keywords(
+            rule_id=1, 
+            payload=payload, 
+            user=mock_user,
+            service=mock_service
+        )
+        
+        assert response.success is True
+        assert response.message == "成功添加 2 个关键字"
 
 
 class TestRuleRouterReplaceRules:
@@ -195,8 +222,8 @@ class TestRuleRouterReplaceRules:
     @pytest.mark.asyncio
     async def test_add_replace_rules_success(self, mock_user):
         """测试添加替换规则"""
-        from web_admin.routers.rule_router import add_replace_rules, ReplaceRuleAddRequest
-        from core.container import container
+        from web_admin.routers.rules.rule_content_router import add_replace_rules
+        from web_admin.schemas.rule_schemas import ReplaceRuleAddRequest
         
         payload = ReplaceRuleAddRequest(
             pattern="old_text",
@@ -204,11 +231,14 @@ class TestRuleRouterReplaceRules:
             is_regex=False
         )
         
-        with patch.object(container.rule_management_service, 'add_replace_rules', new_callable=AsyncMock) as mock_add:
-            mock_add.return_value = {'success': True}
-            
-            response = await add_replace_rules(rule_id=1, payload=payload, user=mock_user)
-            
-            assert response.status_code == 200
-            data = response.body.decode()
-            assert '"success": true' in data or '"success":true' in data
+        mock_service = MagicMock()
+        mock_service.add_replace_rules = AsyncMock(return_value={'success': True})
+        
+        response = await add_replace_rules(
+            rule_id=1, 
+            payload=payload, 
+            user=mock_user,
+            service=mock_service
+        )
+        
+        assert response.success is True

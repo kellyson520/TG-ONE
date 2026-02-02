@@ -103,6 +103,7 @@ class ForwardRule(Base):
     rate_limit = Column(Integer, nullable=True)
     webhook_url = Column(String, nullable=True)
     custom_config = Column(Text, nullable=True)
+    grouped_id = Column(String, nullable=True)
     
     # 元数据
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())

@@ -92,7 +92,20 @@ class AuthenticationService:
         from core.container import container
         async with container.db.session() as session:
             try:
-                # Store SHA256 hash of refresh token
+                # 1. Enforce Max Sessions (Security Best Practice)
+                MAX_SESSIONS = settings.MAX_ACTIVE_SESSIONS
+                stmt = select(ActiveSession).where(ActiveSession.user_id == user_id).order_by(ActiveSession.created_at.asc())
+                result = await session.execute(stmt)
+                existing_sessions = result.scalars().all()
+                
+                if len(existing_sessions) >= MAX_SESSIONS:
+                    # Remove oldest to make room
+                    excess_count = len(existing_sessions) - MAX_SESSIONS + 1
+                    for i in range(excess_count):
+                         session.delete(existing_sessions[i])
+                    logger.info(f"🧹 [Auth] 清理旧会话: 用户ID={user_id}, 数量={excess_count}")
+
+                # 2. Store SHA256 hash of refresh token
                 token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
                 new_session = ActiveSession(
                     session_id=str(uuid.uuid4()),

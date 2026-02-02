@@ -226,27 +226,23 @@ async def handle_toggle_media_size_alert(event):
 
 
 async def handle_new_menu_callback(event):
-    """处理新菜单回调"""
-    data = event.data.decode("utf-8")
-    parts = data.split(":")
-    action = parts[1]
+    """处理新菜单回调 (统一入口)"""
+    try:
+        data = event.data.decode("utf-8")
+        if not data.startswith("new_menu:"):
+            return
 
-    if action == "main" or action == "main_menu":
-        from controllers.menu_controller import menu_controller
-        await menu_controller.show_main_menu(event)
-    elif action == "forward_management":
-        await new_menu_system.show_forward_management(event)
-    elif action == "list_rules":
-        page = int(parts[2]) if len(parts) > 2 else 1
-        await new_menu_system.show_rule_list(event, page)
-    else:
-        # 调用现有的回调处理器处理其他情况
+        action_data = data[9:]  # 去掉 'new_menu:' 前缀
+        
+        # 获取消息上下文用于向下兼容
+        message = await event.get_message()
+        
         from models.models import AsyncSessionManager
-
         async with AsyncSessionManager() as session:
-            message = await event.get_message()
-            action_data = data[9:]  # 去掉 'new_menu:' 前缀
             await callback_new_menu_handler(event, action_data, session, message, data)
+    except Exception as e:
+        logger.error(f"处理菜单回调失败: {e}", exc_info=True)
+        await event.answer("⚠️ 系统繁忙，请稍后再试", alert=True)
 
 
 async def callback_new_menu_handler(event, action_data, session, message, data):
@@ -357,6 +353,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_backup_history(event)
         elif action == "system_overview":
             await new_menu_system.show_system_overview(event)
+        elif action == "forward_management":
+            await menu_controller.show_rule_management(event)
         elif action == "cache_cleanup":
             await menu_controller.show_cache_cleanup(event)
         elif action == "do_cleanup":
@@ -365,16 +363,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await menu_controller.show_session_management(event)
         elif action == "history_messages":
             await menu_controller.show_history_messages(event)
-        elif action == "forward_management":
-            await menu_controller.show_rule_management(event)
-        elif action == "cache_cleanup":
-            # 缓存清理确认
-            await new_menu_system.confirm_cache_cleanup(event)
-        elif action == "do_cleanup":
-            await new_menu_system.do_cache_cleanup(event)
-        elif action == "session_management":
-            # 进入会话管理菜单
-            await new_menu_system.show_session_management(event)
         elif action == "session_dedup":
             # 会话内去重入口
             await new_menu_system.show_session_dedup_menu(event)
@@ -854,19 +842,23 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     chat_id = action.split(":")[1]
                 else:
                     chat_id = str(event.chat_id)
-                await new_menu_system.show_current_chat_rules(event, chat_id)
+                from controllers.menu_controller import menu_controller
+                await menu_controller.show_current_chat_rules(event, chat_id)
         elif action.startswith("global_rules_page:"):
             page = int(action.split(":")[1])
-            await new_menu_system.show_channel_management_global_page(event, page)
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_rule_list(event, page=page)
         elif action.startswith("current_chat_rules_page:"):
             parts_action = action.split(":")
             chat_id = parts_action[1]
             page = int(parts_action[2])
-            await new_menu_system.show_current_chat_rules_page(event, chat_id, page)
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_current_chat_rules_page(event, chat_id, page)
         elif action.startswith("rule_detail_settings:"):
             # 处理带规则ID的规则详细设置
             rule_id = int(action.split(":")[1])
-            await new_menu_system.show_rule_detail_settings(event, rule_id)
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_rule_detail(event, rule_id)
         elif action == "rule_detail_settings":
             # 显示规则选择菜单，然后进入老菜单的规则设置（保持向后兼容）
             await new_menu_system.show_rule_selection_for_settings(event)
@@ -931,8 +923,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await handle_toggle_setting(event, "allow_text")
         elif action == "toggle_allow_emoji":
             await handle_toggle_setting(event, "allow_emoji")
-        elif action == "media_types":
-            await new_menu_system.show_media_types(event)
         elif action == "history_messages":
             await new_menu_system.show_history_messages(event)
         elif action == "history_task_actions":
@@ -1495,9 +1485,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"保存时间设置失败: {str(e)}")
                 await event.answer("保存失败", alert=True)
-        # 媒体设置相关菜单
-        elif action == "media_types":
-            await new_menu_system.show_media_types(event)
         elif action == "media_size_settings":
             await new_menu_system.show_media_size_settings(event)
         elif action == "media_duration_settings":
@@ -1662,17 +1649,32 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "anomaly_detection":
             await new_menu_system.show_anomaly_detection(event)
         elif action == "realtime_monitor":
-            await new_menu_system.show_realtime_monitor(event)
+            try:
+                from controllers.menu_controller import menu_controller
+                await menu_controller.show_realtime_monitor(event)
+            except Exception as e:
+                logger.error(f"显示实时监控失败: {e}")
+                await event.answer("加载监控数据失败", alert=True)
         elif action == "detailed_analytics":
             await new_menu_system.show_detailed_analytics(event)
         elif action == "performance_analysis":
             await new_menu_system.show_performance_analysis(event)
         elif action == "failure_analysis":
-            await new_menu_system.show_failure_analysis(event)
+            # 暂时降级处理，因为 AnalyticsMenu 缺失此方法
+            try:
+                await new_menu_system.show_performance_analysis(event)
+                await event.answer("ℹ️ 失败分析正在集成，暂显示性能概览")
+            except Exception:
+                await event.answer("🚧 功能开发中")
         elif action == "export_report":
             await new_menu_system.export_report(event)
         elif action == "export_csv":
-            await new_menu_system.export_csv(event)
+            # 暂时降级到普通报告导出
+            try:
+                await new_menu_system.export_report(event)
+                await event.answer("ℹ️ CSV 导出不可用，已为您导出文本报告")
+            except Exception:
+                await event.answer("🚧 功能开发中")
 
         # 智能去重设置回调
         elif action == "smart_dedup_settings":
@@ -1745,46 +1747,13 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "dedup_hash_examples":
             await new_menu_system.show_dedup_hash_examples(event)
 
-        # 四大功能中心 - 使用新的控制器架构
-        elif action == "forward_hub":
-            await new_menu_system.show_forward_hub(event)
-        elif action == "dedup_hub":
-            await new_menu_system.show_dedup_hub(event)
-        elif action == "analytics_hub":
-            await new_menu_system.show_analytics_hub(event)
-        elif action == "system_hub":
-            # 先即时应答，避免“处理中”卡住
-            try:
-                await event.answer("正在打开系统设置中心…")
-            except Exception:
-                pass
-            await new_menu_system.show_system_hub(event)
+        # 归档与维护操作
         elif action == "db_archive_once":
-            try:
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.run_db_archive_once(event)
-            except Exception as e:
-                logger.error(f"手动归档失败: {str(e)}")
-                await event.answer("操作失败", alert=True)
+            await menu_controller.run_db_archive_once(event)
         elif action == "db_archive_force":
-            try:
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.run_db_archive_force(event)
-            except Exception as e:
-                logger.error(f"强制归档失败: {str(e)}")
-                await event.answer("操作失败", alert=True)
+            await menu_controller.run_db_archive_force(event)
         elif action == "rebuild_bloom":
-            try:
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.rebuild_bloom_index(event)
-            except Exception as e:
-                logger.error(f"重建 Bloom 索引失败: {str(e)}")
-                await event.answer("操作失败", alert=True)
-        elif action == "help_guide":
-            await new_menu_system.show_help_guide(event)
+            await menu_controller.rebuild_bloom_index(event)
 
         # 数据库性能监控
         elif action == "db_performance_monitor":
@@ -2112,15 +2081,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"删除确认失败: {e}")
 
-        # 新架构 - 性能监控
-        elif action == "realtime_monitor":
-            try:
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_realtime_monitor(event)
-            except Exception as e:
-                logger.error(f"实时监控失败: {e}")
-                await event.answer("加载实时监控失败", alert=True)
 
         # 新架构 - 会话管理 (历史消息)
         elif action == "history_task_selector":
