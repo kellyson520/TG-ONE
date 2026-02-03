@@ -13,6 +13,7 @@ import time
 from typing import Dict, Optional, Tuple, Any
 
 from core.helpers.tombstone import tombstone
+from core.container import container
 
 try:
     # 可选快速文本相似度库（更快更准）
@@ -220,7 +221,7 @@ class SmartDeduplicator:
             return
         logger.debug("开始懒加载去重配置...")
         try:
-            await asyncio.to_thread(self._load_config_from_db)
+            await self._load_config_from_db()
             self._config_loaded = True
             logger.debug("懒加载配置完成")
         except Exception as e:
@@ -1623,31 +1624,29 @@ class SmartDeduplicator:
         except Exception:
             return {}
 
-    def update_config(self, new_config: Dict):
+    async def update_config(self, new_config: Dict):
         """更新配置并持久化"""
         self.config.update(new_config)
         logger.info(f"智能去重配置已更新: {self.config}")
 
         # 持久化配置到数据库
         try:
-            self._save_config_to_db()
+            await self._save_config_to_db()
         except Exception as e:
             logger.warning(f"保存去重配置到数据库失败: {e}")
 
-    def _save_config_to_db(self):
+    async def _save_config_to_db(self):
         """保存配置到数据库"""
         try:
             import json
+            from sqlalchemy import select
+            from models.models import SystemConfiguration
 
-            from models.models import SessionManager, SystemConfiguration
-
-            with SessionManager() as session:
+            async with container.db.session() as session:
                 # 查找或创建配置记录
-                config_record = (
-                    session.query(SystemConfiguration)
-                    .filter_by(key="smart_dedup_config")
-                    .first()
-                )
+                stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
+                result = await session.execute(stmt)
+                config_record = result.scalar_one_or_none()
 
                 if not config_record:
                     config_record = SystemConfiguration(
@@ -1657,25 +1656,22 @@ class SmartDeduplicator:
                 else:
                     config_record.value = json.dumps(self.config)
 
-                session.commit()
                 logger.debug("智能去重配置已保存到数据库")
 
         except Exception as e:
             logger.error(f"保存去重配置失败: {e}")
 
-    def _load_config_from_db(self):
+    async def _load_config_from_db(self):
         """从数据库加载配置"""
         try:
             import json
+            from sqlalchemy import select
+            from models.models import SystemConfiguration
 
-            from models.models import SessionManager, SystemConfiguration
-
-            with SessionManager() as session:
-                config_record = (
-                    session.query(SystemConfiguration)
-                    .filter_by(key="smart_dedup_config")
-                    .first()
-                )
+            async with container.db.session() as session:
+                stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
+                result = await session.execute(stmt)
+                config_record = result.scalar_one_or_none()
 
                 if config_record and config_record.value:
                     db_config = json.loads(config_record.value)
@@ -1686,7 +1682,7 @@ class SmartDeduplicator:
         except Exception as e:
             logger.warning(f"从数据库加载去重配置失败: {e}")
 
-    def reset_to_defaults(self):
+    async def reset_to_defaults(self):
         """重置为默认配置"""
         self.config = {
             "enable_time_window": True,
@@ -1709,7 +1705,7 @@ class SmartDeduplicator:
             "video_partial_hash_bytes": 262144,
             "disable_similarity_for_grouped": True,
         }
-        self._save_config_to_db()
+        await self._save_config_to_db()
         logger.info("智能去重配置已重置为默认值")
 
     def _compute_text_fingerprint(
@@ -1804,10 +1800,8 @@ class SmartDeduplicator:
             size_bucket = self._get_size_range(size_val or 0)
             # 查找历史一条匹配记录用于对比
             from repositories.db_operations import DBOperations
-            from models.models import AsyncSessionManager
-
-            # 使用异步上下文管理器
-            async with AsyncSessionManager() as session:
+            # 使用 container.db.session 获取会话
+            async with container.db.session() as session:
                 db_ops = await DBOperations.create()
                 rec = await db_ops.find_media_record_by_fileid_or_hash(
                     session, str(target_chat_id), file_id=file_id, content_hash=vhash

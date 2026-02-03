@@ -6,8 +6,8 @@ from sqlalchemy import select
 from telethon import Button
 from telethon.tl import types
 
+from core.container import container
 from models.models import (
-    AsyncSessionManager,
     ForwardRule,
     PushConfig,
     RuleSync,
@@ -36,8 +36,8 @@ async def handle_push_callback(event):
     if ":" in data:
         id_param = parts[1]
 
-    # 使用 AsyncSessionManager 获取会话
-    async with AsyncSessionManager() as session:
+    # 使用 container.db.session 获取会话
+    async with container.db.session() as session:
         message = await event.get_message()
         # 获取对应的处理器
         handler = {

@@ -7,6 +7,7 @@ import traceback
 import logging
 from telethon import Button
 
+from core.container import container
 from handlers.button.new_menu_system import new_menu_system
 
 logger = logging.getLogger(__name__)
@@ -237,8 +238,7 @@ async def handle_new_menu_callback(event):
         # 获取消息上下文用于向下兼容
         message = await event.get_message()
         
-        from models.models import AsyncSessionManager
-        async with AsyncSessionManager() as session:
+        async with container.db.session() as session:
             await callback_new_menu_handler(event, action_data, session, message, data)
     except Exception as e:
         logger.error(f"处理菜单回调失败: {e}", exc_info=True)

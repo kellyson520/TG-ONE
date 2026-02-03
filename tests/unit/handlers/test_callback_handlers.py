@@ -55,7 +55,7 @@ class TestCallbackHandlers:
             from handlers.button.callback.modules.rule_settings import callback_settings
             
             mock_session = AsyncMock()
-            mock_container.db_session.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             mock_chat_db = MagicMock()
             mock_chat_db.id = 123
@@ -86,7 +86,7 @@ class TestCallbackHandlers:
             from models.models import ForwardRule
             
             mock_session = AsyncMock()
-            mock_container.db_session.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             mock_rule = MagicMock(spec=ForwardRule, id=1)
             mock_session.get.return_value = mock_rule
@@ -114,7 +114,7 @@ class TestCallbackHandlers:
              from models.models import ForwardRule
              
              mock_session = AsyncMock()
-             mock_container.db_session.return_value.__aenter__.return_value = mock_session
+             mock_container.db.session.return_value.__aenter__.return_value = mock_session
              
              mock_rule = MagicMock(spec=ForwardRule, id=1)
              mock_session.get.return_value = mock_rule

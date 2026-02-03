@@ -7,6 +7,7 @@ import logging
 from telethon import Button
 
 
+from core.container import container
 from handlers.command_handlers import (
     handle_db_backup_command,
     handle_db_health_command,
@@ -14,7 +15,6 @@ from handlers.command_handlers import (
     handle_db_optimize_command,
     handle_system_status_command,
 )
-from models.models import AsyncSessionManager
 
 
 from core.helpers.common import is_admin
@@ -39,7 +39,7 @@ async def handle_admin_callback(event):
     rule_id = parts[1] if len(parts) > 1 else None
 
     # 使用 AsyncSessionManager 获取会话
-    async with AsyncSessionManager() as session:
+    async with container.db.session() as session:
         message = await event.get_message()
         # 获取对应的处理器
         handler = {
@@ -123,33 +123,27 @@ async def callback_admin_system_status(event, rule_id, session, message, data):
 async def callback_admin_logs(event, rule_id, session, message, data):
     """运行日志回调"""
     try:
-        from models.models import ErrorLog, get_session
+        from models.models import ErrorLog
+        from sqlalchemy import select
 
-        session = get_session()
-        try:
-            # 获取最近的错误日志
-            recent_logs = (
-                session.query(ErrorLog)
-                .order_by(ErrorLog.created_at.desc())
-                .limit(10)
-                .all()
-            )
+        # 获取最近的错误日志
+        stmt = select(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(10)
+        result = await session.execute(stmt)
+        recent_logs = result.scalars().all()
 
-            if not recent_logs:
-                response = "📋 **运行日志**\n\n✅ 暂无错误日志"
-            else:
-                response = "📋 **最近10条错误日志**\n\n"
-                for log in recent_logs:
-                    response += f"🔸 {log.level} | {log.created_at}\n"
-                    response += f"   模块: {log.module or 'Unknown'}\n"
-                    response += f"   消息: {log.message[:100]}...\n\n"
+        if not recent_logs:
+            response = "📋 **运行日志**\n\n✅ 暂无错误日志"
+        else:
+            response = "📋 **最近10条错误日志**\n\n"
+            for log in recent_logs:
+                response += f"🔸 {log.level} | {log.created_at}\n"
+                response += f"   模块: {log.module or 'Unknown'}\n"
+                response += f"   消息: {log.message[:100]}...\n\n"
 
-            # 创建返回按钮
-            buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]
+        # 创建返回按钮
+        buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]
 
-            await event.edit(response, buttons=buttons)
-        finally:
-            session.close()
+        await event.edit(response, buttons=buttons)
 
         await event.answer()
     except Exception as e:
@@ -265,19 +259,11 @@ async def callback_admin_stats(event, rule_id, session, message, data):
     """统计报告回调 - 使用官方API优化"""
     try:
         import asyncio
-        from sqlalchemy import func
+        from sqlalchemy import func, select
 
-        from models.models import (
-            Chat,
-            ErrorLog,
-            ForwardRule,
-            MediaSignature,
-            get_session,
-        )
         from services.network.api_optimization import get_api_optimizer
         from core.algorithms.hll import GlobalHLL
 
-        session = get_session()
         api_optimizer = get_api_optimizer()
 
         try:
@@ -295,34 +281,44 @@ async def callback_admin_stats(event, rule_id, session, message, data):
                 cache_info = " (缓存)" if stats_result.get("cache_hit") else " (实时)"
             else:
                 # 降级到基础统计
+                from models.models import ForwardRule
+
                 rule_count = session.query(ForwardRule).count()
                 active_rules = (
                     session.query(ForwardRule)
-                    .filter(ForwardRule.enable_rule == True)
+                    .filter(ForwardRule.enable_rule.is_(True))
                     .count()
                 )
                 cache_info = " (降级)"
 
-            # 其他统计使用并发查询优化
+            # 并发执行统计查询
             async def get_chat_count():
-                return session.query(Chat).count()
+                from models.models import Chat
+                stmt = select(func.count()).select_from(Chat)
+                return (await session.execute(stmt)).scalar()
 
             async def get_media_count():
-                return session.query(MediaSignature).count()
+                from models.models import MediaSignature
+                stmt = select(func.count()).select_from(MediaSignature)
+                return (await session.execute(stmt)).scalar()
 
             async def get_error_count():
-                return session.query(ErrorLog).count()
+                from models.models import ErrorLog
+                stmt = select(func.count()).select_from(ErrorLog)
+                return (await session.execute(stmt)).scalar()
 
             async def get_total_processed():
-                return session.query(func.sum(ForwardRule.message_count)).scalar() or 0
+                from models.models import ForwardRule
+                stmt = select(func.sum(ForwardRule.message_count)).select_from(ForwardRule)
+                return (await session.execute(stmt)).scalar() or 0
 
             # 并发执行统计查询
             chat_count, media_count, error_count, total_processed = (
                 await asyncio.gather(
-                    asyncio.create_task(asyncio.to_thread(get_chat_count)),
-                    asyncio.create_task(asyncio.to_thread(get_media_count)),
-                    asyncio.create_task(asyncio.to_thread(get_error_count)),
-                    asyncio.create_task(asyncio.to_thread(get_total_processed)),
+                    get_chat_count(),
+                    get_media_count(),
+                    get_error_count(),
+                    get_total_processed(),
                     return_exceptions=True,
                 )
             )
@@ -338,12 +334,10 @@ async def callback_admin_stats(event, rule_id, session, message, data):
                 total_processed = 0
 
             # 获取活跃聊天的ID列表进行实时统计
-            active_chats = (
-                session.query(Chat.telegram_chat_id)
-                .filter(Chat.is_active == True)
-                .limit(10)
-                .all()
-            )
+            from models.models import Chat
+            stmt = select(Chat.telegram_chat_id).where(Chat.is_active == True).limit(10)
+            result = await session.execute(stmt)
+            active_chats = result.all()
             chat_ids = [chat[0] for chat in active_chats if chat[0]]
 
             # 使用官方API获取实时聊天统计
@@ -447,26 +441,25 @@ async def callback_admin_stats(event, rule_id, session, message, data):
 async def callback_admin_config(event, rule_id, session, message, data):
     """系统配置回调"""
     try:
-        from models.models import SystemConfiguration, get_session
+        from models.models import SystemConfiguration
+        from sqlalchemy import select
 
-        session = get_session()
-        try:
-            # 获取系统配置
-            configs = session.query(SystemConfiguration).limit(10).all()
+        # 获取系统配置
+        stmt = select(SystemConfiguration).limit(10)
+        result = await session.execute(stmt)
+        configs = result.scalars().all()
 
-            if not configs:
-                response = "⚙️ **系统配置**\n\n暂无配置项"
-            else:
-                response = "⚙️ **系统配置**\n\n"
-                for config in configs:
-                    response += f"🔸 {config.key}: {config.value}\n"
+        if not configs:
+            response = "⚙️ **系统配置**\n\n暂无配置项"
+        else:
+            response = "⚙️ **系统配置**\n\n"
+            for config in configs:
+                response += f"🔸 {config.key}: {config.value}\n"
 
-            # 创建返回按钮
-            buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]
+        # 创建返回按钮
+        buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]
 
-            await event.edit(response, buttons=buttons)
-        finally:
-            session.close()
+        await event.edit(response, buttons=buttons)
 
         await event.answer()
     except Exception as e:

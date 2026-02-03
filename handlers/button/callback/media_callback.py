@@ -3,12 +3,11 @@ import traceback
 import logging
 from sqlalchemy import select
 
+from core.container import container
 from models.models import (
-    AsyncSessionManager,
     ForwardRule,
     RuleSync,
 )
-from repositories.db_context import async_db_session
 from core.helpers.common import get_db_ops
 from handlers.button.settings_manager import get_media_settings_text
 
@@ -34,7 +33,7 @@ async def handle_media_callback(event):
         rule_id = parts[1]  # 获取第一个:后面的内容作为rule_id
 
     # 使用 AsyncSessionManager 获取会话
-    async with AsyncSessionManager() as session:
+    async with container.db.session() as session:
         message = await event.get_message()
         # 获取对应的处理器
         handler = {
@@ -57,7 +56,7 @@ async def _show_rule_media_settings(event, rule_id):
     """显示单规则媒体设置菜单"""
     from telethon import Button
 
-    async with async_db_session() as session:
+    async with container.db.session() as session:
         rule = await session.get(ForwardRule, rule_id)
         if not rule:
             await event.answer("规则不存在", alert=True)

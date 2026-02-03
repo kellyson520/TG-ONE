@@ -2,6 +2,14 @@
 
 ## 📅 2026-02-03 更新摘要
 
+### 🚀 v1.2.3.4: 代码卫生与回归修复 (Code Hygiene & Regression Fixes)
+- **Code Hygiene**:
+    - **Lint Fixes**: 修复 Admin Callback 中的 `F821 undefined name` (select, ForwardRule) 和 `E712` 比较错误，消除代码异味。
+    - **Standardization**: 统一数据库 Session 调用，移除过时的 `async_db_session`，全面转向 `container.db.session()` 范式。
+- **Regression Fixes**:
+    - **Version System**: 重构版本及更新日志显示逻辑，支持分页 (`Version Pagination`)，避免更新日志过长导致的显示截断。
+    - **Menu System**: 持续重构菜单系统，修复参数传递不匹配导致的崩溃问题。
+
 ### 🚀 v1.2.3.3: 交互与更新逻辑修复 (Interaction & Update Logic Fixes)
 - **Update Logic Optimization**:
     - **SHA Comparison**: 优化 Git 更新检查逻辑，使用 `rev-list HEAD..origin/{branch}` 准确识别本地落后状态，修复了代码一致时仍提示更新的问题。

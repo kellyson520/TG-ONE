@@ -9,8 +9,8 @@ except ImportError:
 from core.config import settings
 import logging
 from telethon import TelegramClient
+from core.container import container
 from models.models import Chat
-from repositories.db_context import async_db_session
 import traceback
 import random
 from core.constants import DEFAULT_TIMEZONE
@@ -80,7 +80,7 @@ class ChatUpdater:
         """异步更新所有聊天信息"""
         logger.info("开始更新所有聊天信息...")
         
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             try:
                 # 分批/限量获取聊天，避免一次性大量请求触发 FloodWait
                 update_limit = settings.CHAT_UPDATE_LIMIT

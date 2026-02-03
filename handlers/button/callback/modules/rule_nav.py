@@ -56,7 +56,7 @@ async def callback_switch(event, rule_id, session, message, data):
         await event.answer(f'已切换到: {source_chat.name if source_chat else "未知聊天"}')
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)
@@ -109,7 +109,7 @@ async def callback_page(event, rule_id, session, message, data):
             await event.answer("处理翻页时出错，请检查日志")
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)
@@ -156,7 +156,7 @@ async def callback_toggle_current(event, rule_id, session, message, data):
         await event.answer(f"已切换到: {source_chat.name}")
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)
@@ -213,7 +213,7 @@ async def callback_page_rule(event, page_str, session, message, data):
             await message.edit("\n".join(message_parts), buttons=buttons, parse_mode="html")
         
         if session is None:
-            async with container.db_session() as s:
+            async with container.db.session() as s:
                 await _do(s)
         else:
             await _do(session)

@@ -46,7 +46,7 @@ async def callback_settings(event, rule_id, session, message, data):
         await message.edit("请选择要管理的转发规则:", buttons=buttons)
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)
@@ -78,7 +78,7 @@ async def callback_rule_settings(event, rule_id, session, message, data):
         await message.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)
@@ -128,7 +128,7 @@ async def callback_select_delay_time(event, rule_id, session, message, data):
                     msg_obj = await event.get_message()
                     await msg_obj.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
             if session is None:
-                async with container.db_session() as s: await _do(s)
+                async with container.db.session() as s: await _do(s)
             else:
                 await _do(session)
         except Exception as e:
@@ -141,7 +141,7 @@ async def update_rule_setting(
     """通用的规则设置更新函数"""
     logger.info(f"找到匹配的设置项: {field_name}")
 
-    async with container.db_session() as session:
+    async with container.db.session() as session:
         # 使用 selectinload 预加载关联
         stmt = (
             select(ForwardRule)
@@ -231,7 +231,7 @@ async def update_rule_setting(
             return False
 
     # 根据设置类型更新UI
-    async with container.db_session() as session:
+    async with container.db.session() as session:
         # 使用 selectinload 预加载关联
         stmt = (
             select(ForwardRule)

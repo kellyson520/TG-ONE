@@ -8,8 +8,8 @@ from telethon.tl import types
 from core.config import settings
 
 from services.session_service import session_manager
+from core.container import container
 from models.models import ForwardRule
-from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def handle_advanced_media_callback(event):
         return
 
     # 创建异步session
-    async with async_db_session() as session:
+    async with container.db.session() as session:
         if action == "toggle_duration_filter":
             await callback_toggle_duration_filter(event, rule_id, session, None, data)
         elif action == "set_duration_range":

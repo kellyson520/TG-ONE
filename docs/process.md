@@ -101,6 +101,9 @@
 | 20260202_Fix_Chat_Attribute_Error | 修复 Chat 模型缺失 is_active 属性错误 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Chat_Attribute_Error/) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
 | 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
+| 20260203_Fix_Container_AttributeError | 修复 Container db_session 属性缺失错误 | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./docs/Workstream_Core/20260203_Fix_Container_AttributeError/todo.md) |
+| 20260203_Fix_Version_Pagination | 修复版本信息翻页显示 | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_Version_Pagination/report.md) |
+| 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
 
 
 

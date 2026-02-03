@@ -2,8 +2,8 @@ import logging
 import re
 from sqlalchemy import select
 
+from core.container import container
 from models.models import Chat, ForwardRule
-from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 async def handle_message_link(client, event):
     """处理消息链接转发 (通过 TaskQueue 触发转发)"""
     message_text = event.message.text
-    from core.container import container
 
     # 解析链接 (支持 t.me/c/ID/MSG_ID 和 t.me/USERNAME/MSG_ID)
     patterns = [
@@ -39,7 +38,7 @@ async def handle_message_link(client, event):
         return
 
     # 查找匹配的规则
-    async with async_db_session() as session:
+    async with container.db.session() as session:
         # 查找是否存在对应的 Chat 记录
         if isinstance(source_chat_id, int):
             stmt = select(Chat).where(Chat.telegram_chat_id == str(source_chat_id))

@@ -85,6 +85,22 @@ class PickerMenu(BaseMenu):
             logger.error(f"显示分量选择器失败: {str(e)}")
             await event.answer("操作失败", alert=True)
 
+    async def show_duration_range_picker(self, event, side: str):
+        """显示时长范围单位选择器 (天/时/分/秒的分流菜单)"""
+        try:
+            buttons = [
+                [Button.inline("📅 设置天数", f"new_menu:open_duration_picker:{side}:days")],
+                [Button.inline("🕐 设置小时", f"new_menu:open_duration_picker:{side}:hours")],
+                [Button.inline("⏲️ 设置分钟", f"new_menu:open_duration_picker:{side}:minutes")],
+                [Button.inline("⏱️ 设置秒数", f"new_menu:open_duration_picker:{side}:seconds")],
+                [Button.inline("👈 返回上一级", "new_menu:media_duration_settings")],
+            ]
+            title = "起始" if side == "min" else "终止"
+            await self._render_from_text(event, f"⏰ **{title}时长单位选择**\n\n请选择要设置的时间单位：", buttons)
+        except Exception as e:
+            logger.error(f"显示时长范围单位选择器失败: {str(e)}")
+            await event.answer("操作失败", alert=True)
+
     async def show_session_numeric_picker(self, event, side: str, field: str):
         """显示会话管理的数字选择器 (年/月/日)"""
         import datetime

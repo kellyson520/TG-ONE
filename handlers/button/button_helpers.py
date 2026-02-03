@@ -1,7 +1,8 @@
 from telethon import Button
 
 from models.models import ForwardRule
-from core.helpers.common import get_db_ops, get_session
+from core.container import container
+from core.helpers.common import get_db_ops
 from core.config import settings
 from core.constants import *
 from core.config.settings_loader import (
@@ -153,11 +154,8 @@ async def create_other_settings_buttons(rule=None, rule_id=None):
     if rule_id is None:
         rule_id = rule.id
     else:
-        session = get_session()
-        try:
-            rule = session.query(ForwardRule).get(int(rule_id))
-        finally:
-            session.close()
+        async with container.db.session() as session:
+            rule = await session.get(ForwardRule, int(rule_id))
 
     current_row = []
     for field, config in OTHER_SETTINGS.items():
@@ -494,12 +492,11 @@ async def create_media_extensions_buttons(rule_id, page=0):
 
     # 获取当前规则已选择的扩展名
     db_ops = await get_db_ops()
-    session = get_session()
     selected_extensions = []
-    try:
+    async with container.db.session() as session:
         # 使用db_ops.get_media_extensions方法获取已选择的扩展名
         selected_extensions = await db_ops.get_media_extensions(session, rule_id)
-        selected_extension_list = [ext["extension"] for ext in selected_extensions]
+        selected_extension_list = [ext.extension for ext in selected_extensions]
 
         # 创建扩展名按钮
         current_row = []
@@ -557,8 +554,6 @@ async def create_media_extensions_buttons(rule_id, page=0):
                 Button.inline("❌ 关闭", "close_settings"),
             ]
         )
-    finally:
-        session.close()
 
     return buttons
 
@@ -576,18 +571,18 @@ async def create_sync_rule_buttons(rule_id, page=0):
     # 设置分页参数
 
     buttons = []
-    session = get_session()
-
-    try:
+    async with container.db.session() as session:
         # 获取当前规则
-        current_rule = session.query(ForwardRule).get(rule_id)
+        current_rule = await session.get(ForwardRule, rule_id)
         if not current_rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
             return buttons
 
         # 获取所有规则（除了当前规则）
-        all_rules = session.query(ForwardRule).filter(ForwardRule.id != rule_id).all()
+        stmt = select(ForwardRule).filter(ForwardRule.id != rule_id)
+        result = await session.execute(stmt)
+        all_rules = result.scalars().all()
 
         # 计算分页
         total_rules = len(all_rules)
@@ -664,9 +659,6 @@ async def create_sync_rule_buttons(rule_id, page=0):
             ]
         )
 
-    finally:
-        session.close()
-
     return buttons
 
 
@@ -685,10 +677,9 @@ async def create_push_settings_buttons(rule_id, page=0):
 
     # 从数据库获取规则对象和推送配置
     db_ops = await get_db_ops()
-    session = get_session()
-    try:
+    async with container.db.session() as session:
         # 获取规则对象
-        rule = session.query(ForwardRule).get(rule_id)
+        rule = await session.get(ForwardRule, rule_id)
         if not rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
@@ -768,9 +759,6 @@ async def create_push_settings_buttons(rule_id, page=0):
 
             buttons.append(nav_buttons)
 
-    finally:
-        session.close()
-
     # 添加返回和关闭按钮
     buttons.append(
         [
@@ -794,12 +782,11 @@ async def create_push_config_details_buttons(config_id):
     buttons = []
 
     # 从数据库获取推送配置
-    session = get_session()
-    try:
+    async with container.db.session() as session:
         from models.models import PushConfig
 
         # 获取推送配置
-        config = session.query(PushConfig).get(config_id)
+        config = await session.get(PushConfig, config_id)
         if not config:
             buttons.append([Button.inline("❌ 推送配置不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
@@ -838,8 +825,5 @@ async def create_push_config_details_buttons(config_id):
                 Button.inline("❌ 关闭", "close_settings"),
             ]
         )
-
-    finally:
-        session.close()
 
     return buttons

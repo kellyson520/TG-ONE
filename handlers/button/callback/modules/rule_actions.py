@@ -43,7 +43,7 @@ async def callback_delete(event, rule_id, session, message, data):
         await event.answer("已删除规则")
 
     if session is None:
-        async with container.db_session() as s:
+        async with container.db.session() as s:
             await _do(s)
     else:
         await _do(session)

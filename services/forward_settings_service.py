@@ -8,8 +8,8 @@ import json
 from datetime import datetime
 from sqlalchemy import select
 
+from core.container import container
 from models.models import SystemConfiguration
-from repositories.db_context import async_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class ForwardSettingsService:
             "exclude_keywords": [],
         }
 
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             try:
                 result = await session.execute(
                     select(SystemConfiguration).filter(
@@ -76,7 +76,7 @@ class ForwardSettingsService:
         if self._global_settings is None:
             return
 
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             try:
                 result = await session.execute(
                     select(SystemConfiguration).filter(

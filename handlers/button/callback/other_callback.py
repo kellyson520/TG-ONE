@@ -11,8 +11,8 @@ from telethon.tl import types
 
 from services.session_service import session_manager
 from repositories.db_operations import DBOperations
+from core.container import container
 from models.models import (
-    AsyncSessionManager,
     Chat,
     ForwardRule,
     Keyword,
@@ -20,7 +20,6 @@ from models.models import (
     MediaTypes,
     ReplaceRule,
     RuleSync,
-    get_session,
 )
 from core.helpers.auto_delete import (
     send_message_and_delete,
@@ -58,7 +57,7 @@ async def handle_other_callback(event):
         return
 
     # 使用 AsyncSessionManager 获取会话
-    async with AsyncSessionManager() as session:
+    async with container.db.session() as session:
         message = await event.get_message()
 
         # [Refactor Fix] 由于这些处理器定义在 callback_handlers.py 中，需要局部导入以避免循环依赖和 NameError
@@ -539,9 +538,7 @@ async def create_copy_rule_buttons(rule_id, page=0):
     # 设置分页参数
 
     buttons = []
-    session = get_session()
-
-    try:
+    async with container.db.session() as session:
         # 获取当前规则
         if ":" in str(rule_id):
             parts = str(rule_id).split(":")
@@ -549,16 +546,16 @@ async def create_copy_rule_buttons(rule_id, page=0):
         else:
             source_rule_id = int(rule_id)
 
-        current_rule = session.query(ForwardRule).get(source_rule_id)
+        current_rule = await session.get(ForwardRule, source_rule_id)
         if not current_rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
             return buttons
 
         # 获取所有规则（除了当前规则）
-        all_rules = (
-            session.query(ForwardRule).filter(ForwardRule.id != source_rule_id).all()
-        )
+        stmt = select(ForwardRule).filter(ForwardRule.id != source_rule_id)
+        result = await session.execute(stmt)
+        all_rules = result.scalars().all()
 
         # 计算分页
         total_rules = len(all_rules)
@@ -624,9 +621,6 @@ async def create_copy_rule_buttons(rule_id, page=0):
                 Button.inline("❌ 关闭", "close_settings"),
             ]
         )
-
-    finally:
-        session.close()
 
     return buttons
 
@@ -1124,9 +1118,7 @@ async def create_rule_selection_buttons(
     # 设置分页参数
 
     buttons = []
-    session = get_session()
-
-    try:
+    async with container.db.session() as session:
         # 获取当前规则
         if ":" in str(rule_id):
             parts = str(rule_id).split(":")
@@ -1134,16 +1126,16 @@ async def create_rule_selection_buttons(
         else:
             source_rule_id = int(rule_id)
 
-        current_rule = session.query(ForwardRule).get(source_rule_id)
+        current_rule = await session.get(ForwardRule, source_rule_id)
         if not current_rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
             return buttons
 
         # 获取所有规则（除了当前规则）
-        all_rules = (
-            session.query(ForwardRule).filter(ForwardRule.id != source_rule_id).all()
-        )
+        stmt = select(ForwardRule).filter(ForwardRule.id != source_rule_id)
+        result = await session.execute(stmt)
+        all_rules = result.scalars().all()
 
         # 计算分页
         total_rules = len(all_rules)
@@ -1211,9 +1203,6 @@ async def create_rule_selection_buttons(
                 Button.inline("❌ 关闭", "close_settings"),
             ]
         )
-
-    finally:
-        session.close()
 
     return buttons
 

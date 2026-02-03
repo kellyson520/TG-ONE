@@ -83,12 +83,13 @@ class SystemService:
     async def run_db_optimization(self, deep: bool = False) -> Dict[str, Any]:
         """运行数据库优化 (SQLite PRAGMA optimize/VACUUM)"""
         try:
-            from models.models import AsyncSessionManager, cleanup_old_logs
+            from core.container import container
+            from models.models import cleanup_old_logs
             from sqlalchemy import text
             import time
             
             start_time = time.time()
-            async with AsyncSessionManager() as session:
+            async with container.db.session() as session:
                 if deep:
                     # Deep 模式：清理碎片
                     # 注意：VACUUM 不能在事务中运行，但在 SQLAlchemy 异步下需谨慎处理

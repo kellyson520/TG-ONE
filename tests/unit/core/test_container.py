@@ -26,6 +26,14 @@ class TestContainer:
         assert hasattr(container, 'rule_repo')
         assert hasattr(container, 'stats_repo')
         assert hasattr(container, 'user_repo')
+
+    def test_container_has_db_session(self):
+        """测试容器包含 db_session 别名"""
+        from core.container import container
+        
+        assert hasattr(container, 'db_session')
+        # 验证它确实是 db.session 的别名
+        assert container.db_session == container.db.session
     
     @pytest.mark.asyncio
     async def test_container_lifecycle(self):

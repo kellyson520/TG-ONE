@@ -76,7 +76,6 @@ mock_container = MagicMock()
 mock_container.db = MagicMock()
 # session() 返回一个 AsyncMock，它自带 __aenter__/__aexit__
 mock_container.db.session = MagicMock(return_value=AsyncMock())
-mock_container.db_session = MagicMock(return_value=AsyncMock())
 mock_container.db.engine = MagicMock()
 mock_container.user_client = AsyncMock()
 mock_container.bot_client = AsyncMock()

@@ -8,7 +8,7 @@ import logging
 from services.session_service import session_manager
 from models.models import ForwardRule
 from core.helpers.auto_delete import reply_and_delete
-from repositories.db_context import async_db_session
+from core.container import container
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def handle_duration_range_input(event, rule_id, user_input):
     """处理时长范围输入"""
     try:
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             rule = await session.get(ForwardRule, rule_id)
             if not rule:
                 await reply_and_delete(event, "❌ 规则不存在", delete_after_seconds=5)
@@ -82,7 +82,7 @@ async def handle_duration_range_input(event, rule_id, user_input):
 async def handle_resolution_range_input(event, rule_id, user_input):
     """处理分辨率范围输入"""
     try:
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             rule = await session.get(ForwardRule, rule_id)
             if not rule:
                 await reply_and_delete(event, "❌ 规则不存在", delete_after_seconds=5)
@@ -163,7 +163,7 @@ async def handle_resolution_range_input(event, rule_id, user_input):
 async def handle_file_size_range_input(event, rule_id, user_input):
     """处理文件大小范围输入"""
     try:
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             rule = await session.get(ForwardRule, rule_id)
             if not rule:
                 await reply_and_delete(event, "❌ 规则不存在", delete_after_seconds=5)

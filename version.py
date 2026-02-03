@@ -1,7 +1,8 @@
-VERSION = "1.2.3.3"
+VERSION = "1.2.3.4"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule)，统一数据库 Session 调用范式，重构版本信息显示逻辑 (Version Pagination)。
 - v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误；修复转发规则绑定后的路由丢失 (rule_settings:New) 问题；推进菜单系统 (NewMenuSystem) 审计与功能补全，修复多处回调参数不匹配引发的崩溃。
 - v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖，完全转向本地 CI 驱动；修复日志与任务重复问题；增强菜单系统稳健性 (Callback/AttributeError Fixes)。
 - v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB)，优化数据库维护扫描逻辑 (排除备份)，修复 Web Admin 模板语法与资源缺失 (Font/API)，纠正启动引导的模块依赖路径。
@@ -27,10 +28,28 @@ UPDATE_INFO = """
 def get_version():
     return VERSION
 
+def get_latest_changelog():
+    """获取最近的一个版本记录"""
+    lines = UPDATE_INFO.strip().splitlines()
+    if lines and "**更新日志**" in lines[0]:
+        lines = lines[1:]
+    
+    latest = []
+    for line in lines:
+        if line.startswith("- v"):
+            if latest: break
+            latest.append(line)
+        elif latest:
+            latest.append(line)
+    return "\n".join(latest)
+
 WELCOME_TEXT = f"""
 🚀 **TG ONE 系统 v{VERSION}**
 
-{UPDATE_INFO.strip()}
+**最新更新:**
+{get_latest_changelog()}
 
+...
+使用 /changelog 查看完整日志
 使用 /menu 唤起主菜单
 """

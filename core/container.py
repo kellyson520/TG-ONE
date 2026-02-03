@@ -79,6 +79,11 @@ class Container:
         # [Scheme 7 Standard] Dedup 监听在访问 dedup_service 时自动注册? 
         # 为了避免循环依赖和过度 Eager，我们可以在 dedup_service 的 property 中注册
         
+    @property
+    def db_session(self):
+        """数据库会话工厂别名，供 context manager 使用: async with container.db_session() as s:"""
+        return self.db.session
+
     # --- Repositories (Lazy) ---
 
     @property

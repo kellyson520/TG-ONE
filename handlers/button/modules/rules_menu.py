@@ -16,11 +16,10 @@ class RulesMenu(BaseMenu):
         from sqlalchemy import func, select
         from sqlalchemy.orm import selectinload
         from models.models import ForwardRule
-        from repositories.db_context import async_db_session
-
+        from core.container import container
         page = int(page)
         per_page = 5
-        async with async_db_session() as session:
+        async with container.db.session() as session:
             total = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
             total_pages = (total + per_page - 1) // per_page
             if page > total_pages and total_pages > 0: page = total_pages

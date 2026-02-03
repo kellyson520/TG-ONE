@@ -307,13 +307,12 @@ class SystemMenu(BaseMenu):
             logger.error(f"查看日志失败: {e}")
 
     async def show_version_info(self, event):
-        """显示版本信息"""
+        """显示版本信息 (支持分页)"""
         try:
-            from version import VERSION, UPDATE_INFO
-            text = f"🔖 **版本信息**\n\n当前版本: `v{VERSION}`\n\n{UPDATE_INFO}"
-            buttons = [[Button.inline("👈 返回上一级", "new_menu:help_guide")]]
-            await self._render_from_text(event, text, buttons)
+            from ..callback.modules.changelog_callback import show_changelog
+            await show_changelog(event, page=1)
         except Exception as e:
             logger.error(f"显示版本信息失败: {e}")
+            await self._render_from_text(event, f"❌ **显示版本信息失败**\n\n{e}", [[Button.inline("👈 返回上一级", "new_menu:help_guide")]])
 
 system_menu = SystemMenu()

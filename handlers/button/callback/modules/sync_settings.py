@@ -17,7 +17,7 @@ async def callback_set_sync_rule(event, rule_id, session, message, data):
             await message.edit("请选择要同步到的规则：", buttons=await create_sync_rule_buttons(rule_id, page=0))
         
         if session is None:
-            async with container.db_session() as s: await _do(s)
+            async with container.db.session() as s: await _do(s)
         else:
             await _do(session)
     except Exception as e:
@@ -52,7 +52,7 @@ async def callback_toggle_rule_sync(event, rule_id_data, session, message, data)
             await message.edit("请选择要同步到的规则：", buttons=await create_sync_rule_buttons(source_rule_id, page))
 
         if session is None:
-            async with container.db_session() as s: await _do(s)
+            async with container.db.session() as s: await _do(s)
         else:
             await _do(session)
     except Exception as e:
@@ -73,7 +73,7 @@ async def callback_sync_rule_page(event, rule_id_data, session, message, data):
             await message.edit("请选择要同步到的规则：", buttons=await create_sync_rule_buttons(rule_id, page))
 
         if session is None:
-            async with container.db_session() as s: await _do(s)
+            async with container.db.session() as s: await _do(s)
         else:
             await _do(session)
     except Exception as e:

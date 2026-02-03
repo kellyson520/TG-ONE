@@ -8,7 +8,8 @@ from telethon import Button
 from telethon.tl import types
 
 from services.session_service import session_manager
-from models.models import AsyncSessionManager, ForwardRule, RuleSync
+from core.container import container
+from models.models import ForwardRule, RuleSync
 from scheduler.summary_scheduler import SummaryScheduler
 from core.helpers.common import get_main_module, is_admin
 from handlers.button.settings_manager import get_ai_settings_text
@@ -34,7 +35,7 @@ async def handle_ai_callback(event):
         rule_id = parts[1]
 
     # 使用 AsyncSessionManager 获取会话
-    async with AsyncSessionManager() as session:
+    async with container.db.session() as session:
         message = await event.get_message()
         # 获取对应的处理器
         handler = {
@@ -58,15 +59,12 @@ async def handle_ai_callback(event):
 
 async def callback_ai_settings(event, rule_id, session, message, data):
     # 显示 AI 设置页面
-    try:
-        rule = await session.get(ForwardRule, int(rule_id))
-        if rule:
-            await event.edit(
-                await get_ai_settings_text(rule),
-                buttons=await create_ai_settings_buttons(rule),
-            )
-    finally:
-        await session.close()
+    rule = await session.get(ForwardRule, int(rule_id))
+    if rule:
+        await event.edit(
+            await get_ai_settings_text(rule),
+            buttons=await create_ai_settings_buttons(rule),
+        )
     return
 
 
@@ -309,8 +307,6 @@ async def callback_select_time(event, rule_id, session, message, data):
         except Exception as e:
             logger.error(f"设置总结时间时出错: {str(e)}")
             logger.error(f"错误详情: {traceback.format_exc()}")
-        finally:
-            await session.close()
     return
 
 
@@ -319,67 +315,63 @@ async def callback_select_model(event, rule_id, session, message, data):
     parts = data.split(":", 2)
     _, rule_id_part, model = parts
 
-    try:
-        rule = await session.get(ForwardRule, int(rule_id_part))
-        if rule:
-            # 记录旧模型
-            old_model = rule.ai_model
+    rule = await session.get(ForwardRule, int(rule_id_part))
+    if rule:
+        # 记录旧模型
+        old_model = rule.ai_model
 
-            # 更新模型
-            rule.ai_model = model
+        # 更新模型
+        rule.ai_model = model
+        await session.commit()
+        logger.info(f"已更新规则 {rule_id_part} 的AI模型为: {model}")
+
+        # 检查是否启用了同步功能
+        if rule.enable_sync:
+            logger.info(
+                f"规则 {rule.id} 启用了同步功能，正在同步AI模型设置到关联规则"
+            )
+            # 获取需要同步的规则列表
+            result = await session.execute(
+                select(RuleSync).filter(RuleSync.rule_id == rule.id)
+            )
+            sync_rules = result.scalars().all()
+
+            # 为每个同步规则应用相同的AI模型设置
+            for sync_rule in sync_rules:
+                sync_rule_id = sync_rule.sync_rule_id
+                logger.info(f"正在同步AI模型到规则 {sync_rule_id}")
+
+                # 获取同步目标规则
+                target_rule = await session.get(ForwardRule, sync_rule_id)
+                if not target_rule:
+                    logger.warning(f"同步目标规则 {sync_rule_id} 不存在，跳过")
+                    continue
+
+                # 更新同步目标规则的AI模型设置
+                try:
+                    # 记录旧模型
+                    old_target_model = target_rule.ai_model
+
+                    # 设置新模型
+                    target_rule.ai_model = model
+
+                    logger.info(
+                        f"同步规则 {sync_rule_id} 的AI模型从 {old_target_model} 到 {model}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"同步AI模型到规则 {sync_rule_id} 时出错: {str(e)}"
+                    )
+                    continue
+
+            # 提交所有同步更改
             await session.commit()
-            logger.info(f"已更新规则 {rule_id_part} 的AI模型为: {model}")
+            logger.info("所有同步AI模型更改已提交")
 
-            # 检查是否启用了同步功能
-            if rule.enable_sync:
-                logger.info(
-                    f"规则 {rule.id} 启用了同步功能，正在同步AI模型设置到关联规则"
-                )
-                # 获取需要同步的规则列表
-                result = await session.execute(
-                    select(RuleSync).filter(RuleSync.rule_id == rule.id)
-                )
-                sync_rules = result.scalars().all()
-
-                # 为每个同步规则应用相同的AI模型设置
-                for sync_rule in sync_rules:
-                    sync_rule_id = sync_rule.sync_rule_id
-                    logger.info(f"正在同步AI模型到规则 {sync_rule_id}")
-
-                    # 获取同步目标规则
-                    target_rule = await session.get(ForwardRule, sync_rule_id)
-                    if not target_rule:
-                        logger.warning(f"同步目标规则 {sync_rule_id} 不存在，跳过")
-                        continue
-
-                    # 更新同步目标规则的AI模型设置
-                    try:
-                        # 记录旧模型
-                        old_target_model = target_rule.ai_model
-
-                        # 设置新模型
-                        target_rule.ai_model = model
-
-                        logger.info(
-                            f"同步规则 {sync_rule_id} 的AI模型从 {old_target_model} 到 {model}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"同步AI模型到规则 {sync_rule_id} 时出错: {str(e)}"
-                        )
-                        continue
-
-                # 提交所有同步更改
-                await session.commit()
-                logger.info("所有同步AI模型更改已提交")
-
-            # 返回到 AI 设置页面
             await event.edit(
                 await get_ai_settings_text(rule),
                 buttons=await create_ai_settings_buttons(rule),
             )
-    finally:
-        await session.close()
     return
 
 
@@ -397,60 +389,51 @@ async def callback_change_model(event, rule_id, session, message, data):
     await event.edit(
         "请选择AI模型：", buttons=await create_model_buttons(rule_id, page=0)
     )
-    return
-
-
 async def callback_cancel_set_prompt(event, rule_id, session, message, data):
     # 处理取消设置提示词
     rule_id = data.split(":")[1]
-    try:
-        rule = await session.get(ForwardRule, int(rule_id))
-        if rule:
-            # 清除状态
-            # 使用 session_manager 替代 state_manager
-            user_id = event.sender_id
-            chat_id = abs(event.chat_id)
-            if user_id in session_manager.user_sessions:
-                if chat_id in session_manager.user_sessions[user_id]:
-                    session_manager.user_sessions[user_id].pop(chat_id)
-                    # 如果用户会话为空，清理掉该用户的会话记录
-                    if not session_manager.user_sessions[user_id]:
-                        session_manager.user_sessions.pop(user_id)
-            # 返回到 AI 设置页面
-            await event.edit(
-                await get_ai_settings_text(rule),
-                buttons=await create_ai_settings_buttons(rule),
-            )
-            await event.answer("已取消设置")
-    finally:
-        await session.close()
+    rule = await session.get(ForwardRule, int(rule_id))
+    if rule:
+        # 清除状态
+        # 使用 session_manager 替代 state_manager
+        user_id = event.sender_id
+        chat_id = abs(event.chat_id)
+        if user_id in session_manager.user_sessions:
+            if chat_id in session_manager.user_sessions[user_id]:
+                session_manager.user_sessions[user_id].pop(chat_id)
+                # 如果用户会话为空，清理掉该用户的会话记录
+                if not session_manager.user_sessions[user_id]:
+                    session_manager.user_sessions.pop(user_id)
+        # 返回到 AI 设置页面
+        await event.edit(
+            await get_ai_settings_text(rule),
+            buttons=await create_ai_settings_buttons(rule),
+        )
+        await event.answer("已取消设置")
     return
 
 
 async def callback_cancel_set_summary(event, rule_id, session, message, data):
     # 处理取消设置总结
     rule_id = data.split(":")[1]
-    try:
-        rule = await session.get(ForwardRule, int(rule_id))
-        if rule:
-            # 清除状态
-            # 使用 session_manager 替代 state_manager
-            user_id = event.sender_id
-            chat_id = abs(event.chat_id)
-            if user_id in session_manager.user_sessions:
-                if chat_id in session_manager.user_sessions[user_id]:
-                    session_manager.user_sessions[user_id].pop(chat_id)
-                    # 如果用户会话为空，清理掉该用户的会话记录
-                    if not session_manager.user_sessions[user_id]:
-                        session_manager.user_sessions.pop(user_id)
-            # 返回到 AI 设置页面
-            await event.edit(
-                await get_ai_settings_text(rule),
-                buttons=await create_ai_settings_buttons(rule),
-            )
-            await event.answer("已取消设置")
-    finally:
-        await session.close()
+    rule = await session.get(ForwardRule, int(rule_id))
+    if rule:
+        # 清除状态
+        # 使用 session_manager 替代 state_manager
+        user_id = event.sender_id
+        chat_id = abs(event.chat_id)
+        if user_id in session_manager.user_sessions:
+            if chat_id in session_manager.user_sessions[user_id]:
+                session_manager.user_sessions[user_id].pop(chat_id)
+                # 如果用户会话为空，清理掉该用户的会话记录
+                if not session_manager.user_sessions[user_id]:
+                    session_manager.user_sessions.pop(user_id)
+        # 返回到 AI 设置页面
+        await event.edit(
+            await get_ai_settings_text(rule),
+            buttons=await create_ai_settings_buttons(rule),
+        )
+        await event.answer("已取消设置")
     return
 
 
@@ -492,7 +475,5 @@ async def callback_summary_now(event, rule_id, session, message, data):
         logger.error(f"处理总结时出错: {str(e)}")
         logger.error(traceback.format_exc())
         await event.answer(f"处理时出错: {str(e)}")
-    finally:
-        await session.close()
 
     return
