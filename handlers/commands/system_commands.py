@@ -138,14 +138,47 @@ async def handle_update_command(event):
     has_update, remote_ver = await update_service.check_for_updates()
     
     if not has_update:
-        await msg.edit(f"✅ **当前已是最新版本**\n\n本地版本/Commit: `{remote_ver}`")
+        # [Fix Loop] 如果没有更新，明确告知用户并提供强制更新选项
+        from telethon import Button
+        buttons = [
+            [Button.inline("⚡ 强制重新部署", "confirm_update"), Button.inline("❌ 关闭", "delete")]
+        ]
+        await msg.edit(
+            f"✅ **当前已是最新版本**\n\n当前版本: `{remote_ver}`\n\n如果您遇到系统异常或文件损坏，可以尝试强制重新部署。",
+            buttons=buttons
+        )
         return
 
-    await msg.edit(f"🆕 **检测到新版本**: `{remote_ver}`\n\n正在尝试更新本体...")
+    # [Fix Loop] 添加二次确认按钮
+    from telethon import Button
+    buttons = [
+        [Button.inline("🚀 确认更新", "confirm_update"), Button.inline("❌ 取消", "delete")]
+    ]
+    await msg.edit(f"🆕 **检测到新版本**: `{remote_ver}`\n\n是否立即执行更新并重启？", buttons=buttons)
+    
+    # Logic moved to callback_confirm_update to prevent auto-execution
+    pass
+
+async def callback_confirm_update(event):
+    """处理确认更新回调"""
+    msg = await event.edit("🚀 正在执行更新流程，请稍候...", buttons=None)
     
     success, result_msg = await update_service.perform_update()
     
     if success:
+        # 主动触发一次 Bot 命令注册
+        try:
+             from telethon.tl.functions.bots import SetBotCommandsRequest
+             from telethon.tl.types import BotCommandScopeDefault
+             from handlers.bot_commands_list import BOT_COMMANDS
+             await event.client(SetBotCommandsRequest(
+                 scope=BotCommandScopeDefault(),
+                 lang_code='en',
+                 commands=BOT_COMMANDS
+             ))
+        except Exception:
+             pass
+
         await msg.edit(f"🚀 **系统更新成功！**\n\n{result_msg}\n\n系统将在 3 秒后自动重启。")
         await asyncio.sleep(3)
         from services.system_service import guard_service

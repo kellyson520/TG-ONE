@@ -283,6 +283,10 @@ callback_router.add_route("other_callback{rest}", handle_other_callback)
 from handlers.button.callback.modules.changelog_callback import callback_changelog_page
 callback_router.add_route("cl_page:{page}", callback_changelog_page)
 
+# 确认更新
+from handlers.commands.system_commands import callback_confirm_update
+callback_router.add_route("confirm_update", callback_confirm_update)
+
 
 async def handle_callback(event):
     """处理所有回调查询 (基于 RadixRouter)"""
