@@ -128,6 +128,40 @@ class AnalyticsMenu(BaseMenu):
             logger.error(f"异常检测失败: {e}")
             await event.answer("异常检测失败", alert=True)
 
+    async def show_failure_analysis(self, event):
+        """失败分析与错误报告"""
+        try:
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            summary = await analytics_service.get_daily_summary(today_str)
+            anomalies = await analytics_service.detect_anomalies()
+            
+            error_count = summary.get("error_count", 0)
+            total = summary.get("total_forwards", 0)
+            success_rate = (total - error_count) / total * 100 if total > 0 else 100.0
+
+            text = "🔍 **转发失败与错误分析**\n\n"
+            text += f"📈 **今日统计**\n总转发数: {total}\n错误计数: {error_count}\n成功率: {success_rate:.1f}%\n\n"
+            
+            if anomalies.get("anomalies"):
+                text += "🚨 **当前告警**\n"
+                for a in anomalies["anomalies"]:
+                    if a["severity"] in ["high", "critical"]:
+                        text += f"• {a['icon']} {a['message']}\n"
+                text += "\n"
+            
+            text += "💡 **排障建议**\n"
+            if error_count > 0:
+                text += "• 检查机器人是否具有目标频道管理员权限\n"
+                text += "• 查看系统日志了解具体错误详情\n"
+            else:
+                text += "• 系统运行稳定，暂无错误收集\n"
+
+            buttons = [[Button.inline("👈 返回分析", "new_menu:forward_analytics")]]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"失败分析显示失败: {e}")
+            await event.answer("加载失败", alert=True)
+
     async def export_report(self, event):
         """导出报告"""
         try:

@@ -96,6 +96,7 @@ class NewMenuSystem(BaseMenu):
             await self._render_page(event, title="🏠 **主菜单**", body_lines=["🎯 选择功能模块:"], buttons=buttons)
 
     # 系统设置代理
+    async def show_system_hub(self, event): await self.system_menu.show_system_hub(event)
     async def show_system_settings(self, event): await self.system_menu.show_system_settings(event)
     async def show_db_backup_menu(self, event): await self.system_menu.show_db_backup_menu(event)
     async def confirm_backup(self, event): await self.system_menu.confirm_backup(event)
@@ -114,6 +115,22 @@ class NewMenuSystem(BaseMenu):
     async def show_multi_source_management(self, event, page=0): await self.rules_menu.show_multi_source_management(event, page)
     async def show_multi_source_detail(self, event, rule_id): await self.rules_menu.show_multi_source_detail(event, rule_id)
     async def show_rule_selection_for_settings(self, event): await self.rules_menu.show_rule_selection_for_settings(event)
+    async def show_rule_detail_settings(self, event, rule_id):
+        # 代理到旧版详细设置
+        from .callback.modules.rule_settings import callback_rule_settings
+        message = await event.get_message()
+        await callback_rule_settings(event, rule_id, None, message, "")
+
+    async def show_rule_status(self, event, rule_id): await self.rules_menu.show_rule_status(event, rule_id)
+    async def show_sync_config(self, event, rule_id): await self.rules_menu.show_sync_config(event, rule_id)
+
+    # 转发管理别名
+    async def show_forward_management(self, event): await self.show_rule_management(event)
+    async def show_channel_management_global(self, event): await self.show_rule_management(event)
+    async def show_forward_search(self, event):
+        # 代理到搜索回调处理器
+        from .callback.search_callback import handle_search_callback
+        await handle_search_callback(event)
 
     # 筛选设置代理
     async def show_filter_settings(self, event): await self.filter_menu.show_filter_settings(event)
@@ -135,6 +152,12 @@ class NewMenuSystem(BaseMenu):
     async def show_dedup_similarity(self, event): await self.smart_dedup_menu.show_dedup_similarity(event)
     async def show_dedup_content_hash(self, event): await self.smart_dedup_menu.show_dedup_content_hash(event)
     async def show_dedup_video(self, event): await self.smart_dedup_menu.show_dedup_video(event)
+    async def show_dedup_time_window(self, event): await self.smart_dedup_menu.show_dedup_time_window(event)
+    async def show_dedup_statistics(self, event): await self.smart_dedup_menu.show_dedup_statistics(event)
+    async def show_dedup_advanced(self, event): await self.smart_dedup_menu.show_dedup_advanced(event)
+    async def show_dedup_hash_examples(self, event): await self.smart_dedup_menu.show_dedup_hash_examples(event)
+    async def show_dedup_cache_management(self, event):
+         await self._render_from_text(event, "🧹 **去重缓存管理**\n\n[开发中] 此处将显示各规则的活跃缓存命中率、过期条数，并支持手动清理特定规则的哈希集。", [[Button.inline("👈 返回", "new_menu:smart_dedup_settings")]])
 
     # 会话管理代理
     async def show_session_management(self, event): await self.session_menu.show_session_management(event)
@@ -155,6 +178,7 @@ class NewMenuSystem(BaseMenu):
     async def show_current_history_task(self, event): await self.history_module.show_current_history_task(event)
     async def show_history_delay_settings(self, event): await self.history_module.show_history_delay_settings(event)
     async def show_history_time_range_selection(self, event): await self.history_module.show_time_range_selection(event)
+    async def show_time_range_selection(self, event): await self.history_module.show_time_range_selection(event)
 
     # 选择器代理
     async def show_time_picker(self, event, time_type): await self.picker_menu.show_time_picker(event, time_type)

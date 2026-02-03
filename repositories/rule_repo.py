@@ -277,6 +277,39 @@ class RuleRepository:
             stmt = select(Chat).filter_by(current_add_id=tg_chat_id)
             return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]
 
+    async def get_all_rules_with_chats(self) -> List[RuleDTO]:
+        """获取所有转发规则 (不分页)"""
+        async with self.db.session() as session:
+            stmt = (
+                select(ForwardRule)
+                .options(*self._get_rule_select_options())
+                .order_by(ForwardRule.id.desc())
+            )
+            result = await session.execute(stmt)
+            orm_rules = result.scalars().all()
+            return [RuleDTO.model_validate(r) for r in orm_rules]
+
+    async def get_rules_related_to_chat(self, chat_id: Any) -> List[RuleDTO]:
+        """获取聊天相关规则 (作为源或目标)"""
+        async with self.db.session() as session:
+            # 兼容 telegram_chat_id 和 db_id
+            chat = await self.find_chat(chat_id)
+            if not chat:
+                return []
+                
+            stmt = (
+                select(ForwardRule)
+                .filter(
+                    (ForwardRule.source_chat_id == chat.id) | 
+                    (ForwardRule.target_chat_id == chat.id)
+                )
+                .options(*self._get_rule_select_options())
+                .order_by(ForwardRule.id.desc())
+            )
+            result = await session.execute(stmt)
+            orm_rules = result.scalars().all()
+            return [RuleDTO.model_validate(r) for r in orm_rules]
+
     async def get_all(self, page: int = 1, size: int = 10) -> Any:
         """分页获取所有规则"""
         async with self.db.session() as session:

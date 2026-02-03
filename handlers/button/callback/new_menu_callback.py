@@ -869,6 +869,12 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_rule_management(event)
         elif action == "multi_source_management":
             await new_menu_system.show_multi_source_management(event)
+        elif action == "sync_config" and extra_data:
+            rule_id = int(extra_data[0])
+            await new_menu_system.show_sync_config(event, rule_id)
+        elif action == "rule_status" and extra_data:
+            rule_id = int(extra_data[0])
+            await new_menu_system.show_rule_status(event, rule_id)
         elif action == "rule_page":
             page = int(extra_data[0]) if extra_data else 0
             await new_menu_system.show_rule_management(event, page)
@@ -1660,12 +1666,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "performance_analysis":
             await new_menu_system.show_performance_analysis(event)
         elif action == "failure_analysis":
-            # 暂时降级处理，因为 AnalyticsMenu 缺失此方法
-            try:
-                await new_menu_system.show_performance_analysis(event)
-                await event.answer("ℹ️ 失败分析正在集成，暂显示性能概览")
-            except Exception:
-                await event.answer("🚧 功能开发中")
+            await new_menu_system.show_failure_analysis(event)
         elif action == "export_report":
             await new_menu_system.export_report(event)
         elif action == "export_csv":

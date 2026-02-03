@@ -14,8 +14,8 @@ from services.system_service import guard_service
 
 logger = logging.getLogger(__name__)
 
-# 官方认证的仓库地址 (用于安全校验警告)
-OFFICIAL_REPO = "github.com/kellyson520/TG-ONE"
+# 官方认证的仓库地址
+OFFICIAL_REPO = "kellyson520/TG-ONE"
 
 class UpdateService:
     """
@@ -231,7 +231,7 @@ class UpdateService:
                 stderr=asyncio.subprocess.PIPE
             )
             try:
-                await asyncio.wait_for(process.communicate(), timeout=30)
+                await asyncio.wait_for(process.wait(), timeout=30)
             except asyncio.TimeoutError:
                 if process:
                     try:
@@ -240,24 +240,34 @@ class UpdateService:
                         pass
                 return False, "网络获取超时"
 
-            # 版本对比 (本地 HEAD vs 远程源)
-            local_proc = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "HEAD",
+            # 2. 检查本地是否落后于远程 (检查 HEAD..origin/branch 的提交数)
+            # 理由：如果 local_id != remot_id，可能只是本地领先或偏离。
+            # 我们仅在本地缺少远程提交时提示更新。
+            check_proc = await asyncio.create_subprocess_exec(
+                "git", "rev-list", f"HEAD..origin/{settings.UPDATE_BRANCH}", "--count",
                 cwd=str(settings.BASE_DIR), stdout=asyncio.subprocess.PIPE
             )
+            out, _ = await check_proc.communicate()
+            behind_count = int(out.decode().strip() or 0)
+
+            # 获取远程 SHA 用于展示
             remot_proc = await asyncio.create_subprocess_exec(
                 "git", "rev-parse", f"origin/{settings.UPDATE_BRANCH}",
                 cwd=str(settings.BASE_DIR), stdout=asyncio.subprocess.PIPE
             )
-            l_out, _ = await local_proc.communicate()
             r_out, _ = await remot_proc.communicate()
-            
-            local_id = l_out.decode().strip()
             remot_id = r_out.decode().strip()
 
-            if local_id != remot_id:
+            if behind_count > 0:
                 return True, remot_id[:8]
-            return False, local_id[:8]
+            
+            # 如果不落后（相等、领先或完全分叉但已同步），则显示当前 HEAD
+            local_proc = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                cwd=str(settings.BASE_DIR), stdout=asyncio.subprocess.PIPE
+            )
+            l_out, _ = await local_proc.communicate()
+            return False, l_out.decode().strip()[:8]
         except Exception as e:
             return False, f"Git 检查失败: {e}"
 
@@ -335,12 +345,19 @@ class UpdateService:
                 if not dep_success:
                     logger.warning("⚠️ 依赖同步失败，建议手动检查 requirements.txt 以免系统启动失败。")
 
-            # 5. 持久化状态并重置失败计数
+            # 5. 获取更新后的版本 ID 并持久化状态
+            new_proc = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                cwd=str(settings.BASE_DIR), stdout=asyncio.subprocess.PIPE
+            )
+            n_out, _ = await new_proc.communicate()
+            current_id = n_out.decode().strip()
+
             state = self._get_state()
             state.update({
                 "status": "restarting",
                 "prev_version": prev_version,
-                "current_version": f"origin/{settings.UPDATE_BRANCH}", # 仅用作展示
+                "current_version": current_id, # 记录真实的 SHA 用于后续比对
                 "timestamp": datetime.now().isoformat(),
                 "fail_count": 0
             })

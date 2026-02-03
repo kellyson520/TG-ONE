@@ -1,5 +1,17 @@
 # Change Log
 
+## 📅 2026-02-03 更新摘要
+
+### 🚀 v1.2.3.3: 交互与更新逻辑修复 (Interaction & Update Logic Fixes)
+- **Update Logic Optimization**:
+    - **SHA Comparison**: 优化 Git 更新检查逻辑，使用 `rev-list HEAD..origin/{branch}` 准确识别本地落后状态，修复了代码一致时仍提示更新的问题。
+    - **API URL Fix**: 修正 `update_service.py` 中 GitHub API URL 的硬编码拼接错误，确保安全交叉验证 (Cross-Verification) 通道可用。
+    - **Undefined Variable Fix**: 修复 `_perform_git_update` 中 `remot_id` 未定义导致的更新过程中断崩溃。
+- **Routing & Menu System**:
+    - **New Route Support**: 修复转发规则创建后跳转 `rule_settings:New` 时出现的 "未找到路由处理程序" 错误。
+    - **Menu System Audit**: 完成 `NewMenuSystem` 第一阶段审计，修复了 `ForwardManager` 中因 `_load_global_settings` 缺失导致的 `AttributeError`，以及旧版回调处理器在 5 参数模式下的 `TypeError`。
+    - **Entry Point Unification**: 统一了规则详情设置的新旧菜单入口路径，提升了交互一致性。
+
 ## 📅 2026-02-02 更新摘要
 
 ### 🚀 v1.2.3.2: 运维稳定性增强 & 日志降噪 (Maintenance & Stability)

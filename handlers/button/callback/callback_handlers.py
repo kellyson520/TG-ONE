@@ -258,26 +258,26 @@ callback_router.build_from_dict(CALLBACK_HANDLERS)
 
 # 添加带参数的高级路由支持
 callback_router.add_route("rule:{id}:settings", callback_rule_settings)
+callback_router.add_route("rule_settings:{id}", callback_rule_settings)
 callback_router.add_route("delete:{id}", callback_delete)
 callback_router.add_route("switch:{id}", callback_switch)
 
 # [Phase 3 Extension] 整合通配路由
 callback_router.add_route("new_menu:{rest}", handle_new_menu_callback)
-callback_router.add_route("search_{rest}", handle_search_callback)
-callback_router.add_route("media_settings{rest}", handle_media_callback)
-callback_router.add_route("set_max_media_size{rest}", handle_media_callback)
-callback_router.add_route("select_max_media_size{rest}", handle_media_callback)
-callback_router.add_route("set_media_types{rest}", handle_media_callback)
-callback_router.add_route("toggle_media_type{rest}", handle_media_callback)
-callback_router.add_route("set_media_extensions{rest}", handle_media_callback)
-callback_router.add_route("media_extensions_page{rest}", handle_media_callback)
-callback_router.add_route("toggle_media_extension{rest}", handle_media_callback)
-callback_router.add_route("toggle_media_allow_text{rest}", handle_media_callback)
-callback_router.add_route("open_duration_picker{rest}", handle_advanced_media_callback)
-callback_router.add_route("ai_settings{rest}", handle_ai_callback)
-callback_router.add_route("ai_settings{rest}", handle_ai_callback)
-callback_router.add_route("set_summary_time{rest}", handle_ai_callback)
-callback_router.add_route("other_callback{rest}", handle_other_callback)
+callback_router.add_route("search:{rest}", handle_search_callback)
+callback_router.add_route("media_settings:{rest}", handle_media_callback)
+callback_router.add_route("set_max_media_size:{rest}", handle_media_callback)
+callback_router.add_route("select_max_media_size:{rest}", handle_media_callback)
+callback_router.add_route("set_media_types:{rest}", handle_media_callback)
+callback_router.add_route("toggle_media_type:{rest}", handle_media_callback)
+callback_router.add_route("set_media_extensions:{rest}", handle_media_callback)
+callback_router.add_route("media_extensions_page:{rest}", handle_media_callback)
+callback_router.add_route("toggle_media_extension:{rest}", handle_media_callback)
+callback_router.add_route("toggle_media_allow_text:{rest}", handle_media_callback)
+callback_router.add_route("open_duration_picker:{rest}", handle_advanced_media_callback)
+callback_router.add_route("ai_settings:{rest}", handle_ai_callback)
+callback_router.add_route("set_summary_time:{rest}", handle_ai_callback)
+callback_router.add_route("other_callback:{rest}", handle_other_callback)
 
 # 更新日志翻页
 from handlers.button.callback.modules.changelog_callback import callback_changelog_page
@@ -297,6 +297,22 @@ async def handle_callback(event):
         handler, params = callback_router.match(data)
         if handler:
             event.router_params = params
+            
+            # [Fix] 兼容 5 参数的旧版模块化处理器
+            import inspect
+            sig = inspect.signature(handler)
+            if len(sig.parameters) == 5:
+                # 提取参数
+                rule_id = params.get('id') or params.get('rule_id')
+                if not rule_id and ":" in data:
+                    parts = data.split(":")
+                    if len(parts) > 1:
+                        rule_id = parts[1]
+                
+                # 构造上下文 (session 传 None 由处理器内部创建，data 传原始字符串)
+                message = await event.get_message()
+                return await handler(event, rule_id, None, message, data)
+
             return await handler(event)
 
         logger.warning(f"未找到路由处理程序: {data}")

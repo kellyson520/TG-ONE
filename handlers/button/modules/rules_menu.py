@@ -125,4 +125,13 @@ class RulesMenu(BaseMenu):
         ]
         await self._render_from_text(event, f"🔗 **多源管理详情** (ID: {rule_id})\n\n请选择操作：", buttons)
 
+    async def show_rule_status(self, event, rule_id):
+        """显示规则运行状态"""
+        # 暂时显示简单概览
+        await self._render_from_text(event, f"📊 **规则 {rule_id} 运行状态**\n\n[开发中] 此处将显示该规则的详细转发统计、成功受限次数、实时延迟频率等。", [[Button.inline("👈 返回详情", f"new_menu:manage_multi_source:{rule_id}")]])
+
+    async def show_sync_config(self, event, rule_id):
+        """显示同步配置"""
+        await self._render_from_text(event, f"🔗 **规则 {rule_id} 同步配置**\n\n[开发中] 此处将显示该规则关联的频道同步关系、来源目标映射及状态同步开关。", [[Button.inline("👈 返回详情", f"new_menu:manage_multi_source:{rule_id}")]])
+
 rules_menu = RulesMenu()

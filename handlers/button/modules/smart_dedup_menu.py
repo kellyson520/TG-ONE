@@ -90,10 +90,72 @@ class SmartDedupMenu(BaseMenu):
         try:
             stats = smart_deduplicator.get_stats()
             text = "📊 **智能去重统计**\n\n"
-            text += f"签名缓存: {stats.get('cached_signatures', 0)}\n哈希缓存: {stats.get('cached_content_hashes', 0)}\n跟踪聊天: {stats.get('tracked_chats', 0)}\n"
-            buttons = [[Button.inline("🔄 刷新", "new_menu:dedup_statistics")], [Button.inline("👈 返回去重", "new_menu:smart_dedup_settings")]]
+            text += f"签名缓存: {stats.get('cached_signatures', 0)}\n"
+            text += f"哈希缓存: {stats.get('cached_content_hashes', 0)}\n"
+            text += f"跟踪聊天: {stats.get('tracked_chats', 0)}\n"
+            text += f"今日活跃会话: {stats.get('active_chats_today', 0)}\n"
+            
+            buttons = [
+                [Button.inline("🔄 刷新", "new_menu:dedup_statistics")],
+                [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")]
+            ]
             await self._render_from_text(event, text, buttons)
         except Exception as e:
             logger.error(f"统计失败: {e}")
+            await event.answer("加载统计失败", alert=True)
+
+    async def show_dedup_time_window(self, event):
+        """时间窗口去重设置"""
+        try:
+            config = smart_deduplicator.config
+            enabled = config.get("enable_time_window", True)
+            hours = int(config.get("time_window_hours", 24) or 24)
+            
+            text = "⏰ **时间窗口去重设置**\n\n"
+            text += f"当前状态: {'✅ 启用' if enabled else '❌ 禁用'}\n"
+            text += f"当前窗口: {hours} 小时\n\n"
+            text += "💡 窗口内出现过的相同签名将被拦截。"
+            
+            buttons = [
+                [Button.inline(f"{'🔴 关闭' if enabled else '🟢 开启'}", f"new_menu:toggle_time_window:{not enabled}")],
+                [Button.inline("1小时", "new_menu:set_time_window:1"), Button.inline("6小时", "new_menu:set_time_window:6"), Button.inline("12小时", "new_menu:set_time_window:12")],
+                [Button.inline("24小时", "new_menu:set_time_window:24"), Button.inline("48小时", "new_menu:set_time_window:48"), Button.inline("72小时", "new_menu:set_time_window:72")],
+                [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")],
+            ]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"时间窗口设置失败: {e}")
+            await event.answer("加载失败", alert=True)
+
+    async def show_dedup_advanced(self, event):
+        """高级去重设置"""
+        try:
+            config = smart_deduplicator.config
+            text = "🎛️ **高级去重设置**\n\n"
+            text += f"持久化缓存: {'✅' if config.get('enable_persistent_cache') else '❌'}\n"
+            text += f"清理间隔: {config.get('cache_cleanup_interval', 3600)}s\n"
+            text += f"SimHash 指纹: {'✅' if config.get('enable_text_fingerprint') else '❌'}\n"
+            
+            buttons = [
+                [Button.inline("哈希特征示例", "new_menu:dedup_hash_examples")],
+                [Button.inline("手动触发清理", "new_menu:manual_cleanup")],
+                [Button.inline("重置默认配置", "new_menu:reset_dedup_config")],
+                [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")],
+            ]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"高级设置加载失败: {e}")
+            await event.answer("加载失败", alert=True)
+
+    async def show_dedup_hash_examples(self, event):
+        """显示哈希特征示例"""
+        text = "📋 **哈希特征示例**\n\n"
+        text += "去重系统会提取消息的以下特征：\n"
+        text += "1. **文本**: 移除链接、提及、表情后的核心内容\n"
+        text += "2. **视频**: 基于 file_id 或首尾固定分块的 MD5\n"
+        text += "3. **图片**: 基于分辨率和文件大小的复合签名\n"
+        
+        buttons = [[Button.inline("👈 返回高级设置", "new_menu:dedup_advanced")]]
+        await self._render_from_text(event, text, buttons)
 
 smart_dedup_menu = SmartDedupMenu()

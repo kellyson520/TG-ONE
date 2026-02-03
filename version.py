@@ -1,7 +1,8 @@
-VERSION = "1.2.3.2-A"
+VERSION = "1.2.3.3"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误；修复转发规则绑定后的路由丢失 (rule_settings:New) 问题；推进菜单系统 (NewMenuSystem) 审计与功能补全，修复多处回调参数不匹配引发的崩溃。
 - v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖，完全转向本地 CI 驱动；修复日志与任务重复问题；增强菜单系统稳健性 (Callback/AttributeError Fixes)。
 - v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB)，优化数据库维护扫描逻辑 (排除备份)，修复 Web Admin 模板语法与资源缺失 (Font/API)，纠正启动引导的模块依赖路径。
 - v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制，实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载，大幅降低启动内存与耗时。

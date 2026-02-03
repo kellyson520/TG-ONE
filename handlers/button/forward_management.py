@@ -257,7 +257,7 @@ class ForwardManager:
 
     async def set_duration_component(self, side: str, unit: str, value: int):
         """设置时长区间的某个分量，side=min|max, unit=days|hours|minutes|seconds"""
-        settings = await self._load_global_settings()
+        settings = await self.get_global_media_settings()
         min_seconds = int(settings.get("duration_min_seconds", 0) or 0)
         max_seconds = int(settings.get("duration_max_seconds", 0) or 0)
 
@@ -305,9 +305,8 @@ class ForwardManager:
 
         # 不强制关系，但可选保障 max>=min（若开启过滤）
         try:
-            settings["duration_min_seconds"] = min_seconds
-            settings["duration_max_seconds"] = max_seconds
-            await self._save_global_settings()
+            await forward_settings_service.update_global_media_setting("duration_min_seconds", min_seconds)
+            await forward_settings_service.update_global_media_setting("duration_max_seconds", max_seconds)
             return True
         except Exception as e:
             logger.error(f"保存时长区间失败: {str(e)}")

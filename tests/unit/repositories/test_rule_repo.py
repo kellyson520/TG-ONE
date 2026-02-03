@@ -95,3 +95,48 @@ class TestRuleRepository:
         items, total = await repo.get_all(page=1, size=5)
         assert len(items) == 5
         assert total >= 10
+
+    async def test_get_all_rules_with_chats(self, repo, db):
+        # 创建规则
+        source = Chat(telegram_chat_id="-2001", name="SourceA")
+        target = Chat(telegram_chat_id="-2002", name="TargetA")
+        db.add(source)
+        db.add(target)
+        await db.commit()
+        
+        rule = ForwardRule(source_chat_id=source.id, target_chat_id=target.id)
+        db.add(rule)
+        await db.commit()
+        
+        rules = await repo.get_all_rules_with_chats()
+        assert len(rules) >= 1
+        # 验证关联数据是否加载 (通过 DTO 检查，DTo 应该由 model_validate 转换)
+        r0 = next(r for r in rules if r.id == rule.id)
+        assert r0.source_chat is not None
+        assert r0.source_chat.name == "SourceA"
+
+    async def test_get_rules_related_to_chat(self, repo, db):
+        # 创建聊天 A, B, C
+        chatA = Chat(telegram_chat_id="-3001", name="ChatA")
+        chatB = Chat(telegram_chat_id="-3002", name="ChatB")
+        chatC = Chat(telegram_chat_id="-3003", name="ChatC")
+        db.add_all([chatA, chatB, chatC])
+        await db.commit()
+        
+        # 规则1: A -> B
+        rule1 = ForwardRule(source_chat_id=chatA.id, target_chat_id=chatB.id)
+        # 规则2: C -> A
+        rule2 = ForwardRule(source_chat_id=chatC.id, target_chat_id=chatA.id)
+        # 规则3: B -> C (与 A 无关)
+        rule3 = ForwardRule(source_chat_id=chatB.id, target_chat_id=chatC.id)
+        
+        db.add_all([rule1, rule2, rule3])
+        await db.commit()
+        
+        # 获取与 A 相关的规则
+        related_to_A = await repo.get_rules_related_to_chat("-3001")
+        assert len(related_to_A) == 2
+        ids = [r.id for r in related_to_A]
+        assert rule1.id in ids
+        assert rule2.id in ids
+        assert rule3.id not in ids

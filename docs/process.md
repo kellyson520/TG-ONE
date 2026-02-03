@@ -84,6 +84,8 @@
 | 20260201_Observability | Phase 11: 可观测性、监控与健康检查 | 2026-02-01 | 2026-02-01 | 100% | [[report.md]](./docs/Workstream_Architecture_Refactor/report_phase11_observability.md) |
 | 20260202_Remove_Cloud_CI | 移除云端 CI 配置文件 | 2026-02-02 | 2026-02-02 | 100% | [[report.md]](./docs/Workstream_Maintenance/20260202_Remove_Cloud_CI/report.md) |
 | 20260202_Fix_Duplicate_Fetch | 修复任务重复获取问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Duplicate_Task_Fetching/todo.md) |
+| 20260203_Fix_RuleRepo_Error | 修复 RuleRepository AttributeError | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_RuleRepository_AttributeError/report.md) |
+| 20260203_Fix_Missing_Route_RuleSettingsNew | 修复规则设置路由缺失与 rule_id 错误 | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_Missing_Route_RuleSettingsNew/report.md) |
 
 ### 进行中任务 ⏳
 
@@ -92,11 +94,13 @@
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
 | 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
-| 20260202_Fix_Menu_Error | 修复菜单回调 AttributeError | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Menu_Callback_Error/todo.md) |
+| 20260203_Fix_NewMenuSystem_Error | 修复 NewMenuSystem AttributeError | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./Workstream_Maintenance/20260203_Fix_NewMenuSystem_AttributeError/todo.md) |
+| 20260203_Fix_Update_Comparison | 优化更新比对逻辑 (解决误报更新) | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./Workstream_Maintenance/20260203_Fix_Update_Comparison/todo.md) |
 | 20260202_Menu_Structural_Fix | 菜单系统架构重构与方法补全 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Menu_Structural_Fix/todo.md) |
 | 20260202_Fix_JSON_Serialization_Error | 修复 JSON 序列化失败 (Object of type function) | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_JSON_Serialization_Error/todo.md) |
 | 20260202_Fix_Chat_Attribute_Error | 修复 Chat 模型缺失 is_active 属性错误 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Chat_Attribute_Error/) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
+| 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
 
 
 

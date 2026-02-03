@@ -89,7 +89,7 @@ class RuleLogicService:
         
         is_new = False
         if not existing_rule:
-            await self.container.rule_repo.create_rule(
+            new_rule = await self.container.rule_repo.create_rule(
                 source_chat_id=source_chat_obj.id,
                 target_chat_id=target_chat_obj.id,
                 enable_rule=True,
@@ -97,7 +97,7 @@ class RuleLogicService:
                 created_at=datetime.utcnow()
             )
             is_new = True
-            rule_id = "New" 
+            rule_id = new_rule.id
         else:
             rule_id = existing_rule.id
         
