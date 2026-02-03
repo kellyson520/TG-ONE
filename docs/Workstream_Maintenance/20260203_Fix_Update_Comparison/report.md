@@ -8,6 +8,7 @@
     *   **Git 比较逻辑升级**: 弃用了简单的 `local_id != remot_id` 判断。改为使用 `git rev-list HEAD..origin/BRANCH --count`。现在系统只有在本地真正落后于远程（即本地缺少远程仓库的新提交）时，才会提示有更新。如果本地领先或完全同步，则不再误报。
     *   **API 路径纠错**: 修正了 `OFFICIAL_REPO` 的定义。此前拼接出的 GitHub API URL 包含重复的域名（如 `repos/github.com/...`），导致安全交叉验证始终 404 并跳过。现已修正为标准的 `owner/repo` 格式。
     *   **状态持久化优化**: 在 Git 更新完成后，现在会将远程仓库的真实 SHA 写入 `update_state.json` 的 `current_version` 字段。这确保了在 Git 命令偶尔失效回退到 HTTP 检查模式时，版本比对逻辑依然能够闭环，不会产生误报。
++    *   **关键 Bug 修复**: 修复了 `_perform_git_update` 中 `remot_id` 变量未定义导致的更新执行崩溃问题。
 
 2.  **安全性增强**:
     *   修正了 `_cross_verify_sha` 的调用链，现在能够正确通过 GitHub API 验证远程 SHA 是否属于官方主分支，防止潜在的 DNS 劫持或 `.git/config` 劫持。
