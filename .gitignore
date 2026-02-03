@@ -39,8 +39,15 @@ ENV/
 *.log
 *.sqlite
 *.db
+*.db-shm
+*.db-wal
 logs/
-data/temp/
+db/
+sessions/
+data/
+!data/README.md
+!data/update_state.json
+tests/temp/
 
 # OS specific
 .DS_Store
