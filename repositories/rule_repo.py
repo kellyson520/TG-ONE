@@ -1,4 +1,5 @@
 from typing import List, Optional, Any, Dict
+import logging
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from models.models import ForwardRule, ForwardMapping, Chat
@@ -6,8 +7,7 @@ from core.helpers.id_utils import build_candidate_telegram_ids
 from core.cache.persistent_cache import get_persistent_cache, dumps_json, loads_json
 from schemas.rule import RuleDTO
 from schemas.chat import ChatDTO
-import logging
-
+from core.helpers.db_utils import retry_on_db_lock
 logger = logging.getLogger(__name__)
 
 from core.cache.wtinylfu import WTinyLFU
@@ -212,6 +212,7 @@ class RuleRepository:
             obj = (await session.execute(stmt)).scalar_one_or_none()
             return RuleDTO.model_validate(obj) if obj else None
 
+    @retry_on_db_lock(retries=5)
     async def create_rule(self, **kwargs) -> RuleDTO:
         """创建规则并返回 DTO"""
         from enum import Enum
@@ -241,6 +242,7 @@ class RuleRepository:
             stmt = select(func.count(ForwardRule.id))
             return (await session.execute(stmt)).scalar() or 0
 
+    @retry_on_db_lock(retries=5)
     async def save_rule(self, rule: ForwardRule) -> RuleDTO:
         """保存规则 ORM 并返回 DTO"""
         async with self.db.session() as session:
@@ -331,6 +333,7 @@ class RuleRepository:
             orm_rules = result.scalars().all()
             return [RuleDTO.model_validate(r) for r in orm_rules], total
 
+    @retry_on_db_lock(retries=5)
     async def toggle_rule(self, rule_id: int) -> bool:
         """切换规则启用状态"""
         async with self.db.session() as session:

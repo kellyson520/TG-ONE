@@ -112,7 +112,9 @@
 | 20260204_Fix_Config_Error | 修复配置加载语法错误及日志审计 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Config_Syntax_Error/report.md) |
 | 20260204_Fix_Triple_Core_Issues | 修复回调崩溃、上下文缺陷及 Web 性能瓶颈 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Triple_Core_Issues/report.md) |
 | 20260204_Fix_Logic_And_Perf | 修复转发模式失效、媒体组 N+1 及去重冗余 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Logic_And_Performance_Issues/report.md) |
+| 20260204_Fix_Stability_Safety_Concurrency | 修复系统稳定性、数据安全与并发模型隐患 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Stability_Safety_Concurrency/report.md) |
 | 20260204_Fix_DB_And_Imports | 修复数据库驱动兼容性、导入路径及路由开关 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Database_And_Import_Issues/report.md) |
+| 20260204_Industrial_Grade_Update | 工业级自动升级系统 (Supervisor + 状态机 + 原子回滚) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Infrastructure/20260204_Industrial_Grade_Update_System/report.md) |
 
 
 ### 进行中任务 ⏳

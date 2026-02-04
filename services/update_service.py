@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # 官方认证的仓库地址
 OFFICIAL_REPO = "kellyson520/TG-ONE"
 
+# 退出码约定
+EXIT_CODE_UPDATE = 10  # 请求系统级更新
+
 class UpdateService:
     """
     高可靠性联网更新服务 (Advanced UpdateService)
@@ -29,9 +32,22 @@ class UpdateService:
         self._stop_event = asyncio.Event()
         self._is_updating = False
         self._state_file = settings.BASE_DIR / "data" / "update_state.json"
+        self._bus = None
         
         # 确保数据目录存在
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def set_bus(self, bus):
+        """注入事件总线"""
+        self._bus = bus
+        logger.debug("UpdateService 事件总线已注入")
+
+    def _emit_event(self, name: str, data: dict):
+        """触发系统事件"""
+        if self._bus:
+            self._bus.publish(name, data)
+        else:
+            logger.debug(f"事件总线不可用，事件 {name} 已尝试缓存（尚未实现）")
 
     def _check_git_installed(self) -> bool:
         """检查系统环境中是否安装了 Git"""
@@ -68,9 +84,140 @@ class UpdateService:
         except Exception:
             return False
 
+    async def trigger_update(self, target_version: str = "origin/main"):
+        """
+        [阶段1] 触发更新：备份DB -> 写锁 -> 退出进程
+        这是工业级双层状态机的第一阶段，由 Python 层执行
+        target_version: 可以是 commit SHA, branch name 或 tag
+        """
+        try:
+            logger.info(f"🛡️ [更新] 正在启动更新序列 (目标: {target_version})...")
+            
+            # 1. 数据库原子备份
+            db_backup_path = None
+            db_file = settings.BASE_DIR / "data" / "bot.db"
+            if db_file.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                db_backup_path = self._state_file.parent / "backups" / "auto_update" / f"bot.db.{timestamp}.bak"
+                db_backup_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # 使用 shutil.copy2 保持元数据
+                import shutil
+                shutil.copy2(db_file, db_backup_path)
+                logger.info(f"✅ [更新] 数据库已备份至 {db_backup_path}")
+
+            # 2. 写入状态锁
+            state = {
+                "status": "processing",
+                "start_time": datetime.now().isoformat(),
+                "db_backup": str(db_backup_path) if db_backup_path else None,
+                "version": target_version
+            }
+            
+            # 确保锁文件目录存在
+            lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
+            lock_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(lock_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+            
+            # 发送启动通知
+            self._emit_event("SYSTEM_ALERT", {"message": f"🚀 系统更新/回滚已触发 (目标: {target_version})，正在准备环境并重启..."})
+            
+            # 3. 退出进程，移交控制权给 entrypoint.sh
+            # 此时 Web Server 会停止，Socket 断开
+            sys.exit(EXIT_CODE_UPDATE)
+
+        except SystemExit:
+            raise
+        except Exception as e:
+            logger.error(f"❌ [更新] 准备工作失败: {e}", exc_info=True)
+            # 清理锁文件
+            lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
+            if lock_file.exists():
+                lock_file.unlink()
+            raise RuntimeError("更新准备失败")
+
+    async def post_update_bootstrap(self):
+        """
+        [阶段2] 启动引导：检查锁 -> DB迁移 -> 清理锁
+        这是工业级双层状态机的第二阶段，在 Python 重启后执行
+        """
+        lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
+        if not lock_file.exists():
+            return
+
+        logger.info("🔧 [更新] 检测到未完成的更新。正在执行后置更新任务...")
+        
+        try:
+            # 读取状态
+            with open(lock_file, "r", encoding="utf-8") as f:
+                state = json.load(f)
+
+            # 1. 执行数据库迁移 (Alembic)
+            # 此时代码已是最新，需要同步数据库结构
+            logger.info("⚙️ [更新] 正在应用数据库迁移...")
+            
+            # 检查是否存在 alembic.ini
+            alembic_ini = settings.BASE_DIR / "alembic.ini"
+            if alembic_ini.exists():
+                result = subprocess.run(
+                    ["alembic", "upgrade", "head"], 
+                    capture_output=True, 
+                    text=True,
+                    check=False,
+                    cwd=str(settings.BASE_DIR)
+                )
+
+                if result.returncode != 0:
+                    logger.error(f"🔥 [更新] 数据库迁移失败:\n{result.stderr}")
+                    self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"数据库迁移失败: {result.stderr[:200]}"})
+                    # 严重错误：回滚数据库
+                    if state.get("db_backup"):
+                        self._rollback_db(state["db_backup"])
+                else:
+                    logger.info("✅ [更新] 数据库迁移成功。")
+                    self._emit_event("SYSTEM_ALERT", {"message": "✅ 数据库迁移成功，正在加载新版业务逻辑..."})
+                    
+                    # 进行更新后健康检查
+                    health_ok, health_msg = await self._run_system_health_check()
+                    if not health_ok:
+                        logger.error(f"🚑 [更新] 健康检查失败: {health_msg}")
+                        self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"更新后健康检查失败: {health_msg}"})
+                    else:
+                        logger.info("✅ [更新] 更新后的健康检查已通过。")
+            else:
+                logger.warning("⚠️ [更新] 未发现 alembic.ini，跳过数据库迁移。")
+
+        except Exception as e:
+            logger.error(f"❌ [更新] 引导任务失败: {e}")
+        finally:
+            # 无论成功失败，移除锁文件，允许系统进入服务状态
+            if lock_file.exists():
+                lock_file.unlink()
+            logger.info("✅ [更新] 系统就绪检查完成。")
+
+    def _rollback_db(self, backup_path: str):
+        """回滚数据库到备份版本"""
+        logger.warning(f"⏪ [更新] 正在从备份回滚数据库: {backup_path}...")
+        try:
+            import shutil
+            backup_file = Path(backup_path)
+            db_file = settings.BASE_DIR / "data" / "bot.db"
+            
+            if backup_file.exists():
+                shutil.copy2(backup_file, db_file)
+                logger.info("✅ [更新] 数据库回滚完成。")
+            else:
+                logger.error("☠️ [更新] 数据库备份文件丢失！")
+        except Exception as e:
+            logger.critical(f"☠️ [更新] 严重错误：数据库回滚失败: {e}")
+
     async def start_periodic_check(self):
         """启动滚动检查任务"""
         # 启动时首先验证更新健康度 (处理手动更新后的崩溃自愈)
+        # 注意：post_update_bootstrap 应该在 main.py 中更早调用
+        # 这里保留 verify_update_health 用于自动更新的健康检查
         await self.verify_update_health()
 
         if not settings.AUTO_UPDATE_ENABLED:
@@ -87,7 +234,7 @@ class UpdateService:
                     logger.debug("网络连接异常，跳过本次更新检查。")
                     continue
 
-                has_update, remote_ver = await self.check_for_updates()
+                has_update, remote_ver = await self.check_for_updates(force=False)
                 if has_update:
                     logger.info(f"🆕 [更新] 发现新版本 (目标: {remote_ver})，正在启动高可靠执行逻辑...")
                     success, msg = await self.perform_update()
@@ -106,7 +253,24 @@ class UpdateService:
         如果系统启动后在短时间内崩溃，下次启动会检测并处理连续失败。
         """
         state = self._get_state()
-        if state.get("status") == "restarting":
+        status = state.get("status")
+        
+        if status == "shell_failed":
+            logger.error(f"❌ [更新] Shell 更新失败: {state.get('error')}")
+            self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": state.get("error", "未知 Shell 错误")})
+            # 处理完后重置状态，防止重复通知
+            state["status"] = "failed_processed"
+            self._save_state(state)
+            return
+
+        if status == "critical_failed":
+            logger.critical(f"☠️ [更新] 关键性故障: {state.get('error')}")
+            self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"🚨 严重更新事故: {state.get('error', '未知错误')}"})
+            state["status"] = "failed_processed"
+            self._save_state(state)
+            return
+
+        if status == "restarting":
             # 增加失败计数
             fail_count = state.get("fail_count", 0) + 1
             state["fail_count"] = fail_count
@@ -119,6 +283,7 @@ class UpdateService:
                     state["status"] = "rolled_back"
                     state["fail_count"] = 0
                     self._save_state(state)
+                    self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"系统更新后多次启动失败，已触发紧急回滚。"})
                     guard_service.trigger_restart()
                 return
 
@@ -137,9 +302,81 @@ class UpdateService:
             state["status"] = "stable"
             state["fail_count"] = 0
             self._save_state(state)
+            self._emit_event("SYSTEM_ALERT", {"message": f"🎉 系统已稳定运行，更新任务最终确认完成。当前版本: {state.get('current_version', '未知')}"})
 
-    async def check_for_updates(self) -> Tuple[bool, str]:
+    async def get_update_history(self, limit: int = 10) -> list[dict]:
+        """获取更新历史 (Git commits)"""
+        if not self._is_git_repo:
+            return []
+        
+        try:
+            # 使用 git log 获取历史
+            process = await asyncio.create_subprocess_exec(
+                "git", "log", f"-n", str(limit), "--pretty=format:%H|%an|%at|%s",
+                cwd=str(settings.BASE_DIR),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            out, err = await process.communicate()
+            if process.returncode != 0:
+                logger.error(f"Git 日志获取失败: {err.decode()}")
+                return []
+                
+            lines = out.decode('utf-8', errors='ignore').strip().split('\n')
+            
+            history = []
+            for line in lines:
+                if not line or '|' not in line: continue
+                parts = line.split('|', 3)
+                if len(parts) < 4: continue
+                sha, author, timestamp, msg = parts
+                history.append({
+                    "sha": sha,
+                    "short_sha": sha[:8],
+                    "author": author,
+                    "timestamp": datetime.fromtimestamp(int(timestamp)).isoformat(),
+                    "message": msg
+                })
+            return history
+        except Exception as e:
+            logger.error(f"获取更新历史失败: {e}")
+            return []
+
+    async def _run_system_health_check(self) -> Tuple[bool, str]:
+        """执行系统健康检查，确认更新后运行正常"""
+        try:
+            # 1. 检查数据库
+            try:
+                from repositories.health_check import DatabaseHealthManager
+                db_path = settings.BASE_DIR / "db" / "forward.db"
+                manager = DatabaseHealthManager(str(db_path))
+                if not manager.check_health():
+                    return False, "数据库完整性校验未通过"
+            except Exception:
+                # 如果 health_check 导入失败或运行出错，回滚最基础的检查
+                if not (settings.BASE_DIR / "db" / "forward.db").exists():
+                    return False, "数据库文件丢失"
+            
+            # 2. 检查网络
+            if not await self._check_network():
+                return False, "网络连通性异常"
+                
+            # 3. 检查基础环境
+            if not (settings.BASE_DIR / "main.py").exists():
+                return False, "核心文件丢失: main.py"
+                
+            return True, "系统运行正常"
+        except Exception as e:
+            return False, f"健康检查异常: {e}"
+
+    async def check_for_updates(self, force: bool = False) -> Tuple[bool, str]:
         """原子检查远程仓库状态"""
+        # 0. 灰度发布过滤 (如果是自动触发)
+        if not force and not self._is_target_of_gray_release():
+            # 注意: 如果是用户通过 Web 手动点更新，应该绕过此检查。
+            # 这里先实现逻辑，调用方（start_periodic_check）会隐含受限。
+            return False, "未命中灰度策略"
+
         # 安全检查 1: 验证配置中的 URL 是否合法
         if not self._verify_repo_safety(settings.UPDATE_REMOTE_URL):
             return False, "仓库地址未通过安全验证 (非 HTTPS 或非 GitHub)"
@@ -165,6 +402,21 @@ class UpdateService:
                 return False, "安全校验失败：版本指纹与官方源不符"
 
         return check_result, check_msg
+
+    def _is_target_of_gray_release(self) -> bool:
+        """判断当前实例是否命中灰度更新策略 (基于 USER_ID 的确定性随机)"""
+        if settings.UPDATE_CANARY_PROBABILITY >= 1.0:
+            return True
+        if settings.UPDATE_CANARY_PROBABILITY <= 0.0:
+            return False
+            
+        import hashlib
+        # 使用 USER_ID 作为种子，确保同一账号在同一版本下的结果一致
+        seed_base = f"update_gray_{settings.USER_ID or 'anon'}"
+        seed = hashlib.md5(seed_base.encode()).hexdigest()
+        val = int(seed[:8], 16) / 0xFFFFFFFF
+        
+        return val <= settings.UPDATE_CANARY_PROBABILITY
 
     async def _cross_verify_sha(self, sha_short: str) -> bool:
         """
@@ -286,7 +538,7 @@ class UpdateService:
                     remote_sha = resp.json().get("sha", "")
                     # 对比本地存储的版本 (在无 Git 环境下，我们依赖 state 文件记录当前 SHA)
                     state = self._get_state()
-                    local_sha = state.get("current_version", "unknown")
+                    local_sha = state.get("current_version", "未知")
                     
                     if remote_sha and remote_sha != local_sha:
                         return True, remote_sha[:8]
@@ -395,7 +647,7 @@ class UpdateService:
             # 备份当前版本
             backup_path = await self._create_local_backup()
             state = self._get_state()
-            prev_version = state.get("current_version", "unknown")
+            prev_version = state.get("current_version", "未知")
 
             with zipfile.ZipFile(zip_data) as z:
                 # GitHub zip 结构通常是: RepoName-BranchName/Files...

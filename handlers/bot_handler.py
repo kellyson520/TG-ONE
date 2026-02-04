@@ -17,7 +17,12 @@ from .link_handlers import handle_message_link
 # [Phase 7 Fix] 导入新增命令处理函数
 from .commands.media_commands import handle_download_command
 from .commands.cancel_command import handle_cancel_command
-from .commands.system_commands import handle_logs_command, handle_download_logs_command
+from .commands.system_commands import (
+    handle_logs_command, 
+    handle_download_logs_command,
+    handle_history_command,
+    handle_targeted_rollback_command
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +182,8 @@ async def handle_command(client, event):
             "set_resolution": lambda: handle_set_resolution_command(event, parts),
             "set_size": lambda: handle_set_size_command(event, parts),
             "update": lambda: handle_update_command(event),
-            "rollback": lambda: handle_rollback_command(event),
+            "rollback": lambda: handle_targeted_rollback_command(event, parts[1:]),
+            "history": lambda: handle_history_command(event),
             "logs": lambda: handle_logs_command(event, parts),
             "download_logs": lambda: handle_download_logs_command(event, parts),
             "download": lambda: handle_download_command(event, client, parts),

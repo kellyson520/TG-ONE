@@ -224,6 +224,16 @@ class Settings(BaseSettings):
         description="用于更新的 Git 分支"
     )
 
+    # === 灰度发布与通道配置 ===
+    UPDATE_CHANNEL: str = Field(
+        default="stable",
+        description="更新通道: stable (稳定版), canary (金丝雀/开发版)"
+    )
+    UPDATE_CANARY_PROBABILITY: float = Field(
+        default=1.0,
+        description="灰度更新概率 (0.0 到 1.0)，用于控制自动更新的扩散范围"
+    )
+
     # 限流并发控制 (Legacy & New)
     # 限流并发控制
     FORWARD_MAX_CONCURRENCY_GLOBAL: int = Field(default=50)

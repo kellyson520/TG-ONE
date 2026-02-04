@@ -63,6 +63,7 @@ from web_admin.security.exceptions import PageRedirect
 from web_admin.middlewares.trace_middleware import TraceMiddleware
 from web_admin.middlewares.context_middleware import ContextMiddleware
 from web_admin.middlewares.rate_limit_middleware import RateLimitMiddleware
+from web_admin.middlewares.maintenance import MaintenanceMiddleware
 
 # 模板和静态文件路径配置
 # 模板和静态文件路径配置 (Refactored to web_admin.core.templates)
@@ -181,6 +182,10 @@ app.add_middleware(RateLimitMiddleware)
 # IP 访问控制 (Phase 3)
 # 注意：最后添加的中间件最先执行。IP检查应在CSRF和鉴权之前。
 app.add_middleware(IPGuardMiddleware)
+
+# 维护模式中间件 (工业级更新系统)
+# 必须在所有中间件之后添加，确保最先执行
+app.add_middleware(MaintenanceMiddleware)
 
 # 挂载静态文件
 # 挂载静态文件

@@ -23,7 +23,7 @@ class SystemService:
         logger.info(f"Registration allowed set to: {value}")
 
     def get_logs(self, lines: int = 50, log_type: str = "app") -> str:
-        """读取系统日志最近 N 行"""
+        """读取系统日志最近 N 行 (优化版，防止大文件 OOM)"""
         if log_type == "error":
             log_file = settings.LOG_DIR / "error.log"
         else:
@@ -33,10 +33,25 @@ class SystemService:
             return "Log file not found."
             
         try:
-            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
-                all_lines = f.readlines()
-                return "".join(all_lines[-lines:])
+            file_size = log_file.stat().st_size
+            # 优化策略：仅读取末尾 200KB (约 1000-2000 行)，足以覆盖 N=50/100/200 的请求
+            # 避免 readlines() 加载几百 MB 甚至 GB 的全量日志导致 OOM
+            read_bytes = min(file_size, 200 * 1024) 
+            
+            with open(log_file, "rb") as f:
+                if file_size > read_bytes:
+                    f.seek(file_size - read_bytes)
+                
+                content = f.read().decode("utf-8", errors="ignore")
+                all_lines = content.splitlines()
+                
+                # 如果文件被截断了，第一行可能不完整，丢弃它
+                if file_size > read_bytes and len(all_lines) > 1:
+                    all_lines = all_lines[1:]
+                
+                return "\n".join(all_lines[-lines:])
         except Exception as e:
+            logger.error(f"Read log failed: {e}")
             return f"Failed to read log: {e}"
     
     def get_log_file_path(self, log_type: str = "app") -> Optional[Path]:
@@ -82,26 +97,26 @@ class SystemService:
     async def run_db_optimization(self, deep: bool = False) -> Dict[str, Any]:
         """运行数据库优化 (SQLite PRAGMA optimize/VACUUM)"""
         try:
-            from core.container import container
+            from core.db_factory import async_vacuum_database, async_analyze_database
             from models.models import cleanup_old_logs
-            from sqlalchemy import text
             import time
             
             start_time = time.time()
-            async with container.db.session() as session:
-                if deep:
-                    # Deep 模式：清理碎片
-                    # 注意：VACUUM 不能在事务中运行，但在 SQLAlchemy 异步下需谨慎处理
-                    # 这里我们使用同步引擎的方法作为参考，或者直接通过 session 执行
-                    await session.execute(text("VACUUM;"))
-                    logger.info("Database VACUUM completed.")
-                else:
-                    # Standard 模式：优化查询计划
+            
+            if deep:
+                # Deep 模式：执行 VACUUM (无法在事务内运行，使用 factory 提供的独立连接)
+                logger.info("Executing deep database optimization (VACUUM)...")
+                await async_vacuum_database()
+            else:
+                # Standard 模式：执行 PRAGMA optimize
+                from core.container import container
+                from sqlalchemy import text
+                async with container.db.session() as session:
                     await session.execute(text("PRAGMA optimize;"))
-                
-                # 无论哪种模式都更新统计信息
-                await session.execute(text("ANALYZE;"))
-                await session.commit()
+                    await session.commit()
+            
+            # 无论哪种模式都更新统计信息
+            await async_analyze_database()
             
             # 清理旧日志 (暂定 30 天)
             deleted_logs = 0

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import logging
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 from schemas.rule import RuleDTO
 from schemas.chat import ChatDTO
 
@@ -82,6 +82,60 @@ class RuleQueryService:
         except Exception as e:
             logger.error(f"获取所有转发规则失败: {str(e)}", exc_info=True)
             return []
+
+    @staticmethod
+    async def get_all_chats() -> List[ChatDTO]:
+        """获取所有聊天列表"""
+        try:
+            from core.container import container
+            return await container.rule_repo.get_all_chats()
+        except Exception as e:
+            logger.error(f"获取所有聊天列表失败: {str(e)}", exc_info=True)
+            return []
+
+    @staticmethod
+    async def get_visualization_data() -> Dict[str, Any]:
+        """
+        获取规则-聊天图谱数据
+        用于前端 ECharts/G6 展示
+        """
+        try:
+            from core.container import container
+            rules = await container.rule_repo.get_all_rules_with_chats()
+            chats = await container.rule_repo.get_all_chats()
+            
+            nodes = []
+            links = []
+            
+            # 1. 节点: 聊天
+            chat_map = {}
+            for chat in chats:
+                chat_map[chat.id] = chat.name or f"Chat {chat.telegram_chat_id}"
+                nodes.append({
+                    "id": str(chat.id),
+                    "name": chat.name or f"Chat {chat.telegram_chat_id}",
+                    "category": chat.type if hasattr(chat, 'type') else "unknown",
+                    "value": chat.telegram_chat_id
+                })
+            
+            # 2. 连线: 规则 (Source -> Target)
+            for rule in rules:
+                if rule.source_chat_id and rule.target_chat_id:
+                    links.append({
+                        "id": str(rule.id),
+                        "source": str(rule.source_chat_id),
+                        "target": str(rule.target_chat_id),
+                        "label": "Rule #" + str(rule.id),
+                        "active": rule.enable_rule
+                    })
+            
+            return {
+                "nodes": nodes,
+                "links": links
+            }
+        except Exception as e:
+            logger.error(f"获取可视化数据失败: {str(e)}", exc_info=True)
+            return {"nodes": [], "links": []}
 
     @staticmethod 
     async def get_rules_related_to_chat(chat_id: int) -> List[RuleDTO]:

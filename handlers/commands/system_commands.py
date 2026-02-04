@@ -87,7 +87,7 @@ async def handle_system_status_command(event):
     
     # 异步检查更新并追加到状态中
     try:
-        has_update, remote_ver = await update_service.check_for_updates()
+        has_update, remote_ver = await update_service.check_for_updates(force=True)
         if has_update:
             text += f"\n🆕 **检测到新版本**: `{remote_ver}`\n使用 `/update` 进行更新。"
     except Exception as e:
@@ -135,7 +135,7 @@ async def handle_update_command(event):
     await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
     msg = await event.respond("🔍 正在检查更新...", parse_mode="md")
     
-    has_update, remote_ver = await update_service.check_for_updates()
+    has_update, remote_ver = await update_service.check_for_updates(force=True)
     
     if not has_update:
         # [Fix Loop] 如果没有更新，明确告知用户并提供强制更新选项
@@ -199,3 +199,45 @@ async def handle_rollback_command(event):
         guard_service.trigger_restart()
     else:
         await msg.edit(f"❌ **回滚失败**\n\n原因: `{result_msg}`")
+
+async def handle_history_command(event):
+    """显示更新历史"""
+    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    msg = await event.respond("📖 正在获取版本历史...", parse_mode="md")
+    
+    history = await update_service.get_update_history(limit=5)
+    
+    if not history:
+        await msg.edit("⚠️ 无法获取版本历史 (可能不是 Git 仓库或暂无记录)")
+        return
+        
+    text = "**📖 历史版本 (最近 5 条)**\n\n"
+    for item in history:
+        text += f"🔹 `{item['short_sha']}` - {item['author']}\n"
+        text += f"📅 `{item['timestamp']}`\n"
+        text += f"📝 {item['message']}\n"
+        text += f"回滚: `/rollback {item['sha']}`\n\n"
+        
+    await msg.edit(text)
+
+async def handle_targeted_rollback_command(event, parts):
+    """回滚命令：支持无参(自动回滚至上个版本)或有参(指定 Commit SHA)"""
+    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    
+    if len(parts) < 1:
+        msg = await event.respond("🚑 正在启动紧急回滚流程 (自动恢复上个本地记录)...", parse_mode="md")
+        success, result_msg = await update_service.rollback()
+        
+        if success:
+            await msg.edit(f"🏥 **回滚指令执行成功**\n\n{result_msg}\n\n正在强制重启...")
+            await asyncio.sleep(2)
+            from services.system_service import guard_service
+            guard_service.trigger_restart()
+        else:
+            await msg.edit(f"❌ **回滚失败**\n\n原因: `{result_msg}`")
+        return
+        
+    sha = parts[0]
+    msg = await event.respond(f"🚑 正在请求定向回滚到版本 `{sha[:8]}`...", parse_mode="md")
+    # 定向回滚通过 Supervisor 重新同步代码
+    await update_service.trigger_update(target_version=sha)
