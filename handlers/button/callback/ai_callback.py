@@ -23,7 +23,7 @@ from handlers.button.button_helpers import (
 logger = logging.getLogger(__name__)
 
 
-async def handle_ai_callback(event):
+async def handle_ai_callback(event, **kwargs):
     """处理AI设置相关回调 (异步版)"""
     data = event.data.decode("utf-8")
     parts = data.split(":")

@@ -353,7 +353,7 @@ def get_search_callback_handler() -> SearchCallbackHandler:
     return _search_callback_handler
 
 
-async def handle_search_callback(event):
+async def handle_search_callback(event, **kwargs):
     """处理搜索回调的包装函数，供外部调用"""
     handler = get_search_callback_handler()
     return await handler.handle_search_callback(event)

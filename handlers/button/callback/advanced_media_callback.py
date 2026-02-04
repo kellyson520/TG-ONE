@@ -14,7 +14,7 @@ from models.models import ForwardRule
 logger = logging.getLogger(__name__)
 
 
-async def handle_advanced_media_callback(event):
+async def handle_advanced_media_callback(event, **kwargs):
     """高级媒体筛选回调分发入口"""
     data = event.data.decode("utf-8")
     # 格式通常是 action:rule_id 或 action:rule_id:extra

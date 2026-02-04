@@ -226,7 +226,7 @@ async def handle_toggle_media_size_alert(event):
         await event.answer("操作失败", alert=True)
 
 
-async def handle_new_menu_callback(event):
+async def handle_new_menu_callback(event, **kwargs):
     """处理新菜单回调 (统一入口)"""
     try:
         data = event.data.decode("utf-8")

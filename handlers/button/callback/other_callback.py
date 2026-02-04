@@ -38,7 +38,7 @@ from handlers.button.settings_manager import create_buttons, create_settings_tex
 logger = logging.getLogger(__name__)
 
 
-async def handle_other_callback(event):
+async def handle_other_callback(event, **kwargs):
     """处理通用规则设置回调 (异步版)"""
 
     data = event.data.decode("utf-8")
