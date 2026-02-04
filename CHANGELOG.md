@@ -2,6 +2,11 @@
 
 ## 📅 2026-02-03 更新摘要
 
+### 🚀 v1.2.3.5: 启动稳定性修复 (Startup Stability)
+- **Critical Fix**: 
+    - **Circular Import**: 彻底解决了 `core.container` -> `Middlewares` -> `DedupService` -> `Container` 的循环依赖链条。
+    - **Lazy Loading**: 在 Container 中实现了中间件的延迟加载逻辑，确保 core 基础设施在业务组件介入前已完成完整初始化。
+
 ### 🚀 v1.2.3.4: 代码卫生与回归修复 (Code Hygiene & Regression Fixes)
 - **Code Hygiene**:
     - **Lint Fixes**: 修复 Admin Callback 中的 `F821 undefined name` (select, ForwardRule) 和 `E712` 比较错误，消除代码异味。

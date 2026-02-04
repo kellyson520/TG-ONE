@@ -29,10 +29,7 @@ from core.pipeline import Pipeline
 # from repositories... 
 # from services...
 
-from middlewares.loader import RuleLoaderMiddleware
-from middlewares.dedup import DedupMiddleware
-from middlewares.sender import SenderMiddleware
-from middlewares.filter import FilterMiddleware
+# Middlewares are now imported lazily in init_with_client
 # from services.db_buffer import GroupCommitCoordinator -> moved to property
 
 # 引入全局数据库单例获取函数
@@ -251,6 +248,11 @@ class Container:
         
         # 组装管道 (Order matters!)
         pipeline = Pipeline()
+        from middlewares.loader import RuleLoaderMiddleware
+        from middlewares.dedup import DedupMiddleware
+        from middlewares.sender import SenderMiddleware
+        from middlewares.filter import FilterMiddleware
+        
         pipeline.add(RuleLoaderMiddleware(self.rule_repo))  # 1. 加载规则
         pipeline.add(DedupMiddleware())                     # 2. 去重检查
         pipeline.add(FilterMiddleware())                    # 3. 过滤 & 内容修改

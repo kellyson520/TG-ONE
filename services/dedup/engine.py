@@ -13,7 +13,7 @@ import time
 from typing import Dict, Optional, Tuple, Any
 
 from core.helpers.tombstone import tombstone
-from core.container import container
+
 
 try:
     # 可选快速文本相似度库（更快更准）

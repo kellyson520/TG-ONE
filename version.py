@@ -1,7 +1,8 @@
-VERSION = "1.2.3.4"
+VERSION = "1.2.3.5"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.5: 启动稳定性修复 - 解决 `core.container` 与中间件/服务层之间的循环导入问题，确保系统在生产环境下正常启动。
 - v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule)，统一数据库 Session 调用范式，重构版本信息显示逻辑 (Version Pagination)。
 - v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误；修复转发规则绑定后的路由丢失 (rule_settings:New) 问题；推进菜单系统 (NewMenuSystem) 审计与功能补全，修复多处回调参数不匹配引发的崩溃。
 - v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖，完全转向本地 CI 驱动；修复日志与任务重复问题；增强菜单系统稳健性 (Callback/AttributeError Fixes)。
