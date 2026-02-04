@@ -16,6 +16,7 @@
 - **Concurrency Locking**: 优化了基于会话异步锁的去重流程，通过 `asyncio.Lock` 成功解决高并发下的 `Check-then-Act` 竞态条件问题。
 
 ### 🚀 细节修复与对齐 (Fixes & Alignment)
+- **Logging System**: 修复了 `core/logging.py` 中 `structlog` 配置导致的 `TypeError`；通过加固 `SafeLoggerFactory` 并校准处理器链（引入 `render_to_log_kwargs`），解决了日志系统启动时的崩溃问题。
 - **Bug Fixes**: 修复规则设置 `AddMode` KeyError；修复 Changelog 分页显示时的 `EditMessageRequest` 协议错误。
 - **Engineering Hygiene**: 批量对齐了 148 个静默捕获的异常处理逻辑，注入日志并保留了错误上下文。
 

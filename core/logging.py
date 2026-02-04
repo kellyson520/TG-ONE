@@ -280,9 +280,11 @@ class _ConsolidatedFilter(logging.Filter):
 class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
     """确保 logger name 永远是字符串"""
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if args and args[0] is None:
-            args = ("root",) + args[1:]
-        elif not args:
+        if args:
+            if not isinstance(args[0], str):
+                name = str(args[0]) if args[0] is not None else "root"
+                args = (name,) + args[1:]
+        else:
             args = ("root",)
         return super().__call__(*args, **kwargs)
 
@@ -298,7 +300,7 @@ def configure_structlog() -> None:
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.stdlib.LoggerFactory(),  # type: ignore[list-item]
+            structlog.stdlib.render_to_log_kwargs,
         ],
         context_class=dict,
         logger_factory=SafeLoggerFactory(),

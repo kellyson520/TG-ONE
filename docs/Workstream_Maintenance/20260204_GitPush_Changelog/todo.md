@@ -7,7 +7,8 @@
 
 ### Phase 1: 文档更新
 - [x] 查阅本日所有 Workstream 报告
-- [ ] 更新 `CHANGELOG.md`，添加 `2026-02-04` 更新摘要
+- [x] 更新 `CHANGELOG.md`，添加 `2026-02-04` 更新摘要
+- [x] 修复 `core/logging.py` 中的 `TypeError` 崩溃问题
 - [ ] 同步更新 `docs/process.md`
 
 ### Phase 2: 质量门禁
