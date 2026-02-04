@@ -10,7 +10,7 @@ from enums.enums import AddMode
 import os
 from core.constants import TEMP_DIR, RSS_HOST, RSS_PORT
 from core.helpers.media.excel_importer import parse_excel
-from version import VERSION, UPDATE_INFO
+from version import VERSION
 from core.helpers.auto_delete import respond_and_delete # Alias if needed, or check usages
 from models.models import ReplaceRule, Keyword # Used in copy replace and copy keywords
 from core.container import container # Used extensively in restored functions
@@ -637,7 +637,6 @@ async def handle_ufb_unbind_command(event, command):
 async def handle_ufb_item_change_command(event, command):
     """处理 ufb_item_change 命令"""
 
-    pass
     from core.container import container
     # 从container获取数据库会话
     async with container.db.session() as session:
@@ -850,7 +849,6 @@ async def handle_copy_replace_command(event, command):
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
-    pass
     from models.models import ForwardRule
     
     # 从container获取数据库会话
@@ -1098,8 +1096,8 @@ async def handle_delete_rule_command(event, command, parts):
                         async with client_session.delete(rss_url) as response:
                             if response.status != 200:
                                 logger.warning(f"RSS同步删除失败: {response.status}")
-                except ImportError:
-                    pass
+                except ImportError as e:
+                    logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 except Exception as rss_e:
                     logger.warning(f"RSS同步删除出错: {rss_e}")
             else:

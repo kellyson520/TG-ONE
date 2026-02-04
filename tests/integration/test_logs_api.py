@@ -45,7 +45,6 @@ def setup_log_files(tmp_path):
     settings.LOG_DIR = str(tmp_path)
     
     # settings.LOG_DIR 已经指向 tmp_path，不需要再 Mock env_config_manager
-    pass
     
     # 创建测试日志文件
     log1 = tmp_path / "app.log"

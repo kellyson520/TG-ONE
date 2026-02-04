@@ -126,8 +126,8 @@ class InfoFilter(BaseFilter):
                     try:
                         context.sender_id = sender_id
                         context.sender_name = sender_name
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                     logger.info(f'添加发送者信息: {context.sender_info}')
                 except Exception as e:
                     logger.error(f'获取发送者信息出错: {str(e)}')

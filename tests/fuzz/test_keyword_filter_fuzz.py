@@ -2,7 +2,6 @@ from hypothesis import given, strategies as st
 from services.rule.filter import RuleFilterService
 from core.algorithms.ac_automaton import ACAutomaton
 from dataclasses import dataclass
-from typing import Optional
 import pytest
 
 @dataclass
@@ -33,6 +32,5 @@ async def test_check_keywords_fast_fuzz(keywords, message_text, rule_id):
     await RuleFilterService.check_keywords_fast(keywords, message_text, rule_id)
 
 if __name__ == "__main__":
-    import asyncio
-    # For local manual testing if needed
     pass
+    # For local manual testing if needed

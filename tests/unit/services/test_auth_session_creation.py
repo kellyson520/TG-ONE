@@ -1,7 +1,5 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
-import uuid
 from services.authentication_service import AuthenticationService
 from models.models import ActiveSession
 

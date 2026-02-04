@@ -8,7 +8,6 @@ import functools
 import zlib
 import json
 import logging
-import os
 import re
 import time
 import uuid
@@ -369,8 +368,8 @@ def setup_logging() -> logging.Logger:
     try:
         telethon_level = settings.TELETHON_LOG_LEVEL.upper()
         logging.getLogger("telethon").setLevel(getattr(logging, telethon_level, logging.WARNING))
-    except Exception:
-        pass
+    except Exception as e:
+        root_logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # Logger Overrides
     try:
@@ -384,8 +383,8 @@ def setup_logging() -> logging.Logger:
             lvl = lvl.strip().upper()
             if name:
                 logging.getLogger(name).setLevel(getattr(logging, lvl, logging.WARNING))
-    except Exception:
-        pass
+    except Exception as e:
+        root_logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # Log Startup
     logger = structlog.get_logger()
@@ -398,8 +397,8 @@ def setup_logging() -> logging.Logger:
             max_bytes=settings.LOG_MAX_BYTES,
             backup_count=settings.LOG_BACKUP_COUNT
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # Log Push (Decoupled: moved to Bootstrap or Main)
     # try:
@@ -636,7 +635,8 @@ def log_user_action(action_name: Optional[str] = None, extract_user_id: Optional
             user_id = "unknown"
             if extract_user_id:
                 try: user_id = extract_user_id(*args, **kwargs)
-                except: pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             try:
                 res = await func(*args, **kwargs)
                 logger.log_user_action(user_id, action_name or func.__name__)
@@ -651,7 +651,8 @@ def log_user_action(action_name: Optional[str] = None, extract_user_id: Optional
             user_id = "unknown"
             if extract_user_id:
                 try: user_id = extract_user_id(*args, **kwargs)
-                except: pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             try:
                 res = func(*args, **kwargs)
                 logger.log_user_action(user_id, action_name or func.__name__)

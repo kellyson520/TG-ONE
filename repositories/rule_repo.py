@@ -102,8 +102,8 @@ class RuleRepository:
                         rules = [RuleDTO.model_validate(r) for r in orm_rules]
                         self._source_rules_cache[chat_id] = rules
                         return rules
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 3. 查数据库
         async with self.db.session() as session:
@@ -124,14 +124,19 @@ class RuleRepository:
                 stmt = select(ForwardMapping).filter(ForwardMapping.source_chat_id == source_chat.id, ForwardMapping.enabled == True)
                 mappings = (await session.execute(stmt)).scalars().all()
                 if mappings:
+                    # 批量获取 rule_id 列表
+                    rule_ids = [m.rule_id for m in mappings if m.rule_id]
+                    if rule_ids:
+                        stmt_batch = select(ForwardRule).options(*self._get_rule_select_options()).where(ForwardRule.id.in_(rule_ids))
+                        res_batch = await session.execute(stmt_batch)
+                        rules_orm.extend(res_batch.scalars().all())
+                    
+                    # 对于没有 rule_id 的 mapping，保持原样（通常这种情况很少）
                     for m in mappings:
-                        if m.rule_id:
-                             r = await session.get(ForwardRule, m.rule_id, options=self._get_rule_select_options())
-                             if r: rules_orm.append(r)
-                        else:
-                             stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id, target_chat_id=m.target_chat_id)
-                             r = (await session.execute(stmt)).scalars().first()
-                             if r: rules_orm.append(r)
+                        if not m.rule_id:
+                            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id, target_chat_id=m.target_chat_id)
+                            r = (await session.execute(stmt)).scalars().first()
+                            if r: rules_orm.append(r)
                 else:
                     stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id)
                     rules_orm = (await session.execute(stmt)).scalars().all()
@@ -249,14 +254,12 @@ class RuleRepository:
 
     async def delete_orphan_chats(self, chat_ids: List[int]) -> int:
         async with self.db.session() as session:
-            deleted_count = 0
-            for cid in chat_ids:
-                chat = await session.get(Chat, cid)
-                if chat:
-                    await session.delete(chat)
-                    deleted_count += 1
+            if not chat_ids:
+                return 0
+            stmt = delete(Chat).where(Chat.id.in_(chat_ids))
+            result = await session.execute(stmt)
             await session.commit()
-            return deleted_count
+            return result.rowcount
 
     async def get_all_chat_ids(self) -> List[int]:
         async with self.db.session() as session:

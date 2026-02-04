@@ -83,8 +83,8 @@ async def validate_csrf(request: Request):
             form_token = form.get("csrf_token")
             if form_token and form_token == cookie_token:
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     raise HTTPException(status_code=403, detail="CSRF Token Verification Failed")
 

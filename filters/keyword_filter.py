@@ -305,8 +305,8 @@ class KeywordFilter(BaseFilter):
                 await asyncio.sleep(delay_seconds)
                 try:
                     await message.delete()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
             # 异步执行撤回任务
             asyncio.create_task(delete_after_delay())

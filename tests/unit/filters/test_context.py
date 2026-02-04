@@ -1,5 +1,4 @@
 import pytest
-import uuid
 from unittest.mock import MagicMock, patch
 from filters.context import MessageContext
 

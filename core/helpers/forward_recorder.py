@@ -401,13 +401,13 @@ class ForwardRecorder:
         if hasattr(o, 'dict') and callable(getattr(o, 'dict')):
             try:
                 return o.dict()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         if hasattr(o, '__dict__'):
             try:
                 return o.__dict__
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         return repr(o)
 
     def _normalize_peer(self, peer: Any) -> Any:

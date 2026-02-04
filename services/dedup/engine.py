@@ -80,6 +80,8 @@ class SmartDeduplicator:
         self._buffer_lock = asyncio.Lock()
         self._flush_task = None  # 后台刷写任务
         self._bg_tasks = set()   # 后台计算任务集合
+        self._chat_locks = {}    # 会话维度锁 (防止针对同一会话的去重竞态)
+        self._locks_lock = asyncio.Lock()
         # 默认配置
         self.config = {
             "enable_time_window": True,
@@ -276,418 +278,423 @@ class SmartDeduplicator:
         logger.debug(
             f"开始去重检查，目标chat_id: {target_chat_id}, 消息类型: {type(message_obj).__name__}"
         )
-        try:
-            # ✅ 关键：每次使用前检查是否处于冷冻状态
-            # 如果已冻结，先复苏 (Lazy Loading)
-            logger.debug("检查冷冻状态...")
-            if tombstone._is_frozen:
-                logger.debug("检测到冷冻状态，尝试复苏...")
-                try:
-                    await tombstone.resurrect()
-                    logger.debug("复苏成功")
-                except Exception as e:
-                    logger.error(f"自动复苏失败: {e}，将使用空缓存继续运行")
-                    # 强制解除冻结状态，避免死循环
-                    tombstone._is_frozen = False
-                    # 这里不需要做额外操作，因为 _wakeup_state 没被调用的话
-                    # 缓存就是空的，程序会正常运行（只是暂时无法去重旧消息）
-
-            # 懒加载配置
-            await self._lazy_load_config()
-
-            # 定期清理缓存
-            logger.debug("检查是否需要清理缓存...")
-            await self._cleanup_cache_if_needed()
-            logger.debug("缓存清理检查完成")
-
-            # 合并配置
-            config = {**self.config, **(rule_config or {})}
-            logger.debug(f"使用配置: {config}")
-
-            # 1. 传统签名去重
-            logger.debug("开始生成消息签名...")
-            signature = self._generate_signature(message_obj)
-            logger.debug(f"生成签名: {signature}")
-            if signature:
-                # L0: Bloom Filter 预判
-                if self.bloom_filter:
-                    bloom_key = f"sig:{target_chat_id}:{signature}"
-                    if bloom_key not in self.bloom_filter:
-                        # 100% 确定不重复，直接跳过后续昂贵的 DB/PCache 检查
-                        logger.debug(f"Bloom Filter (L0) 确认签名不重复: {signature}")
-                        # 仅记录到 Bloom Filter (实际记录到 DB 会在流程结束时调用 _record_message)
-                        # 这里我们返回 False，进入后续流程
-                        pass
-                    else:
-                        logger.debug(f"Bloom Filter (L0) 命中，可能重复: {signature}")
-                
-                # 先查持久化缓存（跨重启热命中），命中即返回
-                if await self._check_pcache_hit("sig", target_chat_id, signature):
-                    logger.debug(f"持久化缓存签名命中: {signature}")
+        
+        # 获取或创建会话锁
+        async with self._locks_lock:
+            if target_chat_id not in self._chat_locks:
+                self._chat_locks[target_chat_id] = asyncio.Lock()
+            lock = self._chat_locks[target_chat_id]
+            
+        async with lock:
+            try:
+                # ✅ 关键：每次使用前检查是否处于冷冻状态
+                # 如果已冻结，先复苏 (Lazy Loading)
+                logger.debug("检查冷冻状态...")
+                if tombstone._is_frozen:
+                    logger.debug("检测到冷冻状态，尝试复苏...")
                     try:
-                        from core.helpers.metrics import (
-                            DEDUP_DECISIONS_TOTAL,
-                            DEDUP_HITS_TOTAL,
-                        )
-
-                        DEDUP_HITS_TOTAL.labels(method="signature_pcache").inc()
-                        DEDUP_DECISIONS_TOTAL.labels(
-                            result="duplicate", method="signature_pcache"
-                        ).inc()
+                        await tombstone.resurrect()
+                        logger.debug("复苏成功")
                     except Exception as e:
-                        logger.debug(f"Metrics record failed: {e}")
-                        pass
-                    return True, "签名重复: persistent cache 命中"
-                logger.debug(f"检查签名重复: {signature}")
-                is_dup, reason = await self._check_signature_duplicate(
-                    signature, target_chat_id, config
-                )
-                if is_dup:
-                    logger.debug(f"签名重复命中: {reason}")
-                    try:
-                        from core.helpers.metrics import (
-                            DEDUP_DECISIONS_TOTAL,
-                            DEDUP_HITS_TOTAL,
-                        )
+                        logger.error(f"自动复苏失败: {e}，将使用空缓存继续运行")
+                        # 强制解除冻结状态，避免死循环
+                        tombstone._is_frozen = False
+                        # 这里不需要做额外操作，因为 _wakeup_state 没被调用的话
+                        # 缓存就是空的，程序会正常运行（只是暂时无法去重旧消息）
 
-                        DEDUP_HITS_TOTAL.labels(method="signature").inc()
-                        DEDUP_DECISIONS_TOTAL.labels(
-                            result="duplicate", method="signature"
-                        ).inc()
-                        from core.helpers.metrics import DEDUP_CHECK_SECONDS
+                # 懒加载配置
+                await self._lazy_load_config()
 
-                        DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-                    except Exception as e:
-                        logger.debug(f"Metrics record failed: {e}")
-                        pass
-                    return True, f"签名重复: {reason}"
+                # 定期清理缓存
+                logger.debug("检查是否需要清理缓存...")
+                await self._cleanup_cache_if_needed()
+                logger.debug("缓存清理检查完成")
 
-            # 2. 视频优先判重（将视频相关检查提前，避免被内容哈希/文本相似度误杀）
-            logger.debug("检查是否为视频消息...")
-            is_video = self._is_video(message_obj)
-            logger.debug(f"视频消息检查结果: {is_video}")
+                # 合并配置
+                config = {**self.config, **(rule_config or {})}
+                logger.debug(f"使用配置: {config}")
 
-            if is_video:
-                # file_id 判重
-                logger.debug("开始视频file_id判重...")
-                file_id_checked = False
-                file_id_found_duplicate = False
-                if config.get("enable_video_file_id_check", True):
-                    try:
-                        file_id = self._extract_video_file_id(message_obj)
-                        logger.debug(f"提取到视频file_id: {file_id}")
-                        if file_id:
-                            file_id_checked = True
-                            is_dup = await self._check_video_duplicate_by_file_id(
-                                file_id, target_chat_id
-                            )
-                            logger.debug(f"视频file_id重复检查结果: {is_dup}")
-                            if is_dup:
-                                file_id_found_duplicate = True
-                                try:
-                                    from core.helpers.metrics import (
-                                        DEDUP_DECISIONS_TOTAL,
-                                        DEDUP_HITS_TOTAL,
-                                    )
-
-                                    DEDUP_HITS_TOTAL.labels(
-                                        method="video_file_id"
-                                    ).inc()
-                                    DEDUP_DECISIONS_TOTAL.labels(
-                                        result="duplicate", method="video_file_id"
-                                    ).inc()
-                                    from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                                    DEDUP_CHECK_SECONDS.observe(
-                                        max(0.0, time.time() - start_ts)
-                                    )
-                                except Exception:
-                                    pass
-                                return True, "视频file_id重复"
-                            try:
-                                setattr(message_obj, "_tf_file_id", str(file_id))
-                            except Exception:
-                                pass
-                    except Exception as _ve:
-                        logger.debug(f"视频 file_id 判重失败: {_ve}")
-                # 部分哈希判重（可选：仅在 file_id 未命中重复时执行；可配置最小文件大小阈值）
-                logger.debug("开始视频部分哈希判重...")
-                if config.get("enable_video_partial_hash_check", True):
-                    only_on_miss = bool(
-                        config.get("video_partial_hash_on_fileid_miss_only", True)
-                    )
-                    # 逻辑：如果不是"仅错过时"模式，总是运行；如果是"仅错过时"模式，只在file_id检查了但没找到重复时运行
-                    should_run = (not only_on_miss) or (
-                        only_on_miss and file_id_checked and not file_id_found_duplicate
-                    )
-                    logger.debug(
-                        f"视频部分哈希判重条件: should_run={should_run}, only_on_miss={only_on_miss}, file_id_checked={file_id_checked}, file_id_found_duplicate={file_id_found_duplicate}"
-                    )
-                    if should_run:
-                        try:
-                            min_size = int(
-                                config.get(
-                                    "video_partial_hash_min_size_bytes", 5 * 1024 * 1024
-                                )
-                            )
-                            # 若可获取文件大小，做阈值过滤
-                            doc = getattr(message_obj, "document", None)
-                            if doc is None and hasattr(message_obj, "video"):
-                                doc = getattr(message_obj, "video")
-                            size_ok = True
-                            if doc is not None:
-                                try:
-                                    size_val = int(getattr(doc, "size", 0) or 0)
-                                    if size_val and size_val < min_size:
-                                        size_ok = False
-                                    logger.debug(
-                                        f"视频大小检查: size_val={size_val}, min_size={min_size}, size_ok={size_ok}"
-                                    )
-                                except Exception:
-                                    size_ok = True
-                            if size_ok:
-                                partial_bytes = int(
-                                    config.get("video_partial_hash_bytes", 262144)
-                                )
-                                # 先查持久化缓存（以 file_id 为键）
-                                vhash = None
-                                try:
-                                    file_id_for_hash = getattr(
-                                        getattr(message_obj, "video", None), "id", None
-                                    ) or getattr(
-                                        getattr(message_obj, "document", None),
-                                        "id",
-                                        None,
-                                    )
-                                    if file_id_for_hash:
-                                        logger.debug(
-                                            f"检查视频哈希持久化缓存: file_id={file_id_for_hash}"
-                                        )
-                                        vhash = await self._check_video_hash_pcache(
-                                            str(file_id_for_hash)
-                                        )
-                                        logger.debug(f"视频哈希持久化缓存结果: {vhash}")
-                                        if vhash:
-                                            try:
-                                                from core.helpers.metrics import (
-                                                    VIDEO_HASH_PCACHE_HITS_TOTAL,
-                                                )
-
-                                                VIDEO_HASH_PCACHE_HITS_TOTAL.labels(
-                                                    algo="partial_md5"
-                                                ).inc()
-                                            except Exception:
-                                                pass
-                                except Exception:
-                                    pass
-
-                                if not vhash:
-                                    # [Optimization] 异步计算视频哈希，避免阻塞转发流程
-                                    # 首次见到的视频（且PCache未命中），放行并后台记录
-                                    logger.info(f"视频FileID未命中且无Hash缓存，启动后台计算任务并放行: {file_id_for_hash}")
-                                    
-                                    task = asyncio.create_task(
-                                        self._compute_and_save_video_hash_bg(
-                                            message_obj, partial_bytes, file_id_for_hash, target_chat_id, config
-                                        )
-                                    )
-                                    self._bg_tasks.add(task)
-                                    task.add_done_callback(self._bg_tasks.discard)
-                                    
-                                    # 返回 False (不重复) 并不等待哈希结果
-                                    return False, "新视频(异步记录)"
-                                if vhash:
-                                    logger.debug(f"检查视频哈希重复: {vhash}")
-                                    is_dup = await self._check_video_duplicate_by_hash(
-                                        vhash, target_chat_id
-                                    )
-                                    logger.debug(f"视频哈希重复检查结果: {is_dup}")
-                                    if is_dup:
-                                        try:
-                                            from core.helpers.metrics import (
-                                                DEDUP_DECISIONS_TOTAL,
-                                                DEDUP_HITS_TOTAL,
-                                            )
-
-                                            DEDUP_HITS_TOTAL.labels(
-                                                method="video_partial_hash"
-                                            ).inc()
-                                            DEDUP_DECISIONS_TOTAL.labels(
-                                                result="duplicate",
-                                                method="video_partial_hash",
-                                            ).inc()
-                                            from core.helpers.metrics import (
-                                                DEDUP_CHECK_SECONDS,
-                                            )
-
-                                            DEDUP_CHECK_SECONDS.observe(
-                                                max(0.0, time.time() - start_ts)
-                                            )
-                                        except Exception:
-                                            pass
-                                        # 严格复核
-                                        try:
-                                            if config.get("video_strict_verify", True):
-                                                logger.debug("开始视频特征严格复核...")
-                                                strict_ok = await self._strict_verify_video_features(
-                                                    target_chat_id,
-                                                    message_obj,
-                                                    file_id_for_hash,
-                                                    vhash,
-                                                    config,
-                                                )
-                                                logger.debug(
-                                                    f"视频特征严格复核结果: {strict_ok}"
-                                                )
-                                                if not strict_ok:
-                                                    return (
-                                                        False,
-                                                        "视频特征不一致，忽略哈希命中",
-                                                    )
-                                        except Exception:
-                                            pass
-                                        return True, "视频内容哈希重复"
-                                    try:
-                                        setattr(message_obj, "_tf_content_hash", vhash)
-                                    except Exception:
-                                        pass
-                        except Exception as _ve:
-                            logger.debug(f"视频部分哈希判重失败: {_ve}")
-
-            # 3. 内容哈希去重（对视频默认关闭，以避免误杀；可通过配置开启）
-            logger.debug("开始内容哈希去重...")
-            content_hash = None
-            if config.get("enable_content_hash") and (
-                not is_video or config.get("enable_content_hash_for_video", False)
-            ):
-                content_hash = self._generate_content_hash(message_obj)
-                logger.debug(f"生成内容哈希: {content_hash}")
-                if content_hash:
-                    # 先查持久化缓存
-                    logger.debug(f"检查持久化缓存内容哈希: {content_hash}")
-                    if await self._check_pcache_hit(
-                        "hash", target_chat_id, content_hash
-                    ):
-                        logger.debug(f"持久化缓存内容哈希命中: {content_hash}")
+                # 1. 传统签名去重
+                logger.debug("开始生成消息签名...")
+                signature = self._generate_signature(message_obj)
+                logger.debug(f"生成签名: {signature}")
+                if signature:
+                    # L0: Bloom Filter 预判
+                    if self.bloom_filter:
+                        bloom_key = f"sig:{target_chat_id}:{signature}"
+                        if bloom_key not in self.bloom_filter:
+                            # 100% 确定不重复，直接跳过后续昂贵的 DB/PCache 检查
+                            logger.debug(f"Bloom Filter (L0) 确认签名不重复: {signature}")
+                            # 仅记录到 Bloom Filter (实际记录到 DB 会在流程结束时调用 _record_message)
+                            # 这里我们返回 False，进入后续流程
+                        else:
+                            logger.debug(f"Bloom Filter (L0) 命中，可能重复: {signature}")
+                    
+                    # 先查持久化缓存（跨重启热命中），命中即返回
+                    if await self._check_pcache_hit("sig", target_chat_id, signature):
+                        logger.debug(f"持久化缓存签名命中: {signature}")
                         try:
                             from core.helpers.metrics import (
                                 DEDUP_DECISIONS_TOTAL,
                                 DEDUP_HITS_TOTAL,
                             )
 
-                            DEDUP_HITS_TOTAL.labels(method="content_hash_pcache").inc()
+                            DEDUP_HITS_TOTAL.labels(method="signature_pcache").inc()
                             DEDUP_DECISIONS_TOTAL.labels(
-                                result="duplicate", method="content_hash_pcache"
+                                result="duplicate", method="signature_pcache"
                             ).inc()
-                        except Exception:
-                            pass
-                        return True, "内容重复: persistent cache 命中"
-                    logger.debug(f"检查内容哈希重复: {content_hash}")
-                    is_dup, reason = await self._check_content_hash_duplicate(
-                        content_hash, target_chat_id, config
+                        except Exception as e:
+                            logger.debug(f"Metrics record failed: {e}")
+                        return True, "签名重复: persistent cache 命中"
+                    logger.debug(f"检查签名重复: {signature}")
+                    is_dup, reason = await self._check_signature_duplicate(
+                        signature, target_chat_id, config
                     )
                     if is_dup:
-                        logger.debug(f"内容哈希重复命中: {reason}")
+                        logger.debug(f"签名重复命中: {reason}")
                         try:
                             from core.helpers.metrics import (
                                 DEDUP_DECISIONS_TOTAL,
                                 DEDUP_HITS_TOTAL,
                             )
 
-                            DEDUP_HITS_TOTAL.labels(method="content_hash").inc()
+                            DEDUP_HITS_TOTAL.labels(method="signature").inc()
                             DEDUP_DECISIONS_TOTAL.labels(
-                                result="duplicate", method="content_hash"
+                                result="duplicate", method="signature"
                             ).inc()
                             from core.helpers.metrics import DEDUP_CHECK_SECONDS
 
-                            DEDUP_CHECK_SECONDS.observe(
-                                max(0.0, time.time() - start_ts)
-                            )
-                        except Exception:
-                            pass
-                        return True, f"内容重复: {reason}"
+                            DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
+                        except Exception as e:
+                            logger.debug(f"Metrics record failed: {e}")
+                        return True, f"签名重复: {reason}"
 
-            # 4. 智能相似度（视频或相册默认跳过）
-            logger.debug("开始智能相似度检查...")
-            if config.get("enable_smart_similarity"):
-                # 视频默认跳过文本相似度
-                if not (
-                    is_video
-                    and not config.get("enable_text_similarity_for_video", False)
-                ):
-                    # 相册/组消息默认跳过
-                    if not (
-                        getattr(message_obj, "grouped_id", None)
-                        and config.get("disable_similarity_for_grouped", True)
-                    ):
-                        logger.debug("执行相似度检查...")
-                        is_dup, reason = await self._check_similarity_duplicate(
-                            message_obj, target_chat_id, config
+                # 2. 视频优先判重（将视频相关检查提前，避免被内容哈希/文本相似度误杀）
+                logger.debug("检查是否为视频消息...")
+                is_video = self._is_video(message_obj)
+                logger.debug(f"视频消息检查结果: {is_video}")
+
+                if is_video:
+                    # file_id 判重
+                    logger.debug("开始视频file_id判重...")
+                    file_id_checked = False
+                    file_id_found_duplicate = False
+                    if config.get("enable_video_file_id_check", True):
+                        try:
+                            file_id = self._extract_video_file_id(message_obj)
+                            logger.debug(f"提取到视频file_id: {file_id}")
+                            if file_id:
+                                file_id_checked = True
+                                is_dup = await self._check_video_duplicate_by_file_id(
+                                    file_id, target_chat_id
+                                )
+                                logger.debug(f"视频file_id重复检查结果: {is_dup}")
+                                if is_dup:
+                                    file_id_found_duplicate = True
+                                    try:
+                                        from core.helpers.metrics import (
+                                            DEDUP_DECISIONS_TOTAL,
+                                            DEDUP_HITS_TOTAL,
+                                        )
+
+                                        DEDUP_HITS_TOTAL.labels(
+                                            method="video_file_id"
+                                        ).inc()
+                                        DEDUP_DECISIONS_TOTAL.labels(
+                                            result="duplicate", method="video_file_id"
+                                        ).inc()
+                                        from core.helpers.metrics import DEDUP_CHECK_SECONDS
+
+                                        DEDUP_CHECK_SECONDS.observe(
+                                            max(0.0, time.time() - start_ts)
+                                        )
+                                    except Exception as e:
+                                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                                    return True, "视频file_id重复"
+                                try:
+                                    setattr(message_obj, "_tf_file_id", str(file_id))
+                                except Exception as e:
+                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                        except Exception as _ve:
+                            logger.debug(f"视频 file_id 判重失败: {_ve}")
+                    # 部分哈希判重（可选：仅在 file_id 未命中重复时执行；可配置最小文件大小阈值）
+                    logger.debug("开始视频部分哈希判重...")
+                    if config.get("enable_video_partial_hash_check", True):
+                        only_on_miss = bool(
+                            config.get("video_partial_hash_on_fileid_miss_only", True)
                         )
-                        logger.debug(f"相似度检查结果: {is_dup}, {reason}")
-                        if is_dup:
+                        # 逻辑：如果不是"仅错过时"模式，总是运行；如果是"仅错过时"模式，只在file_id检查了但没找到重复时运行
+                        should_run = (not only_on_miss) or (
+                            only_on_miss and file_id_checked and not file_id_found_duplicate
+                        )
+                        logger.debug(
+                            f"视频部分哈希判重条件: should_run={should_run}, only_on_miss={only_on_miss}, file_id_checked={file_id_checked}, file_id_found_duplicate={file_id_found_duplicate}"
+                        )
+                        if should_run:
+                            try:
+                                min_size = int(
+                                    config.get(
+                                        "video_partial_hash_min_size_bytes", 5 * 1024 * 1024
+                                    )
+                                )
+                                # 若可获取文件大小，做阈值过滤
+                                doc = getattr(message_obj, "document", None)
+                                if doc is None and hasattr(message_obj, "video"):
+                                    doc = getattr(message_obj, "video")
+                                size_ok = True
+                                if doc is not None:
+                                    try:
+                                        size_val = int(getattr(doc, "size", 0) or 0)
+                                        if size_val and size_val < min_size:
+                                            size_ok = False
+                                        logger.debug(
+                                            f"视频大小检查: size_val={size_val}, min_size={min_size}, size_ok={size_ok}"
+                                        )
+                                    except Exception:
+                                        size_ok = True
+                                if size_ok:
+                                    partial_bytes = int(
+                                        config.get("video_partial_hash_bytes", 262144)
+                                    )
+                                    # 先查持久化缓存（以 file_id 为键）
+                                    vhash = None
+                                    try:
+                                        file_id_for_hash = getattr(
+                                            getattr(message_obj, "video", None), "id", None
+                                        ) or getattr(
+                                            getattr(message_obj, "document", None),
+                                            "id",
+                                            None,
+                                        )
+                                        if file_id_for_hash:
+                                            logger.debug(
+                                                f"检查视频哈希持久化缓存: file_id={file_id_for_hash}"
+                                            )
+                                            vhash = await self._check_video_hash_pcache(
+                                                str(file_id_for_hash)
+                                            )
+                                            logger.debug(f"视频哈希持久化缓存结果: {vhash}")
+                                            if vhash:
+                                                try:
+                                                    from core.helpers.metrics import (
+                                                        VIDEO_HASH_PCACHE_HITS_TOTAL,
+                                                    )
+
+                                                    VIDEO_HASH_PCACHE_HITS_TOTAL.labels(
+                                                        algo="partial_md5"
+                                                    ).inc()
+                                                except Exception as e:
+                                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                                    except Exception as e:
+                                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+
+                                    if not vhash:
+                                        # [Optimization] 异步计算视频哈希，避免阻塞转发流程
+                                        # 首次见到的视频（且PCache未命中），放行并后台记录
+                                        logger.info(f"视频FileID未命中且无Hash缓存，启动后台计算任务并放行: {file_id_for_hash}")
+                                        
+                                        task = asyncio.create_task(
+                                            self._compute_and_save_video_hash_bg(
+                                                message_obj, partial_bytes, file_id_for_hash, target_chat_id, config
+                                            )
+                                        )
+                                        self._bg_tasks.add(task)
+                                        task.add_done_callback(self._bg_tasks.discard)
+                                        
+                                        # 返回 False (不重复) 并不等待哈希结果
+                                        return False, "新视频(异步记录)"
+                                    if vhash:
+                                        logger.debug(f"检查视频哈希重复: {vhash}")
+                                        is_dup = await self._check_video_duplicate_by_hash(
+                                            vhash, target_chat_id
+                                        )
+                                        logger.debug(f"视频哈希重复检查结果: {is_dup}")
+                                        if is_dup:
+                                            try:
+                                                from core.helpers.metrics import (
+                                                    DEDUP_DECISIONS_TOTAL,
+                                                    DEDUP_HITS_TOTAL,
+                                                )
+
+                                                DEDUP_HITS_TOTAL.labels(
+                                                    method="video_partial_hash"
+                                                ).inc()
+                                                DEDUP_DECISIONS_TOTAL.labels(
+                                                    result="duplicate",
+                                                    method="video_partial_hash",
+                                                ).inc()
+                                                from core.helpers.metrics import (
+                                                    DEDUP_CHECK_SECONDS,
+                                                )
+
+                                                DEDUP_CHECK_SECONDS.observe(
+                                                    max(0.0, time.time() - start_ts)
+                                                )
+                                            except Exception as e:
+                                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                                            # 严格复核
+                                            try:
+                                                if config.get("video_strict_verify", True):
+                                                    logger.debug("开始视频特征严格复核...")
+                                                    strict_ok = await self._strict_verify_video_features(
+                                                        target_chat_id,
+                                                        message_obj,
+                                                        file_id_for_hash,
+                                                        vhash,
+                                                        config,
+                                                    )
+                                                    logger.debug(
+                                                        f"视频特征严格复核结果: {strict_ok}"
+                                                    )
+                                                    if not strict_ok:
+                                                        return (
+                                                            False,
+                                                            "视频特征不一致，忽略哈希命中",
+                                                        )
+                                            except Exception as e:
+                                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                                            return True, "视频内容哈希重复"
+                                        try:
+                                            setattr(message_obj, "_tf_content_hash", vhash)
+                                        except Exception as e:
+                                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                            except Exception as _ve:
+                                logger.debug(f"视频部分哈希判重失败: {_ve}")
+
+                # 3. 内容哈希去重（对视频默认关闭，以避免误杀；可通过配置开启）
+                logger.debug("开始内容哈希去重...")
+                content_hash = None
+                if config.get("enable_content_hash") and (
+                    not is_video or config.get("enable_content_hash_for_video", False)
+                ):
+                    content_hash = self._generate_content_hash(message_obj)
+                    logger.debug(f"生成内容哈希: {content_hash}")
+                    if content_hash:
+                        # 先查持久化缓存
+                        logger.debug(f"检查持久化缓存内容哈希: {content_hash}")
+                        if await self._check_pcache_hit(
+                            "hash", target_chat_id, content_hash
+                        ):
+                            logger.debug(f"持久化缓存内容哈希命中: {content_hash}")
                             try:
                                 from core.helpers.metrics import (
                                     DEDUP_DECISIONS_TOTAL,
                                     DEDUP_HITS_TOTAL,
                                 )
 
-                                DEDUP_HITS_TOTAL.labels(method="similarity").inc()
+                                DEDUP_HITS_TOTAL.labels(method="content_hash_pcache").inc()
                                 DEDUP_DECISIONS_TOTAL.labels(
-                                    result="duplicate", method="similarity"
+                                    result="duplicate", method="content_hash_pcache"
+                                ).inc()
+                            except Exception as e:
+                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                            return True, "内容重复: persistent cache 命中"
+                        logger.debug(f"检查内容哈希重复: {content_hash}")
+                        is_dup, reason = await self._check_content_hash_duplicate(
+                            content_hash, target_chat_id, config
+                        )
+                        if is_dup:
+                            logger.debug(f"内容哈希重复命中: {reason}")
+                            try:
+                                from core.helpers.metrics import (
+                                    DEDUP_DECISIONS_TOTAL,
+                                    DEDUP_HITS_TOTAL,
+                                )
+
+                                DEDUP_HITS_TOTAL.labels(method="content_hash").inc()
+                                DEDUP_DECISIONS_TOTAL.labels(
+                                    result="duplicate", method="content_hash"
                                 ).inc()
                                 from core.helpers.metrics import DEDUP_CHECK_SECONDS
 
                                 DEDUP_CHECK_SECONDS.observe(
                                     max(0.0, time.time() - start_ts)
                                 )
-                            except Exception:
-                                pass
-                            return True, f"相似重复: {reason}"
+                            except Exception as e:
+                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                            return True, f"内容重复: {reason}"
 
-            # 如果检查通过，记录到缓存（只读模式不记录）
-            if not readonly:
-                logger.debug("记录消息到缓存...")
-                await self._record_message(
-                    message_obj, target_chat_id, signature, content_hash
+                # 4. 智能相似度（视频或相册默认跳过）
+                logger.debug("开始智能相似度检查...")
+                if config.get("enable_smart_similarity"):
+                    # 视频默认跳过文本相似度
+                    if not (
+                        is_video
+                        and not config.get("enable_text_similarity_for_video", False)
+                    ):
+                        # 相册/组消息默认跳过
+                        if not (
+                            getattr(message_obj, "grouped_id", None)
+                            and config.get("disable_similarity_for_grouped", True)
+                        ):
+                            logger.debug("执行相似度检查...")
+                            is_dup, reason = await self._check_similarity_duplicate(
+                                message_obj, target_chat_id, config
+                            )
+                            logger.debug(f"相似度检查结果: {is_dup}, {reason}")
+                            if is_dup:
+                                try:
+                                    from core.helpers.metrics import (
+                                        DEDUP_DECISIONS_TOTAL,
+                                        DEDUP_HITS_TOTAL,
+                                    )
+
+                                    DEDUP_HITS_TOTAL.labels(method="similarity").inc()
+                                    DEDUP_DECISIONS_TOTAL.labels(
+                                        result="duplicate", method="similarity"
+                                    ).inc()
+                                    from core.helpers.metrics import DEDUP_CHECK_SECONDS
+
+                                    DEDUP_CHECK_SECONDS.observe(
+                                        max(0.0, time.time() - start_ts)
+                                    )
+                                except Exception as e:
+                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                                return True, f"相似重复: {reason}"
+
+                # 如果检查通过，记录到缓存（只读模式不记录）
+                if not readonly:
+                    logger.debug("记录消息到缓存...")
+                    await self._record_message(
+                        message_obj, target_chat_id, signature, content_hash
+                    )
+                    # 记录到 HLL (统计独立消息)
+                    if self.hll:
+                        msg_id = getattr(message_obj, "id", None)
+                        chat_id = getattr(message_obj, "chat_id", None)
+                        if msg_id and chat_id:
+                            self.hll.add(f"{chat_id}:{msg_id}")
+
+                    # 同时记录到 Bloom Filter
+                    # 同时记录到 Bloom Filter
+                    if self.bloom_filter:
+                        if signature: self.bloom_filter.add(f"sig:{target_chat_id}:{signature}")
+                        if content_hash: self.bloom_filter.add(f"hash:{target_chat_id}:{content_hash}")
+
+                try:
+                    from core.helpers.metrics import DEDUP_DECISIONS_TOTAL
+
+                    DEDUP_DECISIONS_TOTAL.labels(result="unique", method="final").inc()
+                    from core.helpers.metrics import DEDUP_CHECK_SECONDS
+
+                    DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                logger.debug(
+                    f"去重检查完成，耗时: {time.time() - start_ts:.3f}s，结果: 不重复"
                 )
-                # 记录到 HLL (统计独立消息)
-                if self.hll:
-                    msg_id = getattr(message_obj, "id", None)
-                    chat_id = getattr(message_obj, "chat_id", None)
-                    if msg_id and chat_id:
-                        self.hll.add(f"{chat_id}:{msg_id}")
+                return False, "无重复"
 
-                # 同时记录到 Bloom Filter
-                # 同时记录到 Bloom Filter
-                if self.bloom_filter:
-                    if signature: self.bloom_filter.add(f"sig:{target_chat_id}:{signature}")
-                    if content_hash: self.bloom_filter.add(f"hash:{target_chat_id}:{content_hash}")
+            except Exception as e:
+                logger.error(f"智能去重检查失败: {e}")
+                try:
+                    from core.helpers.metrics import DEDUP_CHECK_SECONDS, DEDUP_DECISIONS_TOTAL
 
-            try:
-                from core.helpers.metrics import DEDUP_DECISIONS_TOTAL
-
-                DEDUP_DECISIONS_TOTAL.labels(result="unique", method="final").inc()
-                from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-            except Exception:
-                pass
-            logger.debug(
-                f"去重检查完成，耗时: {time.time() - start_ts:.3f}s，结果: 不重复"
-            )
-            return False, "无重复"
-
-        except Exception as e:
-            logger.error(f"智能去重检查失败: {e}")
-            try:
-                from core.helpers.metrics import DEDUP_CHECK_SECONDS, DEDUP_DECISIONS_TOTAL
-
-                DEDUP_DECISIONS_TOTAL.labels(result="error", method="final").inc()
-                DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-            except Exception:
-                pass
-            return False, f"检查失败: {e}"
+                    DEDUP_DECISIONS_TOTAL.labels(result="error", method="final").inc()
+                    DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                return False, f"检查失败: {e}"
 
     def _generate_signature(self, message_obj) -> Optional[str]:
         """生成消息签名（与现有系统兼容）"""
@@ -876,8 +883,8 @@ class SmartDeduplicator:
                         )
                         if duration:
                             features.append(f"duration:{int(duration)}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             return "|".join(features) if features else None
 
@@ -971,8 +978,8 @@ class SmartDeduplicator:
                         if rows:
                             DEDUP_HITS_TOTAL.labels(method="signature").inc()
                             return True, "归档冷区命中"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             return False, ""
 
         except Exception as e:
@@ -1022,8 +1029,8 @@ class SmartDeduplicator:
                         if rows:
                             DEDUP_HITS_TOTAL.labels(method="content_hash").inc()
                             return True, "归档冷区命中"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             return False, ""
 
         except Exception as e:
@@ -1109,8 +1116,8 @@ class SmartDeduplicator:
                                         try:
                                             from core.helpers.metrics import DEDUP_FP_HITS_TOTAL
                                             DEDUP_FP_HITS_TOTAL.labels(algo="lsh_forest").inc()
-                                        except Exception:
-                                            pass
+                                        except Exception as e:
+                                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                                         return True, f"指纹索引命中且内容校验通过 ({sim:.2f})"
                                 else:
                                     # 原文已丢失，但 LSH 强匹配 -> 判定重复 (信任 SimHash)
@@ -1160,8 +1167,8 @@ class SmartDeduplicator:
                 from core.helpers.metrics import DEDUP_SIMILARITY_COMPARISONS
 
                 DEDUP_SIMILARITY_COMPARISONS.observe(float(comparisons))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             return False, ""
         except Exception as e:
             logger.debug(f"相似度检查失败: {e}")
@@ -1260,8 +1267,8 @@ class SmartDeduplicator:
                 return None
             try:
                 VIDEO_PARTIAL_HASH_SECONDS.observe(max(0.0, time.time() - _start))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             hash_result = h.hexdigest()
             logger.debug(
                 f"视频部分哈希计算完成，结果: {hash_result}，耗时: {time.time() - _start:.3f}s"
@@ -1337,8 +1344,8 @@ class SmartDeduplicator:
             # 写入持久化缓存（用于跨重启去重热命中）
             try:
                 await self._write_pcache(signature, content_hash, cache_key)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             # 视频：持久化记录 file_id 与内容哈希（若有），便于后续判重
             try:
@@ -1455,8 +1462,8 @@ class SmartDeduplicator:
                                     # doc_id 存为 timestamp 字符串
                                     forest.add(str(current_time), fp)
                                     
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         except Exception as e:
             logger.debug(f"记录消息失败: {e}")
@@ -1506,7 +1513,6 @@ class SmartDeduplicator:
             logger.debug("持久化缓存写入完成")
         except Exception as e:
             logger.debug(f"写入持久化缓存失败: {e}")
-            pass
 
     async def _ensure_flush_task(self):
         """确保后台刷写任务在运行"""
@@ -1642,6 +1648,7 @@ class SmartDeduplicator:
             from sqlalchemy import select
             from models.models import SystemConfiguration
 
+            from core.container import container
             async with container.db.session() as session:
                 # 查找或创建配置记录
                 stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
@@ -1668,6 +1675,7 @@ class SmartDeduplicator:
             from sqlalchemy import select
             from models.models import SystemConfiguration
 
+            from core.container import container
             async with container.db.session() as session:
                 stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
                 result = await session.execute(stmt)
@@ -1800,6 +1808,7 @@ class SmartDeduplicator:
             size_bucket = self._get_size_range(size_val or 0)
             # 查找历史一条匹配记录用于对比
             from repositories.db_operations import DBOperations
+            from core.container import container
             # 使用 container.db.session 获取会话
             async with container.db.session() as session:
                 db_ops = await DBOperations.create()
@@ -1876,7 +1885,6 @@ class SmartDeduplicator:
             logger.debug(f"视频哈希持久化缓存写入完成，key: {key}")
         except Exception as e:
             logger.debug(f"写入视频哈希持久化缓存失败: {e}")
-            pass
 
 
     async def remove_message(self, message_obj, target_chat_id: int):
@@ -1902,8 +1910,8 @@ class SmartDeduplicator:
                         pc.delete(f"dedup:sig:{target_chat_id}:{signature}")
                     if content_hash:
                         pc.delete(f"dedup:hash:{target_chat_id}:{content_hash}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
             # Remove from Write Buffer (if not flushed yet)
             async with self._buffer_lock:

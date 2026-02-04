@@ -4,7 +4,6 @@ import asyncio
 import logging
 
 # aiohttp 在某些环境未安装会导致编辑器波浪线，这里保持局部延迟导入
-import os
 from sqlalchemy import delete, inspect, select, func
 from telethon import Button
 from telethon.tl import types

@@ -1,7 +1,5 @@
 import pytest
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
-from pathlib import Path
+from unittest.mock import patch, AsyncMock
 from services.update_service import UpdateService
 
 @pytest.fixture
@@ -33,12 +31,15 @@ async def test_check_for_updates_has_update(update_service):
     mock_fetch.communicate.return_value = (b"", b"")
     
     mock_local = AsyncMock()
-    mock_local.communicate.return_value = (b"local_commit\n", b"")
+    # git rev-list --count 应该返回一个数字字符串
+    mock_local.communicate.return_value = (b"1\n", b"")
     
     mock_remote = AsyncMock()
     mock_remote.communicate.return_value = (b"remote_commit\n", b"")
     
-    with patch("asyncio.create_subprocess_exec") as mock_exec:
+    with patch("asyncio.create_subprocess_exec") as mock_exec, \
+         patch.object(update_service, "_check_network", return_value=True), \
+         patch.object(update_service, "_cross_verify_sha", return_value=True):
         mock_exec.side_effect = [mock_fetch, mock_local, mock_remote]
         has_update, commit = await update_service.check_for_updates()
         assert has_update is True
@@ -55,9 +56,11 @@ async def test_perform_update_sets_restarting_state(update_service):
     with patch("asyncio.create_subprocess_exec") as mock_exec, \
          patch.object(update_service, "_get_file_hash", return_value="hash"), \
          patch.object(update_service, "_save_state") as mock_save, \
-         patch.object(update_service, "_get_state", return_value={}):
+         patch.object(update_service, "_get_state", return_value={}), \
+         patch.object(update_service, "_check_network", return_value=True), \
+         patch.object(update_service, "_cross_verify_sha", return_value=True):
         
-        mock_exec.side_effect = [mock_current, mock_reset]
+        mock_exec.side_effect = [mock_current, mock_reset, mock_current]
         
         success, msg = await update_service.perform_update()
         assert success is True

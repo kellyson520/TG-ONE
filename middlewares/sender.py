@@ -90,8 +90,8 @@ class SenderMiddleware(Middleware):
                                     p = json.loads(t.task_data)
                                     if p.get('message_id'):
                                         messages_to_forward.append(p.get('message_id'))
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                         
                         messages_to_forward.sort()
 

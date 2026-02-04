@@ -1,12 +1,9 @@
 import pytest
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import patch
 from fastapi import Request, FastAPI, Response
-from starlette.responses import JSONResponse
 from web_admin.middlewares.context_middleware import ContextMiddleware
 from web_admin.middlewares.rate_limit_middleware import RateLimitMiddleware
 from core.context import user_id_var, username_var, ip_address_var, request_id_var
-import time
 
 # --- Context Middleware Tests ---
 

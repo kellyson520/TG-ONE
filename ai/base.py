@@ -22,9 +22,7 @@ class BaseAIProvider(ABC):
         Returns:
             str: 处理后的消息
         """
-        pass
     
     @abstractmethod
     async def initialize(self, **kwargs) -> None:
         """初始化AI提供者"""
-        pass

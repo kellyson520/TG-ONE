@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from filters.media_filter import MediaFilter
-import os
 
 @pytest.fixture
 def media_filter():

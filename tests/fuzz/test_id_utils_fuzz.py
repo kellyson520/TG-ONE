@@ -1,7 +1,5 @@
 from hypothesis import given, strategies as st
 from core.helpers.id_utils import normalize_chat_id, build_candidate_telegram_ids
-from typing import Union
-import pytest
 
 @given(st.one_of(st.integers(), st.text()))
 def test_normalize_chat_id_fuzz(chat_id):

@@ -202,7 +202,6 @@ processed_group_cache = MemoryProcessedGroupCache()
 
 import base64
 import io
-import mimetypes
 
 class AIMediaProcessor:
     """AI媒体预处理器"""

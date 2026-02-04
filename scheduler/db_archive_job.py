@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import os
 import logging
 from typing import List, Dict, Any
 
@@ -130,28 +129,23 @@ def archive_once() -> None:
                         logger.error(f"Bloom 更新失败: {be}")
 
                     # 删除
-                    logger.debug("开始删除已归档的记录")
-                    # 我们需要原始 sigs 中的 id，但 rows_to_delete 里可能只有数据。
-                    # 这里有一个简单的办法：如果 rows_to_delete == rows，则删除所有 sigs。
-                    # 如果不等（并发部分成功），则需要按 signature/content_hash 匹配 id。
-                    # 更好的做法是在 rows 中包含 id。
-                    
-                    # 修正：在 _to_rows 中包含 id
+                    logger.debug("开始批量删除已归档记录")
                     ids_to_delete = []
-                    # 建立 signature 到 id 的映射
                     sig_to_id = {s.signature: s.id for s in sigs}
                     for r in rows_to_delete:
                         rid = sig_to_id.get(r.get('signature'))
                         if rid:
                             ids_to_delete.append(rid)
 
-                    deleted_count = 0
-                    for chunk_start in range(0, len(ids_to_delete), 1000):
-                        chunk = ids_to_delete[chunk_start:chunk_start+1000]
-                        count = session.query(MediaSignature).filter(MediaSignature.id.in_(chunk)).delete(synchronize_session=False)
-                        deleted_count += count
-                    session.commit()
-                    logger.info(f"成功从 SQLite 迁移并删除 {deleted_count} 条 MediaSignature 记录")
+                    if ids_to_delete:
+                        # 优化：单次 commit 处理所有 chunk
+                        deleted_count = 0
+                        for chunk_start in range(0, len(ids_to_delete), 1000):
+                            chunk = ids_to_delete[chunk_start:chunk_start+1000]
+                            count = session.query(MediaSignature).filter(MediaSignature.id.in_(chunk)).delete(synchronize_session=False)
+                            deleted_count += count
+                        session.commit()
+                        logger.info(f"成功迁移并删除 {deleted_count} 条 MediaSignature 记录")
             else:
                 logger.info("没有需要归档的 MediaSignature 记录")
         except Exception as e:
@@ -417,44 +411,44 @@ def archive_force() -> None:
             last_id = 0
             total_archived = 0
             while True:
+                # 分批获取数据
                 sigs = session.query(MediaSignature) \
                     .filter(MediaSignature.id > last_id) \
                     .order_by(MediaSignature.id) \
                     .limit(batch_size).all()
+                
                 if not sigs:
                     break
-                logger.debug(f"查询到 {len(sigs)} 条 MediaSignature 记录，ID 范围: {sigs[0].id} - {sigs[-1].id}")
+                
+                logger.debug(f"正在处理 {len(sigs)} 条记录，当前最后 ID: {last_id}")
                 
                 rows = _to_rows(sigs, [
                     'chat_id','signature','file_id','content_hash','message_id','created_at','updated_at',
                     'count','media_type','file_size','file_name','mime_type','duration','width','height','last_seen'
                 ])
-                logger.debug(f"转换为行数据完成，共 {len(rows)} 行")
                 
+                # 执行写操作
                 result = write_parquet('media_signatures', rows, datetime.utcnow())
-                if result:
-                    # 更新 Bloom 索引
-                    try:
-                        logger.debug(f"开始更新 Bloom 索引，处理 {len(rows)} 条记录")
-                        bloom.add_batch('media_signatures', rows, ['signature','content_hash'])
-                    except Exception as be:
-                        logger.error(f"强制归档: Bloom 更新失败: {be}")
-                        
-                    # 删除本批次
-                    deleted_count = 0
-                    ids = [s.id for s in sigs]
-                    for chunk_start in range(0, len(ids), 1000):
-                        chunk = ids[chunk_start:chunk_start+1000]
-                        count = session.query(MediaSignature).filter(MediaSignature.id.in_(chunk)).delete(synchronize_session=False)
-                        deleted_count += count
-                    session.commit()
-                    logger.info(f"成功迁移并删除 {deleted_count} 条 MediaSignature 记录")
-                    last_id = sigs[-1].id
-                    total_archived += len(sigs)
-                else:
-                    logger.error("强制归档: MediaSignature Parquet 写入失败，跳过该批次删除")
-                    break # 写入失败建议停止循环，避免产生过多碎片或重复扫描
+                if not result:
+                    logger.error("强制归档: MediaSignature Parquet 写入失败，跳过该批次")
+                    break
+
+                # 处理 Bloom 和删除
+                try:
+                    bloom.add_batch('media_signatures', rows, ['signature','content_hash'])
+                except Exception as be:
+                    logger.error(f"强制归档: Bloom 更新失败 (已忽略并继续): {be}")
+                    
+                # 批量删除（在当前 batch 内使用 chunked delete 以防止锁表）
+                ids = [s.id for s in sigs]
+                for chunk_start in range(0, len(ids), 2000): # 增加 chunk 大小至 2000
+                    chunk = ids[chunk_start:chunk_start+2000]
+                    session.query(MediaSignature).filter(MediaSignature.id.in_(chunk)).delete(synchronize_session=False)
                 
+                session.commit() # 每个 batch 提交一次
+                last_id = sigs[-1].id
+                total_archived += len(sigs)
+            
             logger.info(f"强制归档 MediaSignature 完成，总共处理 {total_archived} 条记录")
         except Exception as e:
             logger.error(f"强制归档 media_signatures 失败: {e}")

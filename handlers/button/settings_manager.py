@@ -1,6 +1,5 @@
 from telethon import Button
 
-from enums.enums import AddMode, ForwardMode, HandleMode, MessageMode, PreviewMode
 from core.constants import RSS_ENABLED, UFB_ENABLED
 from core.config import settings
 from core.config.settings_loader import load_ai_models
@@ -17,10 +16,10 @@ RULE_SETTINGS = {
     },
     "add_mode": {
         "display_name": "当前关键字添加模式",
-        "values": {AddMode.WHITELIST: "白名单", AddMode.BLACKLIST: "黑名单"},
+        "values": {"whitelist": "白名单", "blacklist": "黑名单"},
         "toggle_action": "toggle_add_mode",
         "toggle_func": lambda current: (
-            AddMode.BLACKLIST if current == AddMode.WHITELIST else AddMode.WHITELIST
+            "blacklist" if current == "whitelist" else "whitelist"
         ),
     },
     "is_filter_user_info": {
@@ -32,17 +31,17 @@ RULE_SETTINGS = {
     "forward_mode": {
         "display_name": "转发模式",
         "values": {
-            ForwardMode.BLACKLIST: "仅黑名单",
-            ForwardMode.WHITELIST: "仅白名单",
-            ForwardMode.BLACKLIST_THEN_WHITELIST: "先黑名单后白名单",
-            ForwardMode.WHITELIST_THEN_BLACKLIST: "先白名单后黑名单",
+            "blacklist": "仅黑名单",
+            "whitelist": "仅白名单",
+            "blacklist_then_whitelist": "先黑名单后白名单",
+            "whitelist_then_blacklist": "先白名单后黑名单",
         },
         "toggle_action": "toggle_forward_mode",
         "toggle_func": lambda current: {
-            ForwardMode.BLACKLIST: ForwardMode.WHITELIST,
-            ForwardMode.WHITELIST: ForwardMode.BLACKLIST_THEN_WHITELIST,
-            ForwardMode.BLACKLIST_THEN_WHITELIST: ForwardMode.WHITELIST_THEN_BLACKLIST,
-            ForwardMode.WHITELIST_THEN_BLACKLIST: ForwardMode.BLACKLIST,
+            "blacklist": "whitelist",
+            "whitelist": "blacklist_then_whitelist",
+            "blacklist_then_whitelist": "whitelist_then_blacklist",
+            "whitelist_then_blacklist": "blacklist",
         }[current],
     },
     "use_bot": {
@@ -59,26 +58,26 @@ RULE_SETTINGS = {
     },
     "message_mode": {
         "display_name": "消息模式",
-        "values": {MessageMode.MARKDOWN: "Markdown", MessageMode.HTML: "HTML"},
+        "values": {"Markdown": "Markdown", "HTML": "HTML"},
         "toggle_action": "toggle_message_mode",
         "toggle_func": lambda current: (
-            MessageMode.HTML
-            if current == MessageMode.MARKDOWN
-            else MessageMode.MARKDOWN
+            "HTML"
+            if current == "Markdown"
+            else "Markdown"
         ),
     },
     "is_preview": {
         "display_name": "预览模式",
         "values": {
-            PreviewMode.ON: "开启",
-            PreviewMode.OFF: "关闭",
-            PreviewMode.FOLLOW: "跟随原消息",
+            "on": "开启",
+            "off": "关闭",
+            "follow": "跟随原消息",
         },
         "toggle_action": "toggle_preview",
         "toggle_func": lambda current: {
-            PreviewMode.ON: PreviewMode.OFF,
-            PreviewMode.OFF: PreviewMode.FOLLOW,
-            PreviewMode.FOLLOW: PreviewMode.ON,
+            "on": "off",
+            "off": "follow",
+            "follow": "on",
         }[current],
     },
     "is_original_link": {
@@ -125,10 +124,10 @@ RULE_SETTINGS = {
     },
     "handle_mode": {
         "display_name": "处理模式",
-        "values": {HandleMode.FORWARD: "转发模式", HandleMode.EDIT: "编辑模式"},
+        "values": {"FORWARD": "转发模式", "EDIT": "编辑模式"},
         "toggle_action": "toggle_handle_mode",
         "toggle_func": lambda current: (
-            HandleMode.EDIT if current == HandleMode.FORWARD else HandleMode.FORWARD
+            "EDIT" if current == "FORWARD" else "FORWARD"
         ),
     },
     "enable_comment_button": {
@@ -278,10 +277,10 @@ MEDIA_SETTINGS = {
     },
     "extension_filter_mode": {
         "display_name": "媒体扩展名过滤模式",
-        "values": {AddMode.BLACKLIST: "黑名单", AddMode.WHITELIST: "白名单"},
+        "values": {"blacklist": "黑名单", "whitelist": "白名单"},
         "toggle_action": "toggle_media_extension_filter_mode",
         "toggle_func": lambda current: (
-            AddMode.WHITELIST if current == AddMode.BLACKLIST else AddMode.BLACKLIST
+            "whitelist" if current == "blacklist" else "blacklist"
         ),
     },
     "media_extensions": {

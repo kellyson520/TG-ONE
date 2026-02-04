@@ -34,7 +34,8 @@ async def test_handle_prompt_setting_ai_prompt():
     mock_cm = AsyncMock()
     mock_cm.__aenter__.return_value = mock_session
     
-    with patch("handlers.prompt_handlers.async_db_session", return_value=mock_cm), \
+    from core.container import container
+    with patch.object(container.db, "session", return_value=mock_cm), \
          patch("handlers.prompt_handlers.get_bot_client", new_callable=AsyncMock, return_value=client), \
          patch("handlers.prompt_handlers.async_delete_user_message") as mock_del_user, \
          patch("handlers.button.button_helpers.create_ai_settings_buttons", return_value=[]) as mock_buttons, \
@@ -65,7 +66,8 @@ async def test_handle_prompt_setting_add_keywords():
     mock_cm = AsyncMock()
     mock_cm.__aenter__.return_value = mock_session
 
-    with patch("handlers.prompt_handlers.async_db_session", return_value=mock_cm), \
+    from core.container import container
+    with patch.object(container.db, "session", return_value=mock_cm), \
          patch("repositories.db_operations.DBOperations.create", new_callable=AsyncMock) as mock_db_ops, \
          patch("handlers.prompt_handlers.send_message_and_delete") as mock_send_del, \
          patch("handlers.prompt_handlers.get_bot_client", new_callable=AsyncMock, return_value=AsyncMock()):

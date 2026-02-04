@@ -1,4 +1,3 @@
-import sys
 import pytest
 import types
 from core.helpers.lazy_import import LazyImport

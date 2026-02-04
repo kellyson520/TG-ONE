@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import httpx
 from typing import Any, Dict
 
@@ -48,8 +47,8 @@ class TelegramPushHandler(logging.Handler):
                 import threading
                 threading.Thread(target=self._sync_post, args=(url, data), daemon=True).start()
                 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     def _format_text(self, record: logging.LogRecord) -> str:
         level_icon = {
@@ -65,8 +64,8 @@ class TelegramPushHandler(logging.Handler):
         try:
             from core.context import trace_id_var
             cid = cid or trace_id_var.get()
-        except ImportError:
-            pass
+        except ImportError as e:
+            logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         head = f"{level_icon} <b>{record.levelname}</b> | <code>{record.name}</code>"
         body = self.format(record)
@@ -89,8 +88,8 @@ class TelegramPushHandler(logging.Handler):
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 client.post(url, data=data)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 from core.config import settings

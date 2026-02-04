@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -160,7 +159,6 @@ class GuardService:
 
     def start_guards(self):
         """Deprecated: Use start_guards_async instead."""
-        pass
         
     async def start_guards_async(self):
         """启动所有异步守护任务"""
@@ -256,8 +254,8 @@ class GuardService:
                                 stat = f.stat()
                                 total_size += stat.st_size
                                 files.append((stat.st_mtime, stat.st_size, f))
-                            except OSError:
-                                pass
+                            except OSError as e:
+                                logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                     
                     if total_size > self._temp_guard_max:
                         # 按时间升序排序（最旧的在前）
@@ -274,8 +272,8 @@ class GuardService:
                                     f.unlink()
                                     deleted_size += size
                                     deleted_count += 1
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                         
                         if deleted_count > 0:
                             logger.info(f"[guard-temp] Cleaned {deleted_count} files, freed {deleted_size/1024/1024:.2f}MB")

@@ -43,8 +43,8 @@ class UpdateService:
         if self._state_file.exists():
             try:
                 return json.loads(self._state_file.read_text())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         return {}
 
     def _save_state(self, state: Dict):
@@ -236,8 +236,8 @@ class UpdateService:
                 if process:
                     try:
                         process.kill()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 return False, "网络获取超时"
 
             # 2. 检查本地是否落后于远程 (检查 HEAD..origin/branch 的提交数)
@@ -469,7 +469,7 @@ class UpdateService:
         import hashlib
         try:
             return hashlib.md5(path.read_bytes()).hexdigest()
-        except:
+        except Exception as e:
             return ""
 
     async def _sync_dependencies(self) -> bool:

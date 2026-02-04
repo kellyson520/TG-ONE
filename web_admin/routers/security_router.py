@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from services.access_control_service import access_control_service
 from services.audit_service import audit_service
 from web_admin.security.deps import admin_required

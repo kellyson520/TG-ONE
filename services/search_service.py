@@ -50,7 +50,8 @@ class SearchService:
             from core.helpers.search_system import SearchFilter, SearchType as HelperSearchType
             st = HelperSearchType.ALL
             try: st = HelperSearchType(search_type)
-            except ValueError: pass
+            except ValueError as e:
+                logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             filters = SearchFilter(search_type=st)
             response = await self.search_system.search(query, filters, page)
             return {

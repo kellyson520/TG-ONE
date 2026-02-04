@@ -287,6 +287,46 @@ callback_router.add_route("cl_page:{page}", callback_changelog_page)
 from handlers.commands.system_commands import callback_confirm_update
 callback_router.add_route("confirm_update", callback_confirm_update)
 
+# [Fix] 通用 Toggle 处理器 - 处理所有 toggle_* 回调
+from .generic_toggle import handle_generic_toggle
+
+# 注册所有缺失的 toggle 路由
+# 规则基础设置
+callback_router.add_route("toggle_enable_rule:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_add_mode:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_filter_user_info:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_forward_mode:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_bot:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_replace:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_message_mode:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_preview:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_original_link:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_delete_original:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_ufb:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_original_sender:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_original_time:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_delay:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_handle_mode:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_comment_button:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_only_rss:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_force_pure_forward:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_dedup:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_sync:{rest}", handle_generic_toggle)
+
+# AI 设置
+callback_router.add_route("toggle_ai:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_ai_upload_image:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_keyword_after_ai:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_summary:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_top_summary:{rest}", handle_generic_toggle)
+
+# 媒体设置
+callback_router.add_route("toggle_enable_media_type_filter:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_media_size_filter:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_enable_media_extension_filter:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_media_extension_filter_mode:{rest}", handle_generic_toggle)
+callback_router.add_route("toggle_send_over_media_size_message:{rest}", handle_generic_toggle)
+
 
 async def handle_callback(event):
     """处理所有回调查询 (基于 RadixRouter)"""
@@ -322,5 +362,5 @@ async def handle_callback(event):
         logger.error(f"回调处理异常: {e}\n{traceback.format_exc()}")
         try:
             await event.answer("操作处理出错，请重试", alert=True)
-        except:
-            pass
+        except Exception:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')

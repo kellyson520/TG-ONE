@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from services.user_service import UserService
-from schemas.user import UserDTO
 
 @pytest.mark.asyncio
 class TestUserService:

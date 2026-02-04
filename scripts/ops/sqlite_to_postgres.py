@@ -17,7 +17,6 @@ SQLite -> PostgreSQL/TiDB 迁移脚本（一次性导入）
   - 简化处理：不迁移自增序列当前值、触发器、视图等；如需请在迁移后手工校验
 """
 
-import os
 import sys
 import math
 import logging
@@ -103,8 +102,8 @@ def _copy_table(source_engine: Engine, target_engine: Engine, table: Table) -> i
 		try:
 			source_sess.close()
 			target_sess.close()
-		except Exception:
-			pass
+		except Exception as e:
+			logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 	return inserted
 
 

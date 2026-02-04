@@ -15,12 +15,10 @@ async def admin_access_token(client: AsyncClient):
     # 如果没有，可能需要先创建一个。
     # 根据 conftest.py/setup_database，数据库是清空的，所以需要先创建用户。
     # 这里我们直接在测试中创建用户。
-    pass
 
 @pytest.fixture
 async def regular_user_token(client: AsyncClient):
     """获取普通用户的 Access Token"""
-    pass
 
 @pytest.mark.asyncio
 async def test_list_users_unauthorized(client: AsyncClient):

@@ -33,8 +33,8 @@ class DatabaseFixer:
                 try:
                     cursor.execute("PRAGMA busy_timeout=30000")
                     cursor.execute("PRAGMA foreign_keys=ON")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 cursor.execute("PRAGMA integrity_check")
                 result = cursor.fetchone()
                 if result[0] == "ok":

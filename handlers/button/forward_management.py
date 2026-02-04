@@ -95,8 +95,8 @@ class ForwardManager:
                             RuleQueryService.invalidate_caches_for_chat(
                                 rule.target_chat_id
                             )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                     return True, rule.enable_rule
                 return False, None
             except Exception as e:

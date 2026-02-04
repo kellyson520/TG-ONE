@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Callable, Any, Dict, List, Optional
+from typing import Callable, Any, Dict, List
 
 # 尝试引入高性能序列化
 try:
@@ -38,8 +38,8 @@ class TombstoneManager:
         if platform.system() == "Linux":
             try:
                 self._libc = ctypes.CDLL("libc.so.6")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     def register(
         self, name: str, get_state_func: Callable[[], Any], restore_state_func: Callable[[Any], None]
@@ -59,8 +59,8 @@ class TombstoneManager:
                 # malloc_trim(0) 告诉系统把所有未使用的堆内存归还给 OS
                 self._libc.malloc_trim(0)
                 logger.debug("已执行 malloc_trim 释放物理内存")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     def _write_to_disk(self, state_dump: Dict[str, Any]) -> None:
         """同步的磁盘写入逻辑，供线程池调用"""

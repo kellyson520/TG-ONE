@@ -205,7 +205,6 @@ class WorkerService:
                             all_message_ids.append(p.get('message_id'))
                     except Exception as ex:
                         logger.warning(f"Failed to parse group task data: {ex}")
-                        pass
             
             # 关键点：从 Telethon 获取真实消息对象 (批量获取)
             # 如果消息已过期或被删，这里会返回 None

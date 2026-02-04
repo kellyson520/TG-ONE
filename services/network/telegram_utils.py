@@ -84,8 +84,8 @@ async def safe_edit(
                     if "not modified" in error_msg:
                         try:
                             await event.answer("已更新")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                         logger.debug("safe_edit: 内容未修改，忽略")
                         return False
                     if (

@@ -90,8 +90,8 @@ async def handle_system_status_command(event):
         has_update, remote_ver = await update_service.check_for_updates()
         if has_update:
             text += f"\n🆕 **检测到新版本**: `{remote_ver}`\n使用 `/update` 进行更新。"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     
     await msg.edit(text)
     
@@ -157,7 +157,6 @@ async def handle_update_command(event):
     await msg.edit(f"🆕 **检测到新版本**: `{remote_ver}`\n\n是否立即执行更新并重启？", buttons=buttons)
     
     # Logic moved to callback_confirm_update to prevent auto-execution
-    pass
 
 async def callback_confirm_update(event):
     """处理确认更新回调"""
@@ -176,8 +175,8 @@ async def callback_confirm_update(event):
                  lang_code='en',
                  commands=BOT_COMMANDS
              ))
-        except Exception:
-             pass
+        except Exception as e:
+             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         await msg.edit(f"🚀 **系统更新成功！**\n\n{result_msg}\n\n系统将在 3 秒后自动重启。")
         await asyncio.sleep(3)

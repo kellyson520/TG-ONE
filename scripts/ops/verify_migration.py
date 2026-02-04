@@ -6,6 +6,8 @@ import os
 import json
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 # Setup paths
 sys.path.append(os.getcwd())
 
@@ -166,8 +168,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt as e:
+        logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     except Exception:
         import traceback
         traceback.print_exc()

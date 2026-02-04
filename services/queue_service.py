@@ -103,8 +103,8 @@ class MessageQueueService:
                 try:
                     while len(buffer) < BATCH_SIZE and not self.queue.empty():
                         buffer.append(self.queue.get_nowait())
-                except asyncio.QueueEmpty:
-                    pass
+                except asyncio.QueueEmpty as e:
+                    logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 
                 # 3. Process the batch
                 try:

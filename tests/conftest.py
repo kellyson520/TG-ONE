@@ -22,14 +22,13 @@ def _patch_database_engine_early():
         import core.db_factory
         from sqlalchemy import create_engine
         from sqlalchemy.ext.asyncio import create_async_engine
-        from sqlalchemy.pool import StaticPool
         
         # 使用 xdist 进程 ID 确保每个 worker 有独立的内存数据库，避免并发冲突
         worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
         test_url_sync = f"sqlite:///file:testdb_{worker_id}?mode=memory&cache=shared&uri=true"
         test_url_async = f"sqlite+aiosqlite:///file:testdb_{worker_id}?mode=memory&cache=shared&uri=true"
         
-        from sqlalchemy.pool import StaticPool, QueuePool
+        from sqlalchemy.pool import QueuePool
         sync_engine = create_engine(
             test_url_sync,
             connect_args={"check_same_thread": False},

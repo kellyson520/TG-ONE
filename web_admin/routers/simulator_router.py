@@ -89,8 +89,8 @@ async def simulate_message(req: SimulationRequest):
         try:
             from middlewares.ai import AIMiddleware
             pipeline.add(AIMiddleware())
-        except ImportError:
-            pass
+        except ImportError as e:
+            logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         pipeline.add(SenderMiddleware(container.bus))
 
     # Execute

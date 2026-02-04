@@ -36,7 +36,6 @@ class LifecycleManager:
             return
             
         logger.info("LifecycleManager: Initiating startup...")
-        from services.exception_handler import exception_handler
         try:
             await self.bootstrap.run()
             self._running = True

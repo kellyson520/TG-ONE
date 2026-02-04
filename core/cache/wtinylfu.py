@@ -1,6 +1,6 @@
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Tuple, Optional
+from typing import Any, Tuple, Optional
 
 class CountMinSketch:
     """

@@ -1,4 +1,7 @@
+import logging
 from typing import Tuple, Any
+
+logger = logging.getLogger(__name__)
 
 # 优雅降级：未安装 prometheus_client 时提供空实现，避免启动报错
 PROMETHEUS_ENABLED = True
@@ -58,8 +61,8 @@ REGISTRY = CollectorRegistry()
 if multiprocess is not None:
     try:
         multiprocess.MultiProcessCollector(REGISTRY)  # type: ignore
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 # 基础健康/就绪指标
@@ -195,7 +198,6 @@ def set_health(is_healthy: bool) -> None:
 def update_heartbeat(status: str, source: str) -> None:
     """Update heartbeat metric (stub implementation for now)"""
     # In future this could update a Gauge with timestamp
-    pass
 
 
 def generate_metrics() -> Tuple[bytes, str]:

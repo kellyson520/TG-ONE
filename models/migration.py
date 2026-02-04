@@ -141,8 +141,8 @@ def migrate_db(engine):
                 for sql in new_columns:
                     try:
                         connection.execute(text(sql))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                         
                 logger.info('已更新 media_signatures 表结构')
             except Exception as e:
@@ -208,8 +208,8 @@ def migrate_db(engine):
                 for sql in all_columns:
                     try:
                         connection.execute(text(sql))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 
                 taskqueue_new_columns = [
                     'ALTER TABLE task_queue ADD COLUMN done_count INTEGER DEFAULT 0',
@@ -228,8 +228,8 @@ def migrate_db(engine):
                 for sql in taskqueue_new_columns:
                     try:
                         connection.execute(text(sql))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
                 logger.info('已更新所有表的新字段')
             except Exception as e:
@@ -287,8 +287,8 @@ def migrate_db(engine):
                 for cleanup_sql in cleanup_sqls:
                     try:
                         connection.execute(text(cleanup_sql))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
                 for sql in indexes:
                     try:
@@ -405,8 +405,8 @@ def migrate_db(engine):
             
             if 'forward_mode' not in forward_rules_columns:
                 try: connection.execute(text("ALTER TABLE forward_rules RENAME COLUMN mode TO forward_mode"))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             # 约束更新 (SQLite 特色)
             result = connection.execute(text("SELECT name FROM sqlite_master WHERE type='index' AND name='unique_rule_keyword_is_regex_is_blacklist'"))

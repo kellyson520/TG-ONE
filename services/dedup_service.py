@@ -75,7 +75,7 @@ class DeduplicationService:
     async def update_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
         """更新去重配置"""
         try:
-            smart_deduplicator.update_config(updates)
+            await smart_deduplicator.update_config(updates)
             
             return {
                 'success': True,
@@ -183,7 +183,7 @@ class DeduplicationService:
     async def reset_to_defaults(self) -> Dict[str, Any]:
         """重置为默认配置"""
         try:
-            smart_deduplicator.reset_to_defaults()
+            await smart_deduplicator.reset_to_defaults()
             
             return {
                 'success': True,
@@ -255,7 +255,8 @@ class DeduplicationService:
                 try:
                     process()
                     await dedup.commit(...)
-                except:
+                except Exception as e:
+                    logger.warning(f"处理失败，正在执行去重回退: {e}")
                     await dedup.rollback(...)
         
         Returns: (is_duplicate, reason)

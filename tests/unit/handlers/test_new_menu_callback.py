@@ -3,7 +3,7 @@ NewMenuCallback 单元测试
 验证新菜单系统回调的分派逻辑
 """
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 @pytest.mark.asyncio
 class TestNewMenuCallback:

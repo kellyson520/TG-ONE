@@ -1,3 +1,4 @@
+import logging
 from __future__ import annotations
 import os
 import json
@@ -8,6 +9,8 @@ from typing import Any, Callable, Dict, Optional
 from sqlalchemy import select
 # from core.container import container (移至内部以避免循环导入)
 from models.models import SystemConfiguration
+
+logger = logging.getLogger(__name__)
 
 class _AsyncDbProvider:
     """异步数据库配置提供者"""
@@ -143,8 +146,8 @@ class ConfigService:
                     await cb(key, value)
                 else:
                     cb(key, value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     async def get_all(self) -> Dict[str, Any]:
         """获取所有动态配置"""

@@ -16,8 +16,9 @@ else:
     try:
         import uvloop
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-    except ImportError:
-        pass
+    except ImportError as e:
+        import logging
+        logging.getLogger(__name__).debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 from telethon import TelegramClient
 from core.config import settings
@@ -30,8 +31,9 @@ root_logger = setup_logging()
 try:
     from services.network.log_push import install_log_push_handlers
     install_log_push_handlers(root_logger)
-except ImportError:
-    pass
+except ImportError as e:
+    import logging
+    logging.getLogger(__name__).debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 from core.logging import get_logger
 logger = get_logger(__name__)
@@ -91,15 +93,15 @@ async def main():
         if platform.system() != 'Windows':
             for sig in (signal.SIGINT, signal.SIGTERM):
                 loop.add_signal_handler(sig, handle_signal)
-    except NotImplementedError:
-        pass
+    except NotImplementedError as e:
+        logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # 主循环
     try:
         while not stop_event.is_set():
             await asyncio.sleep(1)
-    except asyncio.CancelledError:
-        pass
+    except asyncio.CancelledError as e:
+        logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt in loop")
         handle_signal()

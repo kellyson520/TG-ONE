@@ -11,7 +11,6 @@ class CircuitState(Enum):
 
 class CircuitOpenException(Exception):
     """当熔断器处于 OPEN 状态时抛出"""
-    pass
 
 class CircuitBreaker:
     """

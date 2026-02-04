@@ -3,7 +3,6 @@ import pytest
 from unittest.mock import patch
 from telethon import events
 from core.container import container
-from sqlalchemy import select
 
 @pytest.mark.asyncio
 class TestBotToDBPipeline:

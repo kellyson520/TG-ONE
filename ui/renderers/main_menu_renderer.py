@@ -1,6 +1,9 @@
+import logging
 from typing import Dict, Any
 from telethon.tl.custom import Button
 from .base_renderer import BaseRenderer
+
+logger = logging.getLogger(__name__)
 
 class MainMenuRenderer(BaseRenderer):
     """主菜单渲染器"""
@@ -172,8 +175,8 @@ class MainMenuRenderer(BaseRenderer):
                             bar = ''.join('▇' if v and v / max_v > 0.66 else '▅' if v and v / max_v > 0.33 else '▂' if v and v > 0 else '·' for v in seg_vals)
                             text += f"{seg_keys[0]}-{seg_keys[-1]} {bar}\n"
                         text += "\n"
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         else:
             text += "📈 **数据概览:** 正在加载...\n\n"
         

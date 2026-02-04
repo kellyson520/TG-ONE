@@ -11,7 +11,10 @@ from __future__ import annotations
 import sqlite3
 
 import time
+import logging
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from core.helpers.json_utils import json_dumps, json_loads
 
@@ -100,15 +103,13 @@ class SQLitePersistentCache(BasePersistentCache):
                 # Retry connection after reset
                 return sqlite3.connect(self._db_path, timeout=30)
             raise
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         return conn
 
     def _handle_corruption(self) -> bool:
         """Handle database corruption by deleting the file."""
         import os
-        import logging
-        logger = logging.getLogger(__name__)
         
         try:
             logger.error(f"❌ SQLite Cache Corruption Detected: {self._db_path}")

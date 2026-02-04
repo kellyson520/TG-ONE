@@ -11,7 +11,8 @@ def service():
 
 @pytest.fixture
 def mock_db_session():
-    with patch("services.forward_settings_service.async_db_session") as mock:
+    from core.container import container
+    with patch.object(container.db, "session") as mock:
         session = AsyncMock()
         mock.return_value.__aenter__.return_value = session
         yield session

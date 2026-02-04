@@ -41,8 +41,8 @@ class RuleFilterService:
                             if file_name not in (message_text or ""):
                                 message_text = f"{message_text}\n{file_name}" if message_text else file_name
                             break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 处理用户信息过滤
         if getattr(rule, 'is_filter_user_info', False) and event:

@@ -7,7 +7,7 @@ import asyncio
 import time
 from telethon.errors import FloodWaitError, RPCError
 from telethon.tl.types import Dialog
-from typing import AsyncGenerator, List, Optional, Any, Union
+from typing import AsyncGenerator, List, Optional, Any
 
 from core.logging import get_logger
 

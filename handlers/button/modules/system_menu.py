@@ -106,7 +106,6 @@ class SystemMenu(BaseMenu):
                                 })
                             except Exception as e:
                                 logger.debug(f"[SystemMenu] Failed to stat backup file {filepath}: {e}")
-                                pass
 
             if not backup_files:
                 text = "📂 **历史备份**\n\n暂无备份文件"
@@ -173,7 +172,6 @@ class SystemMenu(BaseMenu):
                     db_size_str = f"{os.path.getsize(str(db_path)) / (1024 * 1024):.2f} MB"
             except Exception as e:
                 logger.debug(f"[SystemMenu] Failed to get db size: {e}")
-                pass
 
             log_size_str, error_count, warning_count, info_count = "未知", 0, 0, 0
             try:
@@ -194,7 +192,6 @@ class SystemMenu(BaseMenu):
                 log_size_str = f"{total_log_size / (1024 * 1024):.2f} MB"
             except Exception as e:
                 logger.debug(f"[SystemMenu] Failed to calculate log stats: {e}")
-                pass
 
             buttons = [
                 [Button.inline("🔄 刷新", "new_menu:system_overview")],
@@ -258,7 +255,6 @@ class SystemMenu(BaseMenu):
                             cleaned_size += s
             except Exception as e:
                 logger.debug(f"[SystemMenu] Log cleanup error: {e}")
-                pass
 
             text = f"✅ **清理报告**\n\n清理了{cleaned_files}个文件\n共{cleaned_size/1024:.2f}KB"
             buttons = [[Button.inline("👈 返回上一级", "new_menu:system_settings")]]

@@ -142,24 +142,15 @@ async def update_rule_setting(
     logger.info(f"找到匹配的设置项: {field_name}")
 
     async with container.db.session() as session:
-        # 使用 selectinload 预加载关联
+        # 1. 加载主规则 (仅预加载必要的同步信息)
         stmt = (
             select(ForwardRule)
-            .options(
-                selectinload(ForwardRule.source_chat),
-                selectinload(ForwardRule.target_chat),
-                selectinload(ForwardRule.keywords),
-                selectinload(ForwardRule.replace_rules),
-                selectinload(ForwardRule.media_types),
-                selectinload(ForwardRule.media_extensions),
-                selectinload(ForwardRule.rss_config),
-                selectinload(ForwardRule.push_config),
-                selectinload(ForwardRule.rule_syncs),
-            )
+            .options(selectinload(ForwardRule.rule_syncs))
             .where(ForwardRule.id == int(rule_id))
         )
         result = await session.execute(stmt)
         rule = result.scalar_one_or_none()
+        
         if not rule:
             logger.warning(f"规则不存在: {rule_id}")
             await event.answer("规则不存在")
@@ -170,112 +161,47 @@ async def update_rule_setting(
         setattr(rule, field_name, new_value)
 
         try:
-            # 首先更新当前规则
+            # 2. 处理同步逻辑
+            if rule.enable_sync and field_name not in ("enable_rule", "enable_sync"):
+                # 获取同步列表 ID
+                target_ids = [sr.sync_rule_id for sr in rule.rule_syncs]
+                if target_ids:
+                    logger.info(f"正在同步设置 {field_name} 到 {len(target_ids)} 个规则")
+                    # 批量更新 (直接执行 SQL UPDATE 效率最高，不需要全量加载模型)
+                    from sqlalchemy import update
+                    sync_stmt = (
+                        update(ForwardRule)
+                        .where(ForwardRule.id.in_(target_ids))
+                        .values({field_name: new_value})
+                    )
+                    await session.execute(sync_stmt)
+
             await session.commit()
-            logger.info(
-                f"更新规则 {rule.id} 的 {field_name} 从 {current_value} 到 {new_value}"
-            )
-
-            # 检查是否启用了同步功能，且不是"是否启用规则"字段和"启用同步"字段
-            if (
-                rule.enable_sync
-                and field_name != "enable_rule"
-                and field_name != "enable_sync"
-            ):
-                logger.info(
-                    f"规则 {rule.id} 启用了同步功能，正在同步设置更改到关联规则"
-                )
-                # 获取需要同步的规则列表
-                from models.models import RuleSync
-                sync_rules = await session.execute(
-                     select(RuleSync).where(RuleSync.rule_id == rule.id)
-                )
-
-                sync_rules = sync_rules.scalars().all()
-
-                # 为每个同步规则应用相同的设置
-                for sync_rule in sync_rules:
-                    sync_rule_id = sync_rule.sync_rule_id
-                    logger.info(f"正在同步设置 {field_name} 到规则 {sync_rule_id}")
-
-                    # 获取同步目标规则
-                    target_rule = await session.get(ForwardRule, sync_rule_id)
-                    if not target_rule:
-                        logger.warning(f"同步目标规则 {sync_rule_id} 不存在，跳过")
-                        continue
-
-                    # 更新同步目标规则的设置
-                    try:
-                        # 记录旧值
-                        old_value = getattr(target_rule, field_name)
-
-                        # 设置新值
-                        setattr(target_rule, field_name, new_value)
-                        await session.flush()
-
-                        logger.info(
-                            f"同步规则 {sync_rule_id} 的 {field_name} 从 {old_value} 到 {new_value}"
-                        )
-                    except Exception as e:
-                        logger.error(f"同步设置到规则 {sync_rule_id} 时出错: {str(e)}")
-                        continue
-
-                # 提交所有同步更改
-                await session.commit()
-                logger.info("所有同步更改已提交")
+            logger.info(f"已更新规则 {rule_id} 及其同步规则: {field_name}={new_value}")
 
         except Exception as e:
             await session.rollback()
-            logger.error(f"更新规则设置时出错: {str(e)}")
-            await event.answer("更新设置失败，请检查日志")
+            logger.error(f"更新规则设置失败: {e}")
+            await event.answer("更新失败")
             return False
 
-    # 根据设置类型更新UI
-    async with container.db.session() as session:
-        # 使用 selectinload 预加载关联
-        stmt = (
-            select(ForwardRule)
-            .options(
-                selectinload(ForwardRule.source_chat),
-                selectinload(ForwardRule.target_chat),
-                selectinload(ForwardRule.keywords),
-                selectinload(ForwardRule.replace_rules),
-                selectinload(ForwardRule.media_types),
-                selectinload(ForwardRule.media_extensions),
-                selectinload(ForwardRule.rss_config),
-                selectinload(ForwardRule.push_config),
-                selectinload(ForwardRule.rule_syncs),
-            )
-            .where(ForwardRule.id == int(rule_id))
-        )
-        result = await session.execute(stmt)
-        rule = result.scalar_one_or_none()
+        # 3. 刷新 UI (仅加载刷新界面所需的最小关联)
+        # 性能优化：按需加载关联，而不是 selectinload(*)
         if setting_type == "rule":
-            await message.edit(
-                await create_settings_text(rule), buttons=await create_buttons(rule)
-            )
+             # 规则设置界面需要加载 source/target_chat
+             await session.refresh(rule, ["source_chat", "target_chat"])
+             await message.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
         elif setting_type == "media":
-            await event.edit(
-                "媒体设置：", buttons=await create_media_settings_buttons(rule)
-            )
+             await session.refresh(rule, ["media_types", "media_extensions"])
+             await event.edit("媒体设置：", buttons=await create_media_settings_buttons(rule))
         elif setting_type == "ai":
-            await message.edit(
-                await get_ai_settings_text(rule),
-                buttons=await create_ai_settings_buttons(rule),
-            )
+             await message.edit(await get_ai_settings_text(rule), buttons=await create_ai_settings_buttons(rule))
         elif setting_type == "other":
-            await event.edit(
-                "其他设置：", buttons=await create_other_settings_buttons(rule)
-            )
+             # 其他设置通常不需要预加载复杂关联
+             await event.edit("其他设置：", buttons=await create_other_settings_buttons(rule))
         elif setting_type == "push":
-            await event.edit(
-                PUSH_SETTINGS_TEXT,
-                buttons=await create_push_settings_buttons(rule),
-                link_preview=False,
-            )
-        display_name = config.get("display_name", field_name)
-        if field_name == "use_bot":
-            await event.answer(f'已切换到{"机器人" if new_value else "用户账号"}模式')
-        else:
-            await event.answer(f"已更新{display_name}")
+             await session.refresh(rule, ["push_config"])
+             await event.edit(PUSH_SETTINGS_TEXT, buttons=await create_push_settings_buttons(rule), link_preview=False)
+
+        await event.answer(f"已更新 {config.get('display_name', field_name)}")
         return True

@@ -336,4 +336,3 @@ class OptimizedChatUpdater:
 # 保持与原有ChatUpdater的兼容性
 class ChatUpdater(OptimizedChatUpdater):
     """兼容原有ChatUpdater接口的优化版本"""
-    pass

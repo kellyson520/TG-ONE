@@ -22,20 +22,20 @@ from typing import Optional, Callable, Any
 send_welcome_message: Optional[Callable[[Any], Any]] = None
 start_heartbeat: Optional[Callable[[Any, Any], Any]] = None
 
+logger = get_logger(__name__)
+
 # Optional imports
 try:
     from handlers.bot_handler import send_welcome_message as _send_welcome_message
     send_welcome_message = _send_welcome_message
-except ImportError:
-    pass
+except ImportError as e:
+    logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 try:
     from services.network.bot_heartbeat import start_heartbeat as _start_heartbeat
     start_heartbeat = _start_heartbeat
-except ImportError:
-    pass
-
-logger = get_logger(__name__)
+except ImportError as e:
+    logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 class Bootstrap:
     """系统引导程序"""

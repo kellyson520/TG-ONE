@@ -7,7 +7,6 @@ sys.path.insert(0, os.getcwd())
 
 print("Attempting to import core.container...")
 try:
-    from core.container import container
     print("✅ Successfully imported core.container")
 except ImportError as e:
     print(f"❌ Failed to import core.container: {e}")
@@ -15,7 +14,6 @@ except ImportError as e:
 
 print("Attempting to import services.dedup.engine...")
 try:
-    from services.dedup.engine import smart_deduplicator
     print("✅ Successfully imported services.dedup.engine")
 except ImportError as e:
     print(f"❌ Failed to import services.dedup.engine: {e}")
@@ -23,7 +21,6 @@ except ImportError as e:
 
 print("Attempting to import core.lifecycle...")
 try:
-    from core.lifecycle import get_lifecycle
     print("✅ Successfully imported core.lifecycle")
 except ImportError as e:
     print(f"❌ Failed to import core.lifecycle: {e}")

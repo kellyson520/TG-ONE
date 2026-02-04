@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from filters.advanced_media_filter import AdvancedMediaFilter
-from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeAudio, DocumentAttributeAnimated
+from telethon.tl.types import DocumentAttributeVideo
 from types import SimpleNamespace
 
 @pytest.fixture

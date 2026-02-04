@@ -21,7 +21,6 @@ except ImportError:
     def make_asgi_app(): return None
 
 from web_admin.middlewares.metrics_middleware import MetricsMiddleware
-from core.observability.metrics import metrics_manager
 from datetime import datetime, timedelta
 import jwt
 import asyncio
@@ -245,8 +244,8 @@ async def healthz():
         from core.container import container
         if container.bot_client:
              telegram_status = "connected" if await container.bot_client.is_connected() else "disconnected"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     sys_stats = {}
     try:

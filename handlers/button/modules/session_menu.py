@@ -109,7 +109,8 @@ class SessionMenu(BaseMenu):
                     try:
                         await event.edit(f"🚀 **智能扫描进行中...**\n\n📊 已处理: **{processed:,}** 条\n🔍 已发现: **{signatures_found:,}** 签名", buttons=buttons)
                         last_update[0] = processed
-                    except: pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             results = await session_manager.scan_duplicate_messages(event, progress_callback=progress_callback)
             if results:
@@ -170,7 +171,8 @@ class SessionMenu(BaseMenu):
         """显示批量删除会话消息菜单"""
         try:
             time_str = await session_manager.get_time_range_display(event.chat_id)
-        except: time_str = "未设置"
+        except Exception as e:
+            time_str = "未设置"
         
         buttons = [
             [Button.inline("📅 设置时间范围", "new_menu:time_range_selection")],
@@ -187,7 +189,8 @@ class SessionMenu(BaseMenu):
             deleted = prog.get("deleted", 0)
             total = prog.get("total", 0)
             status_text = f"已删除: {deleted}"
-        except: status_text = "就绪"
+        except Exception as e:
+            status_text = "就绪"
 
         await self._render_page(
             event,

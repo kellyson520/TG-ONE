@@ -155,8 +155,8 @@ class AnalyticsService:
                 queue_status = await self.container.task_repo.get_queue_status()
                 active_queues = queue_status.get("active_queues", 0)
                 pending_tasks = queue_status.get("pending_tasks", 0)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             return {
                 "system_resources": {

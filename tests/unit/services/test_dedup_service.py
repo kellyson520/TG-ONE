@@ -10,7 +10,7 @@ class TestDedupService:
     async def setup_dedup(self):
         # 确保每个测试都重置配置
         from services.dedup.engine import smart_deduplicator
-        smart_deduplicator.reset_to_defaults()
+        await smart_deduplicator.reset_to_defaults()
         smart_deduplicator.time_window_cache.clear()
         smart_deduplicator.content_hash_cache.clear()
         yield

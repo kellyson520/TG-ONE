@@ -45,8 +45,8 @@ def _backup_and_reset(file: Path) -> None:
         try:
             if file.exists():
                 file.unlink()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # 清理残留的 journal/wal/shm 文件
     try:
@@ -54,15 +54,15 @@ def _backup_and_reset(file: Path) -> None:
             f = Path(str(file) + ext)
             if f.exists():
                 f.unlink(missing_ok=True)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # 确保文件被删除，让 Telethon 重新创建
     try:
         if file.exists():
             file.unlink()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 def _integrity_ok(conn: sqlite3.Connection) -> bool:
@@ -102,55 +102,44 @@ def ensure_session_ok(base: str) -> bool:
             return True
 
         # 2. 尝试连接检查
+        from contextlib import closing
         try:
             # 增加 timeout 参数到 30秒，给数据库解锁留足时间
-            conn = sqlite3.connect(str(file), timeout=30)
-            try:
+            with closing(sqlite3.connect(str(file), timeout=30)) as conn:
                 # 启用 WAL 模式有助于减少锁竞争，但这通常由 Telethon 设置
-                # 这里只做检查
-                if _integrity_ok(conn):
-                    return True
-
-                # 3. 尝试 VACUUM INTO 修复
-                logger.warning(
-                    f"Session file {file} integrity check failed. Attempting repair..."
-                )
-                backup_dir = file.parent / "backup"
-                backup_dir.mkdir(parents=True, exist_ok=True)
-
-                tmp = file.parent / f"{file.stem}.repair{file.suffix}"
-
-                try:
-                    conn.execute(f"VACUUM INTO '{tmp.as_posix()}'")
-                    conn.close()  # 必须先关闭连接才能操作原文件
-
-                    # 备份原文件到 backup 目录
-                    ts = time.strftime("%Y%m%d_%H%M%S")
-                    corrupt_backup = (
-                        backup_dir / f"{file.stem}.before_repair_{ts}{file.suffix}"
+                if not _integrity_ok(conn):
+                    # 3. 尝试 VACUUM INTO 修复
+                    logger.warning(
+                        f"Session file {file} integrity check failed. Attempting repair..."
                     )
-                    shutil_move_safe(file, corrupt_backup)
+                    backup_dir = file.parent / "backup"
+                    backup_dir.mkdir(parents=True, exist_ok=True)
 
-                    # 应用修复后的文件
-                    shutil_move_safe(tmp, file)
-                    logger.info(f"Session file repaired successfully.")
-                    return True
-                except Exception as e:
-                    logger.error(f"VACUUM repair failed: {e}")
-                    if tmp.exists():
-                        tmp.unlink()
-                    # 确保连接关闭
+                    tmp = file.parent / f"{file.stem}.repair{file.suffix}"
+
                     try:
-                        conn.close()
-                    except Exception:
-                        pass
-            except Exception:
-                # 确保 finally 块能执行
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-                raise  # 抛出异常进入下面的重置流程
+                        conn.execute(f"VACUUM INTO '{tmp.as_posix()}'")
+                        # 必须先显式关闭当前连接才能在下面操作原文件 (VACUUM INTO 完成后)
+                        conn.close() 
+
+                        # 备份原文件到 backup 目录
+                        ts = time.strftime("%Y%m%d_%H%M%S")
+                        corrupt_backup = (
+                            backup_dir / f"{file.stem}.before_repair_{ts}{file.suffix}"
+                        )
+                        shutil_move_safe(file, corrupt_backup)
+
+                        # 应用修复后的文件
+                        shutil_move_safe(tmp, file)
+                        logger.info(f"Session file repaired successfully.")
+                        return True
+                    except Exception as e:
+                        logger.error(f"VACUUM repair failed: {e}")
+                        if tmp.exists():
+                            tmp.unlink()
+                        return False # 进入重置流程
+
+                return True # Integrity OK
 
         except sqlite3.OperationalError as e:
             logger.error(f"Cannot connect to sqlite db: {e}")

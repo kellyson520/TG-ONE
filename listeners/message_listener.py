@@ -48,8 +48,8 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             try:
                 bot_id = int(settings.BOT_TOKEN.split(":")[0])
                 logger.info(f"从Token降级解析机器人ID: {bot_id}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     
     # 优化的消息过滤函数：区分命令和普通消息
     def should_process(event):
@@ -96,8 +96,8 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                     if api_optimizer:
                          # 预热用户缓存 (使用异步任务，不阻塞主监听流程)
                          asyncio.create_task(api_optimizer.get_users_batch([event.sender_id]))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager

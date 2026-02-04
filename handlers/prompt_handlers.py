@@ -114,8 +114,8 @@ async def handle_prompt_setting(
                 try:
                     if n:
                         indices.append(int(n))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             if not indices:
                 return True
             db_ops = await DBOperations.create()
@@ -184,8 +184,8 @@ async def handle_prompt_setting(
                 try:
                     if n:
                         indices.append(int(n))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             if not indices:
                 return True
             # 将序号转为对应记录删除

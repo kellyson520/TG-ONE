@@ -652,7 +652,7 @@ class MenuController:
         """启动历史迁移任务"""
         try:
             # 业务逻辑交由 session_service
-            from services.session_service import session_service
+            pass
             # 这里原本可能需要从用户状态中获取配置
             await event.answer("🚀 历史迁移任务已提交队列")
         except Exception as e:

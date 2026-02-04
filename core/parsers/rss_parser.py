@@ -119,7 +119,6 @@ class RSSParser:
                     pub_date = datetime.fromtimestamp(ts)
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Failed to parse RSS2 date '{pub_date_str}': {e}")
-                    pass
 
             parsed_feed.entries.append(FeedEntry(
                 title=title,
@@ -171,7 +170,6 @@ class RSSParser:
                     pub_date = datetime.fromisoformat(updated_str.replace('Z', '+00:00'))
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Failed to parse Atom date '{updated_str}': {e}")
-                    pass
             
             parsed_feed.entries.append(FeedEntry(
                 title=title,

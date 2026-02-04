@@ -1,7 +1,6 @@
 from hypothesis import given, strategies as st
 from core.helpers.time_range import format_time_range_display, parse_time_range_to_dates
-from datetime import datetime, timezone
-import pytest
+from datetime import datetime
 
 @given(st.dictionaries(
     keys=st.sampled_from([

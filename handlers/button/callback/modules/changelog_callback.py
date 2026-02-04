@@ -1,7 +1,6 @@
-from telethon import events, Button
+from telethon import Button
 from version import UPDATE_INFO
 import math
-from core.helpers.auto_delete import reply_and_delete
 
 ITEMS_PER_PAGE = 5
 
@@ -66,10 +65,17 @@ async def show_changelog(event, page=1):
     buttons.append(nav_row)
     buttons.append([Button.inline("❌ 关闭", "delete")])
     
-    # Check if event is Message (command) or CallbackQuery
-    if hasattr(event, 'edit'): # CallbackQuery
-        await event.edit(text, buttons=buttons)
-    else: # Message
+    # Check if event is CallbackQuery or Message (command)
+    # NewMessage.Event (command) also has .edit() but it fails on user messages.
+    # We use hasattr(event, 'query') which is unique to CallbackQuery.Event.
+    if hasattr(event, 'query'):
+        try:
+            await event.edit(text, buttons=buttons)
+        except Exception as e:
+            # If edit fails (e.g. message deleted), fallback to respond
+            await event.respond(text, buttons=buttons)
+    else:
+        # For commands, we always respond with a new message
         await event.respond(text, buttons=buttons)
 
 async def callback_changelog_page(event):

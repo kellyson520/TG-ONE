@@ -1,5 +1,4 @@
 
-import os
 import logging
 import re
 from typing import Dict, Any, Optional
@@ -7,7 +6,6 @@ from fastapi import APIRouter, Depends
 from pathlib import Path
 
 from core.config import settings
-from services.config_service import config_service
 from services.settings_applier import settings_applier
 from web_admin.security.deps import admin_required
 from web_admin.schemas.response import ResponseSchema

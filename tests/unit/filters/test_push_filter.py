@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from filters.push_filter import PushFilter
 from types import SimpleNamespace
-import os
 
 @pytest.fixture
 def push_filter():

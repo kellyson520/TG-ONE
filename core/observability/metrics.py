@@ -1,6 +1,6 @@
 try:
     from prometheus_client import Counter, Histogram, Gauge, Info
-    from prometheus_client import REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR, GC_COLLECTOR
+    from prometheus_client import REGISTRY
     HAS_PROMETHEUS = True
 except ImportError:
     HAS_PROMETHEUS = False

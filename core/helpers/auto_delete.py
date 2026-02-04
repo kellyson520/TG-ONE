@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional, Union, Dict
+from typing import Any, Optional, Union
 
 from core.constants import BOT_MESSAGE_DELETE_TIMEOUT, USER_MESSAGE_DELETE_ENABLE
 

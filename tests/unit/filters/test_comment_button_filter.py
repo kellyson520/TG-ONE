@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from filters.comment_button_filter import CommentButtonFilter
 from types import SimpleNamespace
-from telethon import Button
 
 @pytest.fixture
 def comment_button_filter():

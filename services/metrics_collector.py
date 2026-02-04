@@ -189,14 +189,14 @@ class MetricsCollector:
         try:
             from services.compression_service import compression_service
             compression_service.reset_stats()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         
         try:
             from services.rate_limiter import RateLimiterPool
             RateLimiterPool.reset_all_stats()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 # 全局单例

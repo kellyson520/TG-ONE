@@ -26,7 +26,6 @@ class BusinessHandler(ABC):
     @abstractmethod
     async def handle(self, event: MessageEvent, user_client: Any, bot_client: Any) -> None:
         """处理业务事件"""
-        pass
 
 
 class UserMessageHandler(BusinessHandler):

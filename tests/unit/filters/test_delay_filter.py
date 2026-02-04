@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from filters.delay_filter import DelayFilter, RescheduleTaskException
 from types import SimpleNamespace
 from datetime import datetime, timezone, timedelta

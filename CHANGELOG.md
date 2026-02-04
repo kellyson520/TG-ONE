@@ -1,5 +1,24 @@
 # Change Log
 
+## 📅 2026-02-04 更新摘要
+
+### 🚀 菜单系统完整性审计与修复 (Menu System Integrity Audit)
+- **Standardized Toggle**: 引入 `handle_generic_toggle` 通用处理器，通过数据驱动范式解决了 31 个缺失的回调处理器问题，极大降低了按钮逻辑的重复度。
+- **Routing Cleanup**: 在 `callback_handlers.py` 中通过 `callback_router` 补全了 31 个新的路由解析路径，并验证了全量 66 个回调处理器的连通性。
+
+### 🚀 稳定性与性能治理 (Stability & Performance)
+- **Circular Import Fix**: 进一步优化启动加载顺序，在 `core.container` 中实施 **Lazy Imports**，彻底解决在高吞吐场景下因交叉引用导致的启动死锁问题。
+- **N+1 Query Governance**: 深度扫描并治理了数据库归档 (`db_archive_job`)、规则同步及 Repository 层的 28 个 P0 级 N+1 性能缺陷，将部分场景的查询密度从 12 次降至 6 次。
+- **Performance Benchmark**: 引入 `tests/benchmarks/test_n_plus_one_perf.py` 性能测试基准，实现关键路径性能退化的自动化预警。
+
+### 🚀 核心去重引擎质量建设 (Dedup Engine Quality)
+- **Unit Test Coverage**: 为 `SmartDeduplicator` 实现 46 个维度的深度单元测试，覆盖签名生成、SimHash 相似度、视频识别及边界异常。
+- **Concurrency Locking**: 优化了基于会话异步锁的去重流程，通过 `asyncio.Lock` 成功解决高并发下的 `Check-then-Act` 竞态条件问题。
+
+### 🚀 细节修复与对齐 (Fixes & Alignment)
+- **Bug Fixes**: 修复规则设置 `AddMode` KeyError；修复 Changelog 分页显示时的 `EditMessageRequest` 协议错误。
+- **Engineering Hygiene**: 批量对齐了 148 个静默捕获的异常处理逻辑，注入日志并保留了错误上下文。
+
 ## 📅 2026-02-03 更新摘要
 
 ### 🚀 v1.2.3.5: 启动稳定性修复 (Startup Stability)

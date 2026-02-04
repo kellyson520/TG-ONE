@@ -32,7 +32,8 @@ async def test_update_chat_in_db_creates_new_chat(service, mock_db):
     # Mock DB execution to return no result first (so it creates new)
     session = mock_db.session.return_value.__aenter__.return_value
     result = MagicMock()
-    result.scalar_one_or_none.return_value = None
+    # 模拟 scalars().first() 返回 None (未命中)
+    result.scalars.return_value.first.return_value = None
     session.execute.return_value = result
 
     # Patch logger to check for errors
@@ -80,7 +81,8 @@ async def test_update_chat_in_db_updates_existing_chat(service, mock_db):
     # Ensure updated_at is NOT set in our fix, or if it is valid on the mock but not in code
     
     result = MagicMock()
-    result.scalar_one_or_none.return_value = existing_chat
+    # 模拟 scalars().first() 返回 existing_chat (命中)
+    result.scalars.return_value.first.return_value = existing_chat
     session.execute.return_value = result
     
     # Execution

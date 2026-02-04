@@ -1,5 +1,8 @@
+import logging
 from typing import Dict, Any
 from models.models import ForwardRule, RuleLog
+
+logger = logging.getLogger(__name__)
 
 class RuleDTOMapper:
     @staticmethod
@@ -78,8 +81,8 @@ class RuleDTOMapper:
                     source_title = item.rule.source_chat.name or item.rule.source_chat.username or str(item.rule.source_chat.telegram_chat_id)
                 if item.rule.target_chat:
                     target_title = item.rule.target_chat.name or item.rule.target_chat.username or str(item.rule.target_chat.telegram_chat_id)
-        except Exception:
-            pass 
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         return {
             'id': item.id,

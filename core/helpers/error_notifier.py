@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from typing import Tuple, Union, Any, Dict
+from typing import Tuple, Union, Any
 
 from core.helpers.auto_delete import send_message_and_delete
 

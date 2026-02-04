@@ -73,8 +73,8 @@ class CronService:
                 if settings.AUTO_GC_ENABLED:
                     try:
                         await loop.run_in_executor(None, garbage_collect_once)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -140,8 +140,8 @@ class CronService:
                 if os.path.isfile(file_path):
                     os.remove(file_path)
                     count += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         return count
 
 cron_service = CronService()

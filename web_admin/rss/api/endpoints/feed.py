@@ -620,7 +620,7 @@ async def delete_rule_data(rule_id: int):
                 if not dir_path.exists():
                     return True, "使用 shutil.rmtree 成功删除"
             except Exception as e:
-                pass
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             # 方法2: 使用系统命令
             try:
                 system = platform.system()
@@ -642,7 +642,7 @@ async def delete_rule_data(rule_id: int):
                 if not dir_path.exists():
                     return True, "使用系统命令成功删除"
             except Exception as e:
-                pass
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             # 方法3: 重命名后删除
             try:
                 temp_path = dir_path.parent / f"temp_delete_{time.time()}"
@@ -651,7 +651,7 @@ async def delete_rule_data(rule_id: int):
                 if not dir_path.exists() and not temp_path.exists():
                     return True, "使用重命名后删除成功"
             except Exception as e:
-                pass
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             return False, "所有删除方法都失败"
 
         # 删除媒体目录

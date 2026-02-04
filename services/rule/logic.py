@@ -288,7 +288,6 @@ class RuleLogicService:
     @handle_errors(default_return={'success': False, 'error': 'Export failed'})
     async def export_rule_config(self, rule_id: int, format: str = "json") -> Dict[str, Any]:
         """导出规则配置"""
-        pass
         rule_dto = await self.container.rule_repo.get_by_id(rule_id)
         if not rule_dto:
             return {'success': False, 'error': 'Rule not found'}

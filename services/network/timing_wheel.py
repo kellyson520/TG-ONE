@@ -1,6 +1,9 @@
+import logging
 import asyncio
 import time
 from typing import Any, Callable, Dict, List, Optional, Set
+
+logger = logging.getLogger(__name__)
 
 class TimingWheelTask:
     def __init__(self, task_id: str, _delay_ticks: int, callback: Callable, *args, **kwargs):
@@ -69,8 +72,8 @@ class HashedTimingWheel:
             self._loop_task.cancel()
             try:
                 await self._loop_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     async def _run_loop(self):
         while self._running:

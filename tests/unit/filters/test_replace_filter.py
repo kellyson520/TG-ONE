@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import MagicMock
 from filters.replace_filter import ReplaceFilter
 from types import SimpleNamespace
 

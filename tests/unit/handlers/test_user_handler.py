@@ -129,4 +129,3 @@ class TestUserHandler:
     @pytest.mark.skip(reason="Legacy test harness incompatible with new async decorators. Needs refactor to Integration Test.")
     async def test_fallback_logic_execution(self, mock_deps):
         """测试 _fallback_process_forward_rule 内部执行逻辑"""
-        pass

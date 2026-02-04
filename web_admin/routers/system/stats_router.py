@@ -73,8 +73,8 @@ async def get_system_stats(
             rule_stats = await task_repo.get_rule_stats()
             total_rules = rule_stats.get('total_rules', 0)
             active_rules = rule_stats.get('active_rules', 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
         # 2. 转发统计
         today_forwards = 0
@@ -82,30 +82,30 @@ async def get_system_stats(
             fs = await forward_service.get_forward_stats()
             if isinstance(fs, dict):
                 today_forwards = int(((fs.get('today') or {}).get('total_forwards') or 0))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
         # 3. 去重统计
         dedup_count = 0
         try:
             dedup_stats = dedup.get_stats()
             dedup_count = dedup_stats.get('cached_signatures', 0) + dedup_stats.get('cached_content_hashes', 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
         # 4. 系统运行状况 (容器管理)
         guard_stats = {}
         try:
             guard_stats = guard_service.get_stats()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 5. 趋势数据
         trend = []
         try:
             trend = await stats_repo.get_hourly_trend(24)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         return ResponseSchema(
             success=True,
@@ -239,7 +239,6 @@ async def api_stats_fragment(
             active_rules = rule_stats['active_rules']
         except Exception as e:
             logger.error(f"Error getting rule stats: {e}")
-            pass
         
         # 获取转发统计
         try:
@@ -253,8 +252,8 @@ async def api_stats_fragment(
         try:
             dedup_stats = dedup.get_stats()
             dedup_cache_size = dedup_stats.get('cached_signatures', 0) + dedup_stats.get('cached_content_hashes', 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         
         # 计算活跃规则百分比
         active_percentage = 0

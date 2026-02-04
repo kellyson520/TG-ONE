@@ -227,8 +227,8 @@ class ForwardSettingsService:
             options = load_media_extensions()
             if isinstance(options, list) and options:
                 return options
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         return ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mkv", "mov", "avi", "mp3", "flac", "wav", "ogg", "zip", "rar", "7z", "pdf", "docx"]
 
 forward_settings_service = ForwardSettingsService()

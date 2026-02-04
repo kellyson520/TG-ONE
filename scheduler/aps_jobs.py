@@ -3,6 +3,9 @@ import asyncio
 from services.settings import settings
 from core.helpers.metrics import ARCHIVE_RUN_SECONDS, ARCHIVE_RUN_TOTAL
 from core.container import container
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_time(t: str):
@@ -35,13 +38,13 @@ def setup_apscheduler() -> Optional[object]:
                     duration = loop.time() - start
                     ARCHIVE_RUN_SECONDS.observe(duration)
                     ARCHIVE_RUN_TOTAL.labels(status=status).inc()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         if settings.auto_gc_enabled:
             try:
                 await asyncio.to_thread(garbage_collect_once)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     for t in settings.cleanup_cron_times:
         parsed = _parse_time(t)
         if not parsed:
@@ -53,8 +56,8 @@ def setup_apscheduler() -> Optional[object]:
         async def compact_job():
             try:
                 await asyncio.to_thread(compact_small_files, "media_signatures", settings.archive_compact_min_files)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         sch.add_job(compact_job, "cron", hour=h, minute=m, id="compact_media_signatures", coalesce=True, max_instances=1, misfire_grace_time=600)
     
     # 添加僵尸任务救援任务，每5分钟运行一次

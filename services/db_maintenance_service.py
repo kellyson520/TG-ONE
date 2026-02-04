@@ -72,8 +72,8 @@ class DatabaseManager:
                         ["icacls", str(directory), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
                         capture_output=True, check=False
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             else:
                 directory.chmod(0o755)
             return True
@@ -94,8 +94,8 @@ class DatabaseManager:
                         ["icacls", str(file_path), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
                         capture_output=True, check=False
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             else:
                 file_path.chmod(0o644)
             return True
@@ -202,15 +202,23 @@ class DatabaseCleaner:
 
     async def cleanup_orphaned_rules(self, session: AsyncSession) -> Dict[str, Any]:
         """清理孤立的转发规则"""
-        stmt = select(ForwardRule).where(ForwardRule.enable_rule == True)
+        from sqlalchemy.orm import joinedload
+        # 预加载 source_chat 和 target_chat
+        stmt = (
+            select(ForwardRule)
+            .options(joinedload(ForwardRule.source_chat), joinedload(ForwardRule.target_chat))
+            .where(ForwardRule.enable_rule == True)
+        )
         result = await session.execute(stmt)
         rules = result.scalars().all()
         results = {"total_rules": len(rules), "disabled_rules": 0}
 
         for rule in rules:
-            source_chat = await session.get(Chat, rule.source_chat_id)
-            target_chat = await session.get(Chat, rule.target_chat_id)
-            if not source_chat or not source_chat.is_active or not target_chat or not target_chat.is_active:
+            # 现在直接访问 rule.source_chat 不会触发查询
+            source_active = rule.source_chat.is_active if rule.source_chat else False
+            target_active = rule.target_chat.is_active if rule.target_chat else False
+            
+            if not source_active or not target_active:
                 rule.enable_rule = False
                 results["disabled_rules"] += 1
 

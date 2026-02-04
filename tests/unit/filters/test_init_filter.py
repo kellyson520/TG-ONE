@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from filters.init_filter import InitFilter
 from types import SimpleNamespace
 from telethon.tl.types import DocumentAttributeVideo

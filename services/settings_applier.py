@@ -33,8 +33,8 @@ class SettingsApplier:
                 # Telethon 可能会在 settings 更新后由它自己的逻辑读取，
                 # 但这里我们也可以记录一下。
                 pass
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 提示：不再同步更新 os.environ，强制所有模块使用 core.config.settings 获取配置。
 

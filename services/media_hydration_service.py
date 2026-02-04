@@ -1,8 +1,7 @@
 import asyncio
 import os
 import logging
-from typing import Dict, Optional, Set
-from core.helpers.error_handler import handle_errors
+from typing import Dict, Optional
 from core.constants import TEMP_DIR
 
 logger = logging.getLogger(__name__)

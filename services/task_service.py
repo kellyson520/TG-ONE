@@ -153,7 +153,6 @@ class TaskService:
                         failed_ids = failed_list[:limit]
                 except Exception as e:
                     logger.debug(f"[TaskService] Parse failed_ids error: {e}")
-                    pass
             return {'success': True, 'failed_ids': failed_ids}
         except Exception as e:
             logger.error(f"获取失败样本失败: {e}")

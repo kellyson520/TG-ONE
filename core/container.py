@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from repositories.audit_repo import AuditRepository
     from services.db_buffer import GroupCommitCoordinator
     from services.queue_service import MessageQueueService
-    from services.dedup_service import dedup_service, DeduplicationService
+    from services.dedup_service import DeduplicationService
     from services.state_service import StateService
     from services.media_service import MediaService
     from services.forward_service import ForwardService
@@ -18,8 +18,6 @@ if TYPE_CHECKING:
     from services.rule.facade import RuleManagementService
     from services.rule.query import RuleQueryService
     from services.rule.filter import RuleFilterService
-    from services.metrics_collector import MetricsCollector
-    from services.rate_limiter import RateLimiterPool
     from aiohttp import ClientSession
     from telethon import TelegramClient
 
@@ -79,6 +77,11 @@ class Container:
     @property
     def db_session(self):
         """数据库会话工厂别名，供 context manager 使用: async with container.db_session() as s:"""
+        return self.db.session
+
+    @property
+    def async_db_session(self):
+        """兼容旧版名称的数据库会话工厂"""
         return self.db.session
 
     # --- Repositories (Lazy) ---

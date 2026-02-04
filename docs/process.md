@@ -100,12 +100,26 @@
 | 20260202_Fix_JSON_Serialization_Error | 修复 JSON 序列化失败 (Object of type function) | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_JSON_Serialization_Error/todo.md) |
 | 20260202_Fix_Chat_Attribute_Error | 修复 Chat 模型缺失 is_active 属性错误 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Chat_Attribute_Error/) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
-| 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
 | 20260203_Fix_Container_AttributeError | 修复 Container db_session 属性缺失错误 | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./docs/Workstream_Core/20260203_Fix_Container_AttributeError/todo.md) |
 | 20260203_Fix_Version_Pagination | 修复版本信息翻页显示 | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_Version_Pagination/report.md) |
+| 20260204_Fix_Changelog_Edit_Message_Error | 修复 Changelog 翻页导致的 EditMessageRequest 错误 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Changelog_Edit_Message_Error/report.md) |
+| 20260204_Fix_Circular_Import_Startup_Error | 修复启动阶段循环导入导致崩溃 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./docs/Workstream_Core/20260204_Fix_Circular_Import_Startup_Error/report.md) |
+| 20260204_Fix_AddMode_KeyError | 修复规则设置 AddMode KeyError 错误 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_AddMode_KeyError/report.md) |
+| 20260204_Menu_System_Integrity_Audit | 菜单系统完整性审计与修复（31个缺失回调） | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_Menu_System_Integrity_Audit/report.md) |
+| 20260204_P0_Fix_N_Plus_One | P0 级 N+1 性能缺陷修复 (28个问题) | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Core/20260204_P0_Fix_N_Plus_One/todo.md) |
+| 20260204_Dedup_Engine_Tests | 去重引擎单元测试建设 (46项测试) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_Dedup_Engine_Unit_Tests/report.md) |
+| 20260204_GitPush_Changelog | 补充更新日志并推送仓库 | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Maintenance/20260204_GitPush_Changelog/todo.md) |
+
+### 进行中任务 ⏳
+
+| 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
+|--------|----------|----------|----------|--------|----------|
+| 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
+| 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
+| 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
+| 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
+| 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
 | 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
-
-
 
 ### 2026-02-02
 | 20260202_Orchestration | 修复 Docker 编排路径空格问题 | 2026-02-02 | 2026-02-02 | 100% | [[report.md]](./Workstream_Infrastructure/20260202_Fix_Orchestration_Error/report.md) |

@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 import pytz
 from core.constants import DEFAULT_TIMEZONE
 from typing import Optional
-import os
 import secrets
 from pathlib import Path
 

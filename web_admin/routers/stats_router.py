@@ -47,7 +47,6 @@ async def api_stats_overview(request: Request, user = Depends(login_required)):
             queue_status = await container.task_repo.get_queue_status()
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
-            pass
         
         # 获取规则统计
         overview = {}
@@ -146,8 +145,8 @@ async def api_stats_overview(request: Request, user = Depends(login_required)):
                     bot_status = 'running'
                 elif api_status == 'running' and db_status == 'running':
                     bot_status = 'running'
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         
         try:
             dedup_conf = smart_deduplicator.config or {}
@@ -208,8 +207,8 @@ async def api_system_resources(request: Request, user = Depends(login_required))
             db_path = Path(settings.DB_PATH)
             if db_path.exists():
                 db_size_mb = db_path.stat().st_size / (1024 * 1024)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         
         # 活跃连接数 (模拟或从DBPool获取)
         active_connections = 0
@@ -218,16 +217,16 @@ async def api_system_resources(request: Request, user = Depends(login_required))
             engine = get_async_engine()
             if hasattr(engine.pool, 'checkedout'):
                 active_connections = engine.pool.checkedout()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
         # 队列大小
         queue_size = 0
         try:
             queue_status = await container.task_repo.get_queue_status()
             queue_size = queue_status.get('active_queues', 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
         data = {
             'cpu_percent': cpu_percent,

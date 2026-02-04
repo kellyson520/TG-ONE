@@ -28,8 +28,8 @@ class StatsRepository:
             self._shutdown_event.set()
             try:
                 await self._flush_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             self._flush_task = None
             # Final flush
             await self.flush_logs()

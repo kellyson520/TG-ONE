@@ -232,8 +232,8 @@ class DatabaseMonitor:
                         )
                     ).fetchone()
                     db_size = size_result[0] if size_result else 0
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
             # WAL文件大小
             from pathlib import Path

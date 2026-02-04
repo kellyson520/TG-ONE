@@ -50,7 +50,6 @@ class BaseFilter(ABC):
         Returns:
             bool: 表示是否应该继续处理消息
         """
-        pass 
 
     @handle_errors(default_return=False)
     async def record_media_signature(self, chat_id: str, signature: str, message_id: int = None):

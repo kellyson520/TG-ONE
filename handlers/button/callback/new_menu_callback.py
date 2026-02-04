@@ -250,8 +250,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
     try:
         try:
             logger.info(f"[menu] new_menu action_data={action_data}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         # action_data 已经是解析后的动作（比如 "toggle_media_duration" 或 "main_menu"）
         # 对于复合动作（如 "rule_detail_settings:123"），可能还需要进一步解析
         if ":" in action_data:
@@ -263,8 +263,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             extra_data = []
         try:
             logger.info(f"[menu] parsed action={action} extra={extra_data}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 根据action分发到对应的处理函数
         from controllers.menu_controller import menu_controller
@@ -750,8 +750,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     await event.answer("✅ 删除任务已启动")
                 else:
                     await event.answer(f"❌ 删除失败: {message}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             await new_menu_system.show_delete_session_messages_menu(event)
         elif action == "pause_delete":
             # 实现暂停删除
@@ -793,8 +793,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             # 占位：此处可落库保存筛选配置，当前仅提示成功并返回
             try:
                 await event.answer("✅ 已保存筛选配置")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             await new_menu_system.show_delete_session_messages_menu(event)
         elif action == "forward_management":
             await new_menu_system.show_forward_management(event)
@@ -963,8 +963,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 # 先即时反馈，避免长时间无响应
                 try:
                     await event.answer("⏳ 正在统计，请稍候…")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 # 再次校验 rule 从数据库读取标题便于确认
                 try:
                     from models.models import ForwardRule as _FR
@@ -977,8 +977,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                             f"source={getattr(getattr(_r,'source_chat',None),'name',None)}, "
                             f"target={getattr(getattr(_r,'target_chat',None),'name',None)}"
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 # 干跑：采样不使用本地轻量去重集合，避免二次点击显示 0 条
                 # 限制最大收集，避免长时间阻塞
                 total, samples = await session_manager.preview_history_messages(
@@ -995,8 +995,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     logger.info(
                         f"[干跑] 仅时间范围统计: in_range={tr_in}, 预览通过={total}"
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 if total == 0 and not samples:
                     # 运行诊断工具，提供详细的问题分析
                     try:
@@ -1096,8 +1096,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     return
                 try:
                     await event.answer("⏳ 正在统计视频数量…")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 scanned, in_range = await session_manager.count_media_in_range(
                     event, media="video"
                 )
@@ -1129,8 +1129,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     return
                 try:
                     await event.answer("⏳ 正在快速统计(服务端)…")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
                 stats = await session_manager.quick_count_by_filters(event)
 
                 # 组装展示
@@ -1409,8 +1409,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "confirm_time_range":
             try:
                 await event.answer("✅ 已保存时间范围")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             # 智能返回：根据上下文返回到合适的页面
             try:
                 # 检查消息内容，判断来源页面
@@ -2222,8 +2222,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             logger.warning(f"未知的新菜单动作: action={action}, data={data}")
             try:
                 await event.answer(f"未知操作: {action}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 标记回调已处理
         if not action == "exit":

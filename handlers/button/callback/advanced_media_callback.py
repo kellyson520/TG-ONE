@@ -213,8 +213,8 @@ async def callback_cancel_set_resolution_range(event, rule_id, session, message,
         from .media_callback import _show_rule_media_settings
 
         await _show_rule_media_settings(event, rule_id)
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 async def callback_toggle_file_size_range_filter(event, rule_id, session, message, data):
@@ -261,8 +261,8 @@ async def callback_set_file_size_range(event, rule_id, session, message, data):
         text = "💾 **设置文件大小**\n请输入: `min [max]` (支持K/M/G)"
         buttons = [[Button.inline("❌ 取消", f"cancel_set_file_size_range:{rule_id}")]]
         await event.edit(text, buttons=buttons, parse_mode="markdown")
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
 
 async def callback_cancel_set_file_size_range(event, rule_id, session, message, data):
@@ -284,5 +284,5 @@ async def callback_cancel_set_file_size_range(event, rule_id, session, message, 
         from .media_callback import _show_rule_media_settings
 
         await _show_rule_media_settings(event, rule_id)
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')

@@ -66,8 +66,8 @@ async def login(
             body = await request.json()
             username = body.get("username")
             password = body.get("password")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         
     # 2. Try Form (if not found in JSON)
     if not username:
@@ -392,8 +392,8 @@ async def refresh_token(request: Request, response: Response):
         try:
             body = await request.json()
             refresh_token = body.get("refresh_token")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")

@@ -168,8 +168,8 @@ class SenderFilter(BaseFilter):
                                 logger.info(f'纯转发模式清理临时文件: {file_path}')
                         except Exception as e:
                             logger.error(f'纯转发模式删除临时文件失败: {str(e)}')
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 记录媒体签名（作为发送成功的凭证），便于后续去重
         try:

@@ -5,7 +5,7 @@ Web 模块单元测试 - Rule Router
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from fastapi import FastAPI
 
 # 创建测试用 app
