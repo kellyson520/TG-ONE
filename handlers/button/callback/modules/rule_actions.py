@@ -10,7 +10,17 @@ logger = logging.getLogger(__name__)
 async def callback_delete(event, rule_id, session, message, data):
     """处理删除规则的回调"""
     async def _do(s):
-        rule = await s.get(ForwardRule, int(rule_id))
+        if not rule_id:
+            await event.answer("无效的规则ID", alert=True)
+            return
+
+        try:
+            rid = int(rule_id)
+        except (ValueError, TypeError):
+            await event.answer("解析规则ID失败", alert=True)
+            return
+
+        rule = await s.get(ForwardRule, rid)
         if not rule:
             await event.answer("规则不存在")
             return
@@ -25,8 +35,8 @@ async def callback_delete(event, rule_id, session, message, data):
 
             # 清理 RSS 数据 (直接调用函数而非HTTP请求)
             try:
-                from rss.app.api.endpoints.feed import delete_rule_data
-                await delete_rule_data(int(rule_id))
+                from web_admin.rss.api.endpoints.feed import delete_rule_data
+                await delete_rule_data(rid)
                 logger.info(f"成功删除RSS规则数据: {rule_id}")
             except Exception as e:
                 logger.warning(f"删除RSS数据遇到错误 (由于规则已删除，可忽略): {e}")

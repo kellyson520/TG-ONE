@@ -117,13 +117,11 @@ app.include_router(simulator_router)
 app.include_router(page_router)
 app.include_router(settings_router)
 
-# RSS 模块路由
-app.include_router(rss_page_router, prefix="/rss", tags=["RSS Pages"])
-app.include_router(rss_feed_router, prefix="/api/rss/feed", tags=["RSS API"])
-app.include_router(rss_sub_router, prefix="/api/rss/sub", tags=["RSS API"])
-
-# RSS 模板路径挂载 (通过设置判断是否启用)
+# RSS 模块路由 (仅在启用时挂载)
 if settings.RSS_ENABLED:
+    app.include_router(rss_page_router, prefix="/rss", tags=["RSS Pages"])
+    app.include_router(rss_feed_router, prefix="/api/rss/feed", tags=["RSS API"])
+    app.include_router(rss_sub_router, prefix="/api/rss/sub", tags=["RSS API"])
     logger.info("✅ RSS Features enabled")
 
 @app.exception_handler(PageRedirect)

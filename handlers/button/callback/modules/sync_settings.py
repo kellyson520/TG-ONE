@@ -10,7 +10,12 @@ async def callback_set_sync_rule(event, rule_id, session, message, data):
     """处理设置同步规则的回调"""
     try:
         async def _do(s):
-            rule = await s.get(ForwardRule, int(rule_id))
+            try:
+                rid = int(rule_id)
+            except (ValueError, TypeError):
+                await event.answer("无效的规则ID", alert=True)
+                return
+            rule = await s.get(ForwardRule, rid)
             if not rule:
                 await event.answer("规则不存在")
                 return

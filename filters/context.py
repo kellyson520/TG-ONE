@@ -28,7 +28,8 @@ class MessageContext:
         'comment_link',
         # Simulation fields (added in recent tasks)
         'is_sim',
-        'trace'
+        'trace',
+        'dup_signatures'
     )
     
     def __init__(self, client, event, chat_id, rule):
@@ -103,6 +104,7 @@ class MessageContext:
         # Simulation Fields default
         self.is_sim = False
         self.trace = []
+        self.dup_signatures = []
         
     def clone(self):
         """创建上下文的副本"""

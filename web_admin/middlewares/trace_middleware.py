@@ -26,14 +26,7 @@ class TraceMiddleware(BaseHTTPMiddleware):
             logger.info(f"🌐 [WebAPI] 请求开始: TraceID={trace_id}, IP={client_ip}, 方法={request.method}, 路径={request.url.path}")
             
             # 记录请求参数（如果有）
-            if request.method in ["POST", "PUT", "PATCH"] and request.headers.get("Content-Type", "").startswith("application/json"):
-                try:
-                    body = await request.body()
-                    if body and len(body) < 1024:  # 只记录小体积请求体
-                        logger.debug(f"📝 [WebAPI] 请求体: TraceID={trace_id}, 内容={body.decode('utf-8')}")
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            elif request.query_params:
+            if request.query_params:
                 logger.debug(f"🔍 [WebAPI] 查询参数: TraceID={trace_id}, 参数={dict(request.query_params)}")
             
             # 3. 继续执行请求

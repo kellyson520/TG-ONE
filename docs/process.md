@@ -109,6 +109,11 @@
 | 20260204_P0_Fix_N_Plus_One | P0 级 N+1 性能缺陷修复 (28个问题) | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Core/20260204_P0_Fix_N_Plus_One/todo.md) |
 | 20260204_Dedup_Engine_Tests | 去重引擎单元测试建设 (46项测试) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_Dedup_Engine_Unit_Tests/report.md) |
 | 20260204_GitPush_Changelog | 补充更新日志并推送仓库 | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Maintenance/20260204_GitPush_Changelog/todo.md) |
+| 20260204_Fix_Config_Error | 修复配置加载语法错误及日志审计 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Config_Syntax_Error/report.md) |
+| 20260204_Fix_Triple_Core_Issues | 修复回调崩溃、上下文缺陷及 Web 性能瓶颈 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Triple_Core_Issues/report.md) |
+| 20260204_Fix_Logic_And_Perf | 修复转发模式失效、媒体组 N+1 及去重冗余 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Logic_And_Performance_Issues/report.md) |
+| 20260204_Fix_DB_And_Imports | 修复数据库驱动兼容性、导入路径及路由开关 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Database_And_Import_Issues/report.md) |
+
 
 ### 进行中任务 ⏳
 

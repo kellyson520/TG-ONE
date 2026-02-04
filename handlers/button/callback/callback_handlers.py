@@ -334,33 +334,45 @@ async def handle_callback(event):
         data = event.data.decode("utf-8")
         logger.debug(f"Router分派: {data}")
 
-        handler, params = callback_router.match(data)
-        if handler:
-            event.router_params = params
+        match_result = callback_router.match(data)
+        if not match_result:
+            logger.warning(f"未知的路由回调: {data}")
+            await event.answer("操作已过期或指令无效", alert=True)
+            return
             
-            # [Fix] 兼容 5 参数的旧版模块化处理器
-            import inspect
-            sig = inspect.signature(handler)
-            if len(sig.parameters) == 5:
-                # 提取参数
-                rule_id = params.get('id') or params.get('rule_id')
-                if not rule_id and ":" in data:
-                    parts = data.split(":")
-                    if len(parts) > 1:
-                        rule_id = parts[1]
-                
-                # 构造上下文 (session 传 None 由处理器内部创建，data 传原始字符串)
-                message = await event.get_message()
-                return await handler(event, rule_id, None, message, data)
+        handler, params = match_result
+        event.router_params = params
+            
+        # [Fix] 兼容 5 参数的旧版模块化处理器
+        import inspect
+        sig = inspect.signature(handler)
+        if len(sig.parameters) == 5:
+            # 提取参数
+            rule_id = params.get('id') or params.get('rule_id')
+            if not rule_id and ":" in data:
+                parts = data.split(":")
+                if len(parts) > 1 and parts[1].isdigit():
+                    rule_id = parts[1]
+            
+            # [Fix] 校验 rule_id
+            if not rule_id:
+                logger.warning(f"回调数据缺失 rule_id: {data}")
+                await event.answer("无效的指令参数", alert=True)
+                return
 
-            return await handler(event)
+            # 构造上下文 (session 传 None 由处理器内部创建，data 传原始字符串)
+            message = await event.get_message()
+            return await handler(event, rule_id, None, message, data)
 
-        logger.warning(f"未找到路由处理程序: {data}")
-        await event.answer("未处理的操作", alert=False)
+        # 正常分发
+        if params:
+            return await handler(event, **params)
+        return await handler(event)
 
     except Exception as e:
+        import traceback
         logger.error(f"回调处理异常: {e}\n{traceback.format_exc()}")
         try:
             await event.answer("操作处理出错，请重试", alert=True)
         except Exception:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+            pass

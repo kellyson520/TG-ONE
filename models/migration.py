@@ -13,6 +13,13 @@ from models.dedup import MediaSignature
 
 logger = logging.getLogger(__name__)
 
+def _get_existing_columns(inspector, table_name):
+    """获取表中已存在的列名集合"""
+    try:
+        return {column['name'] for column in inspector.get_columns(table_name)}
+    except Exception:
+        return set()
+
 def migrate_db(engine):
     """数据库迁移函数，确保新字段的添加"""
     inspector = inspect(engine)
@@ -123,113 +130,139 @@ def migrate_db(engine):
             
             # 补充现有表的新字段
             try:
-                new_columns = [
-                    'ALTER TABLE media_signatures ADD COLUMN count INTEGER DEFAULT 1',
-                    'ALTER TABLE media_signatures ADD COLUMN media_type VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN file_size INTEGER',
-                    'ALTER TABLE media_signatures ADD COLUMN file_name VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN mime_type VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN duration INTEGER',
-                    'ALTER TABLE media_signatures ADD COLUMN width INTEGER',
-                    'ALTER TABLE media_signatures ADD COLUMN height INTEGER',
-                    'ALTER TABLE media_signatures ADD COLUMN last_seen VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN updated_at VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN file_id VARCHAR',
-                    'ALTER TABLE media_signatures ADD COLUMN content_hash VARCHAR'
-                ]
+                media_columns_existing = _get_existing_columns(inspector, 'media_signatures')
+                new_columns_map = {
+                    'count': 'ALTER TABLE media_signatures ADD COLUMN count INTEGER DEFAULT 1',
+                    'media_type': 'ALTER TABLE media_signatures ADD COLUMN media_type VARCHAR',
+                    'file_size': 'ALTER TABLE media_signatures ADD COLUMN file_size INTEGER',
+                    'file_name': 'ALTER TABLE media_signatures ADD COLUMN file_name VARCHAR',
+                    'mime_type': 'ALTER TABLE media_signatures ADD COLUMN mime_type VARCHAR',
+                    'duration': 'ALTER TABLE media_signatures ADD COLUMN duration INTEGER',
+                    'width': 'ALTER TABLE media_signatures ADD COLUMN width INTEGER',
+                    'height': 'ALTER TABLE media_signatures ADD COLUMN height INTEGER',
+                    'last_seen': 'ALTER TABLE media_signatures ADD COLUMN last_seen VARCHAR',
+                    'updated_at': 'ALTER TABLE media_signatures ADD COLUMN updated_at VARCHAR',
+                    'file_id': 'ALTER TABLE media_signatures ADD COLUMN file_id VARCHAR',
+                    'content_hash': 'ALTER TABLE media_signatures ADD COLUMN content_hash VARCHAR'
+                }
                 
-                for sql in new_columns:
-                    try:
-                        connection.execute(text(sql))
-                    except Exception as e:
-                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                for col, sql in new_columns_map.items():
+                    if col not in media_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 media_signatures 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
                         
-                logger.info('已更新 media_signatures 表结构')
+                logger.info('已检查 media_signatures 表结构')
             except Exception as e:
-                logger.warning(f'更新 media_signatures 表失败: {str(e)}')
+                logger.warning(f'检查 media_signatures 表失败: {str(e)}')
             
             try:
-                chat_columns = [
-                    'ALTER TABLE chats ADD COLUMN chat_type VARCHAR',
-                    'ALTER TABLE chats ADD COLUMN username VARCHAR',
-                    'ALTER TABLE chats ADD COLUMN created_at VARCHAR',
-                    'ALTER TABLE chats ADD COLUMN updated_at VARCHAR', 
-                    'ALTER TABLE chats ADD COLUMN is_active BOOLEAN DEFAULT 1',
-                    'ALTER TABLE chats ADD COLUMN member_count INTEGER',
-                    'ALTER TABLE chats ADD COLUMN description VARCHAR'
-                ]
+                chat_columns_existing = _get_existing_columns(inspector, 'chats')
+                chat_columns_map = {
+                    'chat_type': 'ALTER TABLE chats ADD COLUMN chat_type VARCHAR',
+                    'username': 'ALTER TABLE chats ADD COLUMN username VARCHAR',
+                    'created_at': 'ALTER TABLE chats ADD COLUMN created_at VARCHAR',
+                    'updated_at': 'ALTER TABLE chats ADD COLUMN updated_at VARCHAR', 
+                    'is_active': 'ALTER TABLE chats ADD COLUMN is_active BOOLEAN DEFAULT 1',
+                    'member_count': 'ALTER TABLE chats ADD COLUMN member_count INTEGER',
+                    'description': 'ALTER TABLE chats ADD COLUMN description VARCHAR'
+                }
                 
-                rule_columns = [
-                    'ALTER TABLE forward_rules ADD COLUMN created_at VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN updated_at VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN created_by VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN priority INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN description VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN message_count INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN last_used VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN daily_limit INTEGER',
-                    'ALTER TABLE forward_rules ADD COLUMN rate_limit INTEGER',
-                    'ALTER TABLE forward_rules ADD COLUMN webhook_url VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN custom_config VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN allow_delete_source_on_dedup BOOLEAN DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN message_thread_id INTEGER',
-                    'ALTER TABLE forward_rules ADD COLUMN enable_duration_filter BOOLEAN DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN min_duration INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN max_duration INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN enable_resolution_filter BOOLEAN DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN min_width INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN max_width INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN min_height INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN max_height INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN enable_file_size_range BOOLEAN DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN min_file_size INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN max_file_size INTEGER DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN is_save_to_local BOOLEAN DEFAULT 0',
-                    'ALTER TABLE forward_rules ADD COLUMN unique_key VARCHAR',
-                    'ALTER TABLE forward_rules ADD COLUMN grouped_id VARCHAR'
-                ]
+                for col, sql in chat_columns_map.items():
+                    if col not in chat_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 chats 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
                 
-                user_columns = [
-                    'ALTER TABLE users ADD COLUMN email VARCHAR',
-                    'ALTER TABLE users ADD COLUMN telegram_id VARCHAR',
-                    'ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1',
-                    'ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0',
-                    'ALTER TABLE users ADD COLUMN created_at VARCHAR',
-                    'ALTER TABLE users ADD COLUMN last_login VARCHAR',
-                    'ALTER TABLE users ADD COLUMN login_count INTEGER DEFAULT 0',
-                    'ALTER TABLE users ADD COLUMN totp_secret VARCHAR',
-                    'ALTER TABLE users ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0',
-                    'ALTER TABLE users ADD COLUMN backup_codes VARCHAR',
-                    'ALTER TABLE users ADD COLUMN last_otp_token VARCHAR',
-                    'ALTER TABLE users ADD COLUMN last_otp_at VARCHAR'
-                ]
+                rule_columns_existing = _get_existing_columns(inspector, 'forward_rules')
+                rule_columns_map = {
+                    'created_at': 'ALTER TABLE forward_rules ADD COLUMN created_at VARCHAR',
+                    'updated_at': 'ALTER TABLE forward_rules ADD COLUMN updated_at VARCHAR',
+                    'created_by': 'ALTER TABLE forward_rules ADD COLUMN created_by VARCHAR',
+                    'priority': 'ALTER TABLE forward_rules ADD COLUMN priority INTEGER DEFAULT 0',
+                    'description': 'ALTER TABLE forward_rules ADD COLUMN description VARCHAR',
+                    'message_count': 'ALTER TABLE forward_rules ADD COLUMN message_count INTEGER DEFAULT 0',
+                    'last_used': 'ALTER TABLE forward_rules ADD COLUMN last_used VARCHAR',
+                    'daily_limit': 'ALTER TABLE forward_rules ADD COLUMN daily_limit INTEGER',
+                    'rate_limit': 'ALTER TABLE forward_rules ADD COLUMN rate_limit INTEGER',
+                    'webhook_url': 'ALTER TABLE forward_rules ADD COLUMN webhook_url VARCHAR',
+                    'custom_config': 'ALTER TABLE forward_rules ADD COLUMN custom_config VARCHAR',
+                    'allow_delete_source_on_dedup': 'ALTER TABLE forward_rules ADD COLUMN allow_delete_source_on_dedup BOOLEAN DEFAULT 0',
+                    'message_thread_id': 'ALTER TABLE forward_rules ADD COLUMN message_thread_id INTEGER',
+                    'enable_duration_filter': 'ALTER TABLE forward_rules ADD COLUMN enable_duration_filter BOOLEAN DEFAULT 0',
+                    'min_duration': 'ALTER TABLE forward_rules ADD COLUMN min_duration INTEGER DEFAULT 0',
+                    'max_duration': 'ALTER TABLE forward_rules ADD COLUMN max_duration INTEGER DEFAULT 0',
+                    'enable_resolution_filter': 'ALTER TABLE forward_rules ADD COLUMN enable_resolution_filter BOOLEAN DEFAULT 0',
+                    'min_width': 'ALTER TABLE forward_rules ADD COLUMN min_width INTEGER DEFAULT 0',
+                    'max_width': 'ALTER TABLE forward_rules ADD COLUMN max_width INTEGER DEFAULT 0',
+                    'min_height': 'ALTER TABLE forward_rules ADD COLUMN min_height INTEGER DEFAULT 0',
+                    'max_height': 'ALTER TABLE forward_rules ADD COLUMN max_height INTEGER DEFAULT 0',
+                    'enable_file_size_range': 'ALTER TABLE forward_rules ADD COLUMN enable_file_size_range BOOLEAN DEFAULT 0',
+                    'min_file_size': 'ALTER TABLE forward_rules ADD COLUMN min_file_size INTEGER DEFAULT 0',
+                    'max_file_size': 'ALTER TABLE forward_rules ADD COLUMN max_file_size INTEGER DEFAULT 0',
+                    'is_save_to_local': 'ALTER TABLE forward_rules ADD COLUMN is_save_to_local BOOLEAN DEFAULT 0',
+                    'unique_key': 'ALTER TABLE forward_rules ADD COLUMN unique_key VARCHAR',
+                    'grouped_id': 'ALTER TABLE forward_rules ADD COLUMN grouped_id VARCHAR'
+                }
                 
-                all_columns = chat_columns + rule_columns + user_columns
-                for sql in all_columns:
-                    try:
-                        connection.execute(text(sql))
-                    except Exception as e:
-                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                for col, sql in rule_columns_map.items():
+                    if col not in rule_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 forward_rules 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
                 
-                taskqueue_new_columns = [
-                    'ALTER TABLE task_queue ADD COLUMN done_count INTEGER DEFAULT 0',
-                    'ALTER TABLE task_queue ADD COLUMN total_count INTEGER DEFAULT 0',
-                    'ALTER TABLE task_queue ADD COLUMN forwarded_count INTEGER DEFAULT 0',
-                    'ALTER TABLE task_queue ADD COLUMN filtered_count INTEGER DEFAULT 0',
-                    'ALTER TABLE task_queue ADD COLUMN failed_count INTEGER DEFAULT 0',
-                    'ALTER TABLE task_queue ADD COLUMN last_message_id INTEGER',
-                    'ALTER TABLE task_queue ADD COLUMN source_chat_id VARCHAR',
-                    'ALTER TABLE task_queue ADD COLUMN target_chat_id VARCHAR',
-                    'ALTER TABLE task_queue ADD COLUMN unique_key VARCHAR',
-                    'ALTER TABLE task_queue ADD COLUMN grouped_id VARCHAR',
-                    'ALTER TABLE task_queue ADD COLUMN next_retry_at TIMESTAMP',
-                    'ALTER TABLE task_queue ADD COLUMN error_log TEXT'
-                ]
-                for sql in taskqueue_new_columns:
-                    try:
-                        connection.execute(text(sql))
-                    except Exception as e:
-                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                user_columns_existing = _get_existing_columns(inspector, 'users')
+                user_columns_map = {
+                    'email': 'ALTER TABLE users ADD COLUMN email VARCHAR',
+                    'telegram_id': 'ALTER TABLE users ADD COLUMN telegram_id VARCHAR',
+                    'is_active': 'ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1',
+                    'is_admin': 'ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0',
+                    'created_at': 'ALTER TABLE users ADD COLUMN created_at VARCHAR',
+                    'last_login': 'ALTER TABLE users ADD COLUMN last_login VARCHAR',
+                    'login_count': 'ALTER TABLE users ADD COLUMN login_count INTEGER DEFAULT 0',
+                    'totp_secret': 'ALTER TABLE users ADD COLUMN totp_secret VARCHAR',
+                    'is_2fa_enabled': 'ALTER TABLE users ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0',
+                    'backup_codes': 'ALTER TABLE users ADD COLUMN backup_codes VARCHAR',
+                    'last_otp_token': 'ALTER TABLE users ADD COLUMN last_otp_token VARCHAR',
+                    'last_otp_at': 'ALTER TABLE users ADD COLUMN last_otp_at VARCHAR'
+                }
+                
+                for col, sql in user_columns_map.items():
+                    if col not in user_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 users 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
+                
+                task_queue_columns_existing = _get_existing_columns(inspector, 'task_queue')
+                taskqueue_columns_map = {
+                    'done_count': 'ALTER TABLE task_queue ADD COLUMN done_count INTEGER DEFAULT 0',
+                    'total_count': 'ALTER TABLE task_queue ADD COLUMN total_count INTEGER DEFAULT 0',
+                    'forwarded_count': 'ALTER TABLE task_queue ADD COLUMN forwarded_count INTEGER DEFAULT 0',
+                    'filtered_count': 'ALTER TABLE task_queue ADD COLUMN filtered_count INTEGER DEFAULT 0',
+                    'failed_count': 'ALTER TABLE task_queue ADD COLUMN failed_count INTEGER DEFAULT 0',
+                    'last_message_id': 'ALTER TABLE task_queue ADD COLUMN last_message_id INTEGER',
+                    'source_chat_id': 'ALTER TABLE task_queue ADD COLUMN source_chat_id VARCHAR',
+                    'target_chat_id': 'ALTER TABLE task_queue ADD COLUMN target_chat_id VARCHAR',
+                    'unique_key': 'ALTER TABLE task_queue ADD COLUMN unique_key VARCHAR',
+                    'grouped_id': 'ALTER TABLE task_queue ADD COLUMN grouped_id VARCHAR',
+                    'next_retry_at': 'ALTER TABLE task_queue ADD COLUMN next_retry_at TIMESTAMP',
+                    'error_log': 'ALTER TABLE task_queue ADD COLUMN error_log TEXT'
+                }
+                for col, sql in taskqueue_columns_map.items():
+                    if col not in task_queue_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 task_queue 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
 
                 logger.info('已更新所有表的新字段')
             except Exception as e:

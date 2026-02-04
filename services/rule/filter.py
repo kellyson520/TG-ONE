@@ -49,17 +49,19 @@ class RuleFilterService:
             message_text = await user_service.process_user_info(event, rule.id, message_text)
 
         forward_mode = rule.forward_mode
+        # [Fix] 兼容 Enum 对象与字符串比较
+        mode_value = forward_mode.value if hasattr(forward_mode, 'value') else forward_mode
         
-        if forward_mode == ForwardMode.WHITELIST.value:
+        if mode_value == ForwardMode.WHITELIST.value:
             return await RuleFilterService.process_whitelist_mode(rule, message_text, reverse_blacklist)
-        elif forward_mode == ForwardMode.BLACKLIST.value:
+        elif mode_value == ForwardMode.BLACKLIST.value:
             return await RuleFilterService.process_blacklist_mode(rule, message_text, reverse_whitelist)
-        elif forward_mode == ForwardMode.WHITELIST_THEN_BLACKLIST.value:
+        elif mode_value == ForwardMode.WHITELIST_THEN_BLACKLIST.value:
             return await RuleFilterService.process_whitelist_then_blacklist_mode(rule, message_text, reverse_blacklist)
-        elif forward_mode == ForwardMode.BLACKLIST_THEN_WHITELIST.value:
+        elif mode_value == ForwardMode.BLACKLIST_THEN_WHITELIST.value:
             return await RuleFilterService.process_blacklist_then_whitelist_mode(rule, message_text, reverse_whitelist)
 
-        logger.error(f"未知的转发模式: {forward_mode}")
+        logger.error(f"未知的转发模式: {forward_mode} (Type: {type(forward_mode)})")
         return False
 
     @staticmethod

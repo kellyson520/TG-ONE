@@ -21,13 +21,14 @@ class Database:
 
             # 模式 B: 创建新引擎 (Legacy/Standalone Mode)
             # 启用 WAL 模式，这对 SQLite 并发至关重要
+            connect_args = {"timeout": 30}
+            if 'sqlite' in db_url:
+                connect_args["check_same_thread"] = False
+                
             self.engine = create_async_engine(
                 db_url, 
                 echo=False,
-                connect_args={
-                    "check_same_thread": False, 
-                    "timeout": 30  # 增加等待超时，避免数据库锁死
-                },
+                connect_args=connect_args,
                 pool_size=20,  # 增大连接池
                 max_overflow=10  # 允许溢出连接
             )
