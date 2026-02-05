@@ -5,7 +5,7 @@
 import logging
 from telethon import Button
 from ..base import BaseMenu
-from ..session_management import session_manager
+from services.session_service import session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class SessionMenu(BaseMenu):
 
             results = await session_manager.scan_duplicate_messages(event, progress_callback=progress_callback)
             if results:
-                total = sum(results.values())
+                total = sum(len(ids) for ids in results.values())
                 await self._render_from_text(event, f"✅ **扫描完成！**\n\n🎯 发现 **{len(results)}** 种重复内容\n📈 总计 **{total}** 条重复消息", [
                     [Button.inline("📊 查看详细结果", "new_menu:dedup_results")],
                     [Button.inline("🗑️ 全部删除", "new_menu:delete_all_duplicates")],
@@ -137,8 +137,10 @@ class SessionMenu(BaseMenu):
                 buttons = []
                 selected = await session_manager.get_selection_state(event.chat_id)
                 for sig, count in scan_counts.items():
+                    import hashlib
+                    short_id = hashlib.md5(sig.encode()).hexdigest()[:8]
                     is_sel = sig in selected
-                    buttons.append([Button.inline(f"{'✅' if is_sel else '☐'} {sig} ×{count}", f"new_menu:toggle_select:{sig}")])
+                    buttons.append([Button.inline(f"{'✅' if is_sel else '☐'} {sig} ×{count}", f"new_menu:toggle_select:{short_id}")])
                 buttons.extend([[Button.inline("🗑️ 删除选中项", "new_menu:delete_selected_duplicates")], [Button.inline("👈 返回上一级", "new_menu:dedup_results")]])
                 await self._render_from_text(event, "🔧 **选择删除**\n\n请选择要删除的重复项：", buttons)
         except Exception as e:

@@ -15,7 +15,7 @@ from core.helpers.auto_delete import (
 )
 
 from .advanced_media_prompt_handlers import handle_advanced_media_prompt
-from .button.session_management import session_manager
+from services.session_service import session_manager
 
 logger = logging.getLogger(__name__)
 

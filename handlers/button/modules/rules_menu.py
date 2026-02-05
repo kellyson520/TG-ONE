@@ -88,7 +88,7 @@ class RulesMenu(BaseMenu):
         if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:rule_management_page:{page-1}"))
         if end < len(rules): nav.append(Button.inline("下一页 ➡️", f"new_menu:rule_management_page:{page+1}"))
         if nav: buttons.append(nav)
-        buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_management")])
+        buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_hub")])
         
         await self._render_from_text(event, "⚙️ **规则管理**\n\n选择要配置的规则：", buttons)
 
@@ -111,7 +111,7 @@ class RulesMenu(BaseMenu):
         if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:multi_source_page:{page-1}"))
         if end < len(rules): nav.append(Button.inline("下一页 ➡️", f"new_menu:multi_source_page:{page+1}"))
         if nav: buttons.append(nav)
-        buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_management")])
+        buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_hub")])
         await self._render_from_text(event, "🔗 **多源管理**\n\n选择要管理的复合规则：", buttons)
 
     async def show_multi_source_detail(self, event, rule_id):

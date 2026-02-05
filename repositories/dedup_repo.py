@@ -99,6 +99,27 @@ class DedupRepository:
             objs = result.scalars().all()
             return [MediaSignatureDTO.model_validate(o) for o in objs]
 
+    async def batch_add(self, records: List[dict]) -> bool:
+        """批量插入媒体签名记录"""
+        if not records:
+            return True
+            
+        async with self.db.session() as session:
+            try:
+                # 使用 bulk_insert_mappings 提高性能
+                await session.run_sync(
+                    lambda sync_session: sync_session.bulk_insert_mappings(
+                        MediaSignature, records
+                    )
+                )
+                await session.commit()
+                logger.debug(f"批量插入 {len(records)} 条媒体签名记录成功")
+                return True
+            except Exception as e:
+                logger.error(f"批量插入媒体签名失败: {e}", exc_info=True)
+                await session.rollback()
+                return False
+
     async def delete_by_chat(self, chat_id: str) -> int:
         """删除特定聊天的所有去重记录"""
         async with self.db.session() as session:

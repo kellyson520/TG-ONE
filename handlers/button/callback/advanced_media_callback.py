@@ -83,13 +83,8 @@ async def callback_set_duration_range(event, rule_id, session, message, data):
             return
 
         chat = await event.get_chat()
-        # 处理频道ID差异
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
 
         # 使用 session_manager 替代 state_manager
         if user_id not in session_manager.user_sessions:
@@ -170,12 +165,8 @@ async def callback_set_resolution_range(event, rule_id, session, message, data):
             return
 
         chat = await event.get_chat()
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
 
         # 使用 session_manager 替代 state_manager
         if user_id not in session_manager.user_sessions:
@@ -197,12 +188,8 @@ async def callback_cancel_set_resolution_range(event, rule_id, session, message,
     # 逻辑同 cancel_set_duration_range
     try:
         chat = await event.get_chat()
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
         # 使用 session_manager 替代 state_manager
         if user_id in session_manager.user_sessions:
             if chat_id in session_manager.user_sessions[user_id]:
@@ -242,12 +229,8 @@ async def callback_set_file_size_range(event, rule_id, session, message, data):
             return
 
         chat = await event.get_chat()
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
 
         # 使用 session_manager 替代 state_manager
         if user_id not in session_manager.user_sessions:
@@ -268,12 +251,8 @@ async def callback_set_file_size_range(event, rule_id, session, message, data):
 async def callback_cancel_set_file_size_range(event, rule_id, session, message, data):
     try:
         chat = await event.get_chat()
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
         # 使用 session_manager 替代 state_manager
         if user_id in session_manager.user_sessions:
             if chat_id in session_manager.user_sessions[user_id]:

@@ -401,12 +401,12 @@ class HistoryModule(BaseMenu):
     async def show_history_messages(self, event):
         """显示历史消息菜单"""
         buttons = [
-            [Button.inline("🎯 选择处理任务", "new_menu:history_task_selection")],
+            [Button.inline("🎯 选择处理任务", "new_menu:select_history_task")],
             [Button.inline("🕒 时间范围选择", "new_menu:history_time_range")],
             [Button.inline("🔍 消息筛选", "new_menu:history_message_filter")],
             [Button.inline("⏱️ 转发延迟设置", "new_menu:history_delay_settings")],
             [Button.inline("📊 当前任务进度", "new_menu:current_history_task")],
-            [Button.inline("🚀 开始处理历史消息", "new_menu:start_history_forward")],
+            [Button.inline("🚀 开始处理历史消息", "new_menu:start_history_task")],
             [Button.inline("👈 返回主菜单", "new_menu:main_menu")],
         ]
         await self._render_page(

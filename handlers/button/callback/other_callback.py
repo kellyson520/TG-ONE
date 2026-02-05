@@ -1738,18 +1738,8 @@ async def callback_set_userinfo_template(event, rule_id, session, message, data)
         await event.answer("规则不存在")
         return
 
-    # 检查是否频道消息
-    if isinstance(event.chat, types.Channel):
-        # 检查是否是管理员
-        if not await is_admin(event):
-            await event.answer("只有管理员可以修改设置")
-            return
-        user_id = settings.USER_ID
-
-    else:
-        user_id = event.sender_id
-
-    chat_id = abs(event.chat_id)
+    user_id = event.sender_id
+    chat_id = event.chat_id
     state = f"set_userinfo_template:{rule_id}"
 
     logger.info(
@@ -1809,18 +1799,8 @@ async def callback_set_time_template(event, rule_id, session, message, data):
         await event.answer("规则不存在")
         return
 
-    # 检查是否频道消息
-    if isinstance(event.chat, types.Channel):
-        # 检查是否是管理员
-        if not await is_admin(event):
-            await event.answer("只有管理员可以修改设置")
-            return
-        user_id = settings.USER_ID
-
-    else:
-        user_id = event.sender_id
-
-    chat_id = abs(event.chat_id)
+    user_id = event.sender_id
+    chat_id = event.chat_id
     state = f"set_time_template:{rule_id}"
 
     logger.info(
@@ -1896,7 +1876,7 @@ async def callback_cancel_set_userinfo(event, rule_id, session, message, data):
             # 清除状态
             # 使用 session_manager 替代 state_manager
             user_id = event.sender_id
-            chat_id = abs(event.chat_id)
+            chat_id = event.chat_id
             if user_id in session_manager.user_sessions:
                 if chat_id in session_manager.user_sessions[user_id]:
                     session_manager.user_sessions[user_id].pop(chat_id)
@@ -1923,7 +1903,7 @@ async def callback_cancel_set_time(event, rule_id, session, message, data):
             # 清除状态
             # 使用 session_manager 替代 state_manager
             user_id = event.sender_id
-            chat_id = abs(event.chat_id)
+            chat_id = event.chat_id
             if user_id in session_manager.user_sessions:
                 if chat_id in session_manager.user_sessions[user_id]:
                     session_manager.user_sessions[user_id].pop(chat_id)
@@ -1950,18 +1930,8 @@ async def callback_set_original_link_template(event, rule_id, session, message, 
         await event.answer("规则不存在")
         return
 
-    # 检查是否频道消息
-    if isinstance(event.chat, types.Channel):
-        # 检查是否是管理员
-        if not await is_admin(event):
-            await event.answer("只有管理员可以修改设置")
-            return
-        user_id = settings.USER_ID
-
-    else:
-        user_id = event.sender_id
-
-    chat_id = abs(event.chat_id)
+    user_id = event.sender_id
+    chat_id = event.chat_id
     state = f"set_original_link_template:{rule_id}"
 
     logger.info(
@@ -2020,7 +1990,7 @@ async def callback_cancel_set_original_link(event, rule_id, session, message, da
             # 清除状态
             # 使用 session_manager 替代 state_manager
             user_id = event.sender_id
-            chat_id = abs(event.chat_id)
+            chat_id = event.chat_id
             if user_id in session_manager.user_sessions:
                 if chat_id in session_manager.user_sessions[user_id]:
                     session_manager.user_sessions[user_id].pop(chat_id)

@@ -18,7 +18,13 @@ class RuleLoaderMiddleware(Middleware):
             chat_display = await get_display_name_async(ctx.chat_id)
             logger.debug(f"🔍 [加载器] 正在加载规则: 来源={chat_display}({ctx.chat_id}) (标准化ID: {norm_id})")
         
-        ctx.rules = await self.rule_repo.get_rules_for_source_chat(ctx.chat_id)
+        target_rule_id = ctx.metadata.get('target_rule_id')
+        if target_rule_id:
+            logger.info(f"🎯 [加载器] 检测到目标规则锁定: ID={target_rule_id}")
+            rule = await self.rule_repo.get_by_id(target_rule_id)
+            ctx.rules = [rule] if rule else []
+        else:
+            ctx.rules = await self.rule_repo.get_rules_for_source_chat(ctx.chat_id)
         
         if not ctx.rules:
             # 日志记录：无规则忽略 (降级为DEBUG以减少噪音)

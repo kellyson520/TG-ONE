@@ -441,12 +441,13 @@ def archive_force() -> None:
                     
                 # 批量删除（在当前 batch 内使用 chunked delete 以防止锁表）
                 ids = [s.id for s in sigs]
+                current_last_id = sigs[-1].id
                 for chunk_start in range(0, len(ids), 2000): # 增加 chunk 大小至 2000
                     chunk = ids[chunk_start:chunk_start+2000]
                     session.query(MediaSignature).filter(MediaSignature.id.in_(chunk)).delete(synchronize_session=False)
                 
                 session.commit() # 每个 batch 提交一次
-                last_id = sigs[-1].id
+                last_id = current_last_id
                 total_archived += len(sigs)
             
             logger.info(f"强制归档 MediaSignature 完成，总共处理 {total_archived} 条记录")
@@ -474,11 +475,12 @@ def archive_force() -> None:
                 if result:
                     deleted_count = 0
                     ids = [r.id for r in errs]
+                    current_last_id = errs[-1].id
                     count = session.query(ErrorLog).filter(ErrorLog.id.in_(ids)).delete(synchronize_session=False)
                     deleted_count += count
                     session.commit()
                     logger.info(f"成功迁移并删除 {deleted_count} 条 ErrorLog 记录")
-                    last_id = errs[-1].id
+                    last_id = current_last_id
                     total_archived += len(errs)
                 else:
                     logger.error("强制归档: ErrorLog Parquet 写入失败，停止该表归档")
@@ -508,11 +510,12 @@ def archive_force() -> None:
                 if result:
                     deleted_count = 0
                     ids = [r.id for r in rlogs]
+                    current_last_id = rlogs[-1].id
                     count = session.query(RuleLog).filter(RuleLog.id.in_(ids)).delete(synchronize_session=False)
                     deleted_count += count
                     session.commit()
                     logger.info(f"成功迁移并删除 {deleted_count} 条 RuleLog 记录")
-                    last_id = rlogs[-1].id
+                    last_id = current_last_id
                     total_archived += len(rlogs)
                 else:
                     logger.error("强制归档: RuleLog Parquet 写入失败，停止该表归档")
@@ -544,11 +547,12 @@ def archive_force() -> None:
                 if result:
                     deleted_count = 0
                     ids = [t.id for t in tasks]
+                    current_last_id = tasks[-1].id
                     count = session.query(TaskQueue).filter(TaskQueue.id.in_(ids)).delete(synchronize_session=False)
                     deleted_count += count
                     session.commit()
                     logger.info(f"成功迁移并删除 {deleted_count} 条 TaskQueue 记录")
-                    last_id = tasks[-1].id
+                    last_id = current_last_id
                     total_archived += len(tasks)
                 else:
                     logger.error("强制归档: TaskQueue Parquet 写入失败，停止该表归档")
@@ -579,11 +583,12 @@ def archive_force() -> None:
                 if result:
                     deleted_count = 0
                     ids = [c.id for c in cstats]
+                    current_last_id = cstats[-1].id
                     count = session.query(ChatStatistics).filter(ChatStatistics.id.in_(ids)).delete(synchronize_session=False)
                     deleted_count += count
                     session.commit()
                     logger.info(f"成功迁移并删除 {deleted_count} 条 ChatStatistics 记录")
-                    last_id = cstats[-1].id
+                    last_id = current_last_id
                     total_archived += len(cstats)
                 else:
                     logger.error("强制归档: ChatStatistics Parquet 写入失败，停止该表归档")
@@ -613,11 +618,12 @@ def archive_force() -> None:
                 if result:
                     deleted_count = 0
                     ids = [r.id for r in rstats]
+                    current_last_id = rstats[-1].id
                     count = session.query(RuleStatistics).filter(RuleStatistics.id.in_(ids)).delete(synchronize_session=False)
                     deleted_count += count
                     session.commit()
                     logger.info(f"成功迁移并删除 {deleted_count} 条 RuleStatistics 记录")
-                    last_id = rstats[-1].id
+                    last_id = current_last_id
                     total_archived += len(rstats)
                 else:
                     logger.error("强制归档: RuleStatistics Parquet 写入失败，停止该表归档")

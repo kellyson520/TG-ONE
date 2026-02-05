@@ -312,7 +312,7 @@ class MenuController:
             await self.view.show_history_messages_menu(event)
         except AttributeError:
             from handlers.button.modules.history import history_module
-            await history_module.show_history_menu(event)
+            await history_module.show_history_messages(event)
 
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""
@@ -423,7 +423,7 @@ class MenuController:
 
     async def enter_add_keyword_state(self, event, rule_id: int):
         """进入添加关键词状态"""
-        await self._set_user_state(event, "waiting_keyword", rule_id)
+        await self._set_user_state(event, f"kw_add:{rule_id}", rule_id)
         text = (
             "➕ **添加关键词**\n\n"
             "请输入要添加的关键词。支持以下格式：\n"
@@ -437,7 +437,7 @@ class MenuController:
 
     async def enter_add_replace_state(self, event, rule_id: int):
         """进入添加替换规则状态"""
-        await self._set_user_state(event, "waiting_replace", rule_id)
+        await self._set_user_state(event, f"rr_add:{rule_id}", rule_id)
         text = (
             "➕ **添加替换规则**\n\n"
             "请输入替换规则，格式为：\n"
@@ -652,12 +652,49 @@ class MenuController:
         """启动历史迁移任务"""
         try:
             # 业务逻辑交由 session_service
-            pass
-            # 这里原本可能需要从用户状态中获取配置
-            await event.answer("🚀 历史迁移任务已提交队列")
+            res = await session_service.start_history_task(event.sender_id)
+            if res.get('success'):
+                await event.answer("🚀 历史任务已开始处理", alert=True)
+                # 刷新显示当前进度
+                await self.show_current_history_task(event)
+            else:
+                await event.answer(f"❌ 启动失败: {res.get('message', '未知错误')}", alert=True)
         except Exception as e:
             logger.error(f"启动历史任务失败: {e}")
             await event.answer("启动失败", alert=True)
+
+    async def cancel_history_task(self, event):
+        """取消历史迁移任务"""
+        try:
+            ok = await session_service.stop_history_task(event.sender_id)
+            if ok:
+                await event.answer("⏹️ 任务已停止", alert=True)
+                await self.show_current_history_task(event)
+            else:
+                await event.answer("❌ 停止失败或任务未运行", alert=True)
+        except Exception as e:
+            logger.error(f"停止任务失败: {e}")
+            await event.answer("操作失败", alert=True)
+
+    async def pause_history_task(self, event):
+        """暂停历史任务"""
+        try:
+            # 简化：暂停即停止当前循环
+            ok = await session_service.stop_history_task(event.sender_id)
+            await event.answer("⏸️ 已暂停" if ok else "❌ 暂停失败")
+            await self.show_current_history_task(event)
+        except Exception as e:
+            logger.error(f"暂停失败: {e}")
+            await event.answer("操作失败", alert=True)
+
+    async def resume_history_task(self, event):
+        """恢复历史任务"""
+        try:
+            # 简化：恢复即重新开始
+            await self.start_history_task(event)
+        except Exception as e:
+            logger.error(f"恢复失败: {e}")
+            await event.answer("操作失败", alert=True)
 
     async def show_history_task_list(self, event):
         """显示历史任务列表"""

@@ -352,6 +352,11 @@ class SmartDeduplicator:
                     )
                     if is_dup:
                         logger.debug(f"签名重复命中: {reason}")
+                        # ✅ 检测到重复,写入持久化缓存以加速后续判重
+                        try:
+                            await self._write_pcache(signature, None, str(target_chat_id))
+                        except Exception as e:
+                            logger.debug(f"写入PCache失败: {e}")
                         try:
                             from core.helpers.metrics import (
                                 DEDUP_DECISIONS_TOTAL,
@@ -595,6 +600,11 @@ class SmartDeduplicator:
                         )
                         if is_dup:
                             logger.debug(f"内容哈希重复命中: {reason}")
+                            # ✅ 检测到重复,写入持久化缓存以加速后续判重
+                            try:
+                                await self._write_pcache(None, content_hash, str(target_chat_id))
+                            except Exception as e:
+                                logger.debug(f"写入PCache失败: {e}")
                             try:
                                 from core.helpers.metrics import (
                                     DEDUP_DECISIONS_TOTAL,
@@ -633,6 +643,13 @@ class SmartDeduplicator:
                             )
                             logger.debug(f"相似度检查结果: {is_dup}, {reason}")
                             if is_dup:
+                                # ✅ 检测到相似重复,尝试记录文本哈希到PCache
+                                try:
+                                    text_hash = self._generate_content_hash(message_obj)
+                                    if text_hash:
+                                        await self._write_pcache(None, text_hash, str(target_chat_id))
+                                except Exception as e:
+                                    logger.debug(f"写入PCache失败: {e}")
                                 try:
                                     from core.helpers.metrics import (
                                         DEDUP_DECISIONS_TOTAL,
@@ -1339,13 +1356,9 @@ class SmartDeduplicator:
                 self.content_hash_cache[cache_key][content_hash] = current_time
                 self.content_hash_cache[cache_key].move_to_end(content_hash)
 
-
-
-            # 写入持久化缓存（用于跨重启去重热命中）
-            try:
-                await self._write_pcache(signature, content_hash, cache_key)
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+            # ❌ 移除自动写入持久化缓存的逻辑
+            # 持久化缓存应该只在检测到重复时写入(用于加速后续判重)
+            # 而不是记录所有消息,否则会导致所有消息都被误判为重复
 
             # 视频：持久化记录 file_id 与内容哈希（若有），便于后续判重
             try:

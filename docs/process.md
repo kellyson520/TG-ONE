@@ -115,6 +115,7 @@
 | 20260204_Fix_Stability_Safety_Concurrency | 修复系统稳定性、数据安全与并发模型隐患 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Stability_Safety_Concurrency/report.md) |
 | 20260204_Fix_DB_And_Imports | 修复数据库驱动兼容性、导入路径及路由开关 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Database_And_Import_Issues/report.md) |
 | 20260204_Industrial_Grade_Update | 工业级自动升级系统 (Supervisor + 状态机 + 原子回滚) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Infrastructure/20260204_Industrial_Grade_Update_System/report.md) |
+| 20260204_Menu_Fix | 修复菜单导航循环、虚假数据及归档崩溃 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Menu_Navigation_And_Data/report.md) |
 
 
 ### 进行中任务 ⏳

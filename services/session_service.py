@@ -12,6 +12,7 @@ from core.container import container
 from core.helpers.tombstone import tombstone
 from core.helpers.time_range import format_time_range_display, parse_time_range_to_dates
 from services.forward_settings_service import forward_settings_service
+from services.dedup.engine import smart_deduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,19 @@ class SessionService:
 
     def _restore_state_dump(self, dump):
         if dump:
-            self.user_sessions = dump.get("user_sessions", {})
-            # 转换 key 为 int (JSON key 总是 str)
-            self.user_sessions = {int(k): v for k, v in self.user_sessions.items()}
+            raw_sessions = dump.get("user_sessions", {})
+            self.user_sessions = {}
+            for uid_str, user_content in raw_sessions.items():
+                uid = int(uid_str)
+                processed_content = {}
+                for k, v in user_content.items():
+                    # 如果 key 是数字字符串且不是保留字段名，则转换为 int (chat_id)
+                    if k.isdigit() or (k.startswith('-') and k[1:].isdigit()):
+                        processed_content[int(k)] = v
+                    else:
+                        processed_content[k] = v
+                self.user_sessions[uid] = processed_content
+                
             self.current_scan_results = dump.get("current_scan_results", {})
             logger.info(
                 f"🔥 SessionService 恢复了 {len(self.user_sessions)} 个用户会话"
@@ -556,31 +567,40 @@ class SessionService:
     async def _estimate_message_count(
         self, client, chat_id: int, begin_date=None, end_date=None
     ) -> int:
-        """估算消息总数"""
+        """估算消息总数 - 改进探测版"""
         try:
-            # 获取第一条和最后一条消息
+            # 获取会话中第一条和最后一条消息作为基准
             first_msgs = await client.get_messages(chat_id, limit=1, reverse=True)
             last_msgs = await client.get_messages(chat_id, limit=1)
             
             if not first_msgs or not last_msgs:
                 return 0
             
-            first_msg = first_msgs[0]
-            last_msg = last_msgs[0]
+            total_first_id = first_msgs[0].id
+            total_last_id = last_msgs[0].id
             
-            # 如果没有时间范围，直接返回ID差值
             if not begin_date and not end_date:
-                return max(0, last_msg.id - first_msg.id)
+                return max(0, total_last_id - total_first_id)
             
-            # 有时间范围时，使用简化估算
-            total_range = last_msg.id - first_msg.id
+            # 使用 offset_date 探测范围端点
+            range_start_id = total_first_id
+            range_end_id = total_last_id
             
-            # 粗略估算: 假设消息均匀分布
-            if begin_date or end_date:
-                # 简化处理: 返回总数的一半作为估算
-                return total_range // 2
+            if begin_date:
+                # offset_date 获取 <= date 的消息，reverse=True 获取第一个 >= date 的消息
+                msgs = await client.get_messages(chat_id, limit=1, offset_date=begin_date, reverse=True)
+                if msgs:
+                    range_start_id = msgs[0].id
+                    
+            if end_date:
+                # offset_date 获取本就在 end_date 之前的消息
+                msgs = await client.get_messages(chat_id, limit=1, offset_date=end_date)
+                if msgs:
+                    range_end_id = msgs[0].id
             
-            return total_range
+            estimate = max(0, range_end_id - range_start_id)
+            logger.info(f"📊 探测范围: ID {range_start_id} 到 {range_end_id}, 估算总数: {estimate}")
+            return estimate
             
         except Exception as e:
             logger.warning(f"估算消息总数失败: {e}")
@@ -628,10 +648,8 @@ class SessionService:
             if extra:
                 session_data.update(extra)
                 
-            if 'chat_states' not in self.user_sessions[user_id]:
-                self.user_sessions[user_id]['chat_states'] = {}
-            
-            self.user_sessions[user_id]['chat_states'][chat_id] = session_data
+            # 直接存储在 [user_id][chat_id] 下，与 message_listener 保持一致
+            self.user_sessions[user_id][chat_id] = session_data
             return True
         except Exception as e:
             logger.error(f"更新用户会话状态失败: {e}")
@@ -705,35 +723,212 @@ class SessionService:
     async def set_time_field(self, chat_id, side, field, value):
         await self.set_time_component(chat_id, side, field, value)
 
-    # --- 兼容性方法 (Placeholder/Future) ---
+    # --- 消息去重扫描与删除真实实现 ---
+
     async def scan_duplicate_messages(self, event, progress_callback=None):
+        """扫描重复消息"""
         chat_id = event.chat_id
+        user_id = event.sender_id
+        
+        # 增加缓存检查：如果无回调（即非手动点击重新扫描）且已有结果，则返回缓存
+        if not progress_callback and chat_id in self.current_scan_results and self.current_scan_results[chat_id]:
+            logger.info(f"💾 返回会话 {chat_id} 的去重扫描缓存结果")
+            return self.current_scan_results[chat_id]
+        
+        time_config = self.get_time_range(user_id)
+        begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
+        
+        duplicates = {} # signature -> [msg_ids]
+        seen_sigs = {} # signature -> msg_id (first message seen)
+        
+        processed = 0
+        client = container.user_client
+        
+        # 清除旧结果
         self.current_scan_results[chat_id] = {}
-        return self.current_scan_results[chat_id]
+        
+        try:
+            # 使用 reverse=True 从旧到新扫描，保留最早的那条，删除后续重复的
+            async for message in client.iter_messages(chat_id, offset_date=begin_date, reverse=True):
+                # 检查结束时间
+                if end_date and message.date > end_date.replace(tzinfo=timezone.utc):
+                    break
+                    
+                processed += 1
+                
+                # 生成签名 (复用智能去重引擎逻辑)
+                sig = smart_deduplicator._generate_signature(message)
+                if not sig and (message.text or message.message):
+                    # 如果没有媒体签名且有文本，尝试内容哈希
+                    sig = smart_deduplicator._generate_content_hash(message)
+                
+                if sig:
+                    if sig in seen_sigs:
+                        if sig not in duplicates:
+                            duplicates[sig] = []
+                        duplicates[sig].append(message.id)
+                    else:
+                        seen_sigs[sig] = message.id
+                
+                # 进度回调
+                if progress_callback and processed % 100 == 0:
+                    await progress_callback(processed, len(duplicates))
+            
+            # 生成短 ID 映射，防止 Telegram Callback Data (64字节) 溢出
+            session = self._get_user_session(chat_id)
+            sig_mapping = {}
+            for sig in duplicates:
+                import hashlib
+                short_id = hashlib.md5(sig.encode()).hexdigest()[:8]
+                sig_mapping[short_id] = sig
+            session['sig_mapping'] = sig_mapping
+
+            self.current_scan_results[chat_id] = duplicates
+            logger.info(f"✅ 扫描完成: 处理 {processed} 条，发现 {len(duplicates)} 组重复内容 (映射数: {len(sig_mapping)})")
+            return duplicates
+            
+        except Exception as e:
+            logger.error(f"扫描重复消息失败: {e}", exc_info=True)
+            return {}
 
     async def delete_duplicate_messages(self, event, mode="all"):
-        return True, "功能开发中"
+        """删除重复消息"""
+        chat_id = event.chat_id
+        if chat_id not in self.current_scan_results:
+            return False, "请先进行扫描"
+            
+        duplicates_map = self.current_scan_results[chat_id]
+        if not duplicates_map:
+            return True, "没有发现重复项"
+            
+        msg_ids_to_delete = []
+        if mode == "all":
+            for ids in duplicates_map.values():
+                msg_ids_to_delete.extend(ids)
+        else:
+            # 从会话中获取手动选中的签名
+            selected = self._get_user_session(chat_id).get('selected_signatures', [])
+            for sig in selected:
+                if sig in duplicates_map:
+                    msg_ids_to_delete.extend(duplicates_map[sig])
+                    
+        if not msg_ids_to_delete:
+            return False, "未发现或未选择任何重复项"
+            
+        # 记录到进度
+        session = self._get_user_session(chat_id)
+        session['delete_task'] = {
+            "deleted": 0,
+            "total": len(msg_ids_to_delete),
+            "status": "running",
+            "cancel_event": asyncio.Event()
+        }
+            
+        # 启动后台删除任务
+        asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids_to_delete))
+        return True, "已启动后台删除任务"
+
+    async def _execute_batch_delete(self, chat_id, msg_ids):
+        """批量删除执行循环"""
+        client = container.user_client
+        session = self._get_user_session(chat_id)
+        task = session.get('delete_task')
+        
+        deleted = 0
+        batch_size = 100
+        
+        try:
+            for i in range(0, len(msg_ids), batch_size):
+                if task and task.get('cancel_event') and task['cancel_event'].is_set():
+                    task['status'] = "cancelled"
+                    break
+                    
+                batch = msg_ids[i:i+batch_size]
+                try:
+                    await client.delete_messages(chat_id, batch)
+                    deleted += len(batch)
+                    task['deleted'] = deleted
+                    
+                    # 避免触发 Flood 控制
+                    await asyncio.sleep(1.0)
+                except Exception as e:
+                    logger.error(f"删除批次 {i} 失败: {e}")
+                    await asyncio.sleep(5.0) # 出错时多等等
+            
+            if task['status'] == "running":
+                task['status'] = "completed"
+                
+            # 清理该会话的扫描缓存
+            if chat_id in self.current_scan_results:
+                del self.current_scan_results[chat_id]
+                
+        except Exception as e:
+            logger.error(f"批量删除任务崩溃: {e}", exc_info=True)
+            if task: task['status'] = "failed"
 
     async def get_delete_progress(self, chat_id):
-        return {"deleted": 0, "total": 0}
+        """获取删除任务进度"""
+        task = self._get_user_session(chat_id).get('delete_task')
+        if not task:
+            return {"deleted": 0, "total": 0, "status": "idle"}
+        return {
+            "deleted": task.get("deleted", 0),
+            "total": task.get("total", 0),
+            "status": task.get("status", "unknown")
+        }
 
-    async def preview_session_messages_by_filter(self, event):
-        return 0, []
+    async def get_selection_state(self, chat_id):
+        """获取选中的签名列表"""
+        return self._get_user_session(chat_id).get('selected_signatures', [])
+    
+    async def toggle_select_signature(self, chat_id, signature):
+        """切换签名的选中状态"""
+        session = self._get_user_session(chat_id)
+        if 'selected_signatures' not in session:
+            session['selected_signatures'] = []
+            
+        if signature in session['selected_signatures']:
+            session['selected_signatures'].remove(signature)
+        else:
+            session['selected_signatures'].append(signature)
 
-    async def save_time_range_settings(self, chat_id):
-        return True
-
-    async def delete_session_messages_by_filter(self, event):
-        return True, "功能开发中"
-
-    async def pause_delete_task(self, chat_id):
-        return True
+    def _signature_to_display_name(self, sig):
+        """签名转可显示名称"""
+        if ":" in str(sig):
+            parts = str(sig).split(":", 1)
+            return f"[{parts[0]}] {parts[1][:15]}..."
+        return str(sig)[:20]
 
     async def stop_delete_task(self, chat_id):
-        return True
+        """停止删除任务"""
+        task = self._get_user_session(chat_id).get('delete_task')
+        if task and task.get('cancel_event'):
+            task['cancel_event'].set()
+            task['status'] = "cancelled"
+            return True
+        return False
 
     async def preview_history_messages(self, event, _sample=10, _collect_full=True, _max_collect=800):
-        return 0, []
+        """预览历史消息 (真实采集示例)"""
+        chat_id = event.chat_id
+        time_config = self.get_time_range(chat_id)
+        begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
+        
+        client = container.user_client
+        samples = []
+        total = 0
+        
+        try:
+            async for message in client.iter_messages(chat_id, offset_date=begin_date, limit=_max_collect, reverse=True):
+                if end_date and message.date > end_date.replace(tzinfo=timezone.utc):
+                    break
+                total += 1
+                if len(samples) < _sample:
+                    samples.append(message)
+            return total, samples
+        except Exception as e:
+            logger.error(f"预览历史消息失败: {e}")
+            return 0, []
 
     async def count_history_in_range(self, event):
         return 0, 0
@@ -754,10 +949,24 @@ class SessionService:
         pass
 
     async def get_selection_state(self, chat_id):
-        return {}
-    
-    async def toggle_select_signature(self, chat_id, signature):
-        pass
+        """获取选中状态"""
+        return self._get_user_session(chat_id).get('selected_signatures', [])
+
+    async def toggle_select_signature(self, chat_id, sig_id):
+        """切换选中签名 (支持短 ID)"""
+        session = self._get_user_session(chat_id)
+        if 'selected_signatures' not in session:
+            session['selected_signatures'] = []
+            
+        # 尝试通过短 ID 映射找回原始签名
+        sig_mapping = session.get('sig_mapping', {})
+        real_sig = sig_mapping.get(sig_id, sig_id)
+        
+        if real_sig in session['selected_signatures']:
+            session['selected_signatures'].remove(real_sig)
+        else:
+            session['selected_signatures'].append(real_sig)
+        return True
 
 
 system_session_service = SessionService()

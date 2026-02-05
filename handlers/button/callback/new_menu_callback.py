@@ -296,6 +296,9 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "toggle_rule":
             rule_id = int(extra_data[0]) if extra_data else 0
             await menu_controller.toggle_rule_status(event, rule_id)
+        elif action == "delete_rule_confirm" and extra_data:
+            rule_id = int(extra_data[0])
+            await menu_controller.delete_rule_confirm(event, rule_id)
         elif action == "delete_rule_confirm":
             rule_id = int(extra_data[0]) if extra_data else 0
             await menu_controller.delete_rule_confirm(event, rule_id)
@@ -396,7 +399,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action.startswith("toggle_select"):
             try:
                 # new_menu:toggle_select:{signature}
-                signature = extra_data[0] if extra_data else ""
+                signature = ":".join(extra_data) if extra_data else ""
                 from services.session_service import session_manager
 
                 await session_manager.toggle_select_signature(event.chat_id, signature)
@@ -464,14 +467,14 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             from handlers.button.modules.history import history_module
 
             await history_module.show_end_time_menu(event)
-        elif action == "select_days":
-            # 兼容旧入口：默认走会话时间范围
-            await new_menu_system.show_day_picker(event)
         elif action == "select_days" and extra_data and extra_data[0] == "history":
             # 历史时间范围-快速选择天数（与新模块配合，返回历史路径）
             from services.session_service import session_manager
 
             session_manager.set_time_picker_context(event.chat_id, "history")
+            await new_menu_system.show_day_picker(event)
+        elif action == "select_days":
+            # 兼容旧入口：默认走会话时间范围
             await new_menu_system.show_day_picker(event)
         elif action == "select_year":
             # 兼容旧入口：统一到新模块的数字选择器
@@ -796,10 +799,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             await new_menu_system.show_delete_session_messages_menu(event)
-        elif action == "forward_management":
-            await new_menu_system.show_forward_management(event)
-        elif action == "forward_search":
-            await new_menu_system.show_forward_search(event)
         elif action == "forward_stats_detailed":
             try:
                 from controllers.menu_controller import menu_controller
@@ -904,18 +903,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"切换规则状态(多源)失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
-        elif action == "toggle_rule":
-            # 保留此回调以防某些地方仍在使用
-            rule_id = int(extra_data[0]) if extra_data else 0
-            from handlers.button.forward_management import forward_manager
-
-            success, new_state = await forward_manager.toggle_rule_status(rule_id)
-            if success:
-                await event.answer(f"规则已{'启用' if new_state else '禁用'}")
-                # 根据上下文返回不同页面
-                await new_menu_system.show_rule_management(event)
-            else:
-                await event.answer("切换规则状态失败")
         elif action == "manage_multi_source":
             rule_id = int(extra_data[0]) if extra_data else 0
             # 实现多源管理详细页面
@@ -929,8 +916,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await handle_toggle_setting(event, "allow_text")
         elif action == "toggle_allow_emoji":
             await handle_toggle_setting(event, "allow_emoji")
-        elif action == "history_messages":
-            await new_menu_system.show_history_messages(event)
         elif action == "history_task_actions":
             try:
                 from controllers.menu_controller import menu_controller
@@ -1677,8 +1662,10 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception:
                 await event.answer("🚧 功能开发中")
 
-        # 智能去重设置回调
+        # 智能去重中心回调 (统一入口)
         elif action == "smart_dedup_settings":
+            await menu_controller.show_dedup_hub(event)
+        elif action == "dedup_settings_page":
             await new_menu_system.show_smart_dedup_settings(event)
         elif action == "dedup_time_window":
             await new_menu_system.show_dedup_time_window(event)
@@ -2074,15 +2061,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"切换规则状态失败: {e}")
                 await event.answer("操作失败", alert=True)
-        elif action == "delete_rule_confirm" and extra_data:
-            try:
-                rule_id = int(extra_data[0])
-                await event.answer(f"确认删除规则 {rule_id}？", alert=True)
-                # 这里可以添加确认对话框逻辑
-            except Exception as e:
-                logger.error(f"删除确认失败: {e}")
-
-
         # 新架构 - 会话管理 (历史消息)
         elif action == "history_task_selector":
             try:
@@ -2100,14 +2078,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"切换历史去重失败: {e}")
                 await event.answer("操作失败", alert=True)
-        elif action == "current_history_task":
-            try:
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_current_history_task(event)
-            except Exception as e:
-                logger.error(f"历史任务状态失败: {e}")
-                await event.answer("加载历史任务状态失败", alert=True)
         elif action == "select_history_rule" and extra_data:
             try:
                 from controllers.menu_controller import menu_controller
@@ -2181,12 +2151,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 await event.answer("清理失败", alert=True)
 
         # 兼容旧的智能去重设置入口
-        elif action == "smart_dedup_settings":
-            await new_menu_system.show_dedup_hub(event)
-
-        # 新增的快捷功能（暂时开发中）
-        elif action == "forward_search":
-            await new_menu_system.show_forward_search(event)
         elif action == "dedup_cache_management":
             await new_menu_system.show_dedup_cache_management(event)
         elif action == "system_status":

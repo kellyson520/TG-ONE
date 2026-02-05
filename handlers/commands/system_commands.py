@@ -103,7 +103,7 @@ async def handle_video_cache_clear_command(event, parts):
 
 async def handle_dedup_scan_command(event, parts):
     """手动触发去重扫描"""
-    from handlers.button.session_management import session_manager
+    from services.session_service import session_manager
     msg = await event.respond("⏳ 正在扫描重复消息...", parse_mode="md")
     
     # 假设 scan_duplicate_messages 返回一个字典 {类型: 数量}

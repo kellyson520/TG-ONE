@@ -142,7 +142,7 @@ async def callback_add_push_channel(event, rule_id, session, message, data):
             user_id = event.sender_id
 
         # 设置用户状态
-        chat_id = abs(event.chat_id)
+        chat_id = event.chat_id
         state = f"add_push_channel:{rule_id}"
 
         logger.info(
@@ -188,7 +188,7 @@ async def callback_cancel_add_push_channel(event, rule_id, session, message, dat
         else:
             user_id = event.sender_id
 
-        chat_id = abs(event.chat_id)
+        chat_id = event.chat_id
         # 使用 session_manager 清除状态
         if user_id in session_manager.user_sessions:
             if chat_id in session_manager.user_sessions[user_id]:

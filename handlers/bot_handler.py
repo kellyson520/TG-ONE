@@ -59,7 +59,7 @@ async def handle_command(client, event):
 
         chat = await event.get_chat()
         bot_user_id = await get_user_id()
-        chat_id = abs(chat.id)
+        chat_id = chat.id  # [Fix] 不再使用 abs()，保持与 Telethon 和 SessionService 一致
         bot_user_id = int(bot_user_id)
 
         # 链接转发功能 - 仅当消息以 / 开头时不处理链接
@@ -70,9 +70,29 @@ async def handle_command(client, event):
                 logger.info(f"✅ [Bot命令] 链接转发处理完成: TraceID={trace_id}")
             return
 
-        # 只有以 / 开头的消息才被认为是命令
+        # 只有以 / 开头的消息才被认为是命令 (除非处于等待输入状态)
         if not message.text.startswith("/"):
-            logger.debug(f"⚠️ [Bot命令] 非命令消息，跳过处理: TraceID={trace_id}, 内容={message.text}")
+            # [Fix] 检查是否处于等待输入状态 (Prompt Mode)
+            from services.session_service import session_manager
+            from .prompt_handlers import handle_prompt_setting
+            
+            user_session = session_manager.user_sessions.get(user_id, {})
+            chat_state_data = user_session.get(chat_id)
+            
+            if chat_state_data and chat_state_data.get('state'):
+                logger.info(f"📝 [Bot命令] 检测到非命令输入且存在状态: TraceID={trace_id}, 状态={chat_state_data['state']}")
+                # 调用提示词处理器
+                # 注意：这里需要传入之前保存的 message 对象（如果 UI 渲染器保存了的话，但通常 handle_prompt_setting 能自己处理）
+                # 老逻辑中 prompt_handler 需要一个 message 参数，通常是触发状态的那个按钮消息
+                # 在 New Menu 中，我们暂且传入 event (当前输入的消息) 或尝试寻找
+                res = await handle_prompt_setting(
+                    event, client, user_id, chat_id, chat_state_data['state'], event
+                )
+                if res:
+                    logger.info(f"✅ [Bot命令] 状态输入处理完成: TraceID={trace_id}")
+                    return
+
+            logger.debug(f"⚠️ [Bot命令] 非命令消息且无状态，跳过处理: TraceID={trace_id}, 内容={message.text}")
             return
 
         logger.info(f"📋 [Bot命令] 处理管理员命令: TraceID={trace_id}, 命令={event.message.text}")

@@ -636,7 +636,7 @@ class TestMediaActionCommands:
         mock_reply.assert_called_once()
         assert "已加入下载队列" in mock_reply.call_args[0][1]
 
-    @patch('handlers.button.session_management.session_manager', new_callable=AsyncMock)
+    @patch('services.session_service.session_manager', new_callable=AsyncMock)
     async def test_handle_dedup_scan_command(self, mock_session_manager):
         mock_event = AsyncMock()
         mock_event.chat_id = 123

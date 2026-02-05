@@ -5,7 +5,7 @@
 import logging
 from telethon import Button
 from ..base import BaseMenu
-from ..session_management import session_manager
+from services.session_service import session_manager
 
 logger = logging.getLogger(__name__)
 

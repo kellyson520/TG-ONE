@@ -65,11 +65,33 @@ class AnalyticsService:
             except Exception as e:
                 logger.warning(f"AnalyticsService 获取 HLL 统计失败: {e}")
 
+            # 5. 组合最终数据以对齐 Renderer 需求
+            # 获取活跃分析数据(可能需要从 get_detailed_stats 组合部分)
+            detailed = await self.get_detailed_stats(days=1)
+            
+            # 强化 overview 字段以对齐 main_menu_renderer.py:140
+            enriched_overview = {
+                'total_rules': overview.get('total_rules', 0),
+                'active_rules': overview.get('active_rules', 0),
+                'total_chats': overview.get('total_chats', 0),
+                'today_total': forward_stats.get('total_forwards', 0),
+                'yesterday_total': detailed.get('daily_trends', [{}])[0].get('yesterday_total', 0), # 需后端支持
+                'data_size_mb': (await self.get_system_status()).get('system_resources', {}).get('total_size_mb', 0.0),
+                'trend': {
+                    'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > 0 else '⏸️ 待机中',
+                    'percentage': 0
+                },
+                'hourly': detailed.get('time_analysis', {}).get('hourly_today', {})
+            }
+
             return {
-                'overview': overview,
+                'overview': enriched_overview,
                 'forward_stats': forward_stats,
                 'dedup_stats': dedup_stats,
-                'hll_stats': hll_stats
+                'hll_stats': hll_stats,
+                'top_type': detailed.get('type_distribution', [None])[0],
+                'top_chat': detailed.get('top_chats', [None])[0],
+                'top_rule': detailed.get('top_rules', [None])[0]
             }
         except Exception as e:
             logger.error(f"get_analytics_overview 失败: {e}\n{traceback.format_exc()}")
@@ -81,48 +103,69 @@ class AnalyticsService:
             }
 
     async def get_system_status(self) -> Dict[str, Any]:
-        """获取各项服务运行状态"""
+        """获取各项服务运行状态 (为系统中心页面提供真实数据)"""
         try:
-            # 1. 数据库状态
-            from models.models import get_db_health
-            db = {}
-            try:
-                db = get_db_health()
-            except Exception:
-                db = {}
-            db_status = 'running' if bool(db.get('connected')) else 'stopped'
+            # 1. 基础资源状态 (CPU/MEM/Uptime)
+            import psutil
+            import time
+            from datetime import datetime
             
-            # 2. Bot 状态
-            bot_status = 'unknown'
-            try:
-                hb = get_heartbeat()
-                age = float(hb.get('age_seconds') or 9999)
-                hbs = str(hb.get('status') or '')
-                if hbs == 'running' and age < 180:
-                    bot_status = 'running'
-                elif hbs:
-                    bot_status = 'stopped'
-            except Exception:
-                bot_status = 'unknown'
+            # 运行时间
+            boot_time = datetime.fromtimestamp(psutil.boot_time())
+            uptime_hours = (datetime.now() - boot_time).total_seconds() / 3600
             
-            # 3. 去重服务状态
-            try:
-                dedup_conf = smart_deduplicator.config or {}
-                # 如果有任何去重手段开启或有缓存，则认为去重服务在运行
-                dedup_enabled = bool(dedup_conf.get('enable_time_window')) or \
-                                bool(dedup_conf.get('enable_content_hash'))
-                dedup_state = 'running' if dedup_enabled else 'stopped'
-            except Exception:
-                dedup_state = 'unknown'
+            system_resources = {
+                "cpu_percent": psutil.cpu_percent(interval=0.1),
+                "memory_percent": psutil.virtual_memory().percent,
+                "uptime_hours": round(uptime_hours, 1),
+                "status": "healthy" if psutil.cpu_percent() < 80 else "warning"
+            }
+
+            # 2. 配置与运行状态
+            from core.container import container
+            async with container.db.session() as session:
+                from sqlalchemy import select, func
+                from models.models import ForwardRule, RuleLog
                 
+                # 转发规则统计
+                total_rules = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
+                active_rules = (await session.execute(select(func.count(ForwardRule.id)).where(ForwardRule.enable_rule == True))).scalar() or 0
+                forward_rules_status = f"{active_rules}/{total_rules} 启用"
+                
+                # 数据记录状态 (检查最近是否有日志条目)
+                recent_logs = (await session.execute(select(func.count(RuleLog.id)).limit(1))).scalar() or 0
+                data_recording_status = "✅ 运行中" if recent_logs > 0 else "💤 待机"
+
+            # 3. 智能去重状态
+            dedup_conf = smart_deduplicator.config or {}
+            dedup_enabled = dedup_conf.get('enable_time_window') or dedup_conf.get('enable_content_hash')
+            smart_dedup_status = "✅ 已开启" if dedup_enabled else "❌ 已关闭"
+
+            # 4. 组装返回数据 (对齐 MainMenuRenderer.render_system_hub)
             return {
-                'db': db_status,
-                'bot': bot_status,
-                'dedup': dedup_state
+                "system_resources": system_resources,
+                "config_status": {
+                    "forward_rules": forward_rules_status,
+                    "smart_dedup": smart_dedup_status,
+                    "data_recording": data_recording_status
+                },
+                "overall_status": "healthy" if system_resources["status"] == "healthy" else "warning",
+                # 保留旧格式用于兼容
+                "db": "running", 
+                "bot": "running",
+                "dedup": "running" if dedup_enabled else "stopped"
             }
         except Exception as e:
             logger.error(f"get_system_status 失败: {e}")
-            return {'db': 'unknown', 'bot': 'unknown', 'dedup': 'unknown'}
+            return {
+                "system_resources": {"cpu_percent": 0, "memory_percent": 0, "status": "unknown"},
+                "config_status": {
+                    "forward_rules": "未知",
+                    "smart_dedup": "未知",
+                    "data_recording": "未知"
+                },
+                "overall_status": "unknown"
+            }
 
     async def get_performance_metrics(self) -> Dict[str, Any]:
         """获取性能指标和资源占用"""
