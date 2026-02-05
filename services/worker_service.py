@@ -245,6 +245,10 @@ class WorkerService:
                 # [关键] 注入目标规则 ID (用于历史任务或转发历史)
                 if payload.get('rule_id'):
                     ctx.metadata['target_rule_id'] = int(payload['rule_id'])
+                
+                # 注入历史任务标记
+                if payload.get('is_history'):
+                    ctx.metadata['is_history'] = True
                 # 执行管道 (Middleware Chain)
                 try:
                     await self.pipeline.execute(ctx)

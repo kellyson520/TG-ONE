@@ -29,12 +29,16 @@ class KeywordFilter(BaseFilter):
 
         # 智能去重检查：使用新的智能去重系统
         if getattr(rule, 'enable_dedup', False):
-            is_duplicate = await self._check_smart_duplicate(context, rule)
-            if is_duplicate:
-                # 处理重复消息删除
-                await self._handle_duplicate_message_deletion(context, rule)
-                context.should_forward = False
-                return False
+            # [Fix] 历史任务跳过智能去重，避免中断处理链
+            if getattr(context, 'is_history', False):
+                logger.debug(f"历史任务跳过智能去重: 规则ID={rule.id}")
+            else:
+                is_duplicate = await self._check_smart_duplicate(context, rule)
+                if is_duplicate:
+                    # 处理重复消息删除
+                    await self._handle_duplicate_message_deletion(context, rule)
+                    context.should_forward = False
+                    return False
 
         # 支持复合条件：若规则启用了 sender 过滤，则必须同时满足
         # 约定：rule 可带属性 required_sender_id（字符串或整数），required_sender_regex（名称匹配）
@@ -177,7 +181,13 @@ class KeywordFilter(BaseFilter):
             'enable_smart_similarity': getattr(rule, 'enable_smart_similarity', True),
         }
         
-        target_chat_id = int(rule.target_chat.telegram_chat_id)
+        # [Fix] 安全获取目标聊天 ID
+        target_chat = getattr(rule, 'target_chat', None)
+        if not target_chat:
+             logger.debug(f"无法获取目标聊天信息，跳过智能去重检查: 规则ID={rule.id}")
+             return False, "Target chat missing"
+             
+        target_chat_id = int(target_chat.telegram_chat_id)
         logger.debug(f"正在进行智能去重检查: chat={target_chat_id}, config={rule_config}")
         is_duplicate, reason = await smart_deduplicator.check_duplicate(
             context.event.message, target_chat_id, rule_config

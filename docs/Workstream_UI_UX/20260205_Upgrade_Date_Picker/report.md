@@ -20,6 +20,8 @@
     - 将原来的单一分量选择器替换为集成度更高的高级滚轮选择器入口。
 - **Callback Router**:
     - 在 `new_menu_callback.py` 中注册了 `open_wheel_picker`, `picker_adj`, `picker_limit` 等核心回调动作。
+- **Full Integration**:
+    - 全系统适配：所有历史日期/时间入口均已重定向至新的滚轮选择器，确保全局 UI 体验一致。
 
 ## 3. 验证结果 (Verification)
 - [x] 代码审计：方法定义与调用逻辑正确，使用了 `safe_edit` 提高交互稳定性。

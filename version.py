@@ -1,15 +1,16 @@
-VERSION = "1.2.3.5"
+VERSION = "1.2.3.6"
 
 UPDATE_INFO = """
 **更新日志**
-- v1.2.3.5: 启动稳定性修复 - 解决 `core.container` 与中间件/服务层之间的循环导入问题，确保系统在生产环境下正常启动。
-- v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule)，统一数据库 Session 调用范式，重构版本信息显示逻辑 (Version Pagination)。
-- v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误；修复转发规则绑定后的路由丢失 (rule_settings:New) 问题；推进菜单系统 (NewMenuSystem) 审计与功能补全，修复多处回调参数不匹配引发的崩溃。
-- v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖，完全转向本地 CI 驱动；修复日志与任务重复问题；增强菜单系统稳健性 (Callback/AttributeError Fixes)。
-- v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB)，优化数据库维护扫描逻辑 (排除备份)，修复 Web Admin 模板语法与资源缺失 (Font/API)，纠正启动引导的模块依赖路径。
-- v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制，实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载，大幅降低启动内存与耗时。
-- v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP)，增加 Web Admin IP 频率限制与访问控制。
-- v1.2.2.9: CI 深度优化 - 修复单元测试超时问题，同步 CI 配置 (增加运行时长统计)，修复 Auth CSRF 测试漏洞，增强 Mock 机制稳定性。
+- v1.2.3.6: 回调与导入错误修复 - 修复 history.py 模块导入路径错误 (utils→services.network)、callback_handlers.py 缺失 container 导入、KeywordFilter 历史任务去重逻辑优化,确保历史消息转发流程正常运行。
+- v1.2.3.5: 启动稳定性修复 - 解决 `core.container` 与中间件/服务层之间的循环导入问题,确保系统在生产环境下正常启动。
+- v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule),统一数据库 Session 调用范式,重构版本信息显示逻辑 (Version Pagination)。
+- v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误;修复转发规则绑定后的路由丢失 (rule_settings:New) 问题;推进菜单系统 (NewMenuSystem) 审计与功能补全,修复多处回调参数不匹配引发的崩溃。
+- v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖,完全转向本地 CI 驱动;修复日志与任务重复问题;增强菜单系统稳健性 (Callback/AttributeError Fixes)。
+- v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB),优化数据库维护扫描逻辑 (排除备份),修复 Web Admin 模板语法与资源缺失 (Font/API),纠正启动引导的模块依赖路径。
+- v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制,实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载,大幅降低启动内存与耗时。
+- v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP),增加 Web Admin IP 频率限制与访问控制。
+- v1.2.2.9: CI 深度优化 - 修复单元测试超时问题,同步 CI 配置 (增加运行时长统计),修复 Auth CSRF 测试漏洞,增强 Mock 机制稳定性。
 - v1.2.2.8: CI 稳定性修复 - 解决 GitHub CI 递归错误 (RecursionError)、增强本地 CI 诊断能力、同步云端 lint 排除规则。
 - v1.2.2.7: 架构分层修复 - 移除 core 层对 handlers 层的非法依赖、修复未定义名称错误、通过本地 CI 质量门禁。
 

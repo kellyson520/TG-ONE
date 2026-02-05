@@ -29,7 +29,8 @@ class MessageContext:
         # Simulation fields (added in recent tasks)
         'is_sim',
         'trace',
-        'dup_signatures'
+        'dup_signatures',
+        'is_history'
     )
     
     def __init__(self, client, event, chat_id, rule):
@@ -105,6 +106,7 @@ class MessageContext:
         self.is_sim = False
         self.trace = []
         self.dup_signatures = []
+        self.is_history = False
         
     def clone(self):
         """创建上下文的副本"""

@@ -97,4 +97,8 @@ class FilterMiddleware(Middleware):
         if hasattr(ctx, 'is_sim'):
             context.is_sim = ctx.is_sim
             
+        # 传递历史任务标记
+        if ctx.metadata.get('is_history'):
+            context.is_history = True
+            
         return context

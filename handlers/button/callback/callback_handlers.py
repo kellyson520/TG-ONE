@@ -1,5 +1,6 @@
 import traceback
 import logging
+from core.container import container
 from services.network.router import RadixRouter
 
 # 导入模块化处理函数

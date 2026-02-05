@@ -62,7 +62,7 @@ class HistoryModule(BaseMenu):
             "- 全零配置 = 获取全部消息\n"
         )
         try:
-            from utils.telegram_utils import safe_edit
+            from services.network.telegram_utils import safe_edit
 
             await safe_edit(event, text, buttons)
         except Exception as e:

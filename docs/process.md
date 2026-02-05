@@ -129,6 +129,7 @@
 | 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
 | 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
+| 20260205_Fix_Errors | 修复回调与导入错误 (History/Callback/Keywords) | 2026-02-05 | 进行中 | 0% | [📂 查看](./Workstream_Maintenance/20260205_Fix_Callback_And_Import_Errors/todo.md) |
 | 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
 
 ### 2026-02-02
