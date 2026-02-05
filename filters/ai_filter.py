@@ -46,7 +46,10 @@ class AIFilter(BaseFilter):
                     context=context 
                 )
                 
-                context.message_text = processed_text
+                if processed_text:
+                    context.message_text = processed_text
+                else:
+                    logger.warning("AI 处理返回空结果，保留原始文本")
 
             # 3. 后置关键词重新检查
             if rule.is_keyword_after_ai:

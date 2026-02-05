@@ -66,31 +66,35 @@ class RuleFilterService:
 
     @staticmethod
     async def process_whitelist_mode(rule: Any, message_text: str, reverse_blacklist: bool) -> bool:
-        should_forward = False
+        # 1. 检查白名单匹配
         whitelist_keywords = [k for k in rule.keywords if not k.is_blacklist]
-        if await RuleFilterService.check_keywords_fast(whitelist_keywords, message_text, rule.id):
-            should_forward = True
-
-        if not should_forward:
+        if not await RuleFilterService.check_keywords_fast(whitelist_keywords, message_text, rule.id):
             return False
-
+        
+        # 2. 存在反转黑名单逻辑：若匹配黑名单则否决转发
         if reverse_blacklist:
             reversed_blacklist = [k for k in rule.keywords if k.is_blacklist]
             if reversed_blacklist:
-                if not await RuleFilterService.check_keywords_fast(reversed_blacklist, message_text, rule.id):
+                if await RuleFilterService.check_keywords_fast(reversed_blacklist, message_text, rule.id):
+                    logger.info("白名单匹配成功，但被反转黑名单否决")
                     return False
         return True
 
     @staticmethod
     async def process_blacklist_mode(rule: Any, message_text: str, reverse_whitelist: bool) -> bool:
+        # 1. 检查黑名单匹配
         blacklist_keywords = [k for k in rule.keywords if k.is_blacklist]
-        if await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id):
+        is_blacklisted = await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id)
+        
+        if is_blacklisted:
+            # 2. 存在反转白名单：若是白名单内容则豁免黑名单
+            if reverse_whitelist:
+                reversed_whitelist = [k for k in rule.keywords if not k.is_blacklist]
+                if await RuleFilterService.check_keywords_fast(reversed_whitelist, message_text, rule.id):
+                    logger.info("黑名单匹配成功，但被反转白名单豁免")
+                    return True
             return False
 
-        if reverse_whitelist:
-            reversed_whitelist = [k for k in rule.keywords if not k.is_blacklist]
-            if await RuleFilterService.check_keywords_fast(reversed_whitelist, message_text, rule.id):
-                return False
         return True
 
     @staticmethod
@@ -101,9 +105,11 @@ class RuleFilterService:
             
         blacklist_keywords = [k for k in rule.keywords if k.is_blacklist]
         if reverse_blacklist:
-            if not await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id):
+            # 反转逻辑：必须命中黑名单才拦截（即：命中白名单且命中黑名单 -> 拦截）
+            if await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id):
                 return False
         else:
+            # 标准逻辑：命中黑名单则拦截
             if await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id):
                 return False
         return True
@@ -112,12 +118,18 @@ class RuleFilterService:
     async def process_blacklist_then_whitelist_mode(rule: Any, message_text: str, reverse_whitelist: bool) -> bool:
         blacklist_keywords = [k for k in rule.keywords if k.is_blacklist]
         if await RuleFilterService.check_keywords_fast(blacklist_keywords, message_text, rule.id):
+            # 命中黑名单，检查是否有反转白名单豁免
+            if reverse_whitelist:
+                whitelist_keywords = [k for k in rule.keywords if not k.is_blacklist]
+                if await RuleFilterService.check_keywords_fast(whitelist_keywords, message_text, rule.id):
+                    return True
             return False
 
+        # 未命中黑名单，检查原本的白名单逻辑
         whitelist_keywords = [k for k in rule.keywords if not k.is_blacklist]
         if reverse_whitelist:
-            if await RuleFilterService.check_keywords_fast(whitelist_keywords, message_text, rule.id):
-                return False
+            # 如果开启反转，则白名单行为反转？这通常不建议，我们保持“通过”
+            return True
         else:
             if not await RuleFilterService.check_keywords_fast(whitelist_keywords, message_text, rule.id):
                 return False

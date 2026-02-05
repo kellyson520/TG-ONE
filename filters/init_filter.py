@@ -32,11 +32,13 @@ class InitFilter(BaseFilter):
         try:
             # [Fix] 优化媒体组处理，防止 N+1 API 调用
             if event.message.grouped_id:
-                from core.cache.unified_cache import unified_cache
-                cache_key = f"media_group_ctx:{event.message.grouped_id}"
+                from core.cache.unified_cache import get_smart_cache
+                unified_cache = get_smart_cache("media_group")
+                # [Fix] 增加 chat_id 以前缀，防止跨会话 grouped_id 碰撞
+                cache_key = f"media_group_ctx:{event.chat_id}:{event.message.grouped_id}"
                 
                 # 尝试从缓存获取已拉取的上下文（有效期 30秒，足以覆盖一个媒体组的到达时间）
-                cached_ctx = await unified_cache.get(cache_key)
+                cached_ctx = unified_cache.get(cache_key)
                 if cached_ctx:
                     context.message_text = cached_ctx.get('text', '')
                     context.original_message_text = cached_ctx.get('text', '')
@@ -61,7 +63,7 @@ class InitFilter(BaseFilter):
                                     context.buttons = message.buttons if hasattr(message, 'buttons') else None
                                     
                                     # 存入缓存供媒体组后续消息使用
-                                    await unified_cache.set(cache_key, {
+                                    unified_cache.set(cache_key, {
                                         'text': message.text,
                                         'buttons': message.buttons if hasattr(message, 'buttons') else None
                                     }, ttl=30)

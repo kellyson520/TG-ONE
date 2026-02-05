@@ -120,30 +120,23 @@ class AdvancedMediaFilter(BaseFilter):
     
     async def _check_file_size_range_filter(self, message, rule):
         """
-        检查文件大小范围过滤
-        
-        Args:
-            message: 消息对象
-            rule: 转发规则
-            
-        Returns:
-            bool: 是否通过过滤
+        检查文件大小 range 过滤
         """
-        file_size_mb = await get_media_size(message)
-        if file_size_mb is None:
+        file_size_bytes = await get_media_size(message)
+        if file_size_bytes is None or file_size_bytes == 0:
             # 无法获取大小信息时不拦截，直接通过
             return True
         
-        file_size_kb = file_size_mb * 1024  # 转换为KB
+        file_size_kb = file_size_bytes / 1024.0  # 正确转换为KB
         
         # 检查最小文件大小
         if rule.min_file_size > 0 and file_size_kb < rule.min_file_size:
-            logger.info(f"文件大小 {file_size_kb:.1f}KB 小于最小大小 {rule.min_file_size}KB")
+            logger.info(f"文件大小 {file_size_kb:.1f}KB 小于最小限制 {rule.min_file_size}KB")
             return False
         
         # 检查最大文件大小
         if rule.max_file_size > 0 and file_size_kb > rule.max_file_size:
-            logger.info(f"文件大小 {file_size_kb:.1f}KB 大于最大大小 {rule.max_file_size}KB")
+            logger.info(f"文件大小 {file_size_kb:.1f}KB 大于最大限制 {rule.max_file_size}KB")
             return False
         
         logger.info(f"文件大小 {file_size_kb:.1f}KB 通过大小范围过滤")

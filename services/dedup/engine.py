@@ -724,43 +724,38 @@ class SmartDeduplicator:
                     w = getattr(largest, "w", 0)
                     h = getattr(largest, "h", 0)
                     size = getattr(largest, "size", 0)
-                    return f"photo:{w}x{h}:{size}"
+                    if w > 0 or h > 0 or size > 0:
+                        return f"photo:{w}x{h}:{size}"
 
             elif hasattr(message_obj, "document") and message_obj.document:
                 # 文档签名
                 doc = message_obj.document
-                doc_id = getattr(doc, "id", "")
+                # 某些客户端将视频/语音/贴纸等都作为 document，这里尽量提取唯一标识
+                doc_id = getattr(doc, "id", None)
                 size = getattr(doc, "size", 0)
                 mime_type = getattr(doc, "mime_type", "")
-                return f"document:{doc_id}:{size}:{mime_type}"
+                
+                # 如果没有唯一 ID，且大小也为0，说明可能是个空占位符或链接预览，不生成签名
+                if not doc_id and not size:
+                    return None
+                    
+                return f"document:{doc_id or 'none'}:{size}:{mime_type}"
 
             elif hasattr(message_obj, "video") and message_obj.video:
                 # 视频签名
                 video = message_obj.video
-                # 优先使用 telegram file id（若可用），否则回退到原有规则
-                file_id = getattr(video, "id", "") or getattr(
-                    video, "file_reference", ""
-                )
-                duration = getattr(video, "duration", 0)
-                return f"video:{file_id or video}:{duration}"
-
-            # 某些客户端将视频暴露在 document 中，这里兜底
-            elif (
-                hasattr(message_obj, "document")
-                and message_obj.document
-                and str(getattr(message_obj.document, "mime_type", "")).startswith(
-                    "video/"
-                )
-            ):
-                file_id = getattr(message_obj.document, "id", "") or getattr(
-                    message_obj.document, "file_reference", ""
-                )
-                duration = int(
-                    getattr(getattr(message_obj, "video", None), "duration", 0) or 0
-                )
-                return f"video:{file_id}:{duration}"
-
-            return None
+                file_id = getattr(video, "id", None) or getattr(video, "file_reference", None)
+                duration = int(getattr(video, "duration", 0) or 0)
+                
+                # 如果有唯一 ID 则使用
+                if file_id:
+                    return f"video:{file_id}:{duration}"
+                
+                # 若无 ID，则必须有时长且不能为 0 才能作为签名，否则太容易碰撞
+                if duration > 0:
+                    return f"video_nodata:{duration}"
+                    
+                return None
 
         except Exception as e:
             logger.debug(f"生成签名失败: {e}")
@@ -957,14 +952,16 @@ class SmartDeduplicator:
                     if signature in self.time_window_cache[cache_key]:
                         last_seen = self.time_window_cache[cache_key][signature]
                         window_hours = config.get("time_window_hours", 24)
-                        # 永久窗口：<=0 视为永久
+                        # 永久窗口：<0 视为永久；0 视为禁用时间窗口逻辑（但内存命中仍按 TTL 处理）
+                        diff = time.time() - last_seen
                         if (
-                            window_hours <= 0
-                            or time.time() - last_seen < window_hours * 3600
+                            window_hours < 0
+                            or (window_hours > 0 and diff < window_hours * 3600)
                         ):
+                            logger.info(f"去重命中[内存]: signature={signature}, 窗口={window_hours}h, 距上次={diff/60:.2f}min")
                             return (
                                 True,
-                                f"时间窗口内重复 ({'永久' if window_hours <= 0 else str(window_hours)+'小时'})",
+                                f"时间窗口内重复 ({'永久' if window_hours < 0 else str(window_hours)+'小时'})",
                             )
 
             # 数据库检查
@@ -1013,14 +1010,16 @@ class SmartDeduplicator:
                 if content_hash in self.content_hash_cache[cache_key]:
                     last_seen = self.content_hash_cache[cache_key][content_hash]
                     window_hours = config.get("time_window_hours", 24)
-                    # 永久窗口：<=0 视为永久
+                    # 永久窗口：<0 视为永久
+                    diff = time.time() - last_seen
                     if (
-                        window_hours <= 0
-                        or time.time() - last_seen < window_hours * 3600
+                        window_hours < 0
+                        or (window_hours > 0 and diff < window_hours * 3600)
                     ):
+                        logger.info(f"去重命中[内容哈希]: hash={content_hash}, 距上次={diff/60:.2f}min")
                         return (
                             True,
-                            f"内容哈希重复 ({'永久' if window_hours <= 0 else str(window_hours)+'小时内'})",
+                            f"内容哈希重复 ({'永久' if window_hours < 0 else str(window_hours)+'小时内'})",
                         )
             # 冷区兜底：永久窗口或热区未命中时查询归档
             try:

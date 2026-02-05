@@ -63,26 +63,21 @@ class GlobalFilter(BaseFilter):
                 if text:
                     # 使用正则表达式检查是否只包含emoji和空格
                     emoji_pattern = re.compile(
-                        "["
-                        "\U0001F600-\U0001F64F"  # emoticons
-                        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-                        "\U0001F680-\U0001F6FF"  # transport & map symbols
-                        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                        "\U00002500-\U00002BEF"  # chinese char
-                        "\U00002702-\U000027B0"
-                        "\U00002702-\U000027B0"
-                        "\U000024C2-\U0001F251"
-                        "\U0001f926-\U0001f937"
-                        "\U00010000-\U0010ffff"
-                        "\u2640-\u2642"
-                        "\u2600-\u2B55"
-                        "\u200d"
-                        "\u23cf"
-                        "\u23e9"
-                        "\u231a"
-                        "\ufe0f"  # dingbats
-                        "\u3030"
-                        "]+", 
+                        r"["
+                        r"\U0001F600-\U0001F64F"  # Emoticons
+                        r"\U0001F300-\U0001F5FF"  # Symbols & Pictographs
+                        r"\U0001F680-\U0001F6FF"  # Transport & Map
+                        r"\U0001F1E6-\U0001F1FF"  # Flags
+                        r"\U00002700-\U000027BF"  # Dingbats
+                        r"\U0001F900-\U0001F9FF"  # Supplemental Symbols
+                        r"\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+                        r"\U0001F000-\U0001F0FF"  # Mahjong, etc
+                        r"\u2600-\u26FF"          # Misc symbols
+                        r"\u2300-\u23FF"          # Misc technical
+                        r"\u2B50"                 # Star
+                        r"\u200d\ufe0f"           # ZWJ/Variation
+                        r"\s"                     # Spaces
+                        r"]+", 
                         flags=re.UNICODE
                     )
                     # 如果消息只包含emoji和空格，则认为是表情包消息
@@ -135,12 +130,13 @@ class GlobalFilter(BaseFilter):
             is_video = False
             is_audio = False
             
+            from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeAudio
             # 检查文档属性
             for a in attrs:
-                if a.__class__.__name__ == 'DocumentAttributeVideo':
+                if isinstance(a, DocumentAttributeVideo):
                     is_video = True
                     break
-                elif a.__class__.__name__ == 'DocumentAttributeAudio':
+                elif isinstance(a, DocumentAttributeAudio):
                     is_audio = True
                     break
             

@@ -68,15 +68,36 @@ async def test_global_filter_block_emoji_only(global_filter, mock_context, mock_
     assert mock_context.should_forward is False
 
 @pytest.mark.asyncio
-async def test_global_filter_allow_mixed_emoji(global_filter, mock_context, mock_forward_manager):
+async def test_global_filter_block_complex_emoji(global_filter, mock_context, mock_forward_manager):
     mock_forward_manager.get_global_media_settings.return_value = {
         'allow_text': True,
         'allow_emoji': False
     }
-    mock_context.event.message.message = "Hello 😀"
+    # Superhero emoji: 🦸‍♂️
+    mock_context.event.message.message = "🦸‍♂️"
+    result = await global_filter._process(mock_context)
+    assert result is False
     
+@pytest.mark.asyncio
+async def test_global_filter_allow_emoji_with_text(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'allow_emoji': False
+    }
+    # Contains text, should NOT be blocked by emoji filter
+    mock_context.event.message.message = "Good 🦸‍♂️"
     result = await global_filter._process(mock_context)
     assert result is True
+
+@pytest.mark.asyncio
+async def test_global_filter_block_emoji_with_spaces(global_filter, mock_context, mock_forward_manager):
+    mock_forward_manager.get_global_media_settings.return_value = {
+        'allow_text': True,
+        'allow_emoji': False
+    }
+    mock_context.event.message.message = "  😀  😂  "
+    result = await global_filter._process(mock_context)
+    assert result is False
 
 @pytest.mark.asyncio
 async def test_global_filter_block_media_type(global_filter, mock_context, mock_forward_manager):

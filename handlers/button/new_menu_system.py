@@ -190,6 +190,7 @@ class NewMenuSystem(BaseMenu):
     async def show_current_history_task(self, event): await self.history_module.show_current_history_task(event)
     async def show_history_delay_settings(self, event): await self.history_module.show_history_delay_settings(event)
     async def show_history_time_range(self, event): await self.history_module.show_time_range_selection(event)
+    async def show_time_range_selection(self, event): await self.history_module.show_time_range_selection(event)
 
     # 9. 选择器 (Pickers)
     async def show_time_picker(self, event, time_type): await self.picker_menu.show_time_picker(event, time_type)
@@ -197,5 +198,6 @@ class NewMenuSystem(BaseMenu):
     async def show_single_unit_duration_picker(self, event, side, unit, val=None): await self.picker_menu.show_single_unit_duration_picker(event, side, unit, val)
     async def show_session_numeric_picker(self, event, side, field): await self.picker_menu.show_session_numeric_picker(event, side, field)
     async def show_duration_range_picker(self, event, side): await self.picker_menu.show_duration_range_picker(event, side)
+    async def show_wheel_date_picker(self, event, side): await self.picker_menu.show_wheel_date_picker(event, side)
 
 new_menu_system = NewMenuSystem()

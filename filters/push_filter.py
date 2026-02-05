@@ -134,9 +134,13 @@ class PushFilter(BaseFilter):
             if context.media_group_messages and not context.media_files:
                 logger.info(f'检测到媒体组消息但没有媒体文件，开始下载...')
                 need_cleanup = True
+                temp_dir = os.path.join(os.getcwd(), 'temp')
+                if not os.path.exists(temp_dir):
+                    os.makedirs(temp_dir, exist_ok=True)
+                    
                 for message in context.media_group_messages:
                     if message.media:
-                        file_path = await message.download_media(os.path.join(os.getcwd(), 'temp'))
+                        file_path = await message.download_media(temp_dir)
                         if file_path:
                             files.append(file_path)
                             logger.info(f'已下载媒体组文件: {file_path}')

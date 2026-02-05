@@ -14,6 +14,9 @@ User reported that the media type filter in the menu bot is unresponsive.
 - [x] Final verification and consolidation of callback handlers.
 - [x] Fix `RadixRouter` to support multi-part greedy matching (to prevent future "handler empty" errors).
 - [x] Create and run unit tests for `RadixRouter` and `CallbackHandlers`.
+- [x] Fix `SmartDeduplicator` time window logic (0h now disables window vs permanent).
+- [x] Correct generic signature collisions for document/photo/video in `engine.py`.
+- [x] Enhance `KeywordFilter` with diagnostic logging and safety checks.
 
 ## Status
 - **Phase**: Report

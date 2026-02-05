@@ -12,6 +12,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260205_Upgrade_Date_Picker | 升级时间范围选择和日期选择页面 (滚轮式选择) | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_UI_UX/20260205_Upgrade_Date_Picker/report.md) |
 | 20260205_Fix_Settings_Attr | 修复 Settings 缺失 ENABLE_BATCH_FORWARD_API 属性错误 | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_Maintenance/20260205_Fix_AttributeError_Settings_ENABLE_BATCH_FORWARD_API/report.md) |
 | 20260108_Dashboard | Dashboard 数据可视化 | 2026-01-08 | 2026-01-08 | 100% | [📂 查看](./archive/Workstream_Web_UI/20260108_Dashboard_Visualization/) |
 | 20260108_Security | Web 认证安全加固 | 2026-01-08 | 暂停 (Phase 2) | 60% | [📂 查看](./archive/Workstream_Core_Engineering/20260108_Security_Enhancement/) |

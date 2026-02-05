@@ -13,22 +13,8 @@ class PickerMenu(BaseMenu):
     """选择器菜单"""
 
     async def show_time_picker(self, event, time_type):
-        """显示时间选择器"""
-        hours = list(range(24))
-        minutes = [0, 15, 30, 45]
-        buttons = []
-        hour_buttons = []
-        for i, hour in enumerate(hours):
-            if i % 6 == 0 and hour_buttons:
-                buttons.append(hour_buttons)
-                hour_buttons = []
-            hour_buttons.append(Button.inline(f"{hour:02d}h", f"new_menu:set_time:{time_type}:hour:{hour}"))
-        if hour_buttons: buttons.append(hour_buttons)
-
-        minute_buttons = [Button.inline(f"{minute:02d}m", f"new_menu:set_time:{time_type}:minute:{minute}") for minute in minutes]
-        buttons.append(minute_buttons)
-        buttons.append([Button.inline("👈 返回上一级", "new_menu:time_range_selection")])
-        await self._render_from_text(event, f"🕐 **选择{'起始' if time_type == 'start' else '结束'}时间**\n\n请选择小时和分钟：", buttons)
+        """显示时间选择器 (已重构：重定向到滚轮)"""
+        await self.show_wheel_date_picker(event, time_type)
 
     async def show_day_picker(self, event):
         """显示天数选择器"""
@@ -102,37 +88,90 @@ class PickerMenu(BaseMenu):
             await event.answer("操作失败", alert=True)
 
     async def show_session_numeric_picker(self, event, side: str, field: str):
-        """显示会话管理的数字选择器 (年/月/日)"""
-        import datetime
-        current_year = datetime.datetime.now().year
-        
-        buttons = []
-        if field == "year":
-            # 过去5年 + 未来1年
-            row = []
-            for y in range(current_year - 5, current_year + 2):
-                row.append(Button.inline(f"{y}", f"new_menu:set_time_field:{side}:year:{y}"))
-                if len(row) == 4: buttons.append(row); row = []
-            if row: buttons.append(row)
-        elif field == "month":
-            row = []
-            for m in range(1, 13):
-                row.append(Button.inline(f"{m}月", f"new_menu:set_time_field:{side}:month:{m}"))
-                if len(row) == 4: buttons.append(row); row = []
-            if row: buttons.append(row)
-        elif field == "day":
-             # 简单的 1-31
-            row = []
-            for d in range(1, 32):
-                row.append(Button.inline(f"{d}", f"new_menu:set_time_field:{side}:day:{d}"))
-                if len(row) == 6: buttons.append(row); row = []
-            if row: buttons.append(row)
+        """显示数字选择器 (已重构：重定向到滚轮)"""
+        await self.show_wheel_date_picker(event, side)
+
+    async def show_wheel_date_picker(self, event, side: str):
+        """显示高级滚轮式日期选择器"""
+        try:
+            from services.session_service import session_manager
+            import datetime
+            import calendar
             
-        buttons.append([Button.inline("♾️ 重置为不限", "new_menu:set_all_time_zero")])
-        buttons.append([Button.inline("👈 返回上一级", "new_menu:time_range_selection")])
-        
-        field_name = {"year": "年份", "month": "月份", "day": "日期"}.get(field, field)
-        title = "起始" if side == "start" else "结束"
-        await self._render_from_text(event, f"📅 **选择{title}{field_name}**", buttons)
+            # 获取当前设置的时间范围
+            tr = session_manager.get_time_range(event.chat_id)
+            
+            # 基础基准时间
+            base_date = datetime.datetime.now()
+            if not tr.get(f"{side}_year"):
+                # 如果未设置，尝试获取会话最早时间作为默认起始值
+                earliest, _ = await session_manager.get_chat_message_date_range(event.chat_id)
+                if earliest:
+                    base_date = earliest
+            
+            # 获取对应的分量
+            y = tr.get(f"{side}_year") or base_date.year
+            m = tr.get(f"{side}_month") or base_date.month
+            d = tr.get(f"{side}_day") or base_date.day
+            h = tr.get(f"{side}_hour") or (base_date.hour if side == "start" else 0)
+            mn = tr.get(f"{side}_minute") or (base_date.minute if side == "start" else 0)
+            sc = tr.get(f"{side}_second") or (base_date.second if side == "start" else 0)
+            
+            # 修正日期合法性（比如从31日切到2月）
+            _, last_day = calendar.monthrange(y, m if m > 0 else 1)
+            if d > last_day: d = last_day
+            
+            title = "起始" if side == "start" else "结束"
+            display_str = f"{y:04d}年{m:02d}月{d:02d}日{h:02d}时{mn:02d}分{sc:02d}秒"
+            
+            # 构建按钮：三排滚轮模式
+            # 1. 增加排
+            row_inc = [
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:year:1"),
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:month:1"),
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:day:1"),
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:hour:1"),
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:minute:1"),
+                Button.inline("🔼", f"new_menu:picker_adj:{side}:second:1"),
+            ]
+            # 2. 数值排
+            row_val = [
+                Button.inline(f"{y}", "new_menu:noop"),
+                Button.inline(f"{m:02d}", "new_menu:noop"),
+                Button.inline(f"{d:02d}", "new_menu:noop"),
+                Button.inline(f"{h:02d}", "new_menu:noop"),
+                Button.inline(f"{mn:02d}", "new_menu:noop"),
+                Button.inline(f"{sc:02d}", "new_menu:noop"),
+            ]
+            # 3. 减少排
+            row_dec = [
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:year:-1"),
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:month:-1"),
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:day:-1"),
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:hour:-1"),
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:minute:-1"),
+                Button.inline("🔽", f"new_menu:picker_adj:{side}:second:-1"),
+            ]
+            
+            buttons = [
+                row_inc,
+                row_val,
+                row_dec,
+                [Button.inline("♾️ 设为不限", f"new_menu:picker_limit:{side}:none")],
+                [Button.inline("✅ 确认选择", "new_menu:history_time_range"), Button.inline("👈 返回", "new_menu:history_time_range")]
+            ]
+            
+            text = (
+                f"📅 **{title}时间精细选择 (滚轮模式)**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"当前选中：\n`{display_str}`\n\n"
+                f"• 点击 🔼/🔽 微调各项数值\n"
+                f"• 自动适配大/小月天数"
+            )
+            
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"显示滚轮选择器失败: {e}", exc_info=True)
+            await event.answer("加载选择器失败", alert=True)
 
 picker_menu = PickerMenu()

@@ -175,3 +175,16 @@ async def test_ai_filter_download_fail(ai_filter, mock_context):
             called_kwargs = mock_ai.process_message.call_args.kwargs
             assert called_kwargs["images"] == []
 
+@pytest.mark.asyncio
+async def test_ai_filter_empty_fallback(ai_filter, mock_context):
+    mock_context.rule.is_ai = True
+    mock_context.rule.is_keyword_after_ai = False
+    mock_context.message_text = "original text"
+    
+    mock_ai = AsyncMock()
+    mock_ai.process_message.return_value = "" # Empty result
+    
+    with patch("services.ai_service.ai_service", mock_ai):
+        result = await ai_filter._process(mock_context)
+        assert result is True
+        assert mock_context.message_text == "original text" # Preserved

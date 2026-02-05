@@ -26,3 +26,7 @@ Fixed the issue where clicking media type filter buttons (Image, Video, etc.) in
 - **Functionality**: Global media filters and deduplication settings are now fully operational.
 - **Reliability**: Database recovery tool is integrated into the UI for safer maintenance.
 - **Maintainability**: Reduced code complexity in the callback system by eliminating duplicated logic blocks.
+- **Deduplication Logic (SmartDeduplicator)**: 
+  - Fixed "Time Window Duplicate" issue by re-defining `time_window_hours=0` as "disable window check" instead of "permanent window", preventing legitimate messages from being blocked 2 hours after similar content.
+  - Hardened `_generate_signature` to handle `document` and `photo` more strictly, avoiding signature collisions for generic media/links.
+  - Added detailed diagnostic logging to `engine.py` and `KeywordFilter` to track exact deduplication reasons and time comparisons.

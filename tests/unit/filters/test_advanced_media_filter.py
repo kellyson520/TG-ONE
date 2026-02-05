@@ -88,14 +88,32 @@ async def test_adv_media_filter_resolution_pass(adv_media_filter, mock_context):
 @pytest.mark.asyncio
 async def test_adv_media_filter_size_range_fail(adv_media_filter, mock_context):
     mock_context.rule.enable_file_size_range = True
-    mock_context.rule.min_file_size = 1000 # 1000KB = 1MB
-    mock_context.rule.max_file_size = 5000 # 5000KB = 5MB
+    mock_context.rule.min_file_size = 1000 # 1000KB
+    mock_context.rule.max_file_size = 5000 # 5000KB
     
     mock_context.event.message.media = MagicMock()
     
-    # get_media_size returns MB
+    # get_media_size returns bytes
     with patch("filters.advanced_media_filter.get_media_size", new_callable=AsyncMock) as mock_get_size:
-        mock_get_size.return_value = 0.5 # 0.5MB = 512KB
+        mock_get_size.return_value = 500 * 1024 # 500KB
         
         result = await adv_media_filter._process(mock_context)
-        assert result is False
+        assert result is False # Too small
+        
+        mock_get_size.return_value = 6000 * 1024 # 6000KB
+        result = await adv_media_filter._process(mock_context)
+        assert result is False # Too large
+
+@pytest.mark.asyncio
+async def test_adv_media_filter_size_range_pass(adv_media_filter, mock_context):
+    mock_context.rule.enable_file_size_range = True
+    mock_context.rule.min_file_size = 1000 # 1000KB
+    mock_context.rule.max_file_size = 5000 # 5000KB
+    
+    mock_context.event.message.media = MagicMock()
+    
+    with patch("filters.advanced_media_filter.get_media_size", new_callable=AsyncMock) as mock_get_size:
+        mock_get_size.return_value = 2500 * 1024 # 2500KB
+        
+        result = await adv_media_filter._process(mock_context)
+        assert result is True

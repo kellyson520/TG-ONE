@@ -348,26 +348,36 @@ async def handle_callback(event):
         
         event.router_params = params
             
-        # [Fix] 兼容 5 参数的旧版模块化处理器
+        # [Fix] 顺调机制与兼容性增强 (兼容 5 参数的旧版模块化处理器)
         import inspect
         sig = inspect.signature(handler)
         if len(sig.parameters) == 5:
-            # 提取参数
+            # 1. 智能提取 rule_id (或者 action 相关的 ID)
             rule_id = params.get('id') or params.get('rule_id')
             if not rule_id and ":" in data:
                 parts = data.split(":")
-                if len(parts) > 1 and parts[1].isdigit():
+                if len(parts) > 1:
                     rule_id = parts[1]
             
-            # [Fix] 校验 rule_id
-            if not rule_id:
-                logger.warning(f"回调数据缺失 rule_id: {data}")
+            # 2. 权限安全检查 (若是管理员操作)
+            is_admin_action = data.startswith("admin_") or data == "close_admin_panel"
+            if is_admin_action:
+                from core.helpers.common import is_admin
+                if not await is_admin(event):
+                    await event.answer("⚠️ 权限不足：仅限管理员", alert=True)
+                    return
+
+            # 3. 参数校验 (非管理操作且非取消操作时，rule_id 通常是必须的)
+            if not rule_id and not is_admin_action and "cancel" not in data and "noop" not in data:
+                logger.warning(f"由于缺失业务 ID，回调分发终止: {data}")
                 await event.answer("无效的指令参数", alert=True)
                 return
 
-            # 构造上下文 (session 传 None 由处理器内部创建，data 传原始字符串)
-            message = await event.get_message()
-            return await handler(event, rule_id, None, message, data)
+            # 4. 提供统一的 Session 环境，确保模块化处理器高效运行
+            async with container.db.session() as session:
+                message = await event.get_message()
+                # 传入转换后的参数
+                return await handler(event, rule_id, session, message, data)
 
         # 正常分发
         if params:

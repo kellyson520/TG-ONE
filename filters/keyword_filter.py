@@ -165,15 +165,20 @@ class KeywordFilter(BaseFilter):
         from services.dedup.engine import smart_deduplicator
         
         # 智能去重配置
+        window_hours = getattr(rule, 'dedup_time_window_hours', 24)
+        if window_hours is None or window_hours < 0:
+            window_hours = 24
+            
         rule_config = {
             'enable_time_window': getattr(rule, 'enable_time_window_dedup', True),
-            'time_window_hours': getattr(rule, 'dedup_time_window_hours', 24),
+            'time_window_hours': window_hours,
             'similarity_threshold': getattr(rule, 'similarity_threshold', 0.85),
             'enable_content_hash': getattr(rule, 'enable_content_hash_dedup', True),
             'enable_smart_similarity': getattr(rule, 'enable_smart_similarity', True),
         }
         
         target_chat_id = int(rule.target_chat.telegram_chat_id)
+        logger.debug(f"正在进行智能去重检查: chat={target_chat_id}, config={rule_config}")
         is_duplicate, reason = await smart_deduplicator.check_duplicate(
             context.event.message, target_chat_id, rule_config
         )

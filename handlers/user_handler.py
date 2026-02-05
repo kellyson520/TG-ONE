@@ -86,22 +86,29 @@ def _get_user_mode_filter_chain(factory, rule):
         except Exception as e:
             logger.log_error("解析用户模式过滤器配置失败", e, entity_id=rule.id)
 
-    # 使用简化的默认用户模式配置
-    user_mode_filters = [
-        "init",  # 初始化
-        "keyword",  # 关键词过滤（核心）
-        "replace",  # 文本替换（如果启用）
-        "sender",  # 发送（简化版）
-    ]
+    # 使用灵活的默认用户模式配置
+    user_mode_filters = ["init", "keyword"]
+    
+    # 动态添加媒体过滤器
+    if rule.enable_media_type_filter or rule.enable_media_size_filter or rule.enable_extension_filter:
+        user_mode_filters.append("media")
 
-    # 根据规则设置调整用户模式过滤器
-    if not rule.is_replace:
-        user_mode_filters.remove("replace")
+    # 动态添加高级媒体过滤器
+    if getattr(rule, 'enable_duration_filter', False) or getattr(rule, 'enable_resolution_filter', False):
+        user_mode_filters.append("advanced_media")
+
+    # 替换过滤器
+    if rule.is_replace:
+        user_mode_filters.append("replace")
 
     # 如果启用了延迟处理，添加延迟过滤器
     if rule.enable_delay:
-        user_mode_filters.insert(-1, "delay")  # 在sender之前添加
+        user_mode_filters.append("delay")
 
+    # 最后添加发送过滤器
+    user_mode_filters.append("sender")
+
+    logger.debug(f"生成的动态用户模式过滤器链: {user_mode_filters} (规则ID={rule.id})")
     return factory.create_chain_from_config(user_mode_filters, use_cache=True)
 
 

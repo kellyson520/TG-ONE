@@ -14,136 +14,9 @@ logger = logging.getLogger(__name__)
 
 class HistoryModule(BaseMenu):
     async def show_numeric_picker(self, event, side: str, field: str):
-        """通用数字选择器（年份/月/日/时分秒）
-        side: start|end, field: year|month|day|hour|minute|second
-        """
-        try:
-            buttons = []
-            side = "start" if side == "start" else "end"
-
-            if field == "year":
-                # 基于消息范围动态生成年份
-                earliest_date, latest_date = (
-                    await session_manager.get_chat_message_date_range(event.chat_id)
-                )
-                current_year = datetime.now().year
-                if earliest_date and latest_date:
-                    years = list(range(earliest_date.year, latest_date.year + 1))
-                    years.insert(0, 0)
-                else:
-                    years = [0] + list(range(current_year - 5, current_year + 1))
-                row = []
-                for y in years:
-                    label = f"{y}年" if y > 0 else "不限"
-                    row.append(
-                        Button.inline(label, f"new_menu:set_time_field:{side}:year:{y}")
-                    )
-                    if len(row) == 4:
-                        buttons.append(row)
-                        row = []
-                if row:
-                    buttons.append(row)
-
-            elif field == "month":
-                months = [0] + list(range(1, 13))
-                names = [
-                    "不限",
-                    "1月",
-                    "2月",
-                    "3月",
-                    "4月",
-                    "5月",
-                    "6月",
-                    "7月",
-                    "8月",
-                    "9月",
-                    "10月",
-                    "11月",
-                    "12月",
-                ]
-                row = []
-                for i, m in enumerate(months):
-                    row.append(
-                        Button.inline(
-                            names[i], f"new_menu:set_time_field:{side}:month:{m}"
-                        )
-                    )
-                    if len(row) == 4:
-                        buttons.append(row)
-                        row = []
-                if row:
-                    buttons.append(row)
-
-            elif field == "day":
-                days = list(range(0, 32))
-                row = []
-                for d in days:
-                    label = f"{d}日" if d > 0 else "不限"
-                    row.append(
-                        Button.inline(label, f"new_menu:set_time_field:{side}:day:{d}")
-                    )
-                    if len(row) == 8:
-                        buttons.append(row)
-                        row = []
-                if row:
-                    buttons.append(row)
-
-            elif field in ["hour", "minute", "second"]:
-                if field == "hour":
-                    values = list(range(0, 24))
-                    unit = "时"
-                    multiplier = 3600
-                elif field == "minute":
-                    values = list(range(0, 60, 5))
-                    unit = "分"
-                    multiplier = 60
-                else:
-                    values = list(range(0, 60, 5))
-                    unit = "秒"
-                    multiplier = 1
-                row = []
-                for v in values:
-                    seconds = v * multiplier
-                    row.append(
-                        Button.inline(
-                            f"{v}{unit}",
-                            f"new_menu:set_time_field:{side}:seconds:{seconds}",
-                        )
-                    )
-                    if len(row) == 6:
-                        buttons.append(row)
-                        row = []
-                if row:
-                    buttons.append(row)
-
-            # 返回上一页
-            buttons.append(
-                [Button.inline("👈 返回上一级", "new_menu:history_time_range")]
-            )
-
-            side_text = "起始" if side == "start" else "结束"
-            title_map = {
-                "year": "年份",
-                "month": "月份",
-                "day": "日期",
-                "hour": "小时",
-                "minute": "分钟",
-                "second": "秒数",
-            }
-            text = f"📅 请选择{side_text}{title_map.get(field, field)}："
-
-            # 使用安全编辑避免 MessageNotModifiedError
-            try:
-                from utils.telegram_utils import safe_edit
-
-                await safe_edit(event, text, buttons)
-            except Exception as edit_error:
-                # 如果安全编辑失败，尝试发送新消息
-                logger.warning(f"安全编辑失败，发送新消息: {edit_error}")
-                await event.respond(text, buttons=buttons)
-        except Exception as e:
-            logger.error(f"显示数字选择器失败: {e}")
-            await event.answer("操作失败", alert=True)
+        """通用数字选择器 (已重构：重定向到滚轮)"""
+        from handlers.button.modules.picker_menu import picker_menu
+        await picker_menu.show_wheel_date_picker(event, side)
 
     async def show_time_range_selection(self, event):
         session_manager.set_time_picker_context(event.chat_id, "history")
@@ -164,24 +37,10 @@ class HistoryModule(BaseMenu):
 
         buttons = [
             [
-                Button.inline("起始年", "new_menu:open_history_time:start:year"),
-                Button.inline("月", "new_menu:open_history_time:start:month"),
-                Button.inline("日", "new_menu:open_history_time:start:day"),
+                Button.inline("📅 设置起始时间 (高级滚轮)", "new_menu:open_wheel_picker:start"),
             ],
             [
-                Button.inline("起始时", "new_menu:open_history_time:start:hour"),
-                Button.inline("分", "new_menu:open_history_time:start:minute"),
-                Button.inline("秒", "new_menu:open_history_time:start:second"),
-            ],
-            [
-                Button.inline("结束年", "new_menu:open_history_time:end:year"),
-                Button.inline("月", "new_menu:open_history_time:end:month"),
-                Button.inline("日", "new_menu:open_history_time:end:day"),
-            ],
-            [
-                Button.inline("结束时", "new_menu:open_history_time:end:hour"),
-                Button.inline("分", "new_menu:open_history_time:end:minute"),
-                Button.inline("秒", "new_menu:open_history_time:end:second"),
+                Button.inline("📅 设置结束时间 (高级滚轮)", "new_menu:open_wheel_picker:end"),
             ],
             [
                 Button.inline("📊 快速选择天数", "new_menu:select_days"),
@@ -212,40 +71,12 @@ class HistoryModule(BaseMenu):
             await event.respond(text, buttons=buttons)
 
     async def show_start_time_menu(self, event):
-        session_manager.set_time_picker_context(event.chat_id, "history")
-        buttons = [
-            [Button.inline("📅 年份", "new_menu:select_year:history_start")],
-            [Button.inline("📅 月份", "new_menu:select_month:history_start")],
-            [Button.inline("📅 日期", "new_menu:select_day_of_month:history_start")],
-            [Button.inline("🕐 时分", "new_menu:select_start_time")],
-            [Button.inline("👈 返回上一级", "new_menu:history_time_range")],
-        ]
-        text = "📅 **起始点时间设置**\n\n请选择要设置的时间项目："
-
-        try:
-            from utils.telegram_utils import safe_edit
-
-            await safe_edit(event, text, buttons)
-        except Exception:
-            await event.respond(text, buttons=buttons)
+        """显示起始时间菜单 (已重写)"""
+        await self.show_numeric_picker(event, "start", "")
 
     async def show_end_time_menu(self, event):
-        session_manager.set_time_picker_context(event.chat_id, "history")
-        buttons = [
-            [Button.inline("📅 年份", "new_menu:select_year:history_end")],
-            [Button.inline("📅 月份", "new_menu:select_month:history_end")],
-            [Button.inline("📅 日期", "new_menu:select_day_of_month:history_end")],
-            [Button.inline("🕐 时分", "new_menu:select_end_time")],
-            [Button.inline("👈 返回上一级", "new_menu:history_time_range")],
-        ]
-        text = "📅 **终止点时间设置**\n\n请选择要设置的时间项目："
-
-        try:
-            from utils.telegram_utils import safe_edit
-
-            await safe_edit(event, text, buttons)
-        except Exception:
-            await event.respond(text, buttons=buttons)
+        """显示结束时间菜单 (已重写)"""
+        await self.show_numeric_picker(event, "end", "")
 
     async def show_message_filter_menu(self, event):
         settings = await forward_manager.get_global_media_settings()

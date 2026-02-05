@@ -5,7 +5,7 @@
 """
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 
 from core.container import container
@@ -701,6 +701,75 @@ class SessionService:
         except Exception as e:
             logger.error(f"获取可用规则失败: {e}")
             return {'success': False, 'error': str(e), 'rules': [], 'total_count': 0}
+
+    async def get_chat_message_date_range(self, chat_id: int) -> Tuple[Optional[datetime], Optional[datetime]]:
+        """获取会话中消息的日期范围（最早和最晚）"""
+        try:
+            client = container.user_client
+            # 获取第一条和最后一条消息
+            first_msgs = await client.get_messages(chat_id, limit=1, reverse=True)
+            last_msgs = await client.get_messages(chat_id, limit=1)
+            
+            if not first_msgs or not last_msgs:
+                return None, None
+                
+            return first_msgs[0].date, last_msgs[0].date
+        except Exception as e:
+            logger.error(f"获取会话日期范围失败: {e}")
+            return None, None
+
+    async def adjust_time_component(self, chat_id: int, side: str, field: str, delta: int):
+        """微调时间分量"""
+        import calendar
+        from datetime import datetime
+        
+        tr = self.get_time_range(chat_id)
+        now = datetime.now()
+        
+        # 获取当前值，如果为0则初始化为当前/默认值
+        y = tr.get(f"{side}_year") or now.year
+        m = tr.get(f"{side}_month") or now.month
+        d = tr.get(f"{side}_day") or now.day
+        h = tr.get(f"{side}_hour") or 0
+        mn = tr.get(f"{side}_minute") or 0
+        sc = tr.get(f"{side}_second") or 0
+        
+        if field == "year": y += delta
+        elif field == "month":
+            m += delta
+            if m > 12: m = 1
+            if m < 1: m = 12
+        elif field == "day":
+            d += delta
+            _, max_d = calendar.monthrange(y, m if m > 0 else 1)
+            if d > max_d: d = 1
+            if d < 1: d = max_d
+        elif field == "hour":
+            h += delta
+            if h > 23: h = 0
+            if h < 0: h = 23
+        elif field == "minute":
+            mn += delta
+            if mn > 59: mn = 0
+            if mn < 0: mn = 59
+        elif field == "second":
+            sc += delta
+            if sc > 59: sc = 0
+            if sc < 0: sc = 59
+            
+        # 再次校验日期合法性（年份或月份变动可能导致天数非法）
+        _, last_day = calendar.monthrange(y, m if m > 0 else 1)
+        if d > last_day: d = last_day
+        
+        # 更新
+        tr[f"{side}_year"] = y
+        tr[f"{side}_month"] = m
+        tr[f"{side}_day"] = d
+        tr[f"{side}_hour"] = h
+        tr[f"{side}_minute"] = mn
+        tr[f"{side}_second"] = sc
+        
+        self.set_time_range(chat_id, tr)
 
     # --- Time Picker Context Helpers ---
 

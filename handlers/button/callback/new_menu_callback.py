@@ -456,24 +456,17 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 logger.error(f"打开会话时间分量选择失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
         elif action == "open_session_date":
-            # 会话时间范围：打开 年/月/日 数字选择器
+            # 统一使用高级滚轮选择器
             try:
-                side = extra_data[0]  # start/end
-                field = extra_data[1]  # year/month/day
-                await new_menu_system.show_session_numeric_picker(
-                    event, "start" if side == "start" else "end", field
-                )
+                side = extra_data[0] if extra_data else "start"
+                await new_menu_system.show_wheel_date_picker(event, side)
             except Exception as e:
-                logger.error(f"打开会话日期选择器失败: {str(e)}")
+                logger.error(f"打开滚轮日期选择器失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
         elif action == "select_start_time":
-            from handlers.button.modules.history import history_module
-
-            await history_module.show_start_time_menu(event)
+            await new_menu_system.show_wheel_date_picker(event, "start")
         elif action == "select_end_time":
-            from handlers.button.modules.history import history_module
-
-            await history_module.show_end_time_menu(event)
+            await new_menu_system.show_wheel_date_picker(event, "end")
         elif action == "select_days" and extra_data and extra_data[0] == "history":
             # 历史时间范围-快速选择天数（与新模块配合，返回历史路径）
             from services.session_service import session_manager
@@ -485,67 +478,14 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_day_picker(event)
         elif action == "day_page" and extra_data:
             await new_menu_system.show_day_picker(event)
-        elif action == "select_year":
-            # 兼容旧入口：统一到新模块的数字选择器
+        elif action in ["select_year", "select_month", "select_day_of_month"]:
             try:
-                extra_context = (
-                    data.split(":")[-1]
-                    if ":" in data and len(data.split(":")) > 2
-                    else None
-                )
-                side = "start"
-                if extra_context == "history_start":
-                    side = "start"
-                elif extra_context == "history_end":
-                    side = "end"
-                from handlers.button.modules.history import history_module
-
-                await history_module.show_numeric_picker(event, side, "year")
+                extra_context = data.split(":")[-1] if ":" in data else ""
+                side = "start" if "start" in extra_context else "end"
+                await new_menu_system.show_wheel_date_picker(event, side)
             except Exception as e:
-                logger.error(f"打开年份选择器失败: {str(e)}")
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_history_time_range(event)
-        elif action == "select_month":
-            try:
-                extra_context = (
-                    data.split(":")[-1]
-                    if ":" in data and len(data.split(":")) > 2
-                    else None
-                )
-                side = "start"
-                if extra_context == "history_start":
-                    side = "start"
-                elif extra_context == "history_end":
-                    side = "end"
-                from handlers.button.modules.history import history_module
-
-                await history_module.show_numeric_picker(event, side, "month")
-            except Exception as e:
-                logger.error(f"打开月份选择器失败: {str(e)}")
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_history_time_range(event)
-        elif action == "select_day_of_month":
-            try:
-                extra_context = (
-                    data.split(":")[-1]
-                    if ":" in data and len(data.split(":")) > 2
-                    else None
-                )
-                side = "start"
-                if extra_context == "history_start":
-                    side = "start"
-                elif extra_context == "history_end":
-                    side = "end"
-                from handlers.button.modules.history import history_module
-
-                await history_module.show_numeric_picker(event, side, "day")
-            except Exception as e:
-                logger.error(f"打开日期选择器失败: {str(e)}")
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_history_time_range(event)
+                logger.error(f"打开滚轮选择器失败: {str(e)}")
+                await new_menu_system.show_time_range_selection(event)
         elif action == "set_time":
             # new_menu:set_time:{start|end}:{hour|minute}:{val}
             try:
@@ -680,15 +620,45 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                             f"✅ 已设置{side_name}{field_name}: {display_value}"
                         )
 
-                    # 返回对应的数字选择器
-                    from handlers.button.modules.history import history_module
-
-                    await history_module.show_numeric_picker(event, side, field)
+                    # 返回对应的滚轮选择器
+                    await new_menu_system.show_wheel_date_picker(event, side)
                 else:
                     await event.answer("参数不足", alert=True)
             except Exception as e:
                 logger.error(f"设置时间字段失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
+        elif action == "open_wheel_picker" and extra_data:
+            from handlers.button.modules.picker_menu import picker_menu
+            await picker_menu.show_wheel_date_picker(event, extra_data[0])
+        elif action == "picker_adj" and len(extra_data) >= 3:
+            try:
+                side = extra_data[0]
+                field = extra_data[1]
+                delta = int(extra_data[2])
+                from services.session_service import session_manager
+                await session_manager.adjust_time_component(event.chat_id, side, field, delta)
+                from handlers.button.modules.picker_menu import picker_menu
+                await picker_menu.show_wheel_date_picker(event, side)
+            except Exception as e:
+                logger.error(f"调整时间分量失败: {e}")
+                await event.answer("调整失败", alert=True)
+        elif action == "picker_limit" and extra_data:
+            try:
+                side = extra_data[0]
+                from services.session_service import session_manager
+                tr = session_manager.get_time_range(event.chat_id)
+                prefix = f"{side}_"
+                for k in ["year", "month", "day", "hour", "minute", "second"]:
+                    tr[prefix + k] = 0
+                session_manager.set_time_range(event.chat_id, tr)
+                await event.answer("✅ 已设为不限")
+                from handlers.button.modules.picker_menu import picker_menu
+                await picker_menu.show_wheel_date_picker(event, side)
+            except Exception as e:
+                logger.error(f"重置时间限制失败: {e}")
+                await event.answer("操作失败", alert=True)
+        elif action == "noop":
+            await event.answer()
         elif action == "set_all_time_zero":
             try:
                 from services.session_service import session_manager

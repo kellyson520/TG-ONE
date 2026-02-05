@@ -186,7 +186,8 @@ def extract_message_signature(message) -> Tuple[Optional[str], Optional[Any]]:
     fid = None
     if getattr(message, 'photo', None):
         media_id = getattr(getattr(message, 'photo', None), 'id', None)
-        sig = f"photo:{media_id or message.id}"
+        # [Fix] 增加 chat_id 以前缀，防止不同会话中相同 message.id 导致的指纹碰撞
+        sig = f"photo:{media_id or f'{message.chat_id}_{message.id}'}"
         fid = media_id
     elif getattr(message, 'document', None) and getattr(message.document, 'id', None):
         sig = f"document:{message.document.id}"
