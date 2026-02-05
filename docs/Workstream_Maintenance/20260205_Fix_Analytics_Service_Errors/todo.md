@@ -105,7 +105,37 @@ python -c "import asyncio; from services.analytics_service import analytics_serv
 ```
 
 ## 状态
-- [x] 修复字段名错误
-- [x] 修复列表访问错误
+- [x] 修复字段名错误 (第一轮)
+- [x] 修复列表访问错误 (第一轮)
+- [x] 修复剩余的列表访问错误 (第二轮)
 - [ ] 运行集成测试
 - [ ] 部署验证
+
+## 第二轮修复 (2026-02-05 11:27)
+
+### 问题
+仍然出现 `IndexError: list index out of range` 在第 92-94 行
+
+### 原因
+使用 `.get('key', [None])[0]` 模式不安全：
+- 当列表为空时，`[None]` 默认值会被 `.get()` 返回
+- 但如果实际返回的是空列表 `[]`，访问 `[0]` 仍会报错
+
+### 修复方案
+使用 `next(iter(...), None)` 模式：
+```python
+# 修改前 (不安全)
+'top_type': detailed.get('type_distribution', [None])[0],
+'top_chat': detailed.get('top_chats', [None])[0],
+'top_rule': detailed.get('top_rules', [None])[0]
+
+# 修改后 (安全)
+'top_type': next(iter(detailed.get('type_distribution', [])), None),
+'top_chat': next(iter(detailed.get('top_chats', [])), None),
+'top_rule': next(iter(detailed.get('top_rules', [])), None)
+```
+
+### 优势
+- ✅ 空列表返回 `None` 而不是抛出异常
+- ✅ 有元素时正确返回第一个元素
+- ✅ 代码更加 Pythonic

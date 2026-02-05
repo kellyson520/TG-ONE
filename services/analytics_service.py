@@ -89,9 +89,9 @@ class AnalyticsService:
                 'forward_stats': forward_stats,
                 'dedup_stats': dedup_stats,
                 'hll_stats': hll_stats,
-                'top_type': detailed.get('type_distribution', [None])[0],
-                'top_chat': detailed.get('top_chats', [None])[0],
-                'top_rule': detailed.get('top_rules', [None])[0]
+                'top_type': next(iter(detailed.get('type_distribution', [])), None),
+                'top_chat': next(iter(detailed.get('top_chats', [])), None),
+                'top_rule': next(iter(detailed.get('top_rules', [])), None)
             }
         except Exception as e:
             logger.error(f"get_analytics_overview 失败: {e}\n{traceback.format_exc()}")
