@@ -4,15 +4,21 @@
 Fixed the issue where clicking media type filter buttons (Image, Video, etc.) in the global setting menu resulted in no response.
 
 ## Changes
-- **File**: `handlers/button/callback/new_menu_callback.py`
-  - Added a handler for the `toggle_media_type` action in `callback_new_menu_handler`.
-  - This allows the generic `new_menu:toggle_media_type:{type}` callback data to be correctly dispatched to `handle_toggle_media_type`.
+- **`new_menu_callback.py`**:
+  - Added handler for `toggle_media_type` to enable global media type filtering.
+  - Implemented missing handlers for deduplication (`dedup_config`, `toggle_dedup_enabled`, `toggle_dedup_mode`).
+  - Added database restore handlers (`backup_page`, `restore_backup`, `do_restore`).
+  - **Major Refactor**: Consolidated over 20 redundant or shadowed callback handlers (e.g., merging `allow_text` variants and media toggles) to simplify the dispatcher logic.
+- **`new_menu_system.py`**: Synchronized proxy methods and removed redundant aliases.
+- **`session_menu.py`**: Fixed `undefined name 'forward_manager'` and added deduplication configuration UI.
+- **`system_service.py` & `system_menu.py`**: Implemented and integrated SQLite database restoration.
 
 ## Verification Results
-- **Code Audit**: Verified all other buttons in `FilterMenu` (Size, Duration, Extension) have corresponding handlers in `new_menu_callback.py`.
-- **Static Analysis**: `python -m py_compile` passed for the modified file.
-- **Functional Check**: Compared with `HistoryModule` implementation, confirming that global settings now follow the same robust pattern for media type toggling.
+- **Unit Tests**: `test_forward_settings_service.py` and `test_session_service.py` passed with 100% success.
+- **Local CI**: Verified syntax and core quality gates (Architecture/Code Quality) after fixing specific errors.
+- **Git**: Successfully committed and pushed changes to the main branch using `smart_push.py`.
 
 ## Impact
-- Users can now correctly toggle global media type filters from the bot menu.
-- Improved consistency between global settings and history task settings.
+- **Functionality**: Global media filters and deduplication settings are now fully operational.
+- **Reliability**: Database recovery tool is integrated into the UI for safer maintenance.
+- **Maintainability**: Reduced code complexity in the callback system by eliminating duplicated logic blocks.

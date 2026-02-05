@@ -334,17 +334,15 @@ async def handle_callback(event):
         data = event.data.decode("utf-8")
         logger.debug(f"Router分派: {data}")
 
-        match_result = callback_router.match(data)
-        if not match_result:
-            logger.warning(f"未知的路由回调: {data}")
-            await event.answer("操作已过期或指令无效", alert=True)
+        if data.startswith("new_menu:"):
+            await handle_new_menu_callback(event)
             return
-            
+
+        match_result = callback_router.match(data)
         handler, params = match_result
         
-        # [Fix] 检查 handler 是否为 None
         if handler is None:
-            logger.warning(f"路由匹配成功但处理器为空: {data}")
+            logger.warning(f"路由匹配失败 (处理器为空): {data}")
             await event.answer("操作已过期或指令无效", alert=True)
             return
         
