@@ -150,6 +150,45 @@ class SystemMenu(BaseMenu):
         text = "❓ **是否恢复历史备份？**\n\n⚠️ 此操作将覆盖当前数据库，请谨慎操作！"
         await self._render_from_text(event, text, buttons)
 
+    async def do_restore(self, event, backup_index):
+        """执行数据库恢复"""
+        try:
+            await self._render_from_text(event, "🔄 正在恢复数据库...", buttons=None)
+            
+            # 重新获取备份列表
+            backup_dirs = ["./db/backup", "backups"]
+            backup_files = []
+            for backup_dir in backup_dirs:
+                if os.path.exists(backup_dir):
+                    for file in os.listdir(backup_dir):
+                        if file.endswith(".db"):
+                            filepath = os.path.join(backup_dir, file)
+                            stat = os.stat(filepath)
+                            backup_files.append({
+                                "path": filepath,
+                                "time": datetime.fromtimestamp(stat.st_mtime),
+                            })
+            backup_files.sort(key=lambda x: x["time"].timestamp(), reverse=True)
+            
+            idx = int(backup_index)
+            if 0 <= idx < len(backup_files):
+                backup_path = backup_files[idx]["path"]
+                from services.system_service import system_service
+                result = await system_service.restore_database(backup_path)
+                
+                if result.get("success"):
+                    text = "✅ **数据库恢复成功**\n\n系统可能需要重启以应用所有更改。"
+                else:
+                    text = f"❌ **数据库恢复失败**\n\n错误：{result.get('error')}"
+            else:
+                text = "❌ **恢复失败**：找不到备份文件"
+            
+            buttons = [[Button.inline("👈 返回上一级", "new_menu:view_backups")]]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"恢复数据库失败: {str(e)}")
+            await event.answer(f"操作失败: {e}", alert=True)
+
     async def show_system_overview(self, event):
         """显示系统概况"""
         try:

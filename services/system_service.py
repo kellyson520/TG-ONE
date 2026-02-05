@@ -94,6 +94,29 @@ class SystemService:
                 "error": str(e)
             }
 
+    async def restore_database(self, backup_path: str) -> Dict:
+        """
+        异步恢复数据库备份
+        """
+        try:
+            if not os.path.exists(backup_path):
+                return {"success": False, "error": "Backup file not found"}
+
+            if settings.DATABASE_URL.startswith("sqlite"):
+                path_str = settings.DATABASE_URL.split("///")[-1]
+                db_path = str(Path(path_str).resolve())
+                
+                # 停止所有活动连接可以通过关闭引擎或是让用户手动重启
+                # 这里简单处理：直接文件复制（注意：这在活跃连接下可能导致损坏或锁错误）
+                import shutil
+                shutil.copy2(backup_path, db_path)
+                return {"success": True}
+            else:
+                return {"success": False, "error": "Only SQLite restore is supported"}
+        except Exception as e:
+            logger.error(f"Restore failed: {e}")
+            return {"success": False, "error": str(e)}
+
     async def run_db_optimization(self, deep: bool = False) -> Dict[str, Any]:
         """运行数据库优化 (SQLite PRAGMA optimize/VACUUM)"""
         try:

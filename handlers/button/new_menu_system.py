@@ -149,6 +149,8 @@ class NewMenuSystem(BaseMenu):
     async def show_system_status(self, event): await self.system_menu.show_system_status(event)
     async def show_log_viewer(self, event): await self.system_menu.show_log_viewer(event)
     async def show_version_info(self, event): await self.system_menu.show_version_info(event)
+    async def do_restore(self, event, index): await self.system_menu.do_restore(event, index)
+    async def show_dedup_config(self, event): await self.session_menu.show_dedup_config(event)
 
     # 5. 数据分析 (Analytics)
     async def show_forward_analytics(self, event): await self.analytics_menu.show_forward_analytics(event)
@@ -184,7 +186,6 @@ class NewMenuSystem(BaseMenu):
 
     # 8. 历史消息转发 (History)
     async def show_history_messages(self, event): await self.history_module.show_history_messages(event)
-    async def show_history_messages_menu(self, event): await self.history_module.show_history_messages(event)
     async def show_history_task_selector(self, event): await self.history_module.show_history_task_selector(event)
     async def show_current_history_task(self, event): await self.history_module.show_current_history_task(event)
     async def show_history_delay_settings(self, event): await self.history_module.show_history_delay_settings(event)

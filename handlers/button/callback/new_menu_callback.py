@@ -296,9 +296,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "toggle_rule":
             rule_id = int(extra_data[0]) if extra_data else 0
             await menu_controller.toggle_rule_status(event, rule_id)
-        elif action == "delete_rule_confirm" and extra_data:
-            rule_id = int(extra_data[0])
-            await menu_controller.delete_rule_confirm(event, rule_id)
         elif action == "delete_rule_confirm":
             rule_id = int(extra_data[0]) if extra_data else 0
             await menu_controller.delete_rule_confirm(event, rule_id)
@@ -354,10 +351,16 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.do_backup(event)
         elif action == "view_backups":
             await new_menu_system.show_backup_history(event)
+        elif action == "backup_page" and extra_data:
+            await new_menu_system.show_backup_history(event, int(extra_data[0]))
+        elif action == "restore_backup" and extra_data:
+            await new_menu_system.confirm_restore_backup(event, int(extra_data[0]))
+        elif action == "do_restore" and extra_data:
+            await new_menu_system.do_restore(event, int(extra_data[0]))
         elif action == "system_overview":
             await new_menu_system.show_system_overview(event)
-        elif action == "forward_management":
-            await menu_controller.show_rule_management(event)
+        elif action == "forward_management" or action == "rule_management":
+            await new_menu_system.show_rule_management(event)
         elif action == "cache_cleanup":
             await menu_controller.show_cache_cleanup(event)
         elif action == "do_cleanup":
@@ -369,6 +372,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "session_dedup":
             # 会话内去重入口
             await new_menu_system.show_session_dedup_menu(event)
+        elif action == "dedup_config":
+            await new_menu_system.show_dedup_config(event)
         elif action == "start_dedup_scan":
             # 使用统一的扫描方法
             await new_menu_system.start_dedup_scan(event)
@@ -475,6 +480,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_day_picker(event)
         elif action == "select_days":
             # 兼容旧入口：默认走会话时间范围
+            await new_menu_system.show_day_picker(event)
+        elif action == "day_page" and extra_data:
             await new_menu_system.show_day_picker(event)
         elif action == "select_year":
             # 兼容旧入口：统一到新模块的数字选择器
@@ -780,14 +787,17 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "filter_media_types":
             # 会话删除-筛选：媒体类型
             await new_menu_system.show_media_types(event)
-        elif action == "filter_allow_text":
-            # 会话删除-筛选：放行文本开关（复用全局切换）
+        elif action in ["allow_text", "filter_allow_text", "toggle_allow_text", "history_toggle_allow_text"]:
             await handle_toggle_setting(event, "allow_text")
+        elif action == "toggle_media_extension":
+            await handle_toggle_setting(event, "media_extension_enabled")
+        elif action == "toggle_extension_mode":
+            await handle_toggle_extension_mode(event)
+        elif action == "toggle_media_type" and extra_data:
+            await handle_toggle_media_type(event, extra_data[0])
         elif action == "filter_media_extension":
-            # 会话删除-筛选：扩展名设置
             await new_menu_system.show_media_extension_settings(event)
         elif action == "filter_media_size":
-            # 会话删除-筛选：媒体大小
             await new_menu_system.show_media_size_settings(event)
         elif action == "filter_media_duration":
             # 会话删除-筛选：媒体时长
@@ -823,7 +833,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             except Exception as e:
                 logger.error(f"显示性能监控失败: {e}")
                 await event.answer("加载失败", alert=True)
-        elif action == "channel_management_global":
+        elif action in ["channel_management", "channel_management_global"]:
             await new_menu_system.show_channel_management_global(event)
         elif action == "current_chat_rules" or action.startswith("current_chat_rules:"):
             # 在群组环境下直接委托给老菜单的规则选择（只显示本群相关规则）
@@ -861,11 +871,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "rule_detail_settings":
             # 显示规则选择菜单，然后进入老菜单的规则设置（保持向后兼容）
             await new_menu_system.show_rule_selection_for_settings(event)
-        elif action == "channel_management":
-            # 兼容旧回调，映射到全局频道管理
-            await new_menu_system.show_channel_management_global(event)
-        elif action == "rule_management":
-            await new_menu_system.show_rule_management(event)
         elif action == "multi_source_management":
             await new_menu_system.show_multi_source_management(event)
         elif action == "sync_config" and extra_data:
@@ -874,7 +879,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "rule_status" and extra_data:
             rule_id = int(extra_data[0])
             await new_menu_system.show_rule_status(event, rule_id)
-        elif action == "rule_page":
+        elif action == "rule_page" or action == "rule_management_page":
             page = int(extra_data[0]) if extra_data else 0
             await new_menu_system.show_rule_management(event, page)
         elif action == "multi_source_page":
@@ -911,11 +916,12 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_filter_settings(event)
         elif action == "media_types":
             await new_menu_system.show_media_types(event)
-        elif action == "allow_text":
-            # 与 toggle_allow_text 统一：保持后向兼容
-            await handle_toggle_setting(event, "allow_text")
         elif action == "toggle_allow_emoji":
             await handle_toggle_setting(event, "allow_emoji")
+        elif action == "toggle_dedup_enabled":
+            await handle_toggle_setting(event, "dedup_enabled")
+        elif action == "toggle_dedup_mode":
+            await handle_toggle_setting(event, "dedup_mode")
         elif action == "history_task_actions":
             try:
                 from controllers.menu_controller import menu_controller
@@ -1416,19 +1422,16 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await history_module.show_media_types(event)
         elif action == "history_filter_media_duration":
             from handlers.button.modules.history import history_module
-
             await history_module.show_media_duration_settings(event)
-        elif action == "history_toggle_allow_text":
-            await handle_toggle_setting(event, "allow_text")
-        elif action == "history_toggle_image":
+        elif action in ["history_toggle_image", "toggle_image"]:
             await handle_toggle_media_type(event, "image")
-        elif action == "history_toggle_video":
+        elif action in ["history_toggle_video", "toggle_video"]:
             await handle_toggle_media_type(event, "video")
-        elif action == "history_toggle_music":
+        elif action in ["history_toggle_music", "toggle_music"]:
             await handle_toggle_media_type(event, "audio")
-        elif action == "history_toggle_voice":
+        elif action in ["history_toggle_voice", "toggle_voice"]:
             await handle_toggle_media_type(event, "voice")
-        elif action == "history_toggle_document":
+        elif action in ["history_toggle_document", "toggle_document"]:
             await handle_toggle_media_type(event, "document")
         elif action.startswith("set_history_delay"):
             try:
@@ -1496,22 +1499,6 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "media_extension_settings":
             await new_menu_system.show_media_extension_settings(event)
         # 媒体设置相关的切换操作
-        elif action == "toggle_allow_text":
-            await handle_toggle_setting(event, "allow_text")
-        elif action == "toggle_media_extension":
-            await handle_toggle_setting(event, "media_extension_enabled")
-        elif action == "toggle_extension_mode":
-            await handle_toggle_extension_mode(event)
-        elif action == "toggle_image":
-            await handle_toggle_media_type(event, "image")
-        elif action == "toggle_video":
-            await handle_toggle_media_type(event, "video")
-        elif action == "toggle_music":
-            await handle_toggle_media_type(event, "audio")
-        elif action == "toggle_voice":
-            await handle_toggle_media_type(event, "voice")
-        elif action == "toggle_document":
-            await handle_toggle_media_type(event, "document")
         elif action == "toggle_media_duration":
             await handle_toggle_media_duration(event)
         elif action == "set_duration_range":

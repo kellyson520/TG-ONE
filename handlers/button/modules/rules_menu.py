@@ -105,7 +105,7 @@ class RulesMenu(BaseMenu):
         for r in current_rules:
             s_name = r.source_chat.name if r.source_chat else "Unknown"
             t_name = r.target_chat.name if r.target_chat else "Unknown"
-            buttons.append([Button.inline(f"🔗 规则{r.id}: {s_name}➔{t_name}", f"new_menu:multi_source_detail:{r.id}")])
+            buttons.append([Button.inline(f"🔗 规则{r.id}: {s_name}➔{t_name}", f"new_menu:manage_multi_source:{r.id}")])
 
         nav = []
         if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:multi_source_page:{page-1}"))

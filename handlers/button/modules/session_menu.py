@@ -33,6 +33,7 @@ class SessionMenu(BaseMenu):
             [Button.inline("🚀 开始扫描", "new_menu:start_dedup_scan")],
             [Button.inline("📊 扫描结果", "new_menu:dedup_results")],
             [Button.inline("📅 会话时间范围选择", "new_menu:session_dedup_time_range")],
+            [Button.inline("⚙️ 去重详细设置", "new_menu:dedup_config")],
             [Button.inline("👈 返回上一级", "new_menu:session_management")],
         ]
         await self._render_page(
@@ -231,5 +232,28 @@ class SessionMenu(BaseMenu):
         # 复用 FilterMenu 的逻辑，或者简单的跳转
         from .filter_menu import filter_menu
         await filter_menu.show_filter_settings(event)
+
+    async def show_dedup_config(self, event):
+        """显示去重配置菜单"""
+        from ..forward_management import forward_manager
+        settings = await forward_manager.get_global_media_settings()
+        enabled = settings.get("dedup_enabled", True)
+        mode = settings.get("dedup_mode", "hash")
+        
+        buttons = [
+            [Button.inline(f"🔄 去重总开关：{'开启' if enabled else '关闭'}", "new_menu:toggle_dedup_enabled")],
+            [Button.inline(f"📊 策略：{'内容哈希' if mode == 'hash' else '签名匹配'}", "new_menu:toggle_dedup_mode")],
+            [Button.inline("👈 返回上一级", "new_menu:session_hub")],
+        ]
+        
+        text = (
+            "⚙️ **去重详细设置**\n\n"
+            f"当前状态：{'✅ 已开启' if enabled else '❌ 已关闭'}\n"
+            f"当前策略：{'📋 内容哈希 (精准)' if mode == 'hash' else '🖼️ 签名匹配 (快速)'}\n\n"
+            "💡 **说明**\n"
+            "• **内容哈希**：通过消息特征计算摘要，能识别不同文件但内容相同的消息。\n"
+            "• **签名匹配**：基于文件名、大小、分辨率等元数据匹配，速度快但可能误杀或漏杀。"
+        )
+        await self._render_from_text(event, text, buttons)
 
 session_menu = SessionMenu()

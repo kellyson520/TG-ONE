@@ -48,6 +48,8 @@ class ForwardSettingsService:
             "media_size_limit_kb": 0,
             "include_keywords": [],
             "exclude_keywords": [],
+            "dedup_enabled": True,
+            "dedup_mode": "hash",
         }
 
         async with container.db.session() as session:
