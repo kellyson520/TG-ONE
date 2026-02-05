@@ -285,6 +285,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await event.answer("✅ 数据看板已刷新")
         elif action == "help_guide":
             await menu_controller.show_help_guide(event)
+        elif action == "forward_search":
+            await new_menu_system.show_forward_search(event)
             
         # 2. 规则管理
         elif action == "list_rules":

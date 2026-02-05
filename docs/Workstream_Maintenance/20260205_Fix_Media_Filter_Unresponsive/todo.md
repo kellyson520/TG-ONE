@@ -13,7 +13,8 @@ User reported that the media type filter in the menu bot is unresponsive.
 - [x] Verify other buttons in `FilterMenu` are correctly handled.
 - [x] Final verification and consolidation of callback handlers.
 - [x] Fix `RadixRouter` to support multi-part greedy matching (to prevent future "handler empty" errors).
+- [x] Create and run unit tests for `RadixRouter` and `CallbackHandlers`.
 
 ## Status
 - **Phase**: Report
-- **Status**: Reinforcement complete. Fixed core router logic for greedy matching of sub-system callbacks. Pushing again for deployment.
+- **Status**: Reinforcement complete. All unit tests (Router, NewMenu, Callbacks) passed. Code verified and pushed.

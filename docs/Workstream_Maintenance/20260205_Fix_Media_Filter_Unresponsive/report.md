@@ -15,9 +15,12 @@ Fixed the issue where clicking media type filter buttons (Image, Video, etc.) in
 - **`router.py` (RadixRouter)**: **Core Logic Fix**. Upgraded the router to support "Greedy Matching" for `{rest}` parameters. It now correctly handles multi-part callback data (e.g., `new_menu:toggle:image`) by capturing all remaining segments when a wildcard matches a `rest` parameter. This prevents the "Success but Empty Handler" error caused by path fragmentation.
 
 ## Verification Results
-- **Unit Tests**: `test_forward_settings_service.py` and `test_session_service.py` passed with 100% success.
-- **Local CI**: Verified syntax and core quality gates (Architecture/Code Quality) after fixing specific errors.
-- **Git**: Successfully committed and pushed changes to the main branch using `smart_push.py`.
+- **Unit Tests**:
+  - `test_router.py`: Successfully verified basic match, parameter extraction, and **Greedy Matching** for multi-part callbacks.
+  - `test_new_menu_callback.py`: Verified dispatch logic for main menus, rule details, and search.
+  - `test_callback_handlers.py`: Verified router bypass logic and generic toggle handlers.
+  - **Total**: 22 test cases passed successfully.
+- **Git**: Successfully committed and pushed reinforcement changes to the main branch.
 
 ## Impact
 - **Functionality**: Global media filters and deduplication settings are now fully operational.

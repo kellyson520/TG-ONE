@@ -22,17 +22,17 @@ class TestCallbackHandlers:
         return event
 
     async def test_handle_callback_new_menu(self, mock_event):
-        """测试分发到新菜单系统"""
-        with patch('handlers.button.callback.callback_handlers.callback_router') as mock_router:
-            mock_handler = AsyncMock()
-            mock_router.match.return_value = (mock_handler, {})
+        """测试分发到新菜单系统 (绕过路由器)"""
+        with patch('handlers.button.callback.callback_handlers.handle_new_menu_callback', new_callable=AsyncMock) as mock_new_menu, \
+             patch('handlers.button.callback.callback_handlers.callback_router') as mock_router:
             
             from handlers.button.callback.callback_handlers import handle_callback
             mock_event.data = b"new_menu:test"
             await handle_callback(mock_event)
             
-            mock_router.match.assert_called_with("new_menu:test")
-            mock_handler.assert_called_once_with(mock_event)
+            # 验证直接调用了新菜单处理器，且没有经过路由器
+            mock_new_menu.assert_called_once_with(mock_event)
+            mock_router.match.assert_not_called()
 
     async def test_handle_callback_media(self, mock_event):
         """测试分发到媒体设置"""
@@ -144,7 +144,7 @@ class TestOtherCallback:
 
     async def test_handle_other_callback_close(self, mock_event):
         """测试 close_settings 回调"""
-        with patch('handlers.button.callback.other_callback.AsyncSessionManager') as mock_sm:
+        with patch('core.container.container') as mock_container:
             from handlers.button.callback.other_callback import handle_other_callback
             mock_event.data = b"close_settings"
             await handle_other_callback(mock_event)
@@ -152,7 +152,7 @@ class TestOtherCallback:
 
     async def test_callback_dedup_scan_now(self, mock_event):
         """测试去重扫描 (callback_dedup_scan_now)"""
-        with patch('handlers.button.callback.other_callback.AsyncSessionManager') as mock_sm, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.other_callback.DBOperations') as mock_db_ops, \
              patch('core.helpers.common.get_main_module', new_callable=AsyncMock) as mock_get_mm:
 
@@ -160,7 +160,7 @@ class TestOtherCallback:
             from models.models import ForwardRule
             
             mock_session = AsyncMock()
-            mock_sm.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             mock_rule = MagicMock(spec=ForwardRule, id=1)
             mock_rule.source_chat.name = "Test Chat"
@@ -195,7 +195,7 @@ class TestMediaCallback:
 
     async def test_handle_media_callback_main(self, mock_event):
         """测试媒体设置主菜单显示"""
-        with patch('handlers.button.callback.media_callback.AsyncSessionManager') as mock_session_manager, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.media_callback.create_media_settings_buttons') as mock_buttons, \
              patch('handlers.button.callback.media_callback.get_media_settings_text') as mock_text:
             
@@ -206,7 +206,7 @@ class TestMediaCallback:
             mock_event.data = b"media_settings:1"
             
             mock_session = AsyncMock()
-            mock_session_manager.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             mock_session.get.return_value = MagicMock(spec=ForwardRule, id=1, max_media_size=100)
             
             mock_text.return_value = "Media Text"
@@ -232,7 +232,7 @@ class TestAdminCallback:
 
     async def test_handle_admin_callback_forbidden(self, mock_event):
         """测试非管理员拒绝访问"""
-        with patch('handlers.button.callback.admin_callback.AsyncSessionManager') as mock_session_manager, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin:
             
             mock_is_admin.return_value = False
@@ -244,7 +244,7 @@ class TestAdminCallback:
 
     async def test_handle_admin_callback_main(self, mock_event):
         """测试管理员访问主面板"""
-        with patch('handlers.button.callback.admin_callback.AsyncSessionManager') as mock_session_manager, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin:
             
             mock_is_admin.return_value = True
@@ -254,7 +254,7 @@ class TestAdminCallback:
             mock_event.data = b"admin_panel"
             
             mock_session = AsyncMock()
-            mock_session_manager.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             await handle_admin_callback(mock_event)
             
@@ -263,7 +263,7 @@ class TestAdminCallback:
 
     async def test_handle_admin_callback_db_health(self, mock_event):
         """测试数据库健康检查回调"""
-        with patch('handlers.button.callback.admin_callback.AsyncSessionManager') as mock_session_manager, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin, \
              patch('handlers.button.callback.admin_callback.handle_db_health_command', new_callable=AsyncMock) as mock_handle_health:
             
@@ -274,7 +274,7 @@ class TestAdminCallback:
             mock_event.data = b"admin_db_health"
             
             mock_session = AsyncMock()
-            mock_session_manager.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             await handle_admin_callback(mock_event)
             
@@ -283,7 +283,7 @@ class TestAdminCallback:
 
     async def test_handle_admin_callback_system_status(self, mock_event):
         """测试系统状态回调"""
-        with patch('handlers.button.callback.admin_callback.AsyncSessionManager') as mock_session_manager, \
+        with patch('core.container.container') as mock_container, \
              patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin, \
              patch('handlers.button.callback.admin_callback.handle_system_status_command', new_callable=AsyncMock) as mock_handle_status:
             
@@ -294,7 +294,7 @@ class TestAdminCallback:
             mock_event.data = b"admin_system_status"
             
             mock_session = AsyncMock()
-            mock_session_manager.return_value.__aenter__.return_value = mock_session
+            mock_container.db.session.return_value.__aenter__.return_value = mock_session
             
             await handle_admin_callback(mock_event)
             

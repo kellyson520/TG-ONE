@@ -41,10 +41,10 @@ class TestNewMenuCallback:
             mock_show.assert_called_once_with(mock_event, 1)
 
     async def test_callback_new_menu_handler_history_messages(self, mock_event):
-        """测试历史消息菜单回调 (代理到 new_menu_system)"""
+        """测试历史消息菜单回调 (代理到 menu_controller)"""
         from handlers.button.callback.new_menu_callback import callback_new_menu_handler
         
-        with patch('handlers.button.callback.new_menu_callback.new_menu_system.show_history_messages', new_callable=AsyncMock) as mock_show:
+        with patch('controllers.menu_controller.menu_controller.show_history_messages', new_callable=AsyncMock) as mock_show:
             await callback_new_menu_handler(mock_event, "history_messages", None, None, "new_menu:history_messages")
             mock_show.assert_called_once_with(mock_event)
 
