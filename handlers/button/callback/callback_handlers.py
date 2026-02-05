@@ -341,6 +341,13 @@ async def handle_callback(event):
             return
             
         handler, params = match_result
+        
+        # [Fix] 检查 handler 是否为 None
+        if handler is None:
+            logger.warning(f"路由匹配成功但处理器为空: {data}")
+            await event.answer("操作已过期或指令无效", alert=True)
+            return
+        
         event.router_params = params
             
         # [Fix] 兼容 5 参数的旧版模块化处理器

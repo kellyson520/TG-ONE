@@ -42,10 +42,10 @@ class UpdateService:
         self._bus = bus
         logger.debug("UpdateService 事件总线已注入")
 
-    def _emit_event(self, name: str, data: dict):
+    async def _emit_event(self, name: str, data: dict):
         """触发系统事件"""
         if self._bus:
-            self._bus.publish(name, data)
+            await self._bus.publish(name, data)
         else:
             logger.debug(f"事件总线不可用，事件 {name} 已尝试缓存（尚未实现）")
 
@@ -122,7 +122,7 @@ class UpdateService:
                 json.dump(state, f, indent=2)
             
             # 发送启动通知
-            self._emit_event("SYSTEM_ALERT", {"message": f"🚀 系统更新/回滚已触发 (目标: {target_version})，正在准备环境并重启..."})
+            await self._emit_event("SYSTEM_ALERT", {"message": f"🚀 系统更新/回滚已触发 (目标: {target_version})，正在准备环境并重启..."})
             
             # 3. 退出进程，移交控制权给 entrypoint.sh
             # 此时 Web Server 会停止，Socket 断开
@@ -171,19 +171,19 @@ class UpdateService:
 
                 if result.returncode != 0:
                     logger.error(f"🔥 [更新] 数据库迁移失败:\n{result.stderr}")
-                    self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"数据库迁移失败: {result.stderr[:200]}"})
+                    await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"数据库迁移失败: {result.stderr[:200]}"})
                     # 严重错误：回滚数据库
                     if state.get("db_backup"):
                         self._rollback_db(state["db_backup"])
                 else:
                     logger.info("✅ [更新] 数据库迁移成功。")
-                    self._emit_event("SYSTEM_ALERT", {"message": "✅ 数据库迁移成功，正在加载新版业务逻辑..."})
+                    await self._emit_event("SYSTEM_ALERT", {"message": "✅ 数据库迁移成功，正在加载新版业务逻辑..."})
                     
                     # 进行更新后健康检查
                     health_ok, health_msg = await self._run_system_health_check()
                     if not health_ok:
                         logger.error(f"🚑 [更新] 健康检查失败: {health_msg}")
-                        self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"更新后健康检查失败: {health_msg}"})
+                        await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"更新后健康检查失败: {health_msg}"})
                     else:
                         logger.info("✅ [更新] 更新后的健康检查已通过。")
             else:
@@ -257,7 +257,7 @@ class UpdateService:
         
         if status == "shell_failed":
             logger.error(f"❌ [更新] Shell 更新失败: {state.get('error')}")
-            self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": state.get("error", "未知 Shell 错误")})
+            await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": state.get("error", "未知 Shell 错误")})
             # 处理完后重置状态，防止重复通知
             state["status"] = "failed_processed"
             self._save_state(state)
@@ -265,7 +265,7 @@ class UpdateService:
 
         if status == "critical_failed":
             logger.critical(f"☠️ [更新] 关键性故障: {state.get('error')}")
-            self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"🚨 严重更新事故: {state.get('error', '未知错误')}"})
+            await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"🚨 严重更新事故: {state.get('error', '未知错误')}"})
             state["status"] = "failed_processed"
             self._save_state(state)
             return
@@ -283,7 +283,7 @@ class UpdateService:
                     state["status"] = "rolled_back"
                     state["fail_count"] = 0
                     self._save_state(state)
-                    self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"系统更新后多次启动失败，已触发紧急回滚。"})
+                    await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"系统更新后多次启动失败，已触发紧急回滚。"})
                     guard_service.trigger_restart()
                 return
 
@@ -302,7 +302,7 @@ class UpdateService:
             state["status"] = "stable"
             state["fail_count"] = 0
             self._save_state(state)
-            self._emit_event("SYSTEM_ALERT", {"message": f"🎉 系统已稳定运行，更新任务最终确认完成。当前版本: {state.get('current_version', '未知')}"})
+            await self._emit_event("SYSTEM_ALERT", {"message": f"🎉 系统已稳定运行，更新任务最终确认完成。当前版本: {state.get('current_version', '未知')}"})
 
     async def get_update_history(self, limit: int = 10) -> list[dict]:
         """获取更新历史 (Git commits)"""
