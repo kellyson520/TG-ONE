@@ -75,7 +75,7 @@ class AnalyticsService:
                 'active_rules': overview.get('active_rules', 0),
                 'total_chats': overview.get('total_chats', 0),
                 'today_total': forward_stats.get('total_forwards', 0),
-                'yesterday_total': detailed.get('daily_trends', [{}])[0].get('yesterday_total', 0), # 需后端支持
+                'yesterday_total': detailed.get('daily_trends', [{}])[0].get('yesterday_total', 0) if detailed.get('daily_trends') else 0,
                 'data_size_mb': (await self.get_system_status()).get('system_resources', {}).get('total_size_mb', 0.0),
                 'trend': {
                     'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > 0 else '⏸️ 待机中',
@@ -291,7 +291,7 @@ class AnalyticsService:
                     select(RuleStatistics, ForwardRule)
                     .join(ForwardRule, RuleStatistics.rule_id == ForwardRule.id)
                     .where(RuleStatistics.date == today_str)
-                    .order_by(RuleStatistics.forwarded_count.desc())
+                    .order_by(RuleStatistics.success_count.desc())
                     .limit(5)
                 )
                 res = await session.execute(stmt)
@@ -301,7 +301,7 @@ class AnalyticsService:
                     top_rules.append({
                         'rule_id': rule_row.id,
                         'name': getattr(rule_row, 'name', f"Rule {rule_row.id}"),
-                        'count': stats_row.forwarded_count
+                        'count': stats_row.success_count
                     })
 
             # 4. 获取类型分布 (暂时根据结果中的关键词模糊估计)
@@ -444,13 +444,13 @@ class AnalyticsService:
                     })
                 
                 # 2. 规则统计
-                stmt = select(RuleStatistics).order_by(RuleStatistics.forwarded_count.desc()).limit(10)
+                stmt = select(RuleStatistics).order_by(RuleStatistics.success_count.desc()).limit(10)
                 result = await session.execute(stmt)
                 rule_stats = result.scalars().all()
                 
                 top_rules = [{
                     'rule_id': rs.rule_id,
-                    'forwarded_count': rs.forwarded_count,
+                    'success_count': rs.success_count,
                     'error_count': rs.error_count,
                     'date': rs.date
                 } for rs in rule_stats]
