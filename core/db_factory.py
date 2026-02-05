@@ -89,9 +89,9 @@ class DbFactory:
             if not hasattr(cls, '_async_write_engine') or cls._async_write_engine is None:
                 cls._async_write_engine = create_async_engine(
                     db_url,
-                    pool_size=1,  # Single writer
-                    max_overflow=0,
-                    pool_timeout=60,
+                    pool_size=settings.DB_POOL_SIZE,  # 使用配置的连接池大小
+                    max_overflow=settings.DB_MAX_OVERFLOW,  # 使用配置的溢出连接数
+                    pool_timeout=settings.DB_POOL_TIMEOUT,
                     pool_recycle=settings.DB_POOL_RECYCLE,
                     connect_args={"check_same_thread": False, "timeout": 60}
                 )

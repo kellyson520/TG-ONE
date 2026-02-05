@@ -21,6 +21,8 @@ class Database:
 
             # 模式 B: 创建新引擎 (Legacy/Standalone Mode)
             # 启用 WAL 模式，这对 SQLite 并发至关重要
+            from core.config import settings
+            
             connect_args = {"timeout": 30}
             if 'sqlite' in db_url:
                 connect_args["check_same_thread"] = False
@@ -29,8 +31,8 @@ class Database:
                 db_url, 
                 echo=False,
                 connect_args=connect_args,
-                pool_size=20,  # 增大连接池
-                max_overflow=10  # 允许溢出连接
+                pool_size=settings.DB_POOL_SIZE,  # 使用配置的连接池大小
+                max_overflow=settings.DB_MAX_OVERFLOW  # 使用配置的溢出连接数
             )
 
             # 关键修复: 显式启用 WAL 模式
