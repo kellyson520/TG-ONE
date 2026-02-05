@@ -49,13 +49,18 @@ class RadixRouter:
         node = self.root
         params = {}
         
-        for part in parts:
+        for i, part in enumerate(parts):
             if not part: continue
             
             if part in node.children:
                 node = node.children[part]
             elif '*' in node.children:
+                previous_node = node
                 node = node.children['*']
+                if node.param_name == 'rest':
+                    # 贪婪匹配：将剩余所有部分组合起来
+                    params[node.param_name] = ":".join(parts[i:])
+                    return node.handler, params
                 params[node.param_name] = part
             else:
                 return None, {}

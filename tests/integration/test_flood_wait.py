@@ -140,7 +140,7 @@ async def test_backoff_retry_success(mock_client):
 async def test_batch_forward_fallback(mock_client, monkeypatch):
     """测试批量转发失败后的回退机制"""
     # 启用批量 API
-    monkeypatch.setenv("FORWARD_ENABLE_BATCH_API", "true")
+    monkeypatch.setenv("ENABLE_BATCH_FORWARD_API", "true")
     monkeypatch.setenv("FORWARD_MAX_BATCH_SIZE", "50")
     # 模拟 api_optimizer.forward_messages_batch 失败
     with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:

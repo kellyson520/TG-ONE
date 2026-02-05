@@ -12,6 +12,7 @@ Fixed the issue where clicking media type filter buttons (Image, Video, etc.) in
 - **`new_menu_system.py`**: Synchronized proxy methods and removed redundant aliases.
 - **`session_menu.py`**: Fixed `undefined name 'forward_manager'` and added deduplication configuration UI.
 - **`system_service.py` & `system_menu.py`**: Implemented and integrated SQLite database restoration.
+- **`router.py` (RadixRouter)**: **Core Logic Fix**. Upgraded the router to support "Greedy Matching" for `{rest}` parameters. It now correctly handles multi-part callback data (e.g., `new_menu:toggle:image`) by capturing all remaining segments when a wildcard matches a `rest` parameter. This prevents the "Success but Empty Handler" error caused by path fragmentation.
 
 ## Verification Results
 - **Unit Tests**: `test_forward_settings_service.py` and `test_session_service.py` passed with 100% success.

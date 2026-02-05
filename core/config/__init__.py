@@ -179,7 +179,7 @@ class Settings(BaseSettings):
     
     ENABLE_KEYWORD_SEARCH_API: bool = Field(default=True)
     ENABLE_MEDIA_INFO_OPTIMIZATION: bool = Field(default=True)
-    FORWARD_ENABLE_BATCH_API: bool = Field(default=True)
+    ENABLE_BATCH_FORWARD_API: bool = Field(default=True)
     
     FORWARD_MAX_BATCH_SIZE: int = Field(default=50)
     FORWARD_MIN_BATCH_SIZE: int = Field(default=2)

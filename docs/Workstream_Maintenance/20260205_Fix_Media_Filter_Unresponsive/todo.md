@@ -12,7 +12,8 @@ User reported that the media type filter in the menu bot is unresponsive.
 - [x] Add `toggle_media_type` handler to `callback_new_menu_handler` in `new_menu_callback.py`.
 - [x] Verify other buttons in `FilterMenu` are correctly handled.
 - [x] Final verification and consolidation of callback handlers.
+- [x] Fix `RadixRouter` to support multi-part greedy matching (to prevent future "handler empty" errors).
 
 ## Status
 - **Phase**: Report
-- **Status**: All tasks completed and code pushed to repository.
+- **Status**: Reinforcement complete. Fixed core router logic for greedy matching of sub-system callbacks. Pushing again for deployment.
