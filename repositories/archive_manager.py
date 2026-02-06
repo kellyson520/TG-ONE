@@ -20,15 +20,20 @@ class ArchiveManager:
     """
 
     def __init__(self, session_factory):
+        from core.config import settings
         self.session_factory = session_factory
-        # 默认归档表及对应的保留天数
+        # 默认归档表及对应的保留天数，优先从 settings 获取
         self.archive_config = {
-            RuleLog: 30,
-            RuleStatistics: 180,
-            ChatStatistics: 180,
-            ErrorLog: 30,
-            MediaSignature: 365,
+            RuleLog: getattr(settings, 'HOT_DAYS_LOG', 30),
+            RuleStatistics: getattr(settings, 'HOT_DAYS_STATS', 180),
+            ChatStatistics: getattr(settings, 'HOT_DAYS_STATS', 180),
+            ErrorLog: getattr(settings, 'HOT_DAYS_LOG', 30),
+            MediaSignature: getattr(settings, 'HOT_DAYS_SIGN', 365),
             TaskQueue: 7  # 已完成/失败的任务通常不需要保留太久
+        }
+        # Bloom 索引配置：模型 -> 需要索引的字段
+        self.bloom_config = {
+            MediaSignature: ['signature', 'content_hash']
         }
         # 记录归档任务状态
         self.is_running = False
@@ -82,28 +87,31 @@ class ArchiveManager:
 
             # 查询旧数据量
             count_stmt = select(func.count()).select_from(model).where(
-                time_column < cutoff_date.isoformat()
+                time_column < cutoff_date
             )
             result = await session.execute(count_stmt)
             count = result.scalar()
             
+            logger.info(f"表 {table_name} 发现 {count} 条待归档记录 (截止日期: {cutoff_date})")
             if count == 0:
-                logger.info(f"表 {table_name} 没有需要归档的旧数据")
                 return
-
+            
             logger.info(f"表 {table_name} 发现 {count} 条待归档记录")
 
             # 分批处理以避免内存爆炸
             batch_size = 50000
             for offset in range(0, count, batch_size):
+                logger.info(f"正在处理 {table_name} 分块: offset={offset}, batch_size={batch_size}")
                 stmt = select(model).where(
-                    time_column < cutoff_date.isoformat()
+                    time_column < cutoff_date
                 ).limit(batch_size)
                 
                 res = await session.execute(stmt)
                 records = res.scalars().all()
+                logger.info(f"成功获取 {len(records)} 条记录")
                 
                 if not records:
+                    logger.warning(f"分块 offset={offset} 未返回任何记录，停止处理")
                     break
                 
                 # 转换为字典列表
@@ -115,10 +123,27 @@ class ArchiveManager:
                 
                 # 写入 Parquet
                 # 选取第一条记录的时间作为分区时间（近似）
-                partition_dt = datetime.fromisoformat(rows[0].get('created_at') or rows[0].get('timestamp'))
+                first_rec_time = rows[0].get('created_at') or rows[0].get('timestamp')
+                if isinstance(first_rec_time, datetime):
+                    partition_dt = first_rec_time
+                elif isinstance(first_rec_time, str):
+                    partition_dt = datetime.fromisoformat(first_rec_time)
+                else:
+                    partition_dt = datetime.utcnow()
                 try:
-                    write_parquet(table_name, rows, partition_dt=partition_dt)
+                    write_result = write_parquet(table_name, rows, partition_dt=partition_dt)
+                    if not write_result:
+                        logger.error(f"归档表 {table_name} 写入 Parquet 失败（返回空路径），跳过删除步骤")
+                        continue
                     
+                    # 如果有 Bloom 索引配置，更新索引
+                    if model in self.bloom_config:
+                        from repositories.bloom_index import bloom
+                        fields = self.bloom_config[model]
+                        # 确保 rows 是最新的字典列表
+                        bloom.add_batch(table_name, rows, fields)
+                        logger.info(f"已同步更新 {table_name} 的 Bloom 索引")
+
                     # 写入成功后从主库删除
                     ids_to_delete = [getattr(rec, 'id') for rec in records]
                     del_stmt = delete(model).where(model.id.in_(ids_to_delete))
@@ -137,6 +162,7 @@ class ArchiveManager:
 
     async def get_combined_logs(self, rule_id: int, limit: int = 100):
         """跨库查询：结合热库 (SQLite) 和冷库 (Parquet)"""
+        print(f"DEBUG: Entering get_combined_logs, rule_id={rule_id}, limit={limit}")
         # 1. 查热库
         async with self.session_factory() as session:
             stmt = select(RuleLog).where(RuleLog.rule_id == rule_id).order_by(RuleLog.created_at.desc()).limit(limit)

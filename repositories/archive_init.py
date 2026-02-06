@@ -57,10 +57,12 @@ def init_archive_system() -> bool:
         con.execute("SELECT 1 as test")
         result = con.fetchone()
         con.close()
-        if result and result[0] == 1:
+        logger.debug(f"DuckDB test result: {result} (type: {type(result)})")
+        # 确保结果正确解包并转换为整数对比
+        if result and int(result[0]) == 1:
             logger.info("✅ DuckDB可用性验证通过")
         else:
-            logger.error("❌ DuckDB测试查询返回异常结果")
+            logger.error(f"❌ DuckDB测试查询返回异常结果: {result}")
             success = False
     except Exception as e:
         logger.error(f"❌ DuckDB不可用: {e}")
@@ -84,6 +86,14 @@ def init_archive_system() -> bool:
         contains_hash = bloom.probably_contains("media_signatures", "123", "test_hash")
         if contains_sig and contains_hash:
             logger.info("✅ Bloom索引系统验证通过")
+            # 清理测试生成的 .bf 文件
+            try:
+                test_bf = os.path.join(BLOOM_ROOT, "media_signatures", "123.bf")
+                if os.path.exists(test_bf):
+                    os.remove(test_bf)
+                    logger.debug(f"已清理测试 Bloom 文件: {test_bf}")
+            except Exception as e:
+                logger.warning(f"清理测试 Bloom 文件失败: {e}")
         else:
             logger.error("❌ Bloom索引系统测试失败")
             logger.debug(
