@@ -57,7 +57,7 @@ class TestArchiveStore:
                 return original_exists(path)
 
             with patch('os.path.exists', side_effect=side_effect), \
-                 patch('os.replace'), \
+                 patch('shutil.move'), \
                  patch('glob.glob', return_value=['fake.parquet']):
                 
                 out_dir = archive_store.write_parquet(table_name, rows)

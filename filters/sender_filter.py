@@ -180,8 +180,7 @@ class SenderFilter(BaseFilter):
                 for sig, mid in set(context.dup_signatures):
                     await dedup_service.repo.add_or_update(
                         chat_id=str(target_chat_id),
-                        signature=sig,
-                        message_id=mid
+                        signature=sig
                     )
         except Exception as e:
             logger.warning(f'纯转发后记录媒体签名失败: {str(e)}')

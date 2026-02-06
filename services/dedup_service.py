@@ -320,7 +320,7 @@ class DeduplicationService:
                             file_id=str(file_id.id),
                             content_hash=content_hash,
                             media_type=media_type,
-                            message_id=message_obj.id
+                            # message_id=message_obj.id  # MediaSignature 模型不支持此参数
                         )
                         logger.debug(f"Recorded signature via Repo: {sig} in {chat_id}")
         except Exception as e:

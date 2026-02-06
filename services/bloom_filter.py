@@ -7,12 +7,13 @@ logger = logging.getLogger(__name__)
 # [Consolidation] 现在直接基于 core.algorithms.bloom_filter
 # 保持单例导出以简化旧代码集成
 
-# 配置默认存放路径
-DATA_DIR = "data"
-BLOOM_DATA_PATH = os.path.join(DATA_DIR, "dedup_bloom.dat")
+from core.config import settings
 
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR, exist_ok=True)
+# 配置默认存放路径
+BLOOM_DATA_PATH = settings.DATA_ROOT / "dedup_bloom.dat"
+
+# 确保目录存在
+os.makedirs(settings.DATA_ROOT, exist_ok=True)
 
 # 全局单例
 bloom_filter_service = BloomFilter(

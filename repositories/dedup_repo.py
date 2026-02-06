@@ -56,12 +56,17 @@ class DedupRepository:
                 
                 now = datetime.utcnow().isoformat()
                 
+                # [修复核心] 动态获取模型字段，过滤掉非法的 kwargs (如 message_id)
+                # 这样即使上层传错了参数，这里也不会报错崩溃
+                valid_columns = {c.name for c in MediaSignature.__table__.columns}
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_columns}
+                
                 if existing:
                     # 累加出现次数
                     existing.count = (existing.count or 0) + 1
                     
                     # 更新字段
-                    for key, value in kwargs.items():
+                    for key, value in filtered_kwargs.items():
                         if value and not getattr(existing, key, None):
                             setattr(existing, key, value)
                     
@@ -76,7 +81,7 @@ class DedupRepository:
                         created_at=now,
                         updated_at=now,
                         last_seen=now,
-                        **kwargs
+                        **filtered_kwargs  # 使用过滤后的参数
                     )
                     session.add(new_sig)
                 

@@ -9,6 +9,7 @@ from models.models import (
 )
 from repositories.archive_store import write_parquet, compact_small_files
 from repositories.archive_init import init_archive_system
+from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +21,6 @@ class ArchiveManager:
     """
 
     def __init__(self, session_factory):
-        from core.config import settings
         self.session_factory = session_factory
         # 默认归档表及对应的保留天数，优先从 settings 获取
         self.archive_config = {
@@ -98,38 +98,62 @@ class ArchiveManager:
             
             logger.info(f"表 {table_name} 发现 {count} 条待归档记录")
 
-            # 分批处理以避免内存爆炸
-            batch_size = 50000
+            # 分批处理以避免内存爆炸和长时间锁表
+            # 使用较小的默认批次以减少 SQLite 锁定时间
+            batch_size = getattr(settings, 'ARCHIVE_BATCH_SIZE', 5000)
+            
+            import asyncio
+            from sqlalchemy.exc import OperationalError
+            
             for offset in range(0, count, batch_size):
                 logger.info(f"正在处理 {table_name} 分块: offset={offset}, batch_size={batch_size}")
-                stmt = select(model).where(
-                    time_column < cutoff_date
-                ).limit(batch_size)
                 
-                res = await session.execute(stmt)
-                records = res.scalars().all()
+                # 针对每一块增加重试逻辑，解决 (sqlite3.OperationalError) database is locked
+                max_retries = 5
+                retry_delay = 1.0  # 初始延迟 1 秒
+                
+                records = []
+                for attempt in range(max_retries):
+                    try:
+                        stmt = select(model).where(
+                            time_column < cutoff_date
+                        ).limit(batch_size)
+                        
+                        res = await session.execute(stmt)
+                        records = res.scalars().all()
+                        break # 成功获取记录，跳出重试循环
+                    except OperationalError as oe:
+                        if "locked" in str(oe).lower() and attempt < max_retries - 1:
+                            logger.warning(f"获取 {table_name} 记录时遭遇数据库锁定 (尝试 {attempt+1}/{max_retries}): {oe}. 正在重试...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # 指数回退
+                        else:
+                            raise
+                
                 logger.info(f"成功获取 {len(records)} 条记录")
                 
                 if not records:
-                    logger.warning(f"分块 offset={offset} 未返回任何记录，停止处理")
+                    logger.debug(f"分块 offset={offset} 未返回更多记录，停止当前表处理")
                     break
                 
                 # 转换为字典列表
                 rows = []
                 for rec in records:
                     row = {c.name: getattr(rec, c.name) for c in model.__table__.columns}
-                    # 处理不可序列化对象（如有）
                     rows.append(row)
                 
                 # 写入 Parquet
-                # 选取第一条记录的时间作为分区时间（近似）
                 first_rec_time = rows[0].get('created_at') or rows[0].get('timestamp')
                 if isinstance(first_rec_time, datetime):
                     partition_dt = first_rec_time
                 elif isinstance(first_rec_time, str):
-                    partition_dt = datetime.fromisoformat(first_rec_time)
+                    try:
+                        partition_dt = datetime.fromisoformat(first_rec_time)
+                    except ValueError:
+                        partition_dt = datetime.utcnow()
                 else:
                     partition_dt = datetime.utcnow()
+                
                 try:
                     write_result = write_parquet(table_name, rows, partition_dt=partition_dt)
                     if not write_result:
@@ -140,21 +164,34 @@ class ArchiveManager:
                     if model in self.bloom_config:
                         from repositories.bloom_index import bloom
                         fields = self.bloom_config[model]
-                        # 确保 rows 是最新的字典列表
                         bloom.add_batch(table_name, rows, fields)
                         logger.info(f"已同步更新 {table_name} 的 Bloom 索引")
 
-                    # 写入成功后从主库删除
+                    # 写入成功后从主库删除，增加重试
                     ids_to_delete = [getattr(rec, 'id') for rec in records]
                     del_stmt = delete(model).where(model.id.in_(ids_to_delete))
-                    await session.execute(del_stmt)
-                    await session.commit()
                     
-                    logger.info(f"已成功归档并从主库移除 {len(records)} 条 {table_name} 记录")
+                    retry_delay = 1.0 # 重置回退
+                    for attempt in range(max_retries):
+                        try:
+                            await session.execute(del_stmt)
+                            await session.commit()
+                            logger.info(f"已成功归档并从主库移除 {len(records)} 条 {table_name} 记录")
+                            break
+                        except OperationalError as oe:
+                            await session.rollback() # 失败时回滚
+                            if "locked" in str(oe).lower() and attempt < max_retries - 1:
+                                logger.warning(f"删除 {table_name} 记录时遭遇数据库锁定 (尝试 {attempt+1}/{max_retries}): {oe}. 正在重试...")
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2
+                            else:
+                                raise
                 except Exception as e:
                     await session.rollback()
-                    logger.error(f"归档表 {table_name} 分块失败: {e}")
-                    break
+                    logger.error(f"归档表 {table_name} 分块处理失败: {e}")
+                    # 如果是致命错误（非锁定），则中断本表处理
+                    if not isinstance(e, OperationalError) or "locked" not in str(e).lower():
+                        break
 
             # 归档后主库空间释放 (注意：VACUUM 不建议在常规事务中运行)
             # logger.info(f"执行表 {table_name} 的空间优化...")

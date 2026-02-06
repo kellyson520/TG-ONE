@@ -16,9 +16,9 @@ def _load_rss_secret_key() -> Optional[str]:
     """从文件加载RSS密钥"""
     rss_key = None
     try:
-        # 定位到项目根目录下的 rss/secret.key
+        # 定位到项目根目录下的 data/rss/secret.key
         base_dir = Path(__file__).resolve().parent.parent.parent
-        key_file = base_dir / "rss" / "secret.key"
+        key_file = base_dir / "data" / "rss" / "secret.key"
         
         if key_file.exists():
             # 读取文件内容并去除空白字符
@@ -48,28 +48,32 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent,
         description="项目根目录"
     )
+    DATA_ROOT: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data",
+        description="数据存储根目录"
+    )
     DOWNLOAD_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "downloads",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "downloads",
         description="下载文件存储目录"
     )
     SESSION_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "sessions",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "sessions",
         description="会话文件存储目录"
     )
     TEMP_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "temp",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "temp",
         description="临时文件存储目录"
     )
     LOG_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "logs",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "logs",
         description="日志文件存储目录"
     )
     DB_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "db",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "db",
         description="数据库文件存储目录"
     )
     BACKUP_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "backups",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "backups",
         description="数据库备份存储目录"
     )
     
@@ -103,7 +107,7 @@ class Settings(BaseSettings):
     
     # === 数据库配置 ===
     DATABASE_URL: str = Field(
-        default="sqlite+aiosqlite:///db/forward.db",
+        default="sqlite+aiosqlite:///data/db/forward.db",
         description="数据库连接URL"
     )
     DB_POOL_SIZE: int = Field(
@@ -121,8 +125,9 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = Field(default=30)
     DB_POOL_RECYCLE: int = Field(default=3600)
     DB_POOL_PRE_PING: bool = Field(default=True)
+    DATABASE_URL_SQLITE: Optional[str] = Field(default=None)
     DB_PATH: str = Field(
-        default="db/forward.db",
+        default="data/db/forward.db",
         description="SQLite 数据库文件相对路径"
     )
 
@@ -169,7 +174,7 @@ class Settings(BaseSettings):
         description="Redis 连接 URL (例如 redis://localhost:6379/0)"
     )
     PERSIST_CACHE_SQLITE: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "db" / "cache.db",
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "db" / "cache.db",
         description="SQLite 持久化缓存文件路径"
     )
 
@@ -307,7 +312,7 @@ class Settings(BaseSettings):
 
     # === 归档存储与 S3 (DuckDB/Parquet) ===
     ARCHIVE_ROOT: str = Field(
-        default="./archive/parquet", 
+        default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "archive" / "parquet"), 
         description="归档数据根路径 (本地路径或 S3 URL)"
     )
     ARCHIVE_PARQUET_COMPRESSION: str = Field(default="ZSTD")
@@ -330,7 +335,7 @@ class Settings(BaseSettings):
     
     # === Bloom Filter 指数配置 ===
     BLOOM_ROOT: str = Field(
-        default="./archive/bloom", 
+        default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "archive" / "bloom"), 
         description="Bloom Filter 数据根路径"
     )
     BLOOM_BITS: int = Field(default=1 << 24)
@@ -375,7 +380,7 @@ class Settings(BaseSettings):
         description="转发记录模式 (full/summary/off)"
     )
     FORWARD_RECORDER_DIR: Path = Field(
-        default=Path("./zhuanfaji"), 
+        default=Path("./data/zhuanfaji"), 
         description="转发记录存储目录"
     )
 
@@ -428,7 +433,7 @@ class Settings(BaseSettings):
         description="垃圾回收保留天数"
     )
     GC_TEMP_DIRS: Union[List[str], str] = Field(
-        default=["./temp"],
+        default=["./data/temp"],
         description="垃圾回收临时目录列表"
     )
     TEMP_GUARD_MAX: int = Field(
@@ -460,10 +465,10 @@ class Settings(BaseSettings):
     RSS_BASE_URL: Optional[str] = Field(default=None)
     RSS_MEDIA_BASE_URL: str = Field(default="")
     RSS_MEDIA_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "rss" / "media"
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "rss" / "media"
     )
     RSS_DATA_DIR: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "rss" / "data"
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "rss" / "data"
     )
     
     # === Web 服务配置 ===
@@ -607,6 +612,24 @@ class Settings(BaseSettings):
                 # 逗号分隔回退
                 return [t.strip() for t in v.split(",") if t.strip()]
         return list(v)
+
+    @field_validator(
+        "BASE_DIR", "DATA_ROOT", "DOWNLOAD_DIR", "SESSION_DIR", 
+        "TEMP_DIR", "LOG_DIR", "DB_DIR", "BACKUP_DIR", "FORWARD_RECORDER_DIR",
+        mode="after"
+    )
+    @classmethod
+    def ensure_absolute_path(cls, v: Path) -> Path:
+        """确保所有路径都是绝对路径"""
+        return v.resolve()
+
+    @field_validator("ARCHIVE_ROOT", "BLOOM_ROOT", mode="after")
+    @classmethod
+    def ensure_absolute_str_path(cls, v: str) -> str:
+        """确保字符串格式的存储路径（可能包含 S3）若是本地路径则转为绝对路径"""
+        if "://" not in v:
+            return str(Path(v).resolve())
+        return v
     
     def validate_required(self) -> None:
         """验证极其重要的配置项，若缺失则系统无法基本运行"""

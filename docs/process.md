@@ -12,8 +12,11 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260206_Fix_Archive | 修复归档系统集成测试与 DuckDB/S3 兼容性 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Fix_Archive_Integration_Test/report.md) |
+| 20260206_Verify_Archive | 归档系统验证与逻辑重构 (Bloom同步/配置动态化) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Verify_Archive_System/report.md) |
 | 20260205_Upgrade_Date_Picker | 升级时间范围选择和日期选择页面 (滚轮式选择) | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_UI_UX/20260205_Upgrade_Date_Picker/report.md) |
 | 20260205_Fix_Settings_Attr | 修复 Settings 缺失 ENABLE_BATCH_FORWARD_API 属性错误 | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_Maintenance/20260205_Fix_AttributeError_Settings_ENABLE_BATCH_FORWARD_API/report.md) |
+| 20260206_Fix_Triple_Errors | 修复去重参数异常、回调字典缺失及分析中心报错 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Fix_Triple_Errors/report.md) |
 | 20260108_Dashboard | Dashboard 数据可视化 | 2026-01-08 | 2026-01-08 | 100% | [📂 查看](./archive/Workstream_Web_UI/20260108_Dashboard_Visualization/) |
 | 20260108_Security | Web 认证安全加固 | 2026-01-08 | 暂停 (Phase 2) | 60% | [📂 查看](./archive/Workstream_Core_Engineering/20260108_Security_Enhancement/) |
 | Workstream_Core_Engineering | 🔒 核心工程 (Tests/Security/Debug) | N/A | 🟢 Active | [📂 Enter](./Workstream_Core_Engineering/) |
@@ -109,6 +112,7 @@
 | 20260204_Fix_AddMode_KeyError | 修复规则设置 AddMode KeyError 错误 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_AddMode_KeyError/report.md) |
 | 20260204_Menu_System_Integrity_Audit | 菜单系统完整性审计与修复（31个缺失回调） | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_Menu_System_Integrity_Audit/report.md) |
 | 20260204_P0_Fix_N_Plus_One | P0 级 N+1 性能缺陷修复 (28个问题) | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Core/20260204_P0_Fix_N_Plus_One/todo.md) |
+| 20260206_Verify_Archive_Tests | 归档系统单元测试与集成测试验证 | 2026-02-06 | 进行中 | 10% | [[todo.md]](./Workstream_Maintenance/20260206_Verify_Archive_Tests/todo.md) |
 | 20260204_Dedup_Engine_Tests | 去重引擎单元测试建设 (46项测试) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Core/20260204_Dedup_Engine_Unit_Tests/report.md) |
 | 20260204_GitPush_Changelog | 补充更新日志并推送仓库 | 2026-02-04 | 2026-02-04 | 100% | [[todo.md]](./Workstream_Maintenance/20260204_GitPush_Changelog/todo.md) |
 | 20260204_Fix_Config_Error | 修复配置加载语法错误及日志审计 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Config_Syntax_Error/report.md) |
@@ -130,9 +134,11 @@
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
 | 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
 | 20260205_Fix_Errors | 修复回调与导入错误 (History/Callback/Keywords) | 2026-02-05 | 进行中 | 0% | [📂 查看](./Workstream_Maintenance/20260205_Fix_Callback_And_Import_Errors/todo.md) |
+| 20260205_Fix_Errors | 修复回调与导入错误 (History/Callback/Keywords) | 2026-02-05 | 进行中 | 0% | [📂 查看](./Workstream_Maintenance/20260205_Fix_Callback_And_Import_Errors/todo.md) |
 | 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
 
 ### 2026-02-02
+| 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260202_Orchestration | 修复 Docker 编排路径空格问题 | 2026-02-02 | 2026-02-02 | 100% | [[report.md]](./Workstream_Infrastructure/20260202_Fix_Orchestration_Error/report.md) |
 
 

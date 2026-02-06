@@ -57,3 +57,7 @@ Thumbs.db
 tests/temp/
 output/
 downloads/
+
+# Test output files
+test_out*.txt
+test_output*.txt

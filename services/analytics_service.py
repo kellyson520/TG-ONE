@@ -1,6 +1,8 @@
 import logging
 import traceback
-from datetime import datetime
+import os
+from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from services.network.bot_heartbeat import get_heartbeat
@@ -24,6 +26,33 @@ class AnalyticsService:
             return self._container
         from core.container import container
         return container
+
+    def _get_dir_size(self, path: Path) -> int:
+        """递归获取目录大小 (Bytes)"""
+        total = 0
+        try:
+            if not path.exists():
+                return 0
+            for entry in os.scandir(path):
+                if entry.is_file():
+                    total += entry.stat().st_size
+                elif entry.is_dir():
+                    total += self._get_dir_size(Path(entry.path))
+        except Exception as e:
+            logger.debug(f"计算目录大小时跳过 {path}: {e}")
+        return total
+
+    async def get_data_size_mb(self) -> float:
+        """获取数据目录总大小 (MB)"""
+        try:
+            from core.config import settings
+            # 统一使用 DATA_ROOT
+            data_root = Path(settings.DATA_ROOT)
+            total_bytes = self._get_dir_size(data_root)
+            return round(total_bytes / (1024 * 1024), 2)
+        except Exception as e:
+            logger.error(f"获取数据目录大小失败: {e}")
+            return 0.0
 
     async def get_analytics_overview(self) -> Dict[str, Any]:
         """获取系统统计总览"""
@@ -69,17 +98,23 @@ class AnalyticsService:
             # 获取活跃分析数据(可能需要从 get_detailed_stats 组合部分)
             detailed = await self.get_detailed_stats(days=1)
             
+            # 获取昨日统计
+            yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            yesterday_summary = await self.get_daily_summary(yesterday_str)
+            yesterday_total = yesterday_summary.get('total_forwards', 0)
+            
             # 强化 overview 字段以对齐 main_menu_renderer.py:140
+            system_status = await self.get_system_status()
             enriched_overview = {
                 'total_rules': overview.get('total_rules', 0),
                 'active_rules': overview.get('active_rules', 0),
                 'total_chats': overview.get('total_chats', 0),
                 'today_total': forward_stats.get('total_forwards', 0),
-                'yesterday_total': detailed.get('daily_trends', [{}])[0].get('yesterday_total', 0) if detailed.get('daily_trends') else 0,
-                'data_size_mb': (await self.get_system_status()).get('system_resources', {}).get('total_size_mb', 0.0),
+                'yesterday_total': yesterday_total,
+                'data_size_mb': system_status.get('system_resources', {}).get('total_size_mb', 0.0),
                 'trend': {
-                    'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > 0 else '⏸️ 待机中',
-                    'percentage': 0
+                    'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > yesterday_total else '⏸️ 待机中',
+                    'percentage': round((forward_stats.get('total_forwards', 0) - yesterday_total) / yesterday_total * 100, 1) if yesterday_total > 0 else 0
                 },
                 'hourly': detailed.get('time_analysis', {}).get('hourly_today', {})
             }
@@ -114,34 +149,56 @@ class AnalyticsService:
             boot_time = datetime.fromtimestamp(psutil.boot_time())
             uptime_hours = (datetime.now() - boot_time).total_seconds() / 3600
             
+            # 数据大小
+            total_size_mb = await self.get_data_size_mb()
+            
             system_resources = {
                 "cpu_percent": psutil.cpu_percent(interval=0.1),
                 "memory_percent": psutil.virtual_memory().percent,
                 "uptime_hours": round(uptime_hours, 1),
+                "total_size_mb": total_size_mb,
                 "status": "healthy" if psutil.cpu_percent() < 80 else "warning"
             }
 
             # 2. 配置与运行状态
+            db_status = "running"
             from core.container import container
-            async with container.db.session() as session:
-                from sqlalchemy import select, func
-                from models.models import ForwardRule, RuleLog
-                
-                # 转发规则统计
-                total_rules = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
-                active_rules = (await session.execute(select(func.count(ForwardRule.id)).where(ForwardRule.enable_rule == True))).scalar() or 0
-                forward_rules_status = f"{active_rules}/{total_rules} 启用"
-                
-                # 数据记录状态 (检查最近是否有日志条目)
-                recent_logs = (await session.execute(select(func.count(RuleLog.id)).limit(1))).scalar() or 0
-                data_recording_status = "✅ 运行中" if recent_logs > 0 else "💤 待机"
+            try:
+                async with container.db.session() as session:
+                    from sqlalchemy import select, func
+                    from models.models import ForwardRule, RuleLog
+                    
+                    # 转发规则统计
+                    total_rules = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
+                    active_rules = (await session.execute(select(func.count(ForwardRule.id)).where(ForwardRule.enable_rule == True))).scalar() or 0
+                    forward_rules_status = f"{active_rules}/{total_rules} 启用"
+                    
+                    # 数据记录状态 (检查最近是否有日志条目)
+                    recent_logs = (await session.execute(select(func.count(RuleLog.id)).limit(1))).scalar() or 0
+                    data_recording_status = "✅ 运行中" if recent_logs > 0 else "💤 待机"
+            except Exception as e:
+                logger.error(f"AnalyticsService 数据库检查失败: {e}")
+                db_status = "unhealthy"
+                forward_rules_status = "未知"
+                data_recording_status = "未知"
 
             # 3. 智能去重状态
             dedup_conf = smart_deduplicator.config or {}
             dedup_enabled = dedup_conf.get('enable_time_window') or dedup_conf.get('enable_content_hash')
             smart_dedup_status = "✅ 已开启" if dedup_enabled else "❌ 已关闭"
 
-            # 4. 组装返回数据 (对齐 MainMenuRenderer.render_system_hub)
+            # 4. Bot/User Client 状态
+            bot_connected = False
+            user_connected = False
+            try:
+                if self.container.bot_client:
+                    bot_connected = self.container.bot_client.is_connected()
+                if self.container.user_client:
+                    user_connected = self.container.user_client.is_connected()
+            except Exception as e:
+                logger.warning(f"获取 Client 连接状态失败: {e}")
+
+            # 5. 组装返回数据 (对齐 MainMenuRenderer.render_system_hub)
             return {
                 "system_resources": system_resources,
                 "config_status": {
@@ -149,10 +206,10 @@ class AnalyticsService:
                     "smart_dedup": smart_dedup_status,
                     "data_recording": data_recording_status
                 },
-                "overall_status": "healthy" if system_resources["status"] == "healthy" else "warning",
-                # 保留旧格式用于兼容
-                "db": "running", 
-                "bot": "running",
+                "overall_status": "healthy" if system_resources["status"] == "healthy" and db_status == "running" else "warning",
+                "db": db_status, 
+                "bot": "running" if bot_connected else "stopped",
+                "user": "running" if user_connected else "stopped",
                 "dedup": "running" if dedup_enabled else "stopped"
             }
         except Exception as e:
@@ -316,8 +373,8 @@ class AnalyticsService:
                     }
                 ],
                 "type_distribution": [
-                    {"type": "Text", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
-                    {"type": "Media", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
+                    {"name": "Text", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
+                    {"name": "Media", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
                 ],
                 "top_chats": [
                     {"chat_id": cid, "count": count} 

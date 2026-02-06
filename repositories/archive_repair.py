@@ -62,6 +62,15 @@ def repair_bloom_index() -> bool:
         logger.debug(f"测试结果: signature={contains_sig}, hash={contains_hash}")
         if contains_sig and contains_hash:
             logger.info("✅ Bloom索引功能测试通过")
+            # 清理测试生成的 .bf 文件
+            try:
+                from repositories.bloom_index import BLOOM_ROOT
+                test_bf = os.path.join(BLOOM_ROOT, "media_signatures", "999999.bf")
+                if os.path.exists(test_bf):
+                    os.remove(test_bf)
+                    logger.debug(f"已清理测试 Bloom 文件: {test_bf}")
+            except Exception as e:
+                logger.warning(f"清理测试 Bloom 文件失败: {e}")
             return True
         else:
             logger.error("❌ Bloom索引功能测试失败")

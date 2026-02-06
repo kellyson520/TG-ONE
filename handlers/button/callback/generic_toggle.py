@@ -18,13 +18,18 @@ from handlers.button.settings_manager import (
 logger = logging.getLogger(__name__)
 
 
-async def handle_generic_toggle(event):
+async def handle_generic_toggle(event, rest=None, **kwargs):
     """
     处理通用的 toggle 回调
     
     支持的回调格式:
     - toggle_xxx:rule_id
     - toggle_xxx:rule_id:extra_data
+    
+    Args:
+        event: 回调事件对象
+        rest: 路由器提取的剩余路径参数（未使用，仅用于兼容路由器）
+        **kwargs: 其他关键字参数
     
     工作流程:
     1. 解析回调数据，提取 action 和 rule_id

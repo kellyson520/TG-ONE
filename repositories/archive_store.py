@@ -5,12 +5,13 @@ import os
 import glob
 import shutil
 import tempfile
+import random
 from datetime import datetime, timedelta
-
-logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 归档根路径
 ARCHIVE_ROOT = str(settings.ARCHIVE_ROOT)
@@ -127,243 +128,141 @@ def write_parquet(
             _write_parquet_chunk(out_dir, rows[start:end])
             start = end
             chunk_index += 1
-        # 校验至少生成了一个 parquet 文件
-        try:
-            import glob as _glob
-
-            files = _glob.glob(os.path.join(out_dir, "*.parquet"))
-            logger.debug(f"生成的 Parquet 文件: {len(files)} 个")
-            if not files:
-                logger.error("未生成任何 Parquet 文件")
-                return ""
-        except Exception as e:
-            logger.error(f"校验 Parquet 文件时出错: {e}")
-            logger.debug("校验 Parquet 文件详细信息", exc_info=True)
-            return ""
         logger.debug(f"分块写入完成，输出目录: {out_dir}")
         return out_dir
 
-    import random
     fname = f"part-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}-{os.getpid()}-{random.randint(1000, 9999)}.parquet"
     out_file = os.path.normpath(os.path.join(out_dir, fname))
     
-    # 策略：先写入系统临时目录，再移动到目标目录
-    temp_fd, local_tmp_path = tempfile.mkstemp(suffix=".parquet.tmp")
-    os.close(temp_fd)
+    # 策略：先写入系统临时目录 (避免中文路径 Lock 问题)，再移动到目标目录
+    fd, tmp_file = tempfile.mkstemp(suffix=".parquet.tmp")
+    os.close(fd) # Windows 必须立即关闭 fd
     
-    safe_tmp_path = local_tmp_path.replace("\\", "/").replace("'", "''")
-    logger.debug(f"输出文件: {out_file}, 临时文件: {local_tmp_path}, DuckDB 路径: {safe_tmp_path}")
+    # DuckDB 需要正斜杠路径且转义单引号
+    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+    logger.debug(f"输出文件: {out_file}, 临时文件: {tmp_file}")
 
     try:
         con = duckdb.connect(database=":memory:")
         try:
             logger.debug("配置 DuckDB 连接")
-            # 提升并行与扩展性：启用多核并行、向量化、内存限制与临时目录
             try:
                 threads = settings.DUCKDB_THREADS
-                logger.debug(f"设置 DuckDB 线程数: {threads}")
                 con.execute(f"PRAGMA threads={max(1, threads)}")
-            except Exception as e:
-                logger.warning(f"设置 DuckDB 线程数时出错: {e}")
-                logger.debug("设置 DuckDB 线程数详细信息", exc_info=True)
+            except Exception:
+                pass
             try:
                 mem_limit = settings.DUCKDB_MEMORY_LIMIT
                 if mem_limit:
-                    logger.debug(f"设置 DuckDB 内存限制: {mem_limit}")
                     con.execute(f"PRAGMA memory_limit='{mem_limit}'")
-            except Exception as e:
-                logger.warning(f"设置 DuckDB 内存限制时出错: {e}")
-                logger.debug("设置 DuckDB 内存限制详细信息", exc_info=True)
-            # S3/httpfs 支持（如需直接写云存储，由上层传入 s3 路径）
+            except Exception:
+                pass
+            
             _configure_httpfs_and_s3(con)
 
-            # 方案A：优先使用 pandas DataFrame，最稳定
+            success = False
+            # 方案A：优先使用 pandas DataFrame
             try:
-                logger.debug(f"使用 pandas DataFrame 写入 Parquet: {safe_tmp_path}")
-                import pandas as pd  # type: ignore
-
+                import pandas as pd # type: ignore
                 df = pd.DataFrame(rows)
                 con.register("df_rows", df)
-                try:
-                    if os.path.exists(local_tmp_path):
-                        os.remove(local_tmp_path)
-                    con.execute(
-                        f"COPY df_rows TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"使用 pandas DataFrame 写入 Parquet 时出错: {e}，尝试不指定压缩参数"
-                    )
-                    logger.debug(
-                        "使用 pandas DataFrame 写入 Parquet 详细信息", exc_info=True
-                    )
-                    logger.debug(f"使用 pandas DataFrame 写入 Parquet (无压缩参数): {safe_tmp_path}")
-                    if os.path.exists(local_tmp_path):
-                        os.remove(local_tmp_path)
-                    con.execute(f"COPY df_rows TO '{safe_tmp_path}' (FORMAT PARQUET)")
-            except Exception as e:
-                logger.warning(
-                    f"使用 pandas DataFrame 时出错: {e}，尝试 DuckDB Python 对象扫描"
+                con.execute(
+                    f"COPY df_rows TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
                 )
-                logger.debug("使用 pandas DataFrame 详细信息", exc_info=True)
-                # 方案B：DuckDB Python 对象扫描
+                success = True
+            except Exception as e:
+                logger.warning(f"Pandas 写入失败: {e}，尝试 DuckDB 原生方式")
+                
+                # 方案B：JSON 临时文件 (最稳妥的 DuckDB 原生方式)
                 try:
-                    logger.debug("尝试使用 DuckDB Python 对象扫描")
-                    con.execute("CREATE TABLE t AS SELECT * FROM rows", {"rows": rows})
-                except Exception as e:
-                    logger.warning(
-                        f"使用 DuckDB Python 对象扫描时出错: {e}，尝试以 JSON 推断"
-                    )
-                    logger.debug("使用 DuckDB Python 对象扫描详细信息", exc_info=True)
-                    # 方案C：以 JSON 推断
                     import json
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as fjson:
+                        json.dump(rows, fjson)
+                        fjson.flush() # 强制落盘
+                        json_tmp_path = fjson.name
+                    
+                    try:
+                        # 使用参数绑定 (?) 代替字符串拼接，自动处理路径中的空格和特殊字符
+                        con.execute(
+                            f"COPY (SELECT * FROM read_json_auto(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                            [json_tmp_path]
+                        )
+                        success = True
+                    finally:
+                        if os.path.exists(json_tmp_path):
+                            os.remove(json_tmp_path)
+                except Exception as e2:
+                    logger.error(f"DuckDB 落地 Parquet 彻底失败: {e2}")
+                    raise e2
 
-                    logger.debug("尝试使用 JSON 推断")
-                    con.execute(
-                        "CREATE TABLE t AS SELECT * FROM read_json_auto(?)",
-                        [json.dumps(rows)],
-                    )
-                try:
-                    logger.debug(f"使用 DuckDB 写入 Parquet: {safe_tmp_path}")
-                    if os.path.exists(local_tmp_path):
-                        os.remove(local_tmp_path)
-                    con.execute(
-                        f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"使用 DuckDB 写入 Parquet 时出错: {e}，尝试不指定压缩参数"
-                    )
-                    logger.debug("使用 DuckDB 写入 Parquet 详细信息", exc_info=True)
-                    logger.debug(f"使用 DuckDB 写入 Parquet (无压缩参数): {safe_tmp_path}")
-                    if os.path.exists(local_tmp_path):
-                        os.remove(local_tmp_path)
-                    con.execute(f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET)")
+            if success:
+                # 校验文件有效性
+                if os.path.exists(tmp_file) and os.path.getsize(tmp_file) == 0:
+                    raise IOError("DuckDB COPY produced 0-byte file")
+                
+                # 移动到最终位置
+                logger.debug(f"移动文件: {tmp_file} -> {out_file}")
+                shutil.move(tmp_file, out_file)
+                
         finally:
-            logger.debug("关闭 DuckDB 连接")
             con.close()
 
-        # 如果临时文件仍然存在，移动它。
-        # 注意：某些版本的 DuckDB 可能会在 COPY 时自己创建文件，
-        # 我们之前用 mkstemp 创建了空文件，如果 DuckDB 报错没有写入，
-        # 则可能会留下 0 字节文件。
-        if os.path.exists(local_tmp_path) and os.path.getsize(local_tmp_path) == 0:
-            logger.warning(f"检测到 0 字节临时文件: {local_tmp_path}, 视为写入失败")
-            raise IOError("DuckDB COPY produced 0-byte file")
-
-        # 移动临时文件到目标位置
-        try:
-            logger.debug(f"移动文件: {local_tmp_path} -> {out_file}")
-            shutil.move(local_tmp_path, out_file)
-        except Exception as e:
-            logger.error(f"移动文件失败: {e}")
-            raise e
-        
-        # 检查输出文件
         if not os.path.exists(out_file):
-            raise IOError(f"目标文件不存在: {out_file}")
+            raise IOError(f"目标文件缺失: {out_file}")
 
         logger.debug(f"写入 Parquet 文件完成: {out_dir}")
         return out_dir
 
     except Exception as e:
-        # 全局异常捕获，清理残留的临时文件
-        if 'local_tmp_path' in locals() and os.path.exists(local_tmp_path):
+        if os.path.exists(tmp_file):
             try:
-                logger.debug(f"发生异常，清理产生的临时文件: {local_tmp_path}")
-                os.remove(local_tmp_path)
-            except Exception as cleanup_error:
-                logger.warning(f"清理临时文件失败: {cleanup_error}")
-        
-        if isinstance(e, IOError) and "目标文件不存在" in str(e):
-             return "" # Return empty string on specific known failure if expected
-        
-        # 重新抛出异常以便上层感知
+                os.remove(tmp_file)
+            except Exception:
+                pass
         raise e
 
 
-
 def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
-    logger.debug(f"写入 Parquet 分块: out_dir={out_dir}, rows={len(rows)}")
-
     if not rows:
-        logger.debug("没有数据需要写入")
         return
-    import random
+    
     fname = f"part-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}-{os.getpid()}-{random.randint(1000, 9999)}.parquet"
     out_file = os.path.normpath(os.path.join(out_dir, fname))
     
-    # 策略：先写入系统临时目录，再移动到目标目录
-    temp_fd, local_tmp_path = tempfile.mkstemp(suffix=".parquet.tmp")
-    os.close(temp_fd)
+    fd, tmp_file = tempfile.mkstemp(suffix=".parquet.tmp")
+    os.close(fd)
+    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
     
-    safe_tmp_path = local_tmp_path.replace("\\", "/").replace("'", "''")
-    logger.debug(f"输出文件: {out_file}, 临时文件: {local_tmp_path}, DuckDB 路径: {safe_tmp_path}")
-
     try:
         con = duckdb.connect(database=":memory:")
-
         try:
-            logger.debug("配置 DuckDB 连接")
+            import json
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as fjson:
+                json.dump(rows, fjson)
+                json_tmp_path = fjson.name
+            
             try:
-                threads = settings.DUCKDB_THREADS
-                logger.debug(f"设置 DuckDB 线程数: {threads}")
-                con.execute(f"PRAGMA threads={max(1, threads)}")
-            except Exception as e:
-                logger.warning(f"设置 DuckDB 线程数时出错: {e}")
-                logger.debug("设置 DuckDB 线程数详细信息", exc_info=True)
-            _configure_httpfs_and_s3(con)
-            try:
-                logger.debug("创建表并插入数据")
-                con.execute("CREATE TABLE t AS SELECT * FROM rows", {"rows": rows})
-            except Exception as e:
-                logger.warning(f"创建表并插入数据时出错: {e}，尝试以 JSON 推断")
-                logger.debug("创建表并插入数据详细信息", exc_info=True)
-                import json
-
+                safe_json_path = json_tmp_path.replace("\\", "/").replace("'", "''")
                 con.execute(
-                    "CREATE TABLE t AS SELECT * FROM read_json_auto(?)", [json.dumps(rows)]
+                    f"COPY (SELECT * FROM read_json_auto('{safe_json_path}')) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                 )
-
-            logger.debug(f"写入 Parquet 文件: {safe_tmp_path}")
-            con.execute(
-                f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
-            )
-        except Exception as e:
-            logger.warning(f"写入 Parquet 文件时出错: {e}，尝试不指定压缩参数")
-            logger.debug("写入 Parquet 文件详细信息", exc_info=True)
-            try:
-                logger.debug(f"写入 Parquet 文件 (无压缩参数): {safe_tmp_path}")
-                con.execute(f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET)")
-            except Exception as e:
-                logger.error(f"写入 Parquet 文件也失败: {e}")
-                logger.debug("写入 Parquet 文件详细信息", exc_info=True)
-                raise e
+            finally:
+                if os.path.exists(json_tmp_path):
+                    os.remove(json_tmp_path)
         finally:
-            logger.debug("关闭 DuckDB 连接")
             con.close()
 
-        try:
-            logger.debug(f"移动临时文件: {local_tmp_path} -> {out_file}")
-            shutil.move(local_tmp_path, out_file)
-        except Exception as e:
-            logger.error(f"移动文件失败: {e}")
-            if os.path.exists(local_tmp_path):
-                os.remove(local_tmp_path)
-            raise e
-
+        shutil.move(tmp_file, out_file)
         logger.debug(f"写入 Parquet 分块完成: {out_file}")
 
-    except Exception:
-        # 全局异常捕获，清理残留的临时文件
-        if 'local_tmp_path' in locals() and os.path.exists(local_tmp_path):
+    except Exception as e:
+        logger.error(f"写入分块失败: {e}")
+        if os.path.exists(tmp_file):
             try:
-                logger.debug(f"发生异常，清理产生的临时文件: {local_tmp_path}")
-                os.remove(local_tmp_path)
-            except Exception as cleanup_error:
-                logger.warning(f"清理临时文件失败: {cleanup_error}")
-        raise
-
+                os.remove(tmp_file)
+            except Exception:
+                pass
+        raise e
 
 
 def query_parquet_duckdb(
@@ -448,27 +347,11 @@ def query_parquet_duckdb(
         logger.debug("配置 DuckDB 连接")
         try:
             threads = settings.DUCKDB_THREADS
-            logger.debug(f"设置 DuckDB 线程数: {threads}")
             con.execute(f"PRAGMA threads={max(1, threads)}")
-        except Exception as e:
-            logger.warning(f"设置 DuckDB 线程数时出错: {e}")
-            logger.debug("设置 DuckDB 线程数详细信息", exc_info=True)
-        try:
-            mem_limit = settings.DUCKDB_MEMORY_LIMIT
-            if mem_limit:
-                logger.debug(f"设置 DuckDB 内存限制: {mem_limit}")
-                con.execute(f"PRAGMA memory_limit='{mem_limit}'")
-        except Exception as e:
-            logger.warning(f"设置 DuckDB 内存限制时出错: {e}")
-            logger.debug("设置 DuckDB 内存限制详细信息", exc_info=True)
+        except Exception:
+            pass
         _configure_httpfs_and_s3(con)
-        if files_param:
-            debug_cur = con.execute(f"SELECT * FROM read_parquet(?) LIMIT 3", [files_param])
-        else:
-            debug_cur = con.execute(f"SELECT * FROM read_parquet('{pattern}') LIMIT 3")
-        debug_rows = debug_cur.fetchall()
-        logger.debug(f"Parquet 样例数据 (前3条): {debug_rows}")
-
+        
         logger.debug("执行查询")
         if files_param:
             cur = con.execute(sql, [files_param] + params)
@@ -481,18 +364,10 @@ def query_parquet_duckdb(
         logger.debug(f"返回结果: {len(result)} 行")
         return result
     except Exception as e:
-        # 归档损坏或其他异常时，返回空避免影响主流程
         logger.error(f"查询 Parquet 文件时出错: {e}")
         logger.debug("查询 Parquet 文件详细信息", exc_info=True)
-        if _QUERY_DEBUG:
-            try:
-                logger.warning(f"archive query failed: {e}")
-            except Exception as e:
-                logger.warning(f"记录查询失败日志时出错: {e}")
-                logger.debug("记录查询失败日志详细信息", exc_info=True)
         return []
     finally:
-        logger.debug("关闭 DuckDB 连接")
         con.close()
 
 
@@ -507,80 +382,49 @@ def _list_day_partitions(table: str) -> List[str]:
 
 
 def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]]:
-    """将按日分区目录中较多小文件合并为单个 parquet。
-
-    返回列表 [(partition_dir, merged_count), ...]
-    """
+    """将按日分区目录中较多小文件合并为单个 parquet。"""
     logger.debug(f"压实小文件: table={table}, min_files={min_files}")
     results: List[Tuple[str, int]] = []
     partitions = _list_day_partitions(table)
-    logger.debug(f"找到 {len(partitions)} 个分区")
     for part_dir in partitions:
         try:
-            logger.debug(f"处理分区: {part_dir}")
-            # 仅合并小文件（避免重复合并）：只匹配 part- 前缀
             pattern = os.path.join(part_dir, "part-*.parquet")
             small_files = sorted(glob.glob(pattern))
-            logger.debug(f"找到 {len(small_files)} 个小文件")
             if len(small_files) < max(1, int(min_files)):
-                logger.debug(
-                    f"小文件数量 {len(small_files)} 小于最小要求 {min_files}，跳过"
-                )
                 continue
+            
             out_file = os.path.normpath(os.path.join(
                 part_dir, f"compact-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}.parquet"
             ))
             
-            # 策略：先写入系统临时目录，再移动到目标目录
-            temp_fd, local_tmp_path = tempfile.mkstemp(suffix=".parquet.compact.tmp")
-            os.close(temp_fd)
+            fd, tmp_file = tempfile.mkstemp(suffix=".parquet.compact.tmp")
+            os.close(fd)
             
-            safe_tmp_path = local_tmp_path.replace("\\", "/").replace("'", "''")
-            logger.debug(f"输出文件: {out_file}, 临时文件: {local_tmp_path}, DuckDB 路径: {safe_tmp_path}")
+            safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
             con = duckdb.connect(database=":memory:")
             try:
-                logger.debug("配置 DuckDB 连接")
-                # 使用通配模式仅读取 part-*.parquet，避免把目标 compact 文件读进去
+                # 使用通配模式仅读取 part-*.parquet
                 con.execute(
-                    "CREATE TABLE t AS SELECT * FROM read_parquet(?)", [pattern]
+                    f"COPY (SELECT * FROM read_parquet(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                    [pattern]
                 )
-                try:
-                    logger.debug(f"写入压实文件: {safe_tmp_path}")
-                    con.execute(
-                        f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
-                    )
-                except Exception as e:
-                    logger.warning(f"写入压实文件时出错: {e}，尝试不指定压缩参数")
-                    logger.debug("写入压实文件详细信息", exc_info=True)
-                    logger.debug(f"写入压实文件 (无压缩参数): {safe_tmp_path}")
-                    con.execute(f"COPY t TO '{safe_tmp_path}' (FORMAT PARQUET)")
             finally:
-                logger.debug("关闭 DuckDB 连接")
                 con.close()
-            # 移动临时文件到目标位置
-            try:
-                logger.debug(f"移动压实文件: {local_tmp_path} -> {out_file}")
-                shutil.move(local_tmp_path, out_file)
-            except Exception as e:
-                logger.error(f"移动压实文件失败: {e}")
-                if os.path.exists(local_tmp_path):
-                    os.remove(local_tmp_path)
-                continue
+            
+            shutil.move(tmp_file, out_file)
+            
             # 删除已合并的小文件
             removed = 0
             for fp in small_files:
                 try:
-                    logger.debug(f"删除小文件: {fp}")
                     os.remove(fp)
                     removed += 1
-                except Exception as e:
-                    logger.warning(f"删除小文件失败 {fp}: {e}")
-                    logger.debug("删除小文件失败详细信息", exc_info=True)
-            logger.debug(f"分区 {part_dir} 压实完成，删除 {removed} 个小文件")
+                except Exception:
+                    pass
             results.append((part_dir, removed))
         except Exception as e:
             logger.error(f"压实分区失败 {part_dir}: {e}")
-            logger.debug("压实分区失败详细信息", exc_info=True)
+            if 'tmp_file' in locals() and os.path.exists(tmp_file):
+                os.remove(tmp_file)
             continue
-    logger.debug(f"压实小文件完成，共处理 {len(results)} 个分区")
     return results

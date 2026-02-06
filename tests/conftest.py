@@ -68,11 +68,17 @@ from unittest.mock import MagicMock, AsyncMock
 import unittest.mock
 
 # ============================================================
-# PHASE 1: Mock 缺失的 C 扩展库 (在任何导入之前)
+# PHASE 1: Mock 缺失的 C 扩展库 (仅当无法导入时)
 # ============================================================
 for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "apprise"]:
-    sys.modules[lib] = MagicMock()
-    sys.modules[f"{lib}.fuzz"] = MagicMock()
+    try:
+        __import__(lib)
+    except ImportError:
+        m = MagicMock()
+        m.__version__ = "99.9.9"
+        sys.modules[lib] = m
+        if lib == "rapidfuzz":
+            sys.modules["rapidfuzz.fuzz"] = MagicMock()
 
 # Mock 缺失的底层工具 (更新路径以匹配重构后的 fastapi_app.py)
 for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "core.helpers.env_config"]:
