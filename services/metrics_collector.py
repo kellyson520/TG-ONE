@@ -82,6 +82,9 @@ class MetricsCollector:
         }
         self._start_time = time.time()
         self._custom_metrics: Dict[str, Any] = {}
+        # 差分日志缓存：记录上一次成功打印的指标值
+        self._last_logged_metrics: Dict[str, Any] = {}
+        self._last_log_time = 0
     
     def record_compression_stats(self, stats: Dict[str, Any]):
         """记录压缩统计"""
@@ -140,7 +143,7 @@ class MetricsCollector:
         }
     
     def get_system_metrics(self) -> Dict[str, Any]:
-        """获取系统指标"""
+        """获取系统指标 (带差分过滤逻辑)"""
         import psutil
         
         try:
@@ -148,18 +151,53 @@ class MetricsCollector:
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
             
-            return {
+            current = {
                 "cpu_percent": cpu_percent,
                 "memory_percent": memory.percent,
-                "memory_available_mb": memory.available / (1024 * 1024),
+                "memory_available_mb": round(memory.available / (1024 * 1024), 2),
                 "disk_percent": disk.percent,
-                "disk_free_gb": disk.free / (1024 * 1024 * 1024),
-                "uptime_seconds": time.time() - self._start_time
+                "disk_free_gb": round(disk.free / (1024 * 1024 * 1024), 2),
+                "uptime_seconds": int(time.time() - self._start_time)
             }
+
+            # 差分检查逻辑
+            should_log = False
+            now = time.time()
+            
+            # 每 60 秒强制心跳打印一次
+            if now - self._last_log_time > 60:
+                should_log = True
+            else:
+                # 检查主要指标变化率 (变化 > 5% 则打印)
+                for key in ["cpu_percent", "memory_percent"]:
+                    old_val = self._last_logged_metrics.get(key)
+                    if old_val is None:
+                        should_log = True
+                        break
+                    
+                    # 防止除以零
+                    if old_val == 0:
+                        if current[key] > 5:
+                            should_log = True
+                            break
+                        continue
+                        
+                    change_rate = abs(current[key] - old_val) / old_val
+                    if change_rate > 0.05:
+                        should_log = True
+                        break
+            
+            if should_log:
+                # 仅在有显著变化或达到心跳时间时打印
+                logger.info(f"🚀 [系统监控] CPU: {current['cpu_percent']}% | 内存: {current['memory_percent']}% | 磁盘: {current['disk_percent']}%")
+                self._last_logged_metrics = current.copy()
+                self._last_log_time = now
+                
+            return current
         except Exception as e:
             logger.error(f"Failed to get system metrics: {e}")
             return {
-                "uptime_seconds": time.time() - self._start_time
+                "uptime_seconds": int(time.time() - self._start_time)
             }
     
     def get_all_metrics(self) -> Dict[str, Any]:

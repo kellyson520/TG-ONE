@@ -46,9 +46,15 @@ class InitFilter(BaseFilter):
                     context.buttons = cached_ctx.get('buttons')
                     # logger.debug(f"从缓存复用媒体组上下文: {event.message.grouped_id}")
                 else:
+                    # 优先从 event 获取 client，备选从 context 获取
+                    client = getattr(event, 'client', context.client)
+                    if not client:
+                         logger.warning("InitFilter: 无法获取 client 实例，跳过媒体组拉取")
+                         return True
+                         
                     # 仅在缓存未命中的情况下执行 API 调用
                     try:
-                        async for message in event.client.iter_messages(
+                        async for message in client.iter_messages(
                             event.chat_id,
                             limit=20,
                             min_id=event.message.id - 10,

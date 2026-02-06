@@ -50,6 +50,7 @@ class ForwardSettingsService:
             "exclude_keywords": [],
             "dedup_enabled": True,
             "dedup_mode": "hash",
+            "HISTORY_MESSAGE_LIMIT": 0,
         }
 
         async with container.db.session() as session:

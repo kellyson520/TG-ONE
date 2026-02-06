@@ -30,7 +30,8 @@ class MessageContext:
         'is_sim',
         'trace',
         'dup_signatures',
-        'is_history'
+        'is_history',
+        'media_blocked'
     )
     
     def __init__(self, client, event, chat_id, rule):
@@ -107,6 +108,7 @@ class MessageContext:
         self.trace = []
         self.dup_signatures = []
         self.is_history = False
+        self.media_blocked = False
         
     def clone(self):
         """创建上下文的副本"""

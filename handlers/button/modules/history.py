@@ -79,16 +79,16 @@ class HistoryModule(BaseMenu):
         await self.show_numeric_picker(event, "end", "")
 
     async def show_message_filter_menu(self, event):
-        settings = await forward_manager.get_global_media_settings()
-        # 获取当前消息数量限制配置
-        message_limit = settings.HISTORY_MESSAGE_LIMIT
+        settings_dict = await forward_manager.get_global_media_settings()
+        # 获取当前消息数量限制配置 (兼容字典和对象)
+        message_limit = getattr(settings_dict, 'HISTORY_MESSAGE_LIMIT', settings_dict.get('HISTORY_MESSAGE_LIMIT', 0))
         limit_text = f"{message_limit:,}" if message_limit > 0 else "无限制"
 
         buttons = [
             [Button.inline("🎬 媒体类型", "new_menu:history_filter_media_types")],
             [
                 Button.inline(
-                    f"📝 放行文本：{'开启' if settings['allow_text'] else '关闭'}",
+                    f"📝 放行文本：{'开启' if settings_dict.get('allow_text', True) else '关闭'}",
                     "new_menu:history_toggle_allow_text",
                 )
             ],
@@ -116,8 +116,8 @@ class HistoryModule(BaseMenu):
             await event.respond(text, buttons=buttons)
 
     async def show_media_types(self, event):
-        settings = await forward_manager.get_global_media_settings()
-        media_types = settings["media_types"]
+        settings_dict = await forward_manager.get_global_media_settings()
+        media_types = settings_dict.get("media_types", {})
         buttons = [
             [
                 Button.inline(

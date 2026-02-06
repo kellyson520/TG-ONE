@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     LOG_COLOR: bool = Field(default=True)
     LOG_MAX_BYTES: int = Field(default=10 * 1024 * 1024)
     LOG_BACKUP_COUNT: int = Field(default=5)
+    LOG_BUFFER_SIZE: int = Field(
+        default=50,
+        description="日志内存缓冲区大小 (条数)"
+    )
+    LOG_FLUSH_INTERVAL: float = Field(
+        default=3.0,
+        description="日志强制刷新到磁盘的时间间隔 (秒)"
+    )
     LOG_KEY_ONLY: bool = Field(default=True)
     
     LOG_MUTE_LOGGERS: Union[List[str], str] = Field(default=[])
@@ -200,6 +208,24 @@ class Settings(BaseSettings):
     MAX_API_RETRIES: int = Field(default=3)
     
     ENABLE_PERFORMANCE_MONITORING: bool = Field(default=True)
+    
+    # === 智能聚合缓冲区 (Smart Buffer) ===
+    ENABLE_SMART_BUFFER: bool = Field(
+        default=True,
+        description="是否启用智能聚合缓冲区 (公交车模式)"
+    )
+    SMART_BUFFER_DEBOUNCE: float = Field(
+        default=3.5,
+        description="智能聚合防抖时间 (秒)，在此时间内无新消息则发送"
+    )
+    SMART_BUFFER_MAX_WAIT: float = Field(
+        default=8.0,
+        description="智能聚合最大等待时间 (秒)，强制发车上限"
+    )
+    SMART_BUFFER_MAX_BATCH: int = Field(
+        default=10,
+        description="单次聚合消息最大数量 (通常 10 为 Telegram 媒体组上限)"
+    )
 
     # === 流量控制与节流 ===
     FORWARD_GLOBAL_MIN_INTERVAL_MS: int = Field(default=0)

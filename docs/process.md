@@ -13,10 +13,11 @@
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
 | 20260206_Fix_Archive | 修复归档系统集成测试与 DuckDB/S3 兼容性 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Fix_Archive_Integration_Test/report.md) |
+| 20260206_Arch_Upgrade | 高性能架构升级 (日志缓冲/差分监控/聚合公交车) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Architecture_Upgrade_Report.md) |
 | 20260206_Verify_Archive | 归档系统验证与逻辑重构 (Bloom同步/配置动态化) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Verify_Archive_System/report.md) |
 | 20260205_Upgrade_Date_Picker | 升级时间范围选择和日期选择页面 (滚轮式选择) | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_UI_UX/20260205_Upgrade_Date_Picker/report.md) |
 | 20260205_Fix_Settings_Attr | 修复 Settings 缺失 ENABLE_BATCH_FORWARD_API 属性错误 | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_Maintenance/20260205_Fix_AttributeError_Settings_ENABLE_BATCH_FORWARD_API/report.md) |
-| 20260206_Fix_Triple_Errors | 修复去重参数异常、回调字典缺失及分析中心报错 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Fix_Triple_Errors/report.md) |
+| 20260206_Hotfix_Four_Errors | 修复配置缺失、Context 属性及数据库 Greenlet 错误 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Hotfix_Four_Errors/report.md) |
 | 20260108_Dashboard | Dashboard 数据可视化 | 2026-01-08 | 2026-01-08 | 100% | [📂 查看](./archive/Workstream_Web_UI/20260108_Dashboard_Visualization/) |
 | 20260108_Security | Web 认证安全加固 | 2026-01-08 | 暂停 (Phase 2) | 60% | [📂 查看](./archive/Workstream_Core_Engineering/20260108_Security_Enhancement/) |
 | Workstream_Core_Engineering | 🔒 核心工程 (Tests/Security/Debug) | N/A | 🟢 Active | [📂 Enter](./Workstream_Core_Engineering/) |
@@ -138,6 +139,7 @@
 | 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
 
 ### 2026-02-02
+| 20260206_Hotfix_Four_Errors | 修复配置缺失、Context 属性及数据库 Greenlet 错误 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Hotfix_Four_Errors/report.md) |
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260202_Orchestration | 修复 Docker 编排路径空格问题 | 2026-02-02 | 2026-02-02 | 100% | [[report.md]](./Workstream_Infrastructure/20260202_Fix_Orchestration_Error/report.md) |
 

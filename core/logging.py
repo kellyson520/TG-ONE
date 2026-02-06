@@ -14,6 +14,8 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+import threading
+import atexit
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, List, Callable
 
@@ -124,6 +126,68 @@ class ColorTextFormatter(logging.Formatter):
             return f"{color}{out}{self._RESET}" if color else out
         except Exception:
             return out
+
+
+class BufferedRotatingFileHandler(RotatingFileHandler):
+    """
+    带内存缓冲的日志处理器
+    满 N 条或每隔 T 秒强制写入文件，减少 I/O 压力
+    """
+
+    def __init__(self, *args, buffer_size: int = 50, flush_interval: float = 3.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.buffer_size = buffer_size
+        self.flush_interval = flush_interval
+        self._buffer: List[logging.LogRecord] = []
+        self._lock = threading.RLock()
+        self._last_flush = time.time()
+        self._is_flushing = False
+        
+        # 注册自动退出钩子
+        atexit.register(self.close)
+
+    def emit(self, record: logging.LogRecord):
+        """将日志存入缓冲区，不立即写入"""
+        # ERROR 以上级别日志不进入缓冲，立即发出
+        if record.levelno >= logging.ERROR:
+            self.flush()
+            super().emit(record)
+            return
+
+        with self._lock:
+            self._buffer.append(record)
+            current_time = time.time()
+            
+            # 判断是否达到触发条件
+            if len(self._buffer) >= self.buffer_size or (current_time - self._last_flush) >= self.flush_interval:
+                self._flush_unlocked()
+
+    def _flush_unlocked(self):
+        """在已持有锁的情况下执行实际写入"""
+        if not self._buffer or self._is_flushing:
+            return
+        
+        self._is_flushing = True
+        try:
+            for record in self._buffer:
+                super().emit(record)
+            self._buffer = []
+            self._last_flush = time.time()
+        finally:
+            self._is_flushing = False
+
+    def flush(self):
+        """手动强制落盘"""
+        # 如果当前正在执行缓冲写入，则不进入递归
+        if not self._is_flushing:
+            with self._lock:
+                self._flush_unlocked()
+        super().flush()
+
+    def close(self):
+        """关闭前必须清空缓冲"""
+        self.flush()
+        super().close()
 
 
 class _ContextFilter(logging.Filter):
@@ -348,11 +412,13 @@ def setup_logging() -> logging.Logger:
         max_bytes = settings.LOG_MAX_BYTES
         backup_count = settings.LOG_BACKUP_COUNT
         
-        file_handler = RotatingFileHandler(
+        file_handler = BufferedRotatingFileHandler(
             filename=str(Path(log_dir) / "app.log"),
             maxBytes=max_bytes,
             backupCount=backup_count,
             encoding="utf-8",
+            buffer_size=settings.LOG_BUFFER_SIZE,      # 使用设置值
+            flush_interval=settings.LOG_FLUSH_INTERVAL,  # 使用设置值
         )
         
         file_formatter: Union[JsonFormatter, ColorTextFormatter]
