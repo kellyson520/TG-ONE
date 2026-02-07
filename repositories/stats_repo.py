@@ -85,7 +85,7 @@ class StatsRepository:
         if should_flush:
             asyncio.create_task(self.flush_logs())
 
-    async def increment_stats(self, chat_id: int):
+    async def increment_stats(self, chat_id: int, saved_bytes: int = 0):
         """[Scheme 7 Standard] 原子级聊天统计更新"""
         today = date.today().isoformat()
         async with self.db.session() as session:
@@ -96,7 +96,10 @@ class StatsRepository:
                     ChatStatistics.chat_id == chat_id,
                     ChatStatistics.date == today
                 )
-                .values(forward_count=ChatStatistics.forward_count + 1)
+                .values(
+                    forward_count=ChatStatistics.forward_count + (1 if saved_bytes == 0 else 0),
+                    saved_traffic_bytes=ChatStatistics.saved_traffic_bytes + saved_bytes
+                )
             )
             result = await session.execute(stmt)
             
@@ -105,7 +108,8 @@ class StatsRepository:
                     stmt_insert = insert(ChatStatistics).values(
                         chat_id=chat_id, 
                         date=today, 
-                        forward_count=1
+                        forward_count=1 if saved_bytes == 0 else 0,
+                        saved_traffic_bytes=saved_bytes
                     )
                     await session.execute(stmt_insert)
                 except Exception:

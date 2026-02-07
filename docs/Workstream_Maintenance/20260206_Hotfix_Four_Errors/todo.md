@@ -18,6 +18,6 @@
 - [x] 确保 `core/helpers/history/error_handler.py` 中的数据库回滚操作已 `await`
 
 ### Phase 4: 验证与验收
-- [ ] 运行核心功能验证
-- [ ] 更新 `docs/process.md` 状态
-- [ ] 提交任务报告 `report.md`
+- [x] 运行核心功能验证
+- [x] 更新 `docs/process.md` 状态
+- [x] 提交任务报告 `report.md`

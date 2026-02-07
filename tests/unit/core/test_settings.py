@@ -14,12 +14,10 @@ class TestSettingsLogic:
     
     def test_default_paths(self):
         """Test that default paths are correctly calculated relative to project root."""
-        # We can't easily mock __file__ inside config.py for settings instantiation,
-        # but we can verify consistency of an instance.
         s = Settings()
         assert s.BASE_DIR.name == "TG ONE"
-        assert s.DOWNLOAD_DIR == s.BASE_DIR / "downloads"
-        assert s.SESSION_DIR == s.BASE_DIR / "sessions"
+        assert s.DOWNLOAD_DIR == s.BASE_DIR / "data" / "downloads"
+        assert s.SESSION_DIR == s.BASE_DIR / "data" / "sessions"
 
     def test_parse_list_fields_comma(self):
         """Test validation of comma-separated string to list."""

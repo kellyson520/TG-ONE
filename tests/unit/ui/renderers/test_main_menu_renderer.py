@@ -7,29 +7,29 @@ def renderer():
 
 def test_render_main_menu(renderer):
     stats = {
-        'today': {'total_forwards': 100, 'total_size_bytes': 1048576},
+        'today': {'total_forwards': 100, 'total_size_bytes': 1048576, 'saved_traffic_bytes': 2097152},
         'dedup': {'cached_signatures': 50}
     }
     result = renderer.render(stats)
     
     assert 'text' in result
     assert 'buttons' in result
-    assert '100' in result['text']
-    assert '50' in result['text']
-    # 1048576 bytes = 1.0 MB
+    assert '100' in result['text'] # Forwards
+    assert '50' in result['text']  # Cached signatures
+    # 1048576 bytes = 1.0 MB (Consumed)
     assert '1.0' in result['text']
+    # 2097152 bytes = 2.0 MB (Saved)
+    assert '2.0' in result['text']
+    assert '拦截流量' in result['text']
     assert len(result['buttons']) == 4
 
 def test_render_main_menu_error(renderer):
-    # Test with invalid data causing exception (simulated by passing incompatible type if possible, 
-    # but here dictionary get won't fail easily. We can mock stats to raise error on access if it was an object)
-    # Or just passing None might cause AttributeError inside if not handled
-    
-    # render() expects dict. If we pass None, expecting safe handling?
-    # The code does `stats.get`, so None.get would fail if stats is None
+    # Test error handling when input is invalid (None causing AttributeError on get)
+    # The renderer blindly does stats.get which fails on None, triggering except
     result = renderer.render(None) 
-    assert '❌' in result['text']
-    assert len(result['buttons']) == 1 # Error view usually has 1 back button
+    # Usually returns error view with specific text
+    assert '数据加载失败' in result['text'] or '系统数据暂时不可用' in result['text']
+    assert len(result['buttons']) == 1 
 
 def test_render_forward_hub_with_data(renderer):
     data = {
@@ -58,3 +58,13 @@ def test_render_dedup_hub(renderer):
     assert '85%' in result['text']
     assert '1,000' in result['text']
     assert 'A, B' in result['text']
+
+def test_render_faq(renderer):
+    result = renderer.render_faq()
+    assert '常见问题解答' in result['text']
+    assert len(result['buttons']) == 1
+
+def test_render_detailed_docs(renderer):
+    result = renderer.render_detailed_docs()
+    assert '详细使用文档' in result['text']
+    assert len(result['buttons']) == 1

@@ -1,5 +1,17 @@
 # Change Log
 
+## 📅 2026-02-07 更新摘要
+
+### 🚀 v1.2.3.7: 流量统计与文档增强 (Traffic Stats & Docs)
+- **New Feature (Intercepted Traffic)**: 
+    - **Smart Deduplicator**: 在核心去重引擎 `SmartDeduplicator` 中集成“拦截流量”计数器，实现字节级统计 (Byte-level Accounting)。
+    - **DB Schema**: `ChatStatistics` 模型新增 `saved_traffic_bytes` 字段，并通过 Migration 自动同步数据库结构。
+    - **UI Enhancement**: 主菜单 (Main Menu) 新增“🛡️ 拦截流量”展示，与“💾 消耗流量”形成对比，直观呈现去重收益。
+- **Documentation System**:
+    - **FAQ Integration**: 实现 `MenuController.show_faq`，提供关于规则管理、去重失效、延迟等常见问题的即时解答。
+    - **Detailed Docs**: 实现 `MenuController.show_detailed_docs`，补充核心概念 (Source/Target/Rule) 与高级功能的说明。
+    - **Interaction Fix**: 修复了“帮助指南”页面中 FAQ 和详细文档按钮无响应的问题。
+
 ## 📅 2026-02-04 更新摘要
 
 ### 🚀 菜单系统完整性审计与修复 (Menu System Integrity Audit)

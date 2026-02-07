@@ -317,12 +317,20 @@ class AnalyticsService:
                 
                 chats_dict = {str(c.chat_id): c.forward_count for c in chats_data}
                 
+                # 3. 统计节省流量 (从 ChatStatistics)
+                traffic_stmt = (
+                    select(func.sum(ChatStatistics.saved_traffic_bytes))
+                    .where(ChatStatistics.date == date_str)
+                )
+                saved_bytes = (await session.execute(traffic_stmt)).scalar() or 0
+                
                 return {
                     'total_forwards': total,
                     'error_count': errors,
                     'chats': chats_dict,
                     'active_chats': len(chats_dict),
-                    'date': date_str
+                    'date': date_str,
+                    'saved_traffic_bytes': saved_bytes
                 }
         except Exception as e:
             logger.error(f"get_daily_summary 失败 for {date_str}: {e}")

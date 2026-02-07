@@ -11,6 +11,7 @@ class ChatStatistics(Base):
     date = Column(String, nullable=False, index=True) # YYYY-MM-DD
     message_count = Column(Integer, default=0)
     forward_count = Column(Integer, default=0)
+    saved_traffic_bytes = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,7 +1,8 @@
-VERSION = "1.2.3.6"
+VERSION = "1.2.3.7"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.3.7: 统计与文档增强 - 新增“拦截流量”统计 (SmartDeadup/Main Menu)、完善 FAQ 与详细文档功能、修正菜单回调交互。
 - v1.2.3.6: 回调与导入错误修复 - 修复 history.py 模块导入路径错误 (utils→services.network)、callback_handlers.py 缺失 container 导入、KeywordFilter 历史任务去重逻辑优化,确保历史消息转发流程正常运行。
 - v1.2.3.5: 启动稳定性修复 - 解决 `core.container` 与中间件/服务层之间的循环导入问题,确保系统在生产环境下正常启动。
 - v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule),统一数据库 Session 调用范式,重构版本信息显示逻辑 (Version Pagination)。

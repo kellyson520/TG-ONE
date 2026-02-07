@@ -177,6 +177,20 @@ def migrate_db(engine):
                             logger.info(f"已为 chats 添加列: {col}")
                         except Exception as e:
                             logger.warning(f'添加列 {col} 失败: {e}')
+
+                # 4.3 补充 chat_statistics 表的新字段
+                chat_stats_columns_existing = _get_existing_columns(inspector, 'chat_statistics')
+                chat_stats_map = {
+                    'saved_traffic_bytes': 'ALTER TABLE chat_statistics ADD COLUMN saved_traffic_bytes INTEGER DEFAULT 0'
+                }
+                
+                for col, sql in chat_stats_map.items():
+                    if col not in chat_stats_columns_existing:
+                        try:
+                            connection.execute(text(sql))
+                            logger.info(f"已为 chat_statistics 添加列: {col}")
+                        except Exception as e:
+                            logger.warning(f'添加列 {col} 失败: {e}')
                 
                 rule_columns_existing = _get_existing_columns(inspector, 'forward_rules')
                 rule_columns_map = {

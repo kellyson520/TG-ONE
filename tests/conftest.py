@@ -90,11 +90,11 @@ def mock_decorator(*args, **kwargs):
         return f
     return wrapper
 
-mock_err = unittest.mock.MagicMock()
-mock_err.handle_errors = mock_decorator
-mock_err.handle_telegram_errors = mock_decorator
-mock_err.log_execution = mock_decorator
-sys.modules["core.helpers.error_handler"] = mock_err
+# mock_err = unittest.mock.MagicMock()
+# mock_err.handle_errors = mock_decorator
+# mock_err.handle_telegram_errors = mock_decorator
+# mock_err.log_execution = mock_decorator
+# sys.modules["core.helpers.error_handler"] = mock_err
 
 # ============================================================
 # PHASE 2: Mock 核心配置 (settings)

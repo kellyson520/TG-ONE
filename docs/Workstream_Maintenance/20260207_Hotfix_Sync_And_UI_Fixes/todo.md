@@ -36,3 +36,8 @@
 - [x] 执行本地 CI 门禁
 - [x] 提交修复报告
 - [x] 更新 `process.md`
+
+### Phase 5: 新增功能与文档完善 (Additional Features)
+- [x] 实现“拦截流量”统计 (`ChatStatistics`, `StatsRepo`, `Main Menu`)
+- [x] 补充 `FAQ` 和 `Detailed Docs` 内容及回调逻辑
+- [x] 验证新功能的 UI 显示与回调响应

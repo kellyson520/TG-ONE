@@ -396,6 +396,36 @@ class MenuController:
             buttons=buttons
         )
 
+    async def show_faq(self, event):
+        """显示常见问题"""
+        try:
+            render_data = self.renderer.render_faq()
+            await self._send_menu(
+                event,
+                title="❓ **常见问题**",
+                body_lines=[render_data['text']],
+                buttons=render_data['buttons'],
+                breadcrumb="🏠 > 📖 > ❓"
+            )
+        except Exception as e:
+            logger.error(f"加载FAQ失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_detailed_docs(self, event):
+        """显示详细文档"""
+        try:
+            render_data = self.renderer.render_detailed_docs()
+            await self._send_menu(
+                event,
+                title="📖 **详细文档**",
+                body_lines=[render_data['text']],
+                buttons=render_data['buttons'],
+                breadcrumb="🏠 > 📖 > 📚"
+            )
+        except Exception as e:
+            logger.error(f"加载详细文档失败: {e}")
+            await self._send_error(event, "加载失败")
+
     async def show_history_task_actions(self, event):
         """显示历史任务操作菜单"""
         buttons = [

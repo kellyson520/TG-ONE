@@ -6,9 +6,9 @@
 import functools
 import asyncio
 import logging
+import inspect
 from typing import Any, Optional, Type, Union, Callable, TypeVar, cast
 from telethon.errors import FloodWaitError
-from core.context import trace_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -25,51 +25,51 @@ def handle_errors(
     统一错误处理装饰器
     """
     def decorator(func: T) -> T:
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            try:
-                if asyncio.iscoroutinefunction(func):
+        is_async = inspect.iscoroutinefunction(func) or (
+            hasattr(func, "__wrapped__") and inspect.iscoroutinefunction(func.__wrapped__)
+        )
+
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                try:
                     return await func(*args, **kwargs)
-                else:
-                    return func(*args, **kwargs)
-            except Exception as e:
-                # 检查是否只处理特定异常
-                if specific_errors and not isinstance(e, specific_errors):
-                    raise
+                except Exception as e:
+                    if specific_errors and not isinstance(e, specific_errors):
+                        raise
 
-                if log_error:
-                    cid = trace_id_var.get()
-                    func_logger = logging.getLogger(func.__module__ or __name__)
-                    message = error_message or f"{func.__name__} 执行失败"
-                    func_logger.error(f"[{cid}] {message}: {str(e)}", exc_info=True)
+                    if log_error:
+                        from core.context import trace_id_var
+                        cid = trace_id_var.get("-")
+                        func_logger = logging.getLogger(func.__module__ or __name__)
+                        message = error_message or f"{func.__name__} 执行失败"
+                        func_logger.error(f"[{cid}] {message}: {str(e)}", exc_info=True)
 
-                if reraise:
-                    raise
+                    if reraise:
+                        raise
 
-                return default_return
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                if specific_errors and not isinstance(e, specific_errors):
-                    raise
-
-                if log_error:
-                    cid = trace_id_var.get()
-                    func_logger = logging.getLogger(func.__module__ or __name__)
-                    message = error_message or f"{func.__name__} 执行失败"
-                    func_logger.error(f"[{cid}] {message}: {str(e)}", exc_info=True)
-
-                if reraise:
-                    raise
-
-                return default_return
-
-        if asyncio.iscoroutinefunction(func):
+                    return default_return
             return cast(T, async_wrapper)
         else:
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if specific_errors and not isinstance(e, specific_errors):
+                        raise
+
+                    if log_error:
+                        from core.context import trace_id_var
+                        cid = trace_id_var.get("-")
+                        func_logger = logging.getLogger(func.__module__ or __name__)
+                        message = error_message or f"{func.__name__} 执行失败"
+                        func_logger.error(f"[{cid}] {message}: {str(e)}", exc_info=True)
+
+                    if reraise:
+                        raise
+
+                    return default_return
             return cast(T, sync_wrapper)
 
     return decorator
@@ -107,36 +107,38 @@ def retry_on_failure(
     失败自动重试装饰器
     """
     def decorator(func: T) -> T:
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            curr_delay = delay
-            for i in range(max_retries):
-                try:
-                    return await func(*args, **kwargs)
-                except exceptions as e:
-                    if i == max_retries - 1:
-                        raise
-                    logger.warning(f"执行 {func.__name__} 失败: {str(e)}, 准备进行第 {i+1} 次重试...")
-                    await asyncio.sleep(curr_delay)
-                    curr_delay *= backoff
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            import time
-            curr_delay = delay
-            for i in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    if i == max_retries - 1:
-                        raise
-                    logger.warning(f"执行 {func.__name__} 失败: {str(e)}, 准备进行第 {i+1} 次重试...")
-                    time.sleep(curr_delay)
-                    curr_delay *= backoff
-
-        if asyncio.iscoroutinefunction(func):
+        is_async = inspect.iscoroutinefunction(func) or (
+            hasattr(func, "__wrapped__") and inspect.iscoroutinefunction(func.__wrapped__)
+        )
+        
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                curr_delay = delay
+                for i in range(max_retries):
+                    try:
+                        return await func(*args, **kwargs)
+                    except exceptions as e:
+                        if i == max_retries - 1:
+                            raise
+                        logger.warning(f"执行 {func.__name__} 失败: {str(e)}, 准备进行第 {i+1} 次重试...")
+                        await asyncio.sleep(curr_delay)
+                        curr_delay *= backoff
             return cast(T, async_wrapper)
         else:
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                import time
+                curr_delay = delay
+                for i in range(max_retries):
+                    try:
+                        return func(*args, **kwargs)
+                    except exceptions as e:
+                        if i == max_retries - 1:
+                            raise
+                        logger.warning(f"执行 {func.__name__} 失败: {str(e)}, 准备进行第 {i+1} 次重试...")
+                        time.sleep(curr_delay)
+                        curr_delay *= backoff
             return cast(T, sync_wrapper)
 
     return decorator
@@ -151,75 +153,79 @@ def log_execution(
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            cid = trace_id_var.get()
-            func_logger = logging.getLogger(func.__module__ or __name__)
-            
-            import time
+        is_async = inspect.iscoroutinefunction(func) or (
+            hasattr(func, "__wrapped__") and inspect.iscoroutinefunction(func.__wrapped__)
+        )
 
-            start_time = time.time()
-            if include_args:
-                func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}, 参数: {args}, {kwargs}")
-            else:
-                func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}")
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from core.context import trace_id_var
+                cid = trace_id_var.get("-")
+                func_logger = logging.getLogger(func.__module__ or __name__)
+                
+                import time
 
-            try:
-                result = await func(*args, **kwargs)
-                duration = (time.time() - start_time) * 1000
-                if include_result:
-                    func_logger.log(
-                        level,
-                        f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms, 结果: {result}",
-                    )
+                start_time = time.time()
+                if include_args:
+                    func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}, 参数: {args}, {kwargs}")
                 else:
+                    func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}")
+
+                try:
+                    result = await func(*args, **kwargs)
+                    duration = (time.time() - start_time) * 1000
+                    if include_result:
+                        func_logger.log(
+                            level,
+                            f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms, 结果: {result}",
+                        )
+                    else:
+                        func_logger.log(
+                            level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
+                        )
+                    return result
+                except Exception as e:
+                    duration = (time.time() - start_time) * 1000
                     func_logger.log(
-                        level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
+                        level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
                     )
-                return result
-            except Exception as e:
-                duration = (time.time() - start_time) * 1000
-                func_logger.log(
-                    level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
-                )
-                raise
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            cid = trace_id_var.get()
-            func_logger = logging.getLogger(func.__module__ or __name__)
-            
-            import time
-
-            start_time = time.time()
-            if include_args:
-                func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}, 参数: {args}, {kwargs}")
-            else:
-                func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}")
-
-            try:
-                result = func(*args, **kwargs)
-                duration = (time.time() - start_time) * 1000
-                if include_result:
-                    func_logger.log(
-                        level,
-                        f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms, 结果: {result}",
-                    )
-                else:
-                    func_logger.log(
-                        level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
-                    )
-                return result
-            except Exception as e:
-                duration = (time.time() - start_time) * 1000
-                func_logger.log(
-                    level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
-                )
-                raise
-
-        if asyncio.iscoroutinefunction(func):
+                    raise
             return async_wrapper
         else:
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from core.context import trace_id_var
+                cid = trace_id_var.get("-")
+                func_logger = logging.getLogger(func.__module__ or __name__)
+                
+                import time
+
+                start_time = time.time()
+                if include_args:
+                    func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}, 参数: {args}, {kwargs}")
+                else:
+                    func_logger.log(level, f"[{cid}] 开始执行 {func.__name__}")
+
+                try:
+                    result = func(*args, **kwargs)
+                    duration = (time.time() - start_time) * 1000
+                    if include_result:
+                        func_logger.log(
+                            level,
+                            f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms, 结果: {result}",
+                        )
+                    else:
+                        func_logger.log(
+                            level, f"[{cid}] {func.__name__} 执行完成, 耗时: {duration:.2f}ms"
+                        )
+                    return result
+                except Exception as e:
+                    duration = (time.time() - start_time) * 1000
+                    func_logger.log(
+                        level, f"[{cid}] {func.__name__} 执行异常: {e}, 耗时: {duration:.2f}ms"
+                    )
+                    raise
             return sync_wrapper
 
     return decorator

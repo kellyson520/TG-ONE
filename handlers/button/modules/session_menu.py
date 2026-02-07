@@ -137,11 +137,12 @@ class SessionMenu(BaseMenu):
             else:
                 buttons = []
                 selected = await session_manager.get_selection_state(event.chat_id)
-                for sig, count in scan_counts.items():
+                for sig, ids in scan_counts.items():
                     import hashlib
                     short_id = hashlib.md5(sig.encode()).hexdigest()[:8]
                     is_sel = sig in selected
-                    buttons.append([Button.inline(f"{'✅' if is_sel else '☐'} {sig} ×{count}", f"new_menu:toggle_select:{short_id}")])
+                    display_name = session_manager._signature_to_display_name(sig)
+                    buttons.append([Button.inline(f"{'✅' if is_sel else '☐'} {display_name} ×{len(ids)}", f"new_menu:toggle_select:{short_id}")])
                 buttons.extend([[Button.inline("🗑️ 删除选中项", "new_menu:delete_selected_duplicates")], [Button.inline("👈 返回上一级", "new_menu:dedup_results")]])
                 await self._render_from_text(event, "🔧 **选择删除**\n\n请选择要删除的重复项：", buttons)
         except Exception as e:

@@ -43,6 +43,6 @@
 - **关闭按钮响应**: 在 `new_menu_callback.py` 中补充了 `exit`, `close`, `faq`, `tech_support`, `detailed_docs` 等回调处理，解决了多个菜单页面按钮无响应的问题。
 - **去重扫描逻辑**: 优化了 `scan_duplicate_messages`，优先使用内容哈希（Content Hash）进行比对，提高了文件去重的准确性。
 
-## 5. 遗留与建议
-- **流量统计**: 目前系统仅记录“消耗流量”，建议在后续版本中在 `SmartDeduplicator` 层面增加“拦截流量”计数器，以实现真正的“节省流量”统计。
-- **帮助文档**: `faq` 和 `detailed_docs` 目前仅为占位符，建议后续补充具体文档内容或链接。
+## 5. 新增功能与文档完善
+- **拦截流量统计**: 在 `SmartDeduplicator` 和 `ChatStatistics` 中实现了“拦截流量”计数器，并在主菜单展示，准确反映去重节省的流量（Displayed as "拦截流量"）。
+- **帮助文档**: 实现了 `faq` 和 `detailed_docs` 的具体内容，用户现在可以通过菜单查看常见问题和详细文档。

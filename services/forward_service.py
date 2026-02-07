@@ -44,6 +44,11 @@ class ForwardService:
             total_today = today_stats.get('total_forwards', 0)
             total_yesterday = yesterday_stats.get('total_forwards', 0)
             
+            # 获取流量节省数据 (从记录器获取)
+            from core.helpers.forward_recorder import forward_recorder
+            recorder_summary = await forward_recorder.get_daily_summary(today)
+            total_size_bytes = recorder_summary.get('total_size_bytes', 0)
+            
             # 计算趋势
             if total_yesterday > 0:
                 trend = ((total_today - total_yesterday) / total_yesterday) * 100
@@ -55,6 +60,8 @@ class ForwardService:
             result = {
                 'today': {
                     'total_forwards': total_today,
+                    'total_size_bytes': total_size_bytes, # 新增字段
+                    'saved_traffic_bytes': today_stats.get('saved_traffic_bytes', 0), # 新增：拦截流量
                     'error_count': today_stats.get('error_count', 0),
                     'chats': today_stats.get('chats', {}),
                     'active_chats': today_stats.get('active_chats', 0)
@@ -68,13 +75,13 @@ class ForwardService:
                 }
             }
             
-            logger.info(f"✅ [转发服务] 转发统计获取完成: 今日转发={total_today}, 昨日转发={total_yesterday}, 趋势={trend_direction}")
+            logger.info(f"✅ [转发服务] 转发统计获取完成: 今日转发={total_today}, 数据流量={total_size_bytes}, 趋势={trend_direction}")
             return result
             
         except Exception as e:
             logger.error(f"❌ [转发服务] 获取转发统计失败: {e}")
             return {
-                'today': {'total_forwards': 0, 'active_chats': 0},
+                'today': {'total_forwards': 0, 'total_size_bytes': 0, 'active_chats': 0},
                 'yesterday': {'total_forwards': 0},
                 'trend': {'percentage': 0, 'direction': 'unknown'}
             }

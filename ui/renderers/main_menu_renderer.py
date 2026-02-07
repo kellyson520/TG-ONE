@@ -16,6 +16,7 @@ class MainMenuRenderer(BaseRenderer):
             forwards = today_stats.get('total_forwards', 0)
             cached = dedup_stats.get('cached_signatures', 0)
             size_mb = today_stats.get('total_size_bytes', 0) / 1024 / 1024
+            saved_mb = today_stats.get('saved_traffic_bytes', 0) / 1024 / 1024
             
             text = (
                 "🌌 **Telegram 智能中枢**\n"
@@ -24,13 +25,14 @@ class MainMenuRenderer(BaseRenderer):
                 "📊 **今日数据看板**\n"
                 "├─ 📤 转发消息：`{forwards:,}` 条\n"
                 "├─ 🧹 拦截重复：`{cached:,}` 次\n"
-                "└─ 💾 今日流量：`{size_mb:.1f}` MB\n\n"
+                "├─ 🛡️ 拦截流量：`{saved_mb:.1f}` MB\n"
+                "└─ 💾 消耗流量：`{size_mb:.1f}` MB\n\n"
                 
                 "⚙️ **系统状态**\n"
                 f"└─ 🟢 运行正常  |  ⏳ 延迟: 低\n\n"
                 
                 "👇 **请选择功能模块**"
-            ).format(forwards=forwards, cached=cached, size_mb=size_mb)
+            ).format(forwards=forwards, cached=cached, size_mb=size_mb, saved_mb=saved_mb)
             
             buttons = [
                 [Button.inline("🔄 转发管理中心", "new_menu:forward_hub"),
@@ -277,4 +279,38 @@ class MainMenuRenderer(BaseRenderer):
              Button.inline("ℹ️ 版本更新信息", "new_menu:version_info")],
             [Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
         ]
+        return {'text': text, 'buttons': buttons}
+
+    def render_faq(self) -> Dict[str, Any]:
+        """渲染常见问题解答"""
+        text = (
+            "❓ **常见问题解答 (FAQ)**\n\n"
+            "Q1: **如何添加新的转发规则？**\n"
+            "A: 在主菜单点击“🔄 转发管理中心”，然后选择“⚙️ 转发规则管理” -> “➕ 新建规则”。\n\n"
+            "Q2: **去重功能不起作用怎么办？**\n"
+            "A: 请检查是否开启了“🧹 智能去重中心”中的相关开关（时间窗口或内容哈希），并确认相似度阈值设置合理。\n\n"
+            "Q3: **为什么转发有延迟？**\n"
+            "A: 系统可能会进行媒体下载、去重检测等处理。如果延迟过高，请检查服务器负载或网络状态。\n\n"
+            "Q4: **如何备份数据？**\n"
+            "A: 进入“⚙️ 系统设置中心” -> “⚙️ 基础设置” -> “💾 数据库备份”。\n"
+        )
+        buttons = [[Button.inline("👈 返回帮助", "new_menu:help_guide")]]
+        return {'text': text, 'buttons': buttons}
+
+    def render_detailed_docs(self) -> Dict[str, Any]:
+        """渲染详细文档"""
+        text = (
+            "📖 **详细使用文档**\n\n"
+            "📚 **核心概念**\n"
+            "• **Source (源)**: 消息来源的频道或群组。\n"
+            "• **Target (目标)**: 消息转发的目的地。\n"
+            "• **Rule (规则)**: 定义如何从源转发到目标的配置集合。\n\n"
+            "🛠️ **高级功能**\n"
+            "• **正则匹配**: 支持使用 Python 正则表达式过滤消息。\n"
+            "• **媒体过滤**: 可按文件类型（图/文/视）或大小筛选。\n"
+            "• **历史迁移**: 支持将过去的聊天记录批量转发到新目标。\n\n"
+            "🔗 **更多资源**\n"
+            "访问 GitHub 仓库查看完整部署和开发指南。\n"
+        )
+        buttons = [[Button.inline("👈 返回帮助", "new_menu:help_guide")]]
         return {'text': text, 'buttons': buttons}

@@ -1,43 +1,40 @@
-# 任务报告 (Report) - 20260206_Hotfix_Four_Errors
+# 20260206_Hotfix_Four_Errors 任务总结报告
 
-## 1. 任务概述 (Summary)
-本次任务修复了日志中反馈的四个核心错误，解决了配置属性缺失、消息上下文属性不完整、虚拟事件导致客户端缺失以及异步数据库会话管理等问题。
+## 1. 任务背景
+在系统运行和日志审计中发现了四个核心错误，严重影响了历史消息处理、媒体组转发以及数据库操作的稳定性。本任务旨在彻底修复这些问题并加固相关逻辑。
 
-## 2. 详细改动 (Implementation)
+## 2. 修复内容详解
 
-### 2.1 修复配置属性缺失 (Error 1)
-- **改动位置**: `core/config/__init__.py`, `services/forward_settings_service.py`, `handlers/button/modules/history.py`
-- **方案**: 
-    - 在全局 `Settings` 中将 `HISTORY_MESSAGE_LIMIT` 默认值设为 `0` (无限制)。
-    - 在 `ForwardSettingsService` 的 `default_settings` 字典中补充该字段，确保数据库加载失败或未定义时有默认值。
-    - 在 `history.py` 中使用兼容性模式 (`getattr` 和 `get()`) 访问配置，防止因 `settings` 被识别为字典而导致的 `AttributeError`。
+### Error 1: 配置属性缺失
+- **现象**: 访问 `settings.HISTORY_MESSAGE_LIMIT` 时触发 `AttributeError`。
+- **修复**: 在 `core/config/__init__.py` 的 `Settings` 类中添加了 `HISTORY_MESSAGE_LIMIT` 字段，默认值为 `0`（无限制）。
 
-### 2.2 修复 Context 属性缺失 (Error 3)
-- **改动位置**: `filters/context.py`
-- **方案**: 
-    - 在 `MessageContext` 的 `__slots__` 中添加 `'media_blocked'`。
-    - 在 `__init__` 中将 `self.media_blocked` 初始化为 `False`。
-    - 此改动防止了 `GlobalFilter` 在设置此属性时触发 `AttributeError`。
+### Error 2: SQLAlchemy Greenlet 异步错误 (CRITICAL)
+- **现象**: 在异步数据库操作（特别是 `session.rollback()`）中出现 `MissingGreenlet` 错误。
+- **修复**:
+    - 在 `core/database.py` 中将 `expire_on_commit` 设置为 `False`，防止提交后访问属性导致的隐式 IO。
+    - 在 `core/helpers/history/error_handler.py` 的 `retry_with_backoff` 方法中，显式 `await` 了针对异步会话的 `rollback()` 操作。
+    - 重构了 `core/helpers/error_handler.py` 中的 `handle_errors` 装饰器，采用同步/异步双路径分离逻辑，确保对协程函数的检测更加稳健（修复了 `inspect.iscoroutinefunction` 在某些包装情况下的失效问题）。
 
-### 2.3 修复 MockEvent 缺失 Client (Error 4)
-- **改动位置**: `filters/init_filter.py`
-- **方案**: 
-    - 使用 `client = getattr(event, 'client', context.client)` 安全地获取客户端实例。
-    - 增加了对 `client` 缺失的日志警告和退出机制，确保 `MockEvent` 在媒体组处理逻辑中不再引发异常。
+### Error 3: MessageContext 属性缺失
+- **现象**: 在处理媒体过滤逻辑时，访问 `context.media_blocked` 失败。
+- **修复**: 在 `filters/context.py` 的 `MessageContext` 类中添加了 `media_blocked` 属性并初始化为 `False`。
 
-### 2.4 修复数据库 Greenlet 错误 (Error 2)
-- **改动位置**: `core/database.py`, `core/db_factory.py`
-- **方案**: 
-    - 确认并加固 `expire_on_commit=False` 配置。
-    - 审查所有异步回滚操作，确保 `await session.rollback()` 执行到位。
-    - 此操作避免了异步环境下对象属性过期导致的隐式 I/O 异常。
+### Error 4: MockEvent 缺失 Client
+- **现象**: 在 `InitFilter` 中访问 `event.client` 时，由于某些事件是 Mock 产生的，导致属性缺失报错。
+- **修复**: 使用 `getattr(event, 'client', context.client)` 安全获取客户端实例，并增加了缺失客户端时的优雅跳过逻辑。
 
-## 3. 验证结果 (Verification)
-- [x] 配置属性访问路径验证通过。
-- [x] MessageContext 属性读写压力测试通过。
-- [x] `InitFilter` 针对 `MockEvent` 的鲁棒性验证。
-- [x] 数据库异步事务流回归验证。
+## 3. 验证结果
+- **单元测试**: `pytest tests/unit/utils/test_core_utils.py` 通过（修复了 `conftest.py` 中过度 Mock 导致的测试失效）。
+- **回归测试**: `tests/unit/services/test_session_service.py` 运行正常。
+- **代码审计**: 确认 `handlers/button/modules/history.py` 等业务模块已安全适配新配置项。
 
 ## 4. 交付产物
-- 已更新的核心代码文件。
-- 本报告及相关的 `todo.md`、`spec.md`。
+- 修复后的 `core/database.py`
+- 修复并加固的 `core/helpers/error_handler.py`
+- 修复并加固的 `core/helpers/history/error_handler.py`
+- 更新后的 `filters/context.py` 和 `filters/init_filter.py`
+- 本任务报告 `report.md`
+
+## 5. 结论
+四个核心错误已全部修复，系统异步合规性得到显著提升，历史任务处理逻辑更加稳健。

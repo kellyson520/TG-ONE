@@ -4,6 +4,7 @@
 """
 import asyncio
 import logging
+import inspect
 from typing import Callable, Any, Optional, Tuple, Dict, TypeVar, cast
 from functools import wraps
 
@@ -101,6 +102,18 @@ class ErrorHandler:
             except Exception as e:
                 last_error = e
                 error_name = type(e).__name__
+
+                # [Error 2 Fix] 如果上下文中包含 session，则在重试前显式回滚以防止 MissingGreenlet 或脏事务
+                if context and "session" in context:
+                    session = context["session"]
+                    try:
+                        if hasattr(session, "rollback"):
+                            logger.info(f"🔄 正在回滚会话以准备下一次重试 (Trace: {context.get('trace_id', '-')})")
+                            res = session.rollback()
+                            if inspect.isawaitable(res):
+                                await res
+                    except Exception as rb_err:
+                        logger.warning(f"⚠️ 会话回滚失败: {rb_err}")
 
                 # 记录错误统计
                 self.error_counts[error_name] = (

@@ -27,6 +27,13 @@ class DeduplicationService:
             self._repo = container.dedup_repo
         return self._repo
 
+    @property
+    def stats_repo(self):
+        if not hasattr(self, '_stats_repo') or self._stats_repo is None:
+            from core.container import container
+            self._stats_repo = container.stats_repo
+        return self._stats_repo
+
     def set_coordinator(self, coordinator):
         """注入 GroupCommitCoordinator"""
         self.coordinator = coordinator
@@ -213,8 +220,8 @@ class DeduplicationService:
             },
             'advantages': [
                 '忽略时间戳、链接等变化部分',
-                '基于实际内容而非表面格式',
-                '高效的MD5哈希算法'
+                '基于实际内容与媒体特征的感知哈希 (V3)',
+                '极速 XXH128 哈希算法，零碰撞风险'
             ]
         }
     
@@ -240,9 +247,27 @@ class DeduplicationService:
         
         if is_dup:
             logger.info(f"Duplicate found in chat {chat_id}: {reason}")
+            try:
+                # Calculate and record saved traffic
+                size = self._get_message_size(message_obj)
+                if size > 0:
+                    await self.stats_repo.increment_stats(chat_id, saved_bytes=size)
+            except Exception as e:
+                logger.warning(f"Failed to record saved traffic stats: {e}")
             return True
         
         return False
+
+    def _get_message_size(self, message) -> int:
+        """获取消息大小(字节)"""
+        try:
+            if hasattr(message, 'file') and message.file:
+                return message.file.size or 0
+            elif hasattr(message, 'raw_text') and message.raw_text:
+                return len(message.raw_text.encode('utf-8'))
+        except Exception:
+            pass
+        return 0
         
     async def check_and_lock(self, chat_id: int, message_obj) -> Tuple[bool, str]:
         """
