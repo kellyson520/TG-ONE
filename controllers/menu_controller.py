@@ -427,19 +427,26 @@ class MenuController:
             await self._send_error(event, "加载失败")
 
     async def show_history_task_actions(self, event):
-        """显示历史任务操作菜单"""
-        buttons = [
-            [Button.inline("⏰ 设置时间范围", "new_menu:history_time_range")],
-            [Button.inline("📝 消息筛选", "new_menu:history_message_filter")],
-            [Button.inline("👈 返回上一级", "new_menu:history_messages")],
-        ]
-        await self.view._render_page(
-            event,
-            title="🛠️ **历史任务操作**",
-            body_lines=["请选择要执行的操作："],
-            buttons=buttons
-        )
-
+        """显示历史任务操作菜单 (增强版)"""
+        try:
+            # 获取当前选中的规则信息
+            res = await self.service.get_selected_rule(event.chat_id)
+            
+            # 使用渲染器生成页面内容
+            from services.forward_settings_service import forward_settings_service
+            settings = await forward_settings_service.get_global_media_settings()
+            
+            data = {
+                'selected': res,
+                'dedup_enabled': settings.get('history_dedup_enabled', False)
+            }
+            
+            render_data = self.task_renderer.render_history_task_actions(data)
+            await self._send_menu(event, render_data['text'], [], render_data['buttons'])
+            
+        except Exception as e:
+            logger.error(f"显示历史任务操作子菜单失败: {e}")
+            await self._send_error(event, "操作菜单加载失败")
     async def show_history_time_range(self, event):
         """显示历史任务时间范围设置"""
         from handlers.button.modules.history import history_module

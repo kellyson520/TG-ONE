@@ -1,4 +1,5 @@
 import pytest
+import time
 from unittest.mock import MagicMock, AsyncMock, patch
 from services.dedup_service import dedup_service
 from models.models import MediaSignature
@@ -100,17 +101,23 @@ class TestDedupService:
         is_dup = await dedup_service.is_duplicate(1001, message)
         assert is_dup is False
         
-        # 2. 记录签名（模拟）
-        # 我们直接调用 smart_deduplicator 的方法记录，因为 dedup_service.record_signature 内部逻辑较多
+        # 2. 记录签名 (模拟已存在于 L1 缓存)
         from services.dedup.engine import smart_deduplicator
-        await smart_deduplicator._record_message(message, 1001, "sig123", "hash123")
+        from collections import OrderedDict
+        chat_id_str = "1001"
+        signature = "sig123"
         
-        # 3. 再次检查（此时应该基于缓存发现重复）
-        # 需要 Mock Bloom Filter，否则会因 Bloom Filter 未命中而直接返回 False
-        with patch("services.dedup_service.bloom_filter_service") as mock_bf, \
-             patch("services.dedup.engine.smart_deduplicator._generate_signature", return_value="sig123"):
+        if chat_id_str not in smart_deduplicator.time_window_cache:
+            smart_deduplicator.time_window_cache[chat_id_str] = OrderedDict()
+        smart_deduplicator.time_window_cache[chat_id_str][signature] = time.time()
+        
+        # 3. 再次检查
+        # 必须同时 Mock tools.generate_signature (L1需要) 和 Bloom Filter (L0通过)
+        with patch("services.dedup.tools.generate_signature", return_value=signature), \
+             patch.object(smart_deduplicator, "bloom_filter") as mock_bf:
             
-            mock_bf.__contains__.return_value = True
+            # 模拟 Bloom Filter 命中
+            if mock_bf: mock_bf.__contains__.return_value = True
             
             is_dup = await dedup_service.is_duplicate(1001, message)
             assert is_dup is True

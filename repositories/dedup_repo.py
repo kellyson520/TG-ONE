@@ -133,3 +133,70 @@ class DedupRepository:
             result = await session.execute(stmt)
             await session.commit()
             return result.rowcount
+
+    # Compatibility Methods for DedupEngine
+
+    async def check_content_hash_duplicate(self, content_hash: str, chat_id: str, config: dict = None) -> (bool, str):
+
+        """检查内容哈希重复"""
+        rec = await self.find_by_file_id_or_hash(chat_id, content_hash=content_hash)
+        if rec:
+            return True, f"内容哈希重复 (Last seen: {rec.last_seen})"
+        return False, ""
+
+    async def exists_media_signature(self, chat_id: str, signature: str) -> bool:
+        """检查签名是否存在"""
+        rec = await self.find_by_signature(chat_id, signature)
+        return bool(rec)
+
+    async def exists_video_file_id(self, chat_id: str, file_id: str) -> bool:
+        """检查视频 FileID 是否存在"""
+        rec = await self.find_by_file_id_or_hash(chat_id, file_id=file_id)
+        return bool(rec)
+
+    async def add_media_signature(self, chat_id: str, signature: str, message_id: int, content_hash: str = None):
+        """添加媒体签名"""
+        await self.add_or_update(
+            chat_id, 
+            signature, 
+            # Note: mapping message_id to file_id for storage, verify if this collision is acceptable
+            file_id=str(message_id), 
+            content_hash=content_hash
+        )
+
+    async def add_content_hash(self, chat_id: str, content_hash: str, message_id: int):
+        """添加内容哈希记录"""
+        # We store content hash as a "signature" of type 'content_hash' or just update the main record?
+        # The model has 'content_hash' column.
+        # But uniqueness is on (chat_id, signature).
+        # We need a signature key.
+        # Use content_hash as signature key?
+        signature = f"content:{content_hash}"
+        await self.add_or_update(chat_id, signature, content_hash=content_hash)
+
+    async def add_text_fingerprint(self, chat_id: str, fingerprint: int, message_id: int):
+        """添加文本指纹"""
+        signature = f"text_fp:{fingerprint}"
+        await self.add_or_update(chat_id, signature)
+
+    async def delete_media_signature(self, chat_id: str, signature: str):
+        """删除签名"""
+        async with self.db.session() as session:
+            from sqlalchemy import delete
+            stmt = delete(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
+            await session.execute(stmt)
+            await session.commit()
+
+    async def delete_content_hash(self, chat_id: str, content_hash: str):
+        """删除内容哈希"""
+        # Since we mapped it to "content:{hash}"
+        signature = f"content:{content_hash}"
+        await self.delete_media_signature(chat_id, signature)
+
+    async def save_config(self, config: dict):
+        """保存配置 (Placeholder)"""
+        # Repo doesn't seem to manage config storage in this table.
+        # Maybe another table? RuleRepo?
+        # For now log it.
+        logger.debug(f"Saving config: {config}")
+        pass

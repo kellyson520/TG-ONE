@@ -64,7 +64,7 @@ async def handle_toggle_extension_mode(event):
         await event.answer("操作失败", alert=True)
 
 
-async def handle_toggle_media_type(event, media_type):
+async def handle_toggle_media_type(event, media_type, is_history=False):
     """处理媒体类型切换"""
     try:
         from services.forward_settings_service import forward_settings_service
@@ -87,9 +87,13 @@ async def handle_toggle_media_type(event, media_type):
             status = "允许" if is_enabled else "禁止"
             await event.answer(f"{type_name}已{status}")
 
-            # 刷新媒体类型页面（避免未修改错误，加延时）
+            # 刷新媒体类型页面
             try:
-                await new_menu_system.show_media_types(event)
+                if is_history:
+                    from handlers.button.modules.history import history_module
+                    await history_module.show_media_types(event)
+                else:
+                    await new_menu_system.show_media_types(event)
             except Exception as e:
                 if "not modified" in str(e).lower():
                     await event.answer("已更新")
@@ -441,6 +445,8 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_delete_session_messages_menu(event)
         elif action == "time_range_selection":
             # 会话删除的时间范围设置
+            from services.session_service import session_manager
+            session_manager.set_time_picker_context(event.chat_id, "delete")
             await new_menu_system.show_time_range_selection(event)
         elif action == "session_dedup_time_range":
             # 会话去重的时间范围设置（与删除共享同一页面）
@@ -1296,10 +1302,10 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                     from services.session_service import session_manager
 
                     await session_manager.set_selected_rule(event.chat_id, rid)
-                # 选择后进入“历史任务操作子菜单”（下级菜单）
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_history_task_actions(event)
+                # 选择后进入历史消息主菜单
+                from handlers.button.modules.history import history_module
+                await history_module.show_history_messages(event)
+                await event.answer("✅ 已选择处理规则")
             except Exception as e:
                 logger.error(f"选择历史任务失败: {str(e)}")
                 await event.answer("操作失败", alert=True)
@@ -1338,8 +1344,9 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 logger.error(f"设置历史消息数量限制失败: {e}")
                 await event.answer("❌ 设置失败，请重试", alert=True)
         elif action == "history_time_range":
+            from services.session_service import session_manager
+            session_manager.set_time_picker_context(event.chat_id, "history")
             from handlers.button.modules.history import history_module
-
             await history_module.show_time_range_selection(event)
         elif action == "open_history_time":
             # 参数: side:field (start/end : year/month/day/hour/minute/second)
@@ -1387,18 +1394,20 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             # 智能返回：根据上下文返回到合适的页面
             try:
-                # 检查消息内容，判断来源页面
-                message = await event.get_message()
-                message_text = message.text if message else ""
-
-                # 如果消息中包含快速统计相关内容，返回到任务操作页面以便继续统计
-                # 否则正常返回到任务操作页面
-                from controllers.menu_controller import menu_controller
-
-                await menu_controller.show_history_task_actions(event)
+                from services.session_service import session_manager
+                context = session_manager.get_time_picker_context(event.chat_id)
+                
+                if context == "dedup":
+                    await new_menu_system.show_session_dedup_menu(event)
+                elif context == "delete":
+                    await new_menu_system.show_delete_session_messages_menu(event)
+                else:
+                    from handlers.button.modules.history import history_module
+                    await history_module.show_history_messages(event)
             except Exception:
                 # 兜底：回到历史消息主菜单
-                await new_menu_system.show_history_messages(event)
+                from handlers.button.modules.history import history_module
+                await history_module.show_history_messages(event)
         elif action == "history_filter_media_types":
             from handlers.button.modules.history import history_module
 
@@ -1407,15 +1416,15 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             from handlers.button.modules.history import history_module
             await history_module.show_media_duration_settings(event)
         elif action in ["history_toggle_image", "toggle_image"]:
-            await handle_toggle_media_type(event, "image")
+            await handle_toggle_media_type(event, "image", is_history=("history_toggle" in action))
         elif action in ["history_toggle_video", "toggle_video"]:
-            await handle_toggle_media_type(event, "video")
+            await handle_toggle_media_type(event, "video", is_history=("history_toggle" in action))
         elif action in ["history_toggle_music", "toggle_music"]:
-            await handle_toggle_media_type(event, "audio")
+            await handle_toggle_media_type(event, "audio", is_history=("history_toggle" in action))
         elif action in ["history_toggle_voice", "toggle_voice"]:
-            await handle_toggle_media_type(event, "voice")
+            await handle_toggle_media_type(event, "voice", is_history=("history_toggle" in action))
         elif action in ["history_toggle_document", "toggle_document"]:
-            await handle_toggle_media_type(event, "document")
+            await handle_toggle_media_type(event, "document", is_history=("history_toggle" in action))
         elif action.startswith("set_history_delay"):
             try:
                 seconds = int(extra_data[0]) if extra_data else 0

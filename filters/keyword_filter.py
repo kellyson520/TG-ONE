@@ -188,9 +188,15 @@ class KeywordFilter(BaseFilter):
              return False, "Target chat missing"
              
         target_chat_id = int(target_chat.telegram_chat_id)
-        logger.debug(f"正在进行智能去重检查: chat={target_chat_id}, config={rule_config}")
+        
+        # [Optimization] 如果媒体已被全局屏蔽，去重时跳过媒体维度检查，仅保留文本维度
+        skip_media_sig = getattr(context, 'media_blocked', False)
+        if skip_media_sig:
+             logger.info(f"媒体已被屏蔽，智能去重将跳过媒体签名检查: 规则ID={rule.id}")
+
+        logger.debug(f"正在进行智能去重检查: chat={target_chat_id}, config={rule_config}, skip_media_sig={skip_media_sig}")
         is_duplicate, reason = await smart_deduplicator.check_duplicate(
-            context.event.message, target_chat_id, rule_config
+            context.event.message, target_chat_id, rule_config, skip_media_sig=skip_media_sig
         )
         
         if is_duplicate:

@@ -162,7 +162,7 @@ class TaskRenderer(BaseRenderer):
                 [Button.inline("🕐 自定义开始时间", "new_menu:set_start_time"),
                  Button.inline("🕕 自定义结束时间", "new_menu:set_end_time")],
                 [Button.inline("✅ 确认设置", "new_menu:confirm_time_range"),
-                 Button.inline("👈 返回任务设置", "new_menu:history_task_actions")]
+                 Button.inline("👈 返回任务设置", "new_menu:history_messages")]
             ]
             
             return {'text': text, 'buttons': buttons}
@@ -190,7 +190,7 @@ class TaskRenderer(BaseRenderer):
                 [Button.inline("🧪 干跑(不发送)", "new_menu:history_dry_run")],
                 [Button.inline("🗑️ 清理任务状态", "new_menu:cleanup_history_tasks")],
                 [Button.inline("🚀 开始任务", "new_menu:start_history_task")],
-                [Button.inline("👈 返回任务选择", "new_menu:history_task_selector")]
+                [Button.inline("👈 返回任务选择", "new_menu:history_messages")]
             ]
             return {'text': title, 'buttons': buttons}
         except Exception:
@@ -221,7 +221,7 @@ class TaskRenderer(BaseRenderer):
                  Button.inline("🔒 10秒", "new_menu:set_delay:10"),
                  Button.inline("🐌 30秒", "new_menu:set_delay:30")],
                 [Button.inline("🎛️ 自定义", "new_menu:custom_delay"),
-                 Button.inline("👈 返回任务设置", "new_menu:history_task_actions")]
+                 Button.inline("👈 返回任务设置", "new_menu:history_messages")]
             ]
             
             return {'text': text, 'buttons': buttons}

@@ -230,13 +230,6 @@ class DeduplicationService:
         检查消息是否重复
         复用 services.dedup.engine 中的智能去重逻辑
         """
-        # 0. Bloom Filter Check (Fast Failure)
-        signature = smart_deduplicator._generate_signature(message_obj)
-        if signature and signature not in bloom_filter_service:
-            # Not in bloom -> Definitely new (unless bloom false negative which is impossible)
-            # We trust Bloom for "Not Present".
-            return False
-
         # 1. 使用智能去重器检查重复
         # ✅ 使用全局实例，利用内存缓存
         is_dup, reason = await smart_deduplicator.check_duplicate(
@@ -261,10 +254,10 @@ class DeduplicationService:
     def _get_message_size(self, message) -> int:
         """获取消息大小(字节)"""
         try:
-            if hasattr(message, 'file') and message.file:
-                return message.file.size or 0
-            elif hasattr(message, 'raw_text') and message.raw_text:
-                return len(message.raw_text.encode('utf-8'))
+            if hasattr(message, "file") and message.file:
+                return int(getattr(message.file, "size", 0) or 0)
+            elif hasattr(message, "raw_text") and message.raw_text:
+                return len(str(message.raw_text))
         except Exception:
             pass
         return 0
@@ -307,15 +300,16 @@ class DeduplicationService:
             # ✅ 使用全局实例，利用内存缓存
             
             # 生成签名和内容哈希
-            signature = smart_deduplicator._generate_signature(message_obj)
-            content_hash = smart_deduplicator._generate_content_hash(message_obj)
+            from services.dedup import tools
+            signature = tools.generate_signature(message_obj)
+            content_hash = tools.generate_content_hash(message_obj)
             
             # [Bloom Filter] 更新布隆过滤器
             if signature:
                 bloom_filter_service.add(signature)
 
             # 记录消息到缓存和数据库
-            await smart_deduplicator._record_message(message_obj, chat_id, signature, content_hash)
+            await smart_deduplicator.record_message(message_obj, chat_id, signature, content_hash)
             
             logger.debug(f"Recorded signature for chat {chat_id}, message_id {message_obj.id}")
             

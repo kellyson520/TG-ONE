@@ -12,8 +12,10 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260207_Fix_Back_Navigation | 修复菜单返回导航错误 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_UI/20260207_FixBackNavigation/report.md) |
+| 20260207_Upgrade_Dedup_Algorithm | 升级去重引擎算法 (Numba/LSH/V3) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Core/Task_Upgrade_Dedup_Algorithm/report.md) |
+| 20260207_Fix_Filter_Deduplication_Conflict | 修复过滤器与去重引擎的逻辑冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Maintenance/20260207_Fix_Filter_Deduplication_Conflict/todo.md) |
 | 20260207_Hotfix_Sync_And_UI_Fixes | 修复时间窗口误判、菜单 UI 响应及会话去重功能 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Maintenance/20260207_Hotfix_Sync_And_UI_Fixes/report.md) |
-| 20260206_Fix_Archive | 修复归档系统集成测试与 DuckDB/S3 兼容性 | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Fix_Archive_Integration_Test/report.md) |
 | 20260206_Arch_Upgrade | 高性能架构升级 (日志缓冲/差分监控/聚合公交车) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Architecture_Upgrade_Report.md) |
 | 20260206_Verify_Archive | 归档系统验证与逻辑重构 (Bloom同步/配置动态化) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Verify_Archive_System/report.md) |
 | 20260205_Upgrade_Date_Picker | 升级时间范围选择和日期选择页面 (滚轮式选择) | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_UI_UX/20260205_Upgrade_Date_Picker/report.md) |
@@ -132,12 +134,8 @@
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
-| 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
-| 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
-| 20260203_Menu_Audit | 菜单系统审计与功能补全 | 2026-02-03 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260203_Menu_System_Audit_and_Refactor/todo.md) |
-| 20260205_Fix_Errors | 修复回调与导入错误 (History/Callback/Keywords) | 2026-02-05 | 进行中 | 0% | [📂 查看](./Workstream_Maintenance/20260205_Fix_Callback_And_Import_Errors/todo.md) |
-| 20260203_Modernize_Calls | 移除老旧属性与调用，统一使用新调用 | 2026-02-03 | 进行中 | 0% | [📂 查看](./Workstream_Architecture_Refactor/20260203_Modernize_Calls/todo.md) |
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
+| 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
 
 
 

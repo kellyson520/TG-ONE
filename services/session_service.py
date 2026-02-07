@@ -397,23 +397,20 @@ class SessionService:
         media_filter = MediaFilter(media_settings)
         
         try:
-            from models.models import ForwardRule, Chat
-            from sqlalchemy import select
+            # 1. 获取规则详情 (使用 repository 确保 eager loading)
+            # 使用 DTO 避免直接操作 ORM 对象导致的 MissingGreenlet 问题
+            rule = await container.rule_repo.get_by_id(rule_id)
+            if not rule:
+                raise ValueError(f"Rule {rule_id} not found")
             
-            # 1. 获取规则详情
-            async with container.db.session() as db_session:
-                stmt = select(ForwardRule).where(ForwardRule.id == rule_id)
-                rule = (await db_session.execute(stmt)).scalar_one_or_none()
-                if not rule:
-                    raise ValueError(f"Rule {rule_id} not found")
+            if not rule.source_chat:
+                raise ValueError("Source chat not found")
                 
-                # 获取源聊天
-                source_chat = await db_session.get(Chat, rule.source_chat_id)
-                if not source_chat:
-                    raise ValueError("Source chat not found")
-                
-                source_chat_id = int(source_chat.telegram_chat_id)
-                target_chat_id = int(rule.target_chat.telegram_chat_id)
+            if not rule.target_chat:
+                raise ValueError("Target chat not found")
+            
+            source_chat_id = int(rule.source_chat.telegram_chat_id)
+            target_chat_id = int(rule.target_chat.telegram_chat_id)
             
             # 2. 解析时间范围
             begin_date, end_date, start_s, end_s = parse_time_range_to_dates(time_config)
@@ -827,11 +824,12 @@ class SessionService:
                 processed += 1
                 
                 # 使用内容哈希作为第一优先级，因为它更准确地识别文件内容
-                sig = smart_deduplicator._generate_content_hash(message)
+                from services.dedup import tools
+                sig = tools.generate_content_hash(message)
                 
                 # 如果内容哈希失败，尝试使用签名 (doc_id 等)
                 if not sig:
-                    sig = smart_deduplicator._generate_signature(message)
+                    sig = tools.generate_signature(message)
                 
                 if sig:
                     if sig in seen_sigs:

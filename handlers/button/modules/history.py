@@ -33,7 +33,15 @@ class HistoryModule(BaseMenu):
         try:
             display = await session_manager.get_time_range_display(event.chat_id)
         except Exception:
-            display = "0天 00:00:00 - ∞"
+            display = "0天 00:00:00 - ∞" # Default display if fetching fails
+        # 获取返回路径
+        context = session_manager.get_time_picker_context(event.chat_id)
+        if context == "dedup":
+            back_target = "new_menu:session_dedup"
+        elif context == "delete":
+            back_target = "new_menu:delete_session_messages"
+        else:
+            back_target = "new_menu:history_messages"
 
         buttons = [
             [
@@ -43,10 +51,10 @@ class HistoryModule(BaseMenu):
                 Button.inline("📅 设置结束时间 (高级滚轮)", "new_menu:open_wheel_picker:end"),
             ],
             [
-                Button.inline("📊 快速选择天数", "new_menu:select_days"),
+                Button.inline("📊 快速选择天数", "new_menu:select_days:history"),
                 Button.inline("🗓️ 全部时间", "new_menu:set_all_time_zero"),
             ],
-            [Button.inline("👈 返回上一级", "new_menu:history_task_actions")],
+            [Button.inline("👈 返回上一级", back_target)],
         ]
 
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -231,19 +239,46 @@ class HistoryModule(BaseMenu):
 
     async def show_history_messages(self, event):
         """显示历史消息菜单"""
+        res = await session_manager.get_selected_rule(event.chat_id)
+        rule_id = res.get('rule_id')
+        
+        rule_info = ""
+        if res.get('has_selection'):
+            rule = res.get('rule', {})
+            rule_info = f"\n✅ **当前已选规则**: {rule_id}\n   📤 {rule.get('source_chat', {}).get('title', '未知')}\n   📥 {rule.get('target_chat', {}).get('title', '未知')}\n"
+
         buttons = [
-            [Button.inline("🎯 选择处理任务", "new_menu:select_history_task")],
-            [Button.inline("🕒 时间范围选择", "new_menu:history_time_range")],
-            [Button.inline("🔍 消息筛选", "new_menu:history_message_filter")],
+            [Button.inline("🎯 选择/切换任务规则", "new_menu:select_history_task")],
+            [Button.inline("🕒 时间范围设置", "new_menu:history_time_range")],
+            [Button.inline("🔍 消息筛选设置", "new_menu:history_message_filter")],
             [Button.inline("⏱️ 转发延迟设置", "new_menu:history_delay_settings")],
+        ]
+        
+        # 如果选了规则，增加干跑和统计
+        if rule_id:
+            buttons.append([
+                Button.inline("📊 快速统计", "new_menu:history_quick_stats"),
+                Button.inline("🧪 干跑测试", "new_menu:history_dry_run")
+            ])
+            
+        buttons.extend([
             [Button.inline("📊 当前任务进度", "new_menu:current_history_task")],
             [Button.inline("🚀 开始处理历史消息", "new_menu:start_history_task")],
             [Button.inline("👈 返回主菜单", "new_menu:main_menu")],
-        ]
+        ])
+        
         await self._render_page(
             event,
             title="📂 **历史消息转发**",
-            body_lines=["处理过去的消息并转发到目标频道：", "", "💡 **操作说明：**", "1. 先选择要处理的转发规则任务", "2. 设置需要转发的时间范围", "3. 按需配置消息筛选条件", "4. 点击开始处理历史消息"],
+            body_lines=[
+                "处理过去的消息并转发到目标频道：", 
+                rule_info,
+                "💡 **操作说明：**", 
+                "1. 先选择要处理的转发规则任务", 
+                "2. 设置需要转发的时间范围", 
+                "3. 按需配置消息筛选条件", 
+                "4. 点击开始处理历史消息"
+            ],
             buttons=buttons,
             breadcrumb="🏠 主菜单 > 📂 历史消息",
         )
@@ -257,7 +292,8 @@ class HistoryModule(BaseMenu):
         try:
             from ..forward_management import forward_manager
             rules = await forward_manager.get_channel_rules()
-            current_rule_id = await session_manager.get_selected_rule(event.chat_id)
+            res = await session_manager.get_selected_rule(event.chat_id)
+            current_rule_id = res.get('rule_id')
 
             buttons = []
             for rule in rules[:20]:

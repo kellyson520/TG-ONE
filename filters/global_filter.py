@@ -289,6 +289,7 @@ class GlobalFilter(BaseFilter):
                 else:
                     logger.info("全局设置：媒体被屏蔽且无文本，取消转发")
             except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                logger.warning(f'已忽略预期内的异常: {e}')
+            return context.should_forward
         
         return True

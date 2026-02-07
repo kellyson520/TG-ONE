@@ -81,7 +81,8 @@ class TestDedupFix:
         msg.grouped_id = None
         
         # 生成签名
-        signature = dedup._generate_signature(msg)
+        from services.dedup import tools
+        signature = tools.generate_signature(msg)
         
         # 第一次: 记录到内存缓存
         cache_key = str(12345)

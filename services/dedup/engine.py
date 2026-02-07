@@ -1,267 +1,165 @@
 """
-智能去重系统
-实现内容相似度检测和时间窗口去重
+智能去重系统 (Ultra-Fast Engine v3)
+实现高性能内容相似度检测、LSH Forest 近似查询与墓碑状态管理
 """
-
-import hashlib
-from collections import OrderedDict
 
 import asyncio
 import logging
-import re
 import time
-import struct
-from typing import Dict, Optional, Tuple, Any
-
-from core.helpers.tombstone import tombstone
-
-
-try:
-    # 可选快速文本相似度库（更快更准）
-    from rapidfuzz import fuzz  # type: ignore
-
-    _HAS_RAPIDFUZZ = True
-except Exception:
-    _HAS_RAPIDFUZZ = False
-
-try:
-    import xxhash
-
-    _HAS_XXHASH = True
-except ImportError:
-    _HAS_XXHASH = False
-
-try:
-    from numba import jit
-
-    _HAS_NUMBA = True
-except ImportError:
-    _HAS_NUMBA = False
-
-    # 定义一个空装饰器作为回退
-    def jit(*args, **kwargs):
-        def decorator(func):
-            return func
-
-        return decorator
-
+from typing import Dict, Optional, Tuple, Any, Set, List
+from collections import OrderedDict
+from datetime import datetime
 
 from core.config import settings
+from services.dedup import tools
+from services.dedup.types import DedupContext, DedupConfig, DedupResult
+from services.dedup.strategies import (
+    SignatureStrategy,
+    VideoStrategy,
+    ContentStrategy,
+    SimilarityStrategy
+)
+from core.helpers.tombstone import tombstone
 
 logger = logging.getLogger(__name__)
 
-
-# Numba 优化的汉明距离计算
-@jit(nopython=True, cache=True)
-def _fast_hamming_64(a: int, b: int) -> int:
-    # Numba 会将其编译为极其高效的机器码
-    x = (a ^ b) & 0xFFFFFFFFFFFFFFFF
-    # Kernighan 算法在 JIT 下比 bit_count 更通用且极快
-    c = 0
-    while x:
-        x &= x - 1
-        c += 1
-    return c
-
-
 class SmartDeduplicator:
-    """智能去重器"""
+    """
+    智能去重器 (Facade)
+    - 编排分布式去重策略
+    - 管理 L0 (Bloom), L1 (Memory), L2 (PCache), L3 (LSH), L4 (DB) 级缓存
+    - 支持墓碑化 (Tombstone) 自动休眠与唤醒
+    """
 
     def __init__(self):
-        # 时间窗口缓存 (chat_id -> {signature: timestamp})
-        self.time_window_cache = {}
-        # 内容哈希缓存 (chat_id -> {content_hash: timestamp})
-        self.content_hash_cache = {}
-        # 文本缓存 (chat_id -> [ {'text': cleaned_text, 'ts': timestamp}, ... ])
-        self.text_cache = {}
-        # 文本指纹缓存（SimHash 64bit）：(chat_id -> [ {'fp': int, 'ts': timestamp}, ... ])
-        self.text_fp_cache = {}
-        # 写缓冲队列：用于批量写入数据库
+        # L1 内存缓存: chat_id -> {id: timestamp}
+        self.time_window_cache: Dict[str, OrderedDict] = {}
+        self.content_hash_cache: Dict[str, OrderedDict] = {}
+        self.text_fp_cache: Dict[str, OrderedDict] = {}
+        
+        # LSH 近似索引 (chat_id -> LSHForest)
+        self.lsh_forests: Dict[str, Any] = {}
+
+        # 懒加载组件
+        self._repo = None
+        self._pcache_repo = None
+        self.bloom_filter = None
+        self.hll = None
+        self.simhash_engine = None
+        
+        # 写缓冲队列 (Batch Insert)
         self._write_buffer = []
         self._buffer_lock = asyncio.Lock()
-        self._flush_task = None  # 后台刷写任务
-        self._bg_tasks = set()   # 后台计算任务集合
-        self._chat_locks = {}    # 会话维度锁 (防止针对同一会话的去重竞态)
+        self._flush_task = None
+
+        # 策略链
+        self.strategies = [
+            SignatureStrategy(),
+            VideoStrategy(),
+            ContentStrategy(),
+            SimilarityStrategy()
+        ]
+
+        self._bg_tasks = set()
+        self._chat_locks = {}
         self._locks_lock = asyncio.Lock()
-        # 默认配置
-        self.config = {
-            "enable_time_window": True,
-            "time_window_hours": 24,
-            "similarity_threshold": 0.85,
-            "enable_content_hash": True,
-            "enable_smart_similarity": True,
-            "cache_cleanup_interval": 3600,  # 1小时清理一次
-            "enable_persistent_cache": True,  # 使用持久化缓存跨重启保留窗口命中
-            "persistent_cache_ttl_seconds": settings.DEDUP_PERSIST_TTL_SECONDS,
-            # 新增配置项
-            "max_text_cache_size": 300,  # 每个会话最多缓存多少条文本用于相似度检查
-            "min_text_length": 10,  # 触发相似度检查的最小清洗后文本长度
-            "strip_numbers": True,  # 清洗文本时是否移除数字
-            # 文本相似度预筛（固定长度指纹/SimHash，用于快速过滤）
-            "enable_text_fingerprint": True,
-            "fingerprint_ngram": 3,  # 词级 n-gram 大小
-            "fingerprint_hamming_threshold": 3,  # 汉明距离阈值（0 为完全一致）
-            "max_text_fp_cache_size": 500,  # 每个会话最多缓存的文本指纹条数
-            "max_similarity_checks": 50,  # 最多做多少次精确相似度比较
-            # 文本相似度在含视频消息中的应用（默认关闭，避免不同视频同标题被误杀）
-            "enable_text_similarity_for_video": False,
-            # 视频专用
-            "enable_video_file_id_check": True,  # 基于 telegram file id 的快速判重
-            "enable_video_partial_hash_check": True,  # 基于视频部分字节哈希的判重
-            "video_partial_hash_bytes": 262144,  # 每段读取的字节数（默认256KB）
-            "video_partial_hash_on_fileid_miss_only": True,  # 仅在 file_id 未命中重复时再计算部分哈希
-            "video_partial_hash_min_size_bytes": 5
-            * 1024
-            * 1024,  # 小视频不做部分哈希（默认>=5MB）
-            # 视频哈希持久化缓存（避免重复下载/重复计算）
-            "video_hash_persist_ttl_seconds": settings.VIDEO_HASH_PERSIST_TTL_SECONDS,
-            # 视频严格复核：哈希命中后对时长/分辨率/大小范围做阈值校验
-            "video_strict_verify": True,
-            "video_duration_tolerance_sec": 2,
-            "video_resolution_tolerance_px": 8,
-            "video_size_bucket_tolerance": 1,
-        }
-        self.last_cleanup = time.time()
-        # 配置加载标记：使用懒加载模式，避免在模块初始化阶段执行数据库操作
-        self._config_loaded = False
-
-        # 预编译正则表达式
-        # 基础文本清洗正则：匹配 URL、@提及、#标签
-        self._re_basic_clean = re.compile(r"http[s]?://\S+|@\w+|#\w+", re.I)
-        # 用于 URL/Mention 去除的简单正则
-        self._re_complex_patterns = re.compile(r"http\S+|@\w+|#\w+", re.I)
-        # 使用str.translate的转换表，预计算以提高性能
-        import string
-
-        # 定义要删除的字符：标点符号 + 不可见字符
-        self.trans_table_keep_nums = str.maketrans("", "")
-        self.trans_table_no_nums = str.maketrans("", "")
-
-        # 汉明距离转换表已预计算
-        self.trans_table_keep_nums = str.maketrans({c: None for c in string.punctuation + "\n\r\t"})
-        self.trans_table_no_nums = str.maketrans({c: None for c in string.punctuation + string.digits + "\n\r\t"})
-
-        # 初始化 Bloom Filter (L0 缓存)
-        try:
-            from core.algorithms.bloom_filter import GlobalBloomFilter
-            self.bloom_filter = GlobalBloomFilter.get_filter("smart_dedup")
-            logger.info("Bloom Filter (L0) 初始化成功")
-        except Exception as e:
-            logger.error(f"Bloom Filter 初始化失败: {e}")
-            self.bloom_filter = None
-
-        # 初始化 HLL (HyperLogLog) 用于基数统计
-        try:
-            from core.algorithms.hll import GlobalHLL
-            self.hll = GlobalHLL.get_hll("unique_messages_today")
-            logger.info("HLL (HyperLogLog) 初始化成功")
-        except Exception as e:
-            logger.error(f"HLL 初始化失败: {e}")
-            self.hll = None
-
-        # 初始化 LSH Forest (用于语义去重)
-        try:
-            from core.algorithms.simhash import SimHash
-            # LSHForest still in utils.algorithm?
-            # Assuming LSHForest is not in core.algorithms yet based on previous ls.
-            # If LSHForest is missing, this might be an issue.
-            # But the line 165 was `from core.algorithms.lsh_forest import LSHForest`
-            # I should keep LSHForest import as is if I didn't move it. 
-            # Wait, I didn't see lsh_forest in core/algorithms list.
-            self.simhash_engine = SimHash()
-            # 初始化索引 (chat_id -> LSHForest)
-            self.lsh_forests = {}
-            logger.info("SimHash 引擎与 LSH Forest 索引系统初始化成功")
-        except Exception as e:
-            logger.error(f"LSH Forest 初始化失败: {e}")
-            self.simhash_engine = None
-            self.lsh_forests = {}
-
-        # ✅ 注册到墓碑管理器
+        
+        # 配置
+        self.config = DedupConfig()
+        
+        # 基础设施初始化
+        self._init_infrastructure()
+        
+        # 注册到墓碑管理器 (黑科技：内存压后台)
         tombstone.register(
             name="smart_dedup",
             get_state_func=self._hibernate_state,
             restore_state_func=self._wakeup_state,
         )
 
+    def _init_infrastructure(self):
+        """核心算法组件初始化"""
+        try:
+            from core.algorithms.bloom_filter import GlobalBloomFilter
+            self.bloom_filter = GlobalBloomFilter.get_filter(
+                "dedup_l0",
+                capacity=getattr(settings, "BLOOM_FILTER_CAPACITY", 2000000),
+                error_rate=getattr(settings, "BLOOM_FILTER_ERROR_RATE", 0.0005),
+            )
+            
+            from core.algorithms.hll import GlobalHLL
+            self.hll = GlobalHLL.get_hll("dedup_unique_msgs")
+            
+            from core.algorithms.simhash import SimHash
+            self.simhash_engine = SimHash()
+            
+            logger.info("去重引擎基础设施完成 (Bloom/HLL/SimHash)")
+        except Exception as e:
+            logger.error(f"基础设施初始化失败: {e}")
+
+    def _get_lsh_forest(self, chat_id: str):
+        """按需获取/创建 LSH Forest 索引"""
+        if chat_id not in self.lsh_forests:
+            try:
+                from core.algorithms.lsh_forest import LSHForest
+                self.lsh_forests[chat_id] = LSHForest(num_trees=4, prefix_length=64)
+            except Exception:
+                return None
+        return self.lsh_forests[chat_id]
+
     @property
     def repo(self):
-        from core.container import container
-        return container.dedup_repo
+        if not self._repo:
+            from repositories.dedup_repo import DedupRepository
+            from core.container import container
+            self._repo = DedupRepository(container.db)
+        return self._repo
 
-    # --- 新增：休眠逻辑 (导出数据并清空自己) ---
+    @property
+    def pcache_repo(self):
+        if not self._pcache_repo:
+            from repositories.persistent_cache_repository import PersistentCacheRepository
+            self._pcache_repo = PersistentCacheRepository()
+        return self._pcache_repo
+
     def _hibernate_state(self):
-        """导出状态并清空内存"""
+        """[Tombstone] 冻结逻辑: 导出内存索引层"""
         state = {
-            "time_window": self.time_window_cache,
-            "content_hash": self.content_hash_cache,
-            "text": self.text_cache,
-            "text_fp": self.text_fp_cache,
-            "lsh_forests": self.lsh_forests,
+            "time_window_cache": self.time_window_cache,
+            "content_hash_cache": self.content_hash_cache,
+            "text_fp_cache": self.text_fp_cache,
+            "lsh_forests": {
+                cid: {"trees": forest.trees, "num_trees": forest.num_trees, "k": forest.prefix_length}
+                for cid, forest in self.lsh_forests.items()
+            },
         }
-        # 🚨 关键：彻底清空内存中的字典
         self.time_window_cache = {}
         self.content_hash_cache = {}
-        self.text_cache = {}
         self.text_fp_cache = {}
         self.lsh_forests = {}
+        logger.debug("SmartDeduplicator 进入冬眠")
         return state
 
-    # --- 新增：唤醒逻辑 (恢复数据) ---
     def _wakeup_state(self, state):
-        """恢复状态"""
-        if not state:
-            return
-        self.time_window_cache = state.get("time_window", {})
-        self.content_hash_cache = state.get("content_hash", {})
-        self.text_cache = state.get("text", {})
-        self.text_fp_cache = state.get("text_fp", {})
-        self.lsh_forests = state.get("lsh_forests", {})
-
-    async def _lazy_load_config(self):
-        """懒加载配置：在第一次使用时从数据库加载配置"""
-        if self._config_loaded:
-            return
-        logger.debug("开始懒加载去重配置...")
-        try:
-            await self._load_config_from_db()
-            self._config_loaded = True
-            logger.debug("懒加载配置完成")
-        except Exception as e:
-            logger.warning(f"懒加载配置失败: {e}，将使用默认配置继续运行")
-            self._config_loaded = True  # 避免重复尝试加载
-
-    async def _compute_and_save_video_hash_bg(self, message_obj, partial_bytes, file_id, target_chat_id, config):
-        """后台计算视频哈希并保存到DB/Cache"""
-        try:
-            logger.info(f"后台开始计算视频哈希: {file_id}")
-            vhash = await self._compute_video_partial_hash(message_obj, partial_bytes)
-            if vhash:
-                logger.info(f"后台哈希计算完成: {file_id} -> {vhash}")
+        """[Tombstone] 复苏逻辑: 恢复内存索引层"""
+        if not state: return
+        self.time_window_cache = state.get("time_window_cache", {})
+        self.content_hash_cache = state.get("content_hash_cache", {})
+        self.text_fp_cache = state.get("text_fp_cache", {})
+        
+        # 恢复 LSH 索引
+        forest_data = state.get("lsh_forests", {})
+        self.lsh_forests = {}
+        for cid, data in forest_data.items():
+            try:
+                from core.algorithms.lsh_forest import LSHForest
+                f = LSHForest(num_trees=data.get("num_trees", 4), prefix_length=data.get("k", 64))
+                f.trees = data.get("trees", [])
+                self.lsh_forests[cid] = f
+            except Exception as e:
+                logger.warning(f"从墓碑恢复 LSH 索引失败 ({cid}): {e}")
                 
-                # 1. 写入持久化缓存
-                try:
-                    ttl = int(config.get("video_hash_persist_ttl_seconds", 15552000))
-                    await self._write_video_hash_pcache(str(file_id), vhash, ttl)
-                except Exception as e:
-                    logger.error(f"后台写入PCache失败: {e}")
-
-                # 2. 写入数据库
-                # 使用特殊的 signature "video_hash:{hash}" 以避免与主流程的 "video:{file_id}" 冲突
-                try:
-                    await self._record_message(
-                        message_obj, 
-                        target_chat_id, 
-                        signature=f"video_hash:{vhash}", 
-                        content_hash=vhash
-                    )
-                    logger.debug(f"后台哈希记录已存入DB缓冲: {vhash}")
-                except Exception as e:
-                    logger.error(f"后台写入DB失败: {e}")
-            else:
-                logger.warning(f"后台计算哈希返回空: {file_id}")
-        except Exception as e:
-            logger.error(f"后台视频处理任务异常: {e}", exc_info=True)
+        logger.debug("SmartDeduplicator 已唤醒")
 
     async def check_duplicate(
         self,
@@ -270,1769 +168,251 @@ class SmartDeduplicator:
         rule_config: Dict = None,
         *,
         readonly: bool = False,
+        skip_media_sig: bool = False,
     ) -> Tuple[bool, str]:
-        """
-        检查消息是否为重复
-        返回: (is_duplicate, reason)
-        """
-        start_ts = time.time()
-        logger.debug(
-            f"开始去重检查，目标chat_id: {target_chat_id}, 消息类型: {type(message_obj).__name__}"
-        )
+        """门面接口: 执行去重检测"""
         
-        # 获取或创建会话锁
+        # 自动复苏 (墓碑触发)
+        if tombstone._is_frozen:
+            await tombstone.resurrect()
+
+        async with await self._get_chat_lock(target_chat_id):
+            start_ts = time.time()
+            
+            # 1. 构造 Context
+            final_config = self._build_config(rule_config, skip_media_sig, readonly)
+            ctx = DedupContext(
+                message_obj=message_obj,
+                target_chat_id=target_chat_id,
+                config=final_config,
+                repo=self.repo,
+                pcache_repo=self.pcache_repo,
+                time_window_cache=self.time_window_cache,
+                content_hash_cache=self.content_hash_cache,
+                text_fp_cache=self.text_fp_cache,
+                lsh_forests=self.lsh_forests,
+                bloom_filter=self.bloom_filter,
+                hll=self.hll,
+                bg_tasks=self._bg_tasks,
+                logger=logger,
+                simhash_provider=self.simhash_engine
+            )
+
+            # 2. 执行策略链
+            for strategy in self.strategies:
+                res = await strategy.process(ctx)
+                if res and res.is_duplicate:
+                    logger.debug(f"去重命中 [{res.algo}]: {res.reason}")
+                    return True, res.reason
+
+            # 3. 记录消息 (Batched Write)
+            if not readonly and final_config.enable_dedup:
+                await self._record_message(ctx)
+
+            return False, "无重复"
+
+    async def _get_chat_lock(self, chat_id: int):
         async with self._locks_lock:
-            if target_chat_id not in self._chat_locks:
-                self._chat_locks[target_chat_id] = asyncio.Lock()
-            lock = self._chat_locks[target_chat_id]
-            
-        async with lock:
-            try:
-                # ✅ 关键：每次使用前检查是否处于冷冻状态
-                # 如果已冻结，先复苏 (Lazy Loading)
-                logger.debug("检查冷冻状态...")
-                if tombstone._is_frozen:
-                    logger.debug("检测到冷冻状态，尝试复苏...")
-                    try:
-                        await tombstone.resurrect()
-                        logger.debug("复苏成功")
-                    except Exception as e:
-                        logger.error(f"自动复苏失败: {e}，将使用空缓存继续运行")
-                        # 强制解除冻结状态，避免死循环
-                        tombstone._is_frozen = False
-                        # 这里不需要做额外操作，因为 _wakeup_state 没被调用的话
-                        # 缓存就是空的，程序会正常运行（只是暂时无法去重旧消息）
+            if chat_id not in self._chat_locks:
+                self._chat_locks[chat_id] = asyncio.Lock()
+            return self._chat_locks[chat_id]
 
-                # 懒加载配置
-                await self._lazy_load_config()
+    def _build_config(self, rule_config, skip_media_sig, readonly) -> DedupConfig:
+        c = DedupConfig()
+        # 合并默认值与传入配置
+        base = rule_config or {}
+        for k, v in base.items():
+            if hasattr(c, k): setattr(c, k, v)
+        c.skip_media_sig = skip_media_sig
+        c.readonly = readonly
+        return c
 
-                # 定期清理缓存
-                logger.debug("检查是否需要清理缓存...")
-                await self._cleanup_cache_if_needed()
-                logger.debug("缓存清理检查完成")
-
-                # 合并配置
-                config = {**self.config, **(rule_config or {})}
-                logger.debug(f"使用配置: {config}")
-
-                # 1. 传统签名去重
-                logger.debug("开始生成消息签名...")
-                signature = self._generate_signature(message_obj)
-                logger.debug(f"生成签名: {signature}")
-                if signature:
-                    # L0: Bloom Filter 预判
-                    if self.bloom_filter:
-                        bloom_key = f"sig:{target_chat_id}:{signature}"
-                        if bloom_key not in self.bloom_filter:
-                            # 100% 确定不重复，直接跳过后续昂贵的 DB/PCache 检查
-                            logger.debug(f"Bloom Filter (L0) 确认签名不重复: {signature}")
-                            # 仅记录到 Bloom Filter (实际记录到 DB 会在流程结束时调用 _record_message)
-                            # 这里我们返回 False，进入后续流程
-                        else:
-                            logger.debug(f"Bloom Filter (L0) 命中，可能重复: {signature}")
-                    
-                    # 先查持久化缓存（跨重启热命中），命中即返回
-                    if await self._check_pcache_hit("sig", target_chat_id, signature):
-                        logger.debug(f"持久化缓存签名命中: {signature}")
-                        try:
-                            from core.helpers.metrics import (
-                                DEDUP_DECISIONS_TOTAL,
-                                DEDUP_HITS_TOTAL,
-                            )
-
-                            DEDUP_HITS_TOTAL.labels(method="signature_pcache").inc()
-                            DEDUP_DECISIONS_TOTAL.labels(
-                                result="duplicate", method="signature_pcache"
-                            ).inc()
-                        except Exception as e:
-                            logger.debug(f"Metrics record failed: {e}")
-                        return True, "签名重复: persistent cache 命中"
-                    logger.debug(f"检查签名重复: {signature}")
-                    is_dup, reason = await self._check_signature_duplicate(
-                        signature, target_chat_id, config
-                    )
-                    if is_dup:
-                        logger.debug(f"签名重复命中: {reason}")
-                        # ✅ 检测到重复,写入持久化缓存以加速后续判重
-                        try:
-                            await self._write_pcache(signature, None, str(target_chat_id))
-                        except Exception as e:
-                            logger.debug(f"写入PCache失败: {e}")
-                        try:
-                            from core.helpers.metrics import (
-                                DEDUP_DECISIONS_TOTAL,
-                                DEDUP_HITS_TOTAL,
-                            )
-
-                            DEDUP_HITS_TOTAL.labels(method="signature").inc()
-                            DEDUP_DECISIONS_TOTAL.labels(
-                                result="duplicate", method="signature"
-                            ).inc()
-                            from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                            DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-                        except Exception as e:
-                            logger.debug(f"Metrics record failed: {e}")
-                        return True, f"签名重复: {reason}"
-
-                # 2. 视频优先判重（将视频相关检查提前，避免被内容哈希/文本相似度误杀）
-                logger.debug("检查是否为视频消息...")
-                is_video = self._is_video(message_obj)
-                logger.debug(f"视频消息检查结果: {is_video}")
-
-                if is_video:
-                    # file_id 判重
-                    logger.debug("开始视频file_id判重...")
-                    file_id_checked = False
-                    file_id_found_duplicate = False
-                    if config.get("enable_video_file_id_check", True):
-                        try:
-                            file_id = self._extract_video_file_id(message_obj)
-                            logger.debug(f"提取到视频file_id: {file_id}")
-                            if file_id:
-                                file_id_checked = True
-                                is_dup = await self._check_video_duplicate_by_file_id(
-                                    file_id, target_chat_id
-                                )
-                                logger.debug(f"视频file_id重复检查结果: {is_dup}")
-                                if is_dup:
-                                    file_id_found_duplicate = True
-                                    try:
-                                        from core.helpers.metrics import (
-                                            DEDUP_DECISIONS_TOTAL,
-                                            DEDUP_HITS_TOTAL,
-                                        )
-
-                                        DEDUP_HITS_TOTAL.labels(
-                                            method="video_file_id"
-                                        ).inc()
-                                        DEDUP_DECISIONS_TOTAL.labels(
-                                            result="duplicate", method="video_file_id"
-                                        ).inc()
-                                        from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                                        DEDUP_CHECK_SECONDS.observe(
-                                            max(0.0, time.time() - start_ts)
-                                        )
-                                    except Exception as e:
-                                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                    return True, "视频file_id重复"
-                                try:
-                                    setattr(message_obj, "_tf_file_id", str(file_id))
-                                except Exception as e:
-                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                        except Exception as _ve:
-                            logger.debug(f"视频 file_id 判重失败: {_ve}")
-                    # 部分哈希判重（可选：仅在 file_id 未命中重复时执行；可配置最小文件大小阈值）
-                    logger.debug("开始视频部分哈希判重...")
-                    if config.get("enable_video_partial_hash_check", True):
-                        only_on_miss = bool(
-                            config.get("video_partial_hash_on_fileid_miss_only", True)
-                        )
-                        # 逻辑：如果不是"仅错过时"模式，总是运行；如果是"仅错过时"模式，只在file_id检查了但没找到重复时运行
-                        should_run = (not only_on_miss) or (
-                            only_on_miss and file_id_checked and not file_id_found_duplicate
-                        )
-                        logger.debug(
-                            f"视频部分哈希判重条件: should_run={should_run}, only_on_miss={only_on_miss}, file_id_checked={file_id_checked}, file_id_found_duplicate={file_id_found_duplicate}"
-                        )
-                        if should_run:
-                            try:
-                                min_size = int(
-                                    config.get(
-                                        "video_partial_hash_min_size_bytes", 5 * 1024 * 1024
-                                    )
-                                )
-                                # 若可获取文件大小，做阈值过滤
-                                doc = getattr(message_obj, "document", None)
-                                if doc is None and hasattr(message_obj, "video"):
-                                    doc = getattr(message_obj, "video")
-                                size_ok = True
-                                if doc is not None:
-                                    try:
-                                        size_val = int(getattr(doc, "size", 0) or 0)
-                                        if size_val and size_val < min_size:
-                                            size_ok = False
-                                        logger.debug(
-                                            f"视频大小检查: size_val={size_val}, min_size={min_size}, size_ok={size_ok}"
-                                        )
-                                    except Exception:
-                                        size_ok = True
-                                if size_ok:
-                                    partial_bytes = int(
-                                        config.get("video_partial_hash_bytes", 262144)
-                                    )
-                                    # 先查持久化缓存（以 file_id 为键）
-                                    vhash = None
-                                    try:
-                                        file_id_for_hash = getattr(
-                                            getattr(message_obj, "video", None), "id", None
-                                        ) or getattr(
-                                            getattr(message_obj, "document", None),
-                                            "id",
-                                            None,
-                                        )
-                                        if file_id_for_hash:
-                                            logger.debug(
-                                                f"检查视频哈希持久化缓存: file_id={file_id_for_hash}"
-                                            )
-                                            vhash = await self._check_video_hash_pcache(
-                                                str(file_id_for_hash)
-                                            )
-                                            logger.debug(f"视频哈希持久化缓存结果: {vhash}")
-                                            if vhash:
-                                                try:
-                                                    from core.helpers.metrics import (
-                                                        VIDEO_HASH_PCACHE_HITS_TOTAL,
-                                                    )
-
-                                                    VIDEO_HASH_PCACHE_HITS_TOTAL.labels(
-                                                        algo="partial_md5"
-                                                    ).inc()
-                                                except Exception as e:
-                                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                    except Exception as e:
-                                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-                                    if not vhash:
-                                        # [Optimization] 异步计算视频哈希，避免阻塞转发流程
-                                        # 首次见到的视频（且PCache未命中），放行并后台记录
-                                        logger.info(f"视频FileID未命中且无Hash缓存，启动后台计算任务并放行: {file_id_for_hash}")
-                                        
-                                        task = asyncio.create_task(
-                                            self._compute_and_save_video_hash_bg(
-                                                message_obj, partial_bytes, file_id_for_hash, target_chat_id, config
-                                            )
-                                        )
-                                        self._bg_tasks.add(task)
-                                        task.add_done_callback(self._bg_tasks.discard)
-                                        
-                                        # 返回 False (不重复) 并不等待哈希结果
-                                        return False, "新视频(异步记录)"
-                                    if vhash:
-                                        logger.debug(f"检查视频哈希重复: {vhash}")
-                                        is_dup = await self._check_video_duplicate_by_hash(
-                                            vhash, target_chat_id
-                                        )
-                                        logger.debug(f"视频哈希重复检查结果: {is_dup}")
-                                        if is_dup:
-                                            try:
-                                                from core.helpers.metrics import (
-                                                    DEDUP_DECISIONS_TOTAL,
-                                                    DEDUP_HITS_TOTAL,
-                                                )
-
-                                                DEDUP_HITS_TOTAL.labels(
-                                                    method="video_partial_hash"
-                                                ).inc()
-                                                DEDUP_DECISIONS_TOTAL.labels(
-                                                    result="duplicate",
-                                                    method="video_partial_hash",
-                                                ).inc()
-                                                from core.helpers.metrics import (
-                                                    DEDUP_CHECK_SECONDS,
-                                                )
-
-                                                DEDUP_CHECK_SECONDS.observe(
-                                                    max(0.0, time.time() - start_ts)
-                                                )
-                                            except Exception as e:
-                                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                            # 严格复核
-                                            try:
-                                                if config.get("video_strict_verify", True):
-                                                    logger.debug("开始视频特征严格复核...")
-                                                    strict_ok = await self._strict_verify_video_features(
-                                                        target_chat_id,
-                                                        message_obj,
-                                                        file_id_for_hash,
-                                                        vhash,
-                                                        config,
-                                                    )
-                                                    logger.debug(
-                                                        f"视频特征严格复核结果: {strict_ok}"
-                                                    )
-                                                    if not strict_ok:
-                                                        return (
-                                                            False,
-                                                            "视频特征不一致，忽略哈希命中",
-                                                        )
-                                            except Exception as e:
-                                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                            return True, "视频内容哈希重复"
-                                        try:
-                                            setattr(message_obj, "_tf_content_hash", vhash)
-                                        except Exception as e:
-                                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                            except Exception as _ve:
-                                logger.debug(f"视频部分哈希判重失败: {_ve}")
-
-                # 3. 内容哈希去重（对视频默认关闭，以避免误杀；可通过配置开启）
-                logger.debug("开始内容哈希去重...")
-                content_hash = None
-                if config.get("enable_content_hash") and (
-                    not is_video or config.get("enable_content_hash_for_video", False)
-                ):
-                    content_hash = self._generate_content_hash(message_obj)
-                    logger.debug(f"生成内容哈希: {content_hash}")
-                    if content_hash:
-                        # 先查持久化缓存
-                        logger.debug(f"检查持久化缓存内容哈希: {content_hash}")
-                        if await self._check_pcache_hit(
-                            "hash", target_chat_id, content_hash
-                        ):
-                            logger.debug(f"持久化缓存内容哈希命中: {content_hash}")
-                            try:
-                                from core.helpers.metrics import (
-                                    DEDUP_DECISIONS_TOTAL,
-                                    DEDUP_HITS_TOTAL,
-                                )
-
-                                DEDUP_HITS_TOTAL.labels(method="content_hash_pcache").inc()
-                                DEDUP_DECISIONS_TOTAL.labels(
-                                    result="duplicate", method="content_hash_pcache"
-                                ).inc()
-                            except Exception as e:
-                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                            return True, "内容重复: persistent cache 命中"
-                        logger.debug(f"检查内容哈希重复: {content_hash}")
-                        is_dup, reason = await self._check_content_hash_duplicate(
-                            content_hash, target_chat_id, config
-                        )
-                        if is_dup:
-                            logger.debug(f"内容哈希重复命中: {reason}")
-                            # ✅ 检测到重复,写入持久化缓存以加速后续判重
-                            try:
-                                await self._write_pcache(None, content_hash, str(target_chat_id))
-                            except Exception as e:
-                                logger.debug(f"写入PCache失败: {e}")
-                            try:
-                                from core.helpers.metrics import (
-                                    DEDUP_DECISIONS_TOTAL,
-                                    DEDUP_HITS_TOTAL,
-                                )
-
-                                DEDUP_HITS_TOTAL.labels(method="content_hash").inc()
-                                DEDUP_DECISIONS_TOTAL.labels(
-                                    result="duplicate", method="content_hash"
-                                ).inc()
-                                from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                                DEDUP_CHECK_SECONDS.observe(
-                                    max(0.0, time.time() - start_ts)
-                                )
-                            except Exception as e:
-                                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                            return True, f"内容重复: {reason}"
-
-                # 4. 智能相似度（视频或相册默认跳过）
-                logger.debug("开始智能相似度检查...")
-                if config.get("enable_smart_similarity"):
-                    # 视频默认跳过文本相似度
-                    if not (
-                        is_video
-                        and not config.get("enable_text_similarity_for_video", False)
-                    ):
-                        # 相册/组消息默认跳过
-                        if not (
-                            getattr(message_obj, "grouped_id", None)
-                            and config.get("disable_similarity_for_grouped", True)
-                        ):
-                            logger.debug("执行相似度检查...")
-                            is_dup, reason = await self._check_similarity_duplicate(
-                                message_obj, target_chat_id, config
-                            )
-                            logger.debug(f"相似度检查结果: {is_dup}, {reason}")
-                            if is_dup:
-                                # ✅ 检测到相似重复,尝试记录文本哈希到PCache
-                                try:
-                                    text_hash = self._generate_content_hash(message_obj)
-                                    if text_hash:
-                                        await self._write_pcache(None, text_hash, str(target_chat_id))
-                                except Exception as e:
-                                    logger.debug(f"写入PCache失败: {e}")
-                                try:
-                                    from core.helpers.metrics import (
-                                        DEDUP_DECISIONS_TOTAL,
-                                        DEDUP_HITS_TOTAL,
-                                    )
-
-                                    DEDUP_HITS_TOTAL.labels(method="similarity").inc()
-                                    DEDUP_DECISIONS_TOTAL.labels(
-                                        result="duplicate", method="similarity"
-                                    ).inc()
-                                    from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                                    DEDUP_CHECK_SECONDS.observe(
-                                        max(0.0, time.time() - start_ts)
-                                    )
-                                except Exception as e:
-                                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                return True, f"相似重复: {reason}"
-
-                # 如果检查通过，记录到缓存（只读模式不记录）
-                if not readonly:
-                    logger.debug("记录消息到缓存...")
-                    await self._record_message(
-                        message_obj, target_chat_id, signature, content_hash
-                    )
-                    # 记录到 HLL (统计独立消息)
-                    if self.hll:
-                        msg_id = getattr(message_obj, "id", None)
-                        chat_id = getattr(message_obj, "chat_id", None)
-                        if msg_id and chat_id:
-                            self.hll.add(f"{chat_id}:{msg_id}")
-
-                    # 同时记录到 Bloom Filter
-                    # 同时记录到 Bloom Filter
-                    if self.bloom_filter:
-                        if signature: self.bloom_filter.add(f"sig:{target_chat_id}:{signature}")
-                        if content_hash: self.bloom_filter.add(f"hash:{target_chat_id}:{content_hash}")
-
-                try:
-                    from core.helpers.metrics import DEDUP_DECISIONS_TOTAL
-
-                    DEDUP_DECISIONS_TOTAL.labels(result="unique", method="final").inc()
-                    from core.helpers.metrics import DEDUP_CHECK_SECONDS
-
-                    DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                logger.debug(
-                    f"去重检查完成，耗时: {time.time() - start_ts:.3f}s，结果: 不重复"
-                )
-                return False, "无重复"
-
-            except Exception as e:
-                logger.error(f"智能去重检查失败: {e}")
-                try:
-                    from core.helpers.metrics import DEDUP_CHECK_SECONDS, DEDUP_DECISIONS_TOTAL
-
-                    DEDUP_DECISIONS_TOTAL.labels(result="error", method="final").inc()
-                    DEDUP_CHECK_SECONDS.observe(max(0.0, time.time() - start_ts))
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                return False, f"检查失败: {e}"
-
-    def _generate_signature(self, message_obj) -> Optional[str]:
-        """生成消息签名（与现有系统兼容）"""
-        try:
-            if hasattr(message_obj, "photo") and message_obj.photo:
-                # 照片签名
-                photo = message_obj.photo
-                if hasattr(photo, "sizes") and photo.sizes:
-                    largest = max(photo.sizes, key=lambda x: getattr(x, "size", 0))
-                    w = getattr(largest, "w", 0)
-                    h = getattr(largest, "h", 0)
-                    size = getattr(largest, "size", 0)
-                    if w > 0 or h > 0 or size > 0:
-                        return f"photo:{w}x{h}:{size}"
-
-            elif hasattr(message_obj, "document") and message_obj.document:
-                # 文档签名
-                doc = message_obj.document
-                # 某些客户端将视频/语音/贴纸等都作为 document，这里尽量提取唯一标识
-                doc_id = getattr(doc, "id", None)
-                size = getattr(doc, "size", 0)
-                mime_type = getattr(doc, "mime_type", "")
-                
-                # 如果没有唯一 ID，且大小也为0，说明可能是个空占位符或链接预览，不生成签名
-                if not doc_id and not size:
-                    return None
-                    
-                return f"document:{doc_id or 'none'}:{size}:{mime_type}"
-
-            elif hasattr(message_obj, "video") and message_obj.video:
-                # 视频签名
-                video = message_obj.video
-                file_id = getattr(video, "id", None) or getattr(video, "file_reference", None)
-                duration = int(getattr(video, "duration", 0) or 0)
-                
-                # 如果有唯一 ID 则使用
-                if file_id:
-                    return f"video:{file_id}:{duration}"
-                
-                # 若无 ID，则必须有时长且不能为 0 才能作为签名，否则太容易碰撞
-                if duration > 0:
-                    return f"video_nodata:{duration}"
-                    
-                return None
-
-        except Exception as e:
-            logger.debug(f"生成签名失败: {e}")
-            return None
-
-    def _generate_content_hash(self, message_obj) -> Optional[str]:
-        """生成内容哈希 (V3 Hybrid Perceptual Hash)"""
-        try:
-            # 针对相册 (Grouped Messages) 采用集合哈希
-            grouped_id = getattr(message_obj, 'grouped_id', None)
-            if grouped_id:
-                return self._generate_group_hash(grouped_id, message_obj)
-
-            # V3 方案：生成 128bit 混合感知哈希
-            # 性能极高，且针对文本提供了模糊匹配能力
-            fp = self._generate_v3_fingerprint(message_obj)
-            if fp:
-                # 使用 xxh128 确保零碰撞，并转为 32 位 Hex
-                if _HAS_XXHASH:
-                    return xxhash.xxh128_hexdigest(str(fp).encode())
-                return hashlib.blake2b(str(fp).encode(), digest_size=16).hexdigest()
-            return None
-        except Exception as e:
-            logger.debug(f"生成内容哈希失败: {e}")
-            return None
-
-    def _generate_v3_fingerprint(self, message_obj) -> Optional[int]:
-        """Hybrid Perceptual Hash v3 (128-bit)
-        [0-3] Type (4bit)
-        [4-11] Size Log (8bit)
-        [12-23] Duration (12bit)
-        [24-63] Media Stream Vector (40bit)
-        [64-127] SimHash / Identity (64bit)
-        """
-        try:
-            msg_type = 0
-            size_log = 0
-            duration = 0
-            stream_vector = 0
-            content_bits = 0
-            
-            media = getattr(message_obj, 'media', None)
-            text = getattr(message_obj, 'message', None) or getattr(message_obj, 'text', None)
-            
-            msg_type = 0
-            size_log = 0
-            duration = 0
-            stream_vector = 0
-            content_bits = 0
-
-            if not media:
-                if text:
-                    msg_type = 1 # TEXT
-                    content_bits = self._calculate_simhash(text)
-                else:
-                    return None
-            else:
-                # 媒体类型识别
-                if hasattr(media, 'photo'):
-                    msg_type = 2
-                    photo = media.photo
-                    size_log = self._get_size_bucket(getattr(photo.sizes[-1] if photo.sizes else photo, 'size', 0))
-                    # 组合宽高比特征
-                    w = getattr(photo.sizes[-1] if photo.sizes else photo, 'w', 1)
-                    h = getattr(photo.sizes[-1] if photo.sizes else photo, 'h', 1)
-                    stream_vector = int((w / h) * 1000) & 0xFFFFFFFFFF
-                    content_bits = getattr(photo, 'access_hash', 0)
-                elif hasattr(media, 'document'):
-                    doc = media.document
-                    mime = getattr(doc, 'mime_type', '')
-                    if mime.startswith('video/'): 
-                        msg_type = 4
-                        # 提取流特征 (FPS, Profile等抽象为 vector)
-                        stream_vector = self._extract_stream_vector(doc)
-                    elif mime.startswith('audio/'): msg_type = 5
-                    else: msg_type = 3
-                    
-                    size_log = self._get_size_bucket(getattr(doc, 'size', 0))
-                    duration = min(4095, int(getattr(doc, 'duration', 0) or 0))
-                    content_bits = getattr(doc, 'access_hash', 0)
-            
-            # 组装 128bit 指纹
-            fingerprint = (msg_type & 0xF) | \
-                          ((size_log & 0xFF) << 4) | \
-                          ((duration & 0xFFF) << 12) | \
-                          ((stream_vector & 0xFFFFFFFFFF) << 24) | \
-                          ((content_bits & 0xFFFFFFFFFFFFFFFF) << 64)
-            
-            return fingerprint
-            
-        except Exception:
-            return None
-
-    def _calculate_simhash(self, text: str) -> int:
-        """计算文本 SimHash (LSH感知)"""
-        if not text or self.simhash_engine is None: return 0
-        return self.simhash_engine.build_fingerprint(text)
-
-    def _extract_stream_vector(self, doc) -> int:
-        """提取多维媒体流向量"""
-        # 针对视频，提取不依赖 ID 的流特征
-        try:
-            w = getattr(doc, 'w', 0)
-            h = getattr(doc, 'h', 0)
-            # 使用宽高比 + 属性位组合
-            vector = (w << 20) | (h << 8) | (getattr(doc, 'size', 0) % 255)
-            return vector & 0xFFFFFFFFFF
-        except:
-            return 0
-
-    def _generate_group_hash(self, grouped_id: int, message_obj) -> str:
-        """
-        生成相册 (Grouped) 集合哈希 (V3)
-        使用无序异或和 (Order-independent XOR Sum)
-        """
-        # 注意：在扫描时，我们可能无法一次性拿到整个相册
-        # 这里使用 grouped_id + 首条消息的特征作为基础，结合当前消息特征
-        base_fp = self._generate_v3_fingerprint(message_obj) or 0
-        # 集合哈希 = XXH128(GroupID) ^ CurrentMsgFingerprint
-        seed = int(hashlib.md5(str(grouped_id).encode()).hexdigest(), 16)
-        group_fp = (seed ^ base_fp)
-        
-        if _HAS_XXHASH:
-            return xxhash.xxh128_hexdigest(str(group_fp).encode())
-        return hashlib.blake2b(str(group_fp).encode(), digest_size=16).hexdigest()
-
-    def _get_size_bucket(self, size: int) -> int:
-        """将文件大小映射到 8bit bucket (Log scale)"""
-        if size <= 0: return 0
-        # 使用快速对数近似值：log2(size)
-        return min(255, size.bit_length())
-
-    def _fast_text_hash(self, text: str) -> int:
-        """针对文本的快速指纹提取 (非全量)"""
-        if not text: return 0
-        # 1. 快速清洗
-        cleaned = self._clean_text_for_hash(text, strip_numbers=True)
-        if not cleaned: return 0
-        
-        # 2. 采样哈希 (首+尾+长度) 避免大文本哈希开销
-        if len(cleaned) < 60:
-            sample = cleaned.encode('utf-8', 'ignore')
-        else:
-            sample = (cleaned[:30] + cleaned[-30:] + str(len(cleaned))).encode('utf-8', 'ignore')
-            
-        # 3. 使用快算法
-        if _HAS_XXHASH:
-            return xxhash.xxh64_intdigest(sample) & 0xFFFFFFFFFF # 40 bits
-        return int(hashlib.shake_128(sample).hexdigest(5), 16) # 5 bytes = 40 bits
-
-    def _clean_text_for_hash(self, text: str, strip_numbers: bool = False) -> str:
-        """清理文本用于哈希计算 (V2 优化)"""
-        if not text:
-            return ""
-
-        # V2 优化：短文本跳过正则直接清洗，提升并发性能
-        if len(text) < 60:
-            table = self.trans_table_no_nums if strip_numbers else self.trans_table_keep_nums
-            return " ".join(text.lower().translate(table).split())
-
-        # 1. 先用正则快速剔除复杂的语义块 (URL, Mention)
-        text = self._re_complex_patterns.sub(" ", text.lower())
-
-        # 2. 使用 C 语言层面的 translate 一次性剔除所有标点/数字
-        table = (
-            self.trans_table_no_nums if strip_numbers else self.trans_table_keep_nums
+    def _create_context(self, message_obj, chat_id, config=None) -> DedupContext:
+        """内部方法：快速构造上下文"""
+        final_config = config or self.config
+        return DedupContext(
+            message_obj=message_obj,
+            target_chat_id=chat_id,
+            config=final_config,
+            repo=self.repo,
+            pcache_repo=self.pcache_repo,
+            time_window_cache=self.time_window_cache,
+            content_hash_cache=self.content_hash_cache,
+            text_fp_cache=self.text_fp_cache,
+            lsh_forests=self.lsh_forests,
+            bloom_filter=self.bloom_filter,
+            hll=self.hll,
+            bg_tasks=self._bg_tasks,
+            logger=logger,
+            simhash_provider=self.simhash_engine
         )
-        text = text.translate(table)
 
-        # 3. 合并空格 (split + join 是最快的标准化空格方法)
-        return " ".join(text.split())
+    async def record_message(self, message_obj, chat_id: int, signature: str = None, content_hash: str = None):
+        """兼容性接口: 记录消息指纹"""
+        ctx = self._create_context(message_obj, chat_id)
+        # 如果传入了特定的指纹，强制使用
+        await self._record_message(ctx, signature, content_hash)
 
-    def _is_video(self, message_obj) -> bool:
-        """判断消息是否含视频（原生视频或视频文档）。"""
+    # 别名兼容
+    _record_message_legacy = record_message
+
+    async def _record_message(self, ctx: DedupContext, force_sig: str = None, force_hash: str = None):
+        """记录消息到多级索引和写缓冲队列"""
         try:
-            if hasattr(message_obj, "video") and getattr(message_obj, "video"):
-                return True
-            if hasattr(message_obj, "document") and getattr(message_obj, "document"):
-                mime = str(
-                    getattr(getattr(message_obj, "document"), "mime_type", "") or ""
-                )
-                return mime.startswith("video/")
-        except Exception:
-            return False
-        return False
+            msg = ctx.message_obj
+            cid = str(ctx.target_chat_id)
+            ts = time.time()
+            config = ctx.config
 
-    def _extract_video_file_id(self, message_obj) -> Optional[str]:
-        """从视频消息中提取文件ID用于去重复检查"""
-        try:
-            # 检查原生视频
-            if hasattr(message_obj, "video") and getattr(message_obj, "video"):
-                video = message_obj.video
-                file_id = getattr(video, "id", None) or getattr(
-                    video, "file_reference", None
-                )
-                if file_id:
-                    return str(file_id)
-
-            # 检查视频文档
-            if hasattr(message_obj, "document") and getattr(message_obj, "document"):
-                doc = message_obj.document
-                mime = str(getattr(doc, "mime_type", "") or "")
-                if mime.startswith("video/"):
-                    file_id = getattr(doc, "id", None) or getattr(
-                        doc, "file_reference", None
-                    )
-                    if file_id:
-                        return str(file_id)
-
-            return None
-
-        except Exception as e:
-            logger.debug(f"提取视频文件ID失败: {e}")
-            return None
-
-    def _extract_media_features(self, media) -> Optional[str]:
-        """提取媒体特征"""
-        try:
-            features = []
-
-            if hasattr(media, "photo"):
-                features.append("type:photo")
-                photo = media.photo
-                if hasattr(photo, "sizes") and photo.sizes:
-                    # 使用尺寸特征而非ID
-                    largest = max(photo.sizes, key=lambda x: getattr(x, "size", 0))
-                    w = getattr(largest, "w", 0)
-                    h = getattr(largest, "h", 0)
-                    features.append(f"size:{w}x{h}")
-
-            elif hasattr(media, "document"):
-                doc = media.document
-                features.append("type:document")
-
-                # 文件大小
-                if hasattr(doc, "size"):
-                    # 使用大小范围而非精确值
-                    size_range = self._get_size_range(doc.size)
-                    features.append(f"size_range:{size_range}")
-
-                # MIME类型
-                if hasattr(doc, "mime_type"):
-                    features.append(f"mime:{doc.mime_type}")
-
-                # 文件名模式（移除数字、日期等变化部分）
-                if hasattr(doc, "file_name") and doc.file_name:
-                    name_pattern = self._extract_name_pattern(doc.file_name)
-                    if name_pattern:
-                        features.append(f"pattern:{name_pattern}")
-
-                # 若为视频文档，加入更稳定的维度
-                try:
-                    if getattr(doc, "mime_type", "").startswith("video/"):
-                        duration = getattr(
-                            getattr(media, "video", None), "duration", None
-                        )
-                        if duration:
-                            features.append(f"duration:{int(duration)}")
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-            return "|".join(features) if features else None
-
-        except Exception as e:
-            logger.debug(f"提取媒体特征失败: {e}")
-            return None
-
-    def _get_size_range(self, size: int) -> str:
-        """获取文件大小范围"""
-        if size < 1024:
-            return "tiny"
-        elif size < 1024 * 1024:
-            return "small"
-        elif size < 10 * 1024 * 1024:
-            return "medium"
-        elif size < 100 * 1024 * 1024:
-            return "large"
-        else:
-            return "huge"
-
-    def _size_bucket_index(self, bucket: str) -> int:
-        order = ["tiny", "small", "medium", "large", "huge"]
-        try:
-            return order.index(bucket)
-        except Exception:
-            return -1
-
-    def _extract_name_pattern(self, filename: str) -> str:
-        """提取文件名模式"""
-        # 移除日期时间
-        pattern = re.sub(r"\d{4}[-_]\d{2}[-_]\d{2}", "DATE", filename)
-        pattern = re.sub(r"\d{2}[-_:]\d{2}[-_:]\d{2}", "TIME", pattern)
-
-        # 移除数字序列
-        pattern = re.sub(r"\d{3,}", "NUM", pattern)
-
-        # 保留扩展名
-        if "." in pattern:
-            name, ext = pattern.rsplit(".", 1)
-            pattern = re.sub(r"[^\w\.]", "_", name) + "." + ext
-
-        return pattern.lower()
-
-    async def _check_signature_duplicate(
-        self, signature: str, target_chat_id: int, config: Dict
-    ) -> Tuple[bool, str]:
-        """检查签名重复"""
-        try:
-            # 时间窗口检查
-            if config.get("enable_time_window"):
-                cache_key = str(target_chat_id)
-                if cache_key in self.time_window_cache:
-                    if signature in self.time_window_cache[cache_key]:
-                        last_seen = self.time_window_cache[cache_key][signature]
-                        window_hours = config.get("time_window_hours", 24)
-                        # 永久窗口：<0 视为永久；0 视为禁用时间窗口逻辑（但内存命中仍按 TTL 处理）
-                        diff = time.time() - last_seen
-                        if (
-                            window_hours < 0
-                            or (window_hours > 0 and diff < window_hours * 3600)
-                        ):
-                            logger.info(f"去重命中[内存]: signature={signature}, 窗口={window_hours}h, 距上次={diff/60:.2f}min")
-                            return (
-                                True,
-                                f"时间窗口内重复 ({'永久' if window_hours < 0 else str(window_hours)+'小时'})",
-                            )
-
-            # 数据库检查
-            exists = await self.repo.exists_media_signature(str(target_chat_id), signature)
-            if exists: return True, "数据库中存在"
-            # 冷区兜底：若开启永久窗口（time_window_hours<=0）或热区未命中时可进一步查询归档
-            try:
-                if config.get("time_window_hours", 24) <= 0:
-                    from repositories.bloom_index import bloom
-
-                    # 先用 Bloom 判断可能存在，再做冷查确认
-                    if bloom.probably_contains(
-                        "media_signatures", str(target_chat_id), str(signature)
-                    ):
-                        from repositories.archive_store import query_parquet_duckdb
-                        from core.helpers.metrics import DEDUP_HITS_TOTAL, DEDUP_QUERIES_TOTAL
-
-                        DEDUP_QUERIES_TOTAL.labels(method="signature").inc()
-                        rows = query_parquet_duckdb(
-                            "media_signatures",
-                            "chat_id = ? AND signature = ?",
-                            [str(target_chat_id), str(signature)],
-                            columns=["chat_id"],
-                            order_by="created_at DESC",
-                            limit=1,
-                            max_days=settings.ARCHIVE_COLD_LOOKBACK_DAYS,
-                        )
-                        if rows:
-                            DEDUP_HITS_TOTAL.labels(method="signature").inc()
-                            return True, "归档冷区命中"
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            return False, ""
-
-        except Exception as e:
-            logger.debug(f"签名重复检查失败: {e}")
-            return False, ""
-
-    async def _check_content_hash_duplicate(
-        self, content_hash: str, target_chat_id: int, config: Dict
-    ) -> Tuple[bool, str]:
-        """检查内容哈希重复"""
-        try:
-            cache_key = str(target_chat_id)
-            if cache_key in self.content_hash_cache:
-                if content_hash in self.content_hash_cache[cache_key]:
-                    last_seen = self.content_hash_cache[cache_key][content_hash]
-                    window_hours = config.get("time_window_hours", 24)
-                    # 永久窗口：<0 视为永久
-                    diff = time.time() - last_seen
-                    if (
-                        window_hours < 0
-                        or (window_hours > 0 and diff < window_hours * 3600)
-                    ):
-                        logger.info(f"去重命中[内容哈希]: hash={content_hash}, 距上次={diff/60:.2f}min")
-                        return (
-                            True,
-                            f"内容哈希重复 ({'永久' if window_hours < 0 else str(window_hours)+'小时内'})",
-                        )
-            # 冷区兜底：永久窗口或热区未命中时查询归档
-            try:
-                if config.get("time_window_hours", 24) <= 0:
-                    from repositories.bloom_index import bloom
-
-                    if bloom.probably_contains(
-                        "media_signatures", str(target_chat_id), str(content_hash)
-                    ):
-                        from repositories.archive_store import query_parquet_duckdb
-                        from core.helpers.metrics import DEDUP_HITS_TOTAL, DEDUP_QUERIES_TOTAL
-
-                        DEDUP_QUERIES_TOTAL.labels(method="content_hash").inc()
-                        rows = query_parquet_duckdb(
-                            "media_signatures",
-                            "chat_id = ? AND content_hash = ?",
-                            [str(target_chat_id), str(content_hash)],
-                            columns=["chat_id"],
-                            order_by="created_at DESC",
-                            limit=1,
-                            max_days=settings.ARCHIVE_COLD_LOOKBACK_DAYS,
-                        )
-                        if rows:
-                            DEDUP_HITS_TOTAL.labels(method="content_hash").inc()
-                            return True, "归档冷区命中"
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            return False, ""
-
-        except Exception as e:
-            logger.debug(f"内容哈希检查失败: {e}")
-            return False, ""
-
-    def _get_lsh_forest(self, chat_id: str) -> Any:
-        # 内部方法获取对应会话的索引
-        if chat_id not in self.lsh_forests:
-            try:
-                from core.algorithms.lsh_forest import LSHForest
-                # 使用默认 8 棵树，前缀长度根据 Hamming 阈值调整
-                # 这里我们保持默认 64bit 处理，LSHForest 内部处理排列
-                self.lsh_forests[chat_id] = LSHForest(num_trees=8, prefix_length=64)
-            except Exception:
-                return None
-        return self.lsh_forests[chat_id]
-
-    async def _check_similarity_duplicate(
-        self, message_obj, target_chat_id: int, config: Dict
-    ) -> Tuple[bool, str]:
-        """检查相似度重复"""
-        try:
-            if not hasattr(message_obj, "message") or not message_obj.message:
-                return False, ""
-
-            current_text = self._clean_text_for_hash(
-                message_obj.message,
-                strip_numbers=self.config.get("strip_numbers", True),
-            )
-            min_len = int(self.config.get("min_text_length", 10))
-            if len(current_text) < min_len:  # 太短的文本不检查相似度
-                return False, ""
-
-            # 从文本缓存中查找相似文本
-            cache_key = str(target_chat_id)
-            if cache_key not in self.text_cache:
-                return False, ""
-
-            threshold = config.get("similarity_threshold", 0.85)
-            window_hours = config.get("time_window_hours", 24)
-            current_time = time.time()
-
-            # 可选：先用固定长度指纹做预筛，O(N) 汉明距离，比精配更快
-            current_fp = None
-            comparisons = 0
-            if config.get("enable_text_fingerprint", True):
-                try:
-                    current_fp = self._compute_text_fingerprint(
-                        current_text, int(config.get("fingerprint_ngram", 3))
-                    )
-                    idx = self._get_lsh_forest(cache_key)
-                    if idx and current_fp is not None:
-                        # 使用 LSHForest 进行近似查询
-                        # 返回 doc_id 列表，这里我们存的是 timestamp
-                        hits = idx.query(current_fp, top_k=5)
-                        if hits:
-                            for ts_str in hits:
-                                try:
-                                    ts = float(ts_str)
-                                except ValueError:
-                                    continue
-                                
-                                if window_hours > 0 and current_time - ts > window_hours * 3600:
-                                    continue
-                                
-                                # LSH 命中即视为相似 (Phase 5 策略：信任 SimHash 以支持百万级)
-                                # 如果需要更精确，可以去 text_cache 捞取 (但 text_cache 可能已被截断)
-                                
-                                # 尝试在 text_cache 中找回原文进行核对 (Best Effort)
-                                # 如果找不到原文，鉴于 LSH/SimHash 的强去重性质，我们也认作重复
-                                prev_text = None
-                                if cache_key in self.text_cache:
-                                    for item in self.text_cache[cache_key]:
-                                        if abs(item['ts'] - ts) < 0.001:
-                                            prev_text = item['text']
-                                            break
-                                
-                                if prev_text:
-                                    # 有原文，进行精确比对
-                                    sim = self._calculate_text_similarity(current_text, prev_text)
-                                    if sim >= config.get("similarity_threshold", 0.85):
-                                        try:
-                                            from core.helpers.metrics import DEDUP_FP_HITS_TOTAL
-                                            DEDUP_FP_HITS_TOTAL.labels(algo="lsh_forest").inc()
-                                        except Exception as e:
-                                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-                                        return True, f"指纹索引命中且内容校验通过 ({sim:.2f})"
-                                else:
-                                    # 原文已丢失，但 LSH 强匹配 -> 判定重复 (信任 SimHash)
-                                    # 这里假设 LSH 的 recall 主要是真阳性
-                                    return True, "LSH索引命中 (原文已归档)"
-
-                except Exception as e:
-                    logger.debug(f"SimHashIndex 检查失败: {e}")
-
-            # 检查最近的消息（倒序，优先比较最新的）
-            comparisons = 0
-            curr_len = len(current_text)
-
-            for item in reversed(self.text_cache[cache_key]):
-                ts = item.get("ts")
-                # 永久窗口：不会因时间过期而跳过
-                if window_hours > 0 and current_time - ts > window_hours * 3600:
-                    continue
-                prev_text = item.get("text", "")
-                prev_len = len(prev_text)
-                if not prev_len:
-                    continue
-                if prev_text == current_text:
-                    return True, "文本完全一致"
-
-                # ✅ 优化：数学剪枝
-                # 计算长度差异比率。如果长度差占比超过 (1 - 阈值)，则不可能匹配。
-                # 举例：阈值 0.8，curr=100。如果 prev < 80 或 prev > 125，则必不匹配。
-                # Jaccard 上限估算：min_len / max_len < threshold
-                if prev_len < curr_len:
-                    upper_bound = prev_len / curr_len
-                else:
-                    upper_bound = curr_len / prev_len
-
-                if upper_bound < threshold:
-                    continue  # 跳过昂贵的详细比对
-
-                # 控制精确比较的上限，避免 O(N) 过大
-                if comparisons >= int(config.get("max_similarity_checks", 50)):
-                    break
-                similarity = self._calculate_text_similarity(current_text, prev_text)
-                comparisons += 1
-                if similarity >= threshold:
-                    return True, f"文本相似度 {similarity:.2f} ≥ {threshold}"
-
-            try:
-                from core.helpers.metrics import DEDUP_SIMILARITY_COMPARISONS
-
-                DEDUP_SIMILARITY_COMPARISONS.observe(float(comparisons))
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            return False, ""
-        except Exception as e:
-            logger.debug(f"相似度检查失败: {e}")
-            return False, ""
-
-    async def _check_video_duplicate_by_file_id(self, file_id: str, target_chat_id: int) -> bool:
-        try:
-            res = await self.repo.find_by_file_id_or_hash(str(target_chat_id), file_id=file_id)
-            return res is not None
-        except Exception: return False
-
-    async def _check_video_duplicate_by_hash(self, vhash: str, target_chat_id: int) -> bool:
-        try:
-            res = await self.repo.find_by_file_id_or_hash(str(target_chat_id), content_hash=vhash)
-            return res is not None
-        except Exception: return False
-
-    async def _compute_video_partial_hash(
-        self, message_obj, partial_bytes: int
-    ) -> Optional[str]:
-        """Upgrade: Sparse-Sentinel Hash (SSH) v4
-        流式下载视频 5 个关键位点 (0%, 25%, 50%, 75%, 100%) 并结合元数据生成 128bit 指纹。
-        """
-        logger.debug("开始计算 SSH v4 视频指纹 (5点采样)...")
-        try:
-            if not getattr(message_obj, "media", None):
-                return None
+            # 提取指纹
+            sig = force_sig or (tools.generate_signature(msg) if not config.skip_media_sig else None)
+            chash = force_hash or tools.generate_content_hash(msg)
             
-            from core.helpers.metrics import VIDEO_PARTIAL_HASH_SECONDS
-            _start = time.time()
+            # 1. 更新 Bloom (L0)
+            if self.bloom_filter:
+                if sig: self.bloom_filter.add(f"sig:{cid}:{sig}")
+                if chash: self.bloom_filter.add(f"hash:{cid}:{chash}")
+
+            # 2. 更新内存 L1 (有序字典滚动淘汰)
+            if sig:
+                if cid not in self.time_window_cache: self.time_window_cache[cid] = OrderedDict()
+                self.time_window_cache[cid][sig] = ts
             
-            doc = getattr(message_obj, "document", None) or getattr(message_obj, "video", None)
-            if not doc:
-                return None
-                
-            total_size = getattr(doc, "size", 0)
-            if total_size == 0:
-                return None
+            if chash:
+                if cid not in self.content_hash_cache: self.content_hash_cache[cid] = OrderedDict()
+                self.content_hash_cache[cid][chash] = ts
 
-            # 准备哈希器 (XXH128 收益更高)
-            if _HAS_XXHASH:
-                h = xxhash.xxh128()
-            else:
-                import hashlib as _hash
-                h = _hash.blake2b(digest_size=16)
+            # 3. 文本相似度指纹 (LSH + Pruning Metadata)
+            text = getattr(msg, "message", "") or getattr(msg, "text", "")
+            if text:
+                cleaned = tools.clean_text_for_hash(text, config.get("strip_numbers", True))
+                if len(cleaned) >= config.get("min_text_length", 10):
+                    fp = tools.calculate_simhash(cleaned)
+                    if fp:
+                        # 记录 fp 及其元数据 (长度，时间等)
+                        if cid not in self.text_fp_cache: self.text_fp_cache[cid] = OrderedDict()
+                        self.text_fp_cache[cid][fp] = {"ts": ts, "len": len(cleaned)}
+                        
+                        # 加入 LSH Forest
+                        forest = self._get_lsh_forest(cid)
+                        if forest: forest.add(str(ts), fp)
 
-            # 1. 注入元数据盐值 (防止不同比例/时长的视频因起始黑屏导致碰撞)
-            meta_salt = f"{getattr(doc, 'w', 0)}x{getattr(doc, 'h', 0)}|{getattr(doc, 'duration', 0)}|{total_size}"
-            h.update(meta_salt.encode())
+            # 4. 更新 HLL
+            if self.hll and hasattr(msg, 'id'):
+                self.hll.add(f"{cid}:{msg.id}")
 
-            # 2. 计算 5 个采样位点
-            # 采样点：起始(0%), 1/4(25%), 中间(50%), 3/4(75%), 结尾(100%)
-            chunk_size = max(32768, partial_bytes // 5) # 每个采样点至少 32KB
-            offsets = [
-                0,                                  # 头部
-                max(0, (total_size // 4) - chunk_size // 2),  # 25%
-                max(0, (total_size // 2) - chunk_size // 2),  # 50%
-                max(0, (total_size * 3 // 4) - chunk_size // 2), # 75%
-                max(0, total_size - chunk_size)     # 尾部
-            ]
-            
-            # 去重并排序位点
-            offsets = sorted(list(set(offsets)))
-            client = getattr(message_obj, "client", None)
-            if not client: return None
-
-            for offset in offsets:
-                try:
-                    read_len = min(chunk_size, total_size - offset)
-                    if read_len <= 0: continue
-                    
-                    # 采样数据
-                    async for chunk in client.iter_download(doc, offset=offset, limit=read_len):
-                        h.update(chunk)
-                except Exception as e:
-                    logger.warning(f"采样位点 {offset} 读取失败 (跳过): {e}")
-                    continue # 容错：个别位点失败不影响整体生成
-
-            hash_result = h.hexdigest()
-            try:
-                VIDEO_PARTIAL_HASH_SECONDS.observe(max(0.0, time.time() - _start))
-            except: pass
-            
-            logger.debug(f"SSH v4 计算完成: {hash_result} (采样位点: {len(offsets)})")
-            return hash_result
-
-        except Exception as e:
-            logger.error(f"计算视频部分哈希失败: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"计算视频部分哈希失败: {e}")
-            return None
-
-    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
-        """计算文本相似度"""
-        # 1. 优先使用 SimHash (O(1) 记忆型算法)
-        if self.simhash_engine:
-            try:
-                # 注意：这里如果能提前算好 fp 更好，但在比较时算也行
-                fp1 = self.simhash_engine.build_fingerprint(text1)
-                fp2 = self.simhash_engine.build_fingerprint(text2)
-                return self.simhash_engine.similarity(fp1, fp2)
-            except Exception as e:
-                logger.debug(f"SimHash 计算失败: {e}")
-
-        # 2. 备选方案
-        try:
-            if _HAS_RAPIDFUZZ:
-                return float(fuzz.token_set_ratio(text1, text2)) / 100.0
-
-            # 使用 Token-based Jaccard Similarity，复杂度 O(N + M)
-            # 简单的空格分词（因为 _clean_text_for_hash 已经处理过标点）
-            set1 = set(text1.split())
-            set2 = set(text2.split())
-
-            if not set1 or not set2:
-                return 0.0
-
-            intersection = len(set1 & set2)
-            union = len(set1 | set2)
-
-            return intersection / union if union > 0 else 0.0
-
-        except Exception:
-            return 0.0
-
-    async def _record_message(
-        self,
-        message_obj,
-        target_chat_id: int,
-        signature: Optional[str],
-        content_hash: Optional[str],
-    ):
-        """记录消息到缓存"""
-        with open("debug_engine_internal.txt", "a") as f:
-             f.write(f"ENTER _record_message: {getattr(message_obj, 'message', 'NO_MSG')}\n")
-        try:
-            current_time = time.time()
-            cache_key = str(target_chat_id)
-
-            # 记录签名
-            if signature:
-                if cache_key not in self.time_window_cache:
-                    self.time_window_cache[cache_key] = OrderedDict()
-                self.time_window_cache[cache_key][signature] = current_time
-                self.time_window_cache[cache_key].move_to_end(signature)
-
-            # 记录内容哈希
-            if content_hash:
-                if cache_key not in self.content_hash_cache:
-                    self.content_hash_cache[cache_key] = OrderedDict()
-                self.content_hash_cache[cache_key][content_hash] = current_time
-                self.content_hash_cache[cache_key].move_to_end(content_hash)
-
-            # ❌ 移除自动写入持久化缓存的逻辑
-            # 持久化缓存应该只在检测到重复时写入(用于加速后续判重)
-            # 而不是记录所有消息,否则会导致所有消息都被误判为重复
-
-            # 视频：持久化记录 file_id 与内容哈希（若有），便于后续判重
-            try:
-                from datetime import datetime
-
-                is_video = (hasattr(message_obj, "video") and message_obj.video) or (
-                    hasattr(message_obj, "document")
-                    and message_obj.document
-                    and getattr(getattr(message_obj, "document"), "mime_type", "")
-                    and str(message_obj.document.mime_type).startswith("video/")
-                )
-                if is_video:
-                    file_id = getattr(message_obj, "_tf_file_id", None)
-                    vhash = getattr(message_obj, "_tf_content_hash", None)
-                    # 构建尽量稳定的签名
-                    stable_sig = (
-                        signature
-                        or (f"video:{file_id}" if file_id else None)
-                        or (f"video_hash:{vhash}" if vhash else None)
-                    )
-                    if stable_sig:
-                        # 提取一些附加属性
-                        duration = int(
-                            getattr(getattr(message_obj, "video", None), "duration", 0)
-                            or 0
-                        )
-                        width = int(
-                            getattr(getattr(message_obj, "video", None), "w", 0) or 0
-                        )
-                        height = int(
-                            getattr(getattr(message_obj, "video", None), "h", 0) or 0
-                        )
-                        mime_type = None
-                        file_size = None
-                        file_name = None
-                        if hasattr(message_obj, "document") and getattr(
-                            message_obj, "document"
-                        ):
-                            mime_type = getattr(message_obj.document, "mime_type", None)
-                            file_size = getattr(message_obj.document, "size", None)
-                            file_name = getattr(message_obj.document, "file_name", None)
-
-                        # ✅ 优化：仅加入内存 Buffer，不立即写库
-                        payload = {
-                            "chat_id": str(target_chat_id),
-                            "signature": stable_sig,
-                            "file_id": str(file_id) if file_id else None,
-                            "content_hash": str(vhash) if vhash else None,
-                            "media_type": "video",
-                            "created_at": datetime.utcnow().isoformat(),
-                            "updated_at": datetime.utcnow().isoformat(),
-                            "last_seen": datetime.utcnow().isoformat(),
-                            "count": 1,
-                        }
-                        async with self._buffer_lock:
-                            self._write_buffer.append(payload)
-
-                        # 确保后台任务在运行
-                        await self._ensure_flush_task()
-            except Exception as pe:
-                logger.debug(f"持久化视频签名失败: {pe}")
-
-            # 记录文本（用于相似度判重）
-            if hasattr(message_obj, "message") and message_obj.message:
-                cleaned_text = self._clean_text_for_hash(
-                    message_obj.message,
-                    strip_numbers=self.config.get("strip_numbers", True),
-                )
-                min_len = int(self.config.get("min_text_length", 10))
-                if len(cleaned_text) >= min_len:
-                    if cache_key not in self.text_cache:
-                        self.text_cache[cache_key] = []
-                    self.text_cache[cache_key].append(
-                        {"text": cleaned_text, "ts": current_time}
-                    )
-                    # 控制每个会话的文本缓存上限
-                    max_size = int(self.config.get("max_text_cache_size", 300))
-                    if len(self.text_cache[cache_key]) > max_size:
-                        overflow = len(self.text_cache[cache_key]) - max_size
-                        if overflow > 0:
-                            self.text_cache[cache_key] = self.text_cache[cache_key][
-                                overflow:
-                            ]
-                    # 记录文本指纹（SimHash）
-                    try:
-                        if self.config.get("enable_text_fingerprint", True):
-                            fp = self._compute_text_fingerprint(
-                                cleaned_text,
-                                int(self.config.get("fingerprint_ngram", 3)),
-                            )
-                            if fp is not None:
-                                if cache_key not in self.text_fp_cache:
-                                    self.text_fp_cache[cache_key] = []
-                                self.text_fp_cache[cache_key].append(
-                                    {"fp": fp, "ts": current_time}
-                                )
-                                fp_max = int(
-                                    self.config.get("max_text_fp_cache_size", 500)
-                                )
-                                self.text_fp_cache[cache_key] = self.text_fp_cache[
-                                        cache_key
-                                    ][-fp_max:]
-                                
-                                # ✅ 将指纹加入 LSH Forest
-                                forest = self._get_lsh_forest(cache_key)
-                                if forest:
-                                    # doc_id 存为 timestamp 字符串
-                                    forest.add(str(current_time), fp)
-                                    
-                    except Exception as e:
-                        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-        except Exception as e:
-            logger.debug(f"记录消息失败: {e}")
-
-    async def _check_pcache_hit(
-        self, kind: str, target_chat_id: int, value: str
-    ) -> bool:
-        """检查持久化缓存是否命中。kind: 'sig' | 'hash'"""
-        try:
-            if not self.config.get("enable_persistent_cache", True):
-                logger.debug("持久化缓存已禁用")
-                return False
-            from core.cache.persistent_cache import get_persistent_cache
-
-            pc = get_persistent_cache()
-            key = f"dedup:{kind}:{target_chat_id}:{value}"
-            logger.debug(f"检查持久化缓存，key: {key}")
-            result = pc.get(key) is not None
-            logger.debug(f"持久化缓存检查结果: {result}")
-            return result
-        except Exception as e:
-            logger.debug(f"检查持久化缓存失败: {e}")
-            return False
-
-    async def _write_pcache(
-        self, signature: Optional[str], content_hash: Optional[str], cache_chat_key: str
-    ) -> None:
-        """将签名或内容哈希写入持久化缓存，带 TTL。"""
-        if not self.config.get("enable_persistent_cache", True):
-            logger.debug("持久化缓存已禁用，跳过写入")
-            return
-        try:
-            from core.cache.persistent_cache import dumps_json, get_persistent_cache
-
-            pc = get_persistent_cache()
-            ttl = int(self.config.get("persistent_cache_ttl_seconds", 30 * 24 * 3600))
-            logger.debug(f"开始写入持久化缓存，TTL: {ttl}秒")
-            # cache_chat_key 已是 str(target_chat_id)
-            if signature:
-                key = f"dedup:sig:{cache_chat_key}:{signature}"
-                logger.debug(f"写入持久化缓存，key: {key}")
-                pc.set(key, dumps_json({"ts": int(time.time())}), ttl)
-            if content_hash:
-                key = f"dedup:hash:{cache_chat_key}:{content_hash}"
-                logger.debug(f"写入持久化缓存，key: {key}")
-                pc.set(key, dumps_json({"ts": int(time.time())}), ttl)
-            logger.debug("持久化缓存写入完成")
-        except Exception as e:
-            logger.debug(f"写入持久化缓存失败: {e}")
-
-    async def _ensure_flush_task(self):
-        """确保后台刷写任务在运行"""
-        if self._flush_task is None or self._flush_task.done():
-            self._flush_task = asyncio.create_task(self._flush_worker())
-
-    async def _flush_worker(self):
-        """后台刷写任务：定期将内存缓冲区中的数据批量写入数据库"""
-        while True:
-            await asyncio.sleep(2.0)  # 每2秒刷写一次
-            async with self._buffer_lock:
-                if not self._write_buffer:
-                    continue
-                batch = self._write_buffer[:]
-                self._write_buffer.clear()
-
-            # 执行批量插入
-            try: await self.repo.batch_add(batch)
-            except Exception as e: logger.error(f"批量写入指纹失败: {e}")
-
-    async def _cleanup_cache_if_needed(self):
-        """定期清理过期缓存"""
-        try:
-            current_time = time.time()
-            if current_time - self.last_cleanup < self.config["cache_cleanup_interval"]:
-                return
-
-            max_age = self.config["time_window_hours"] * 3600 * 2  # 保留2倍时间窗口
-
-            # 清理时间窗口缓存
-            for chat_id in list(self.time_window_cache.keys()):
-                cache = self.time_window_cache[chat_id]
-                # 利用有序性，仅处理头部过期项
-                while cache:
-                    # peek 头部元素 (key, ts)
-                    key, timestamp = next(iter(cache.items()))
-                    if current_time - timestamp > max_age:
-                        cache.popitem(last=False)  # 弹出头部
-                    else:
-                        break  # 遇到第一个未过期的，后续都不用检查
-
-                if not cache:
-                    del self.time_window_cache[chat_id]
-
-            # 清理内容哈希缓存
-            for chat_id in list(self.content_hash_cache.keys()):
-                cache = self.content_hash_cache[chat_id]
-                # 利用有序性，仅处理头部过期项
-                while cache:
-                    # peek 头部元素 (key, ts)
-                    key, timestamp = next(iter(cache.items()))
-                    if current_time - timestamp > max_age:
-                        cache.popitem(last=False)  # 弹出头部
-                    else:
-                        break  # 遇到第一个未过期的，后续都不用检查
-
-                if not cache:
-                    del self.content_hash_cache[chat_id]
-
-            # 清理文本缓存
-            for chat_id in list(self.text_cache.keys()):
-                items = self.text_cache[chat_id]
-                # 仅保留在有效期内的
-                items = [
-                    it for it in items if current_time - it.get("ts", 0) <= max_age
-                ]
-                if items:
-                    # 再次确保不超过上限
-                    max_size = int(self.config.get("max_text_cache_size", 300))
-                    if len(items) > max_size:
-                        items = items[-max_size:]
-                    self.text_cache[chat_id] = items
-                else:
-                    del self.text_cache[chat_id]
-            # 清理文本指纹缓存
-            for chat_id in list(self.text_fp_cache.keys()):
-                items = self.text_fp_cache[chat_id]
-                items = [
-                    it for it in items if current_time - it.get("ts", 0) <= max_age
-                ]
-                if items:
-                    fp_max = int(self.config.get("max_text_fp_cache_size", 500))
-                    if len(items) > fp_max:
-                        items = items[-fp_max:]
-                    self.text_fp_cache[chat_id] = items
-                else:
-                    del self.text_fp_cache[chat_id]
-
-            self.last_cleanup = current_time
-            logger.debug("智能去重缓存清理完成")
-
-        except Exception as e:
-            logger.error(f"缓存清理失败: {e}")
-
-    def get_stats(self) -> Dict:
-        """获取去重统计信息"""
-        try:
-            total_signatures = sum(
-                len(cache) for cache in self.time_window_cache.values()
-            )
-            total_hashes = sum(len(cache) for cache in self.content_hash_cache.values())
-            total_texts = sum(len(items) for items in self.text_cache.values())
-
-            return {
-                "cached_signatures": total_signatures,
-                "cached_content_hashes": total_hashes,
-                "cached_texts": total_texts,
-                "cached_text_fps": sum(
-                    len(items) for items in self.text_fp_cache.values()
-                ),
-                "tracked_chats": len(self.time_window_cache),
-                "config": self.config.copy(),
-                "engine_version": "v2.0 (Ultra-Fast)",
-                "last_cleanup": self.last_cleanup,
+            # 5. 加入数据库写缓冲 (带丰富元数据支持以后续复核)
+            doc = getattr(msg, 'video', None) or getattr(msg, 'photo', None) or getattr(msg, 'document', None)
+            payload = {
+                "chat_id": cid,
+                "signature": sig,
+                "content_hash": chash,
+                "file_id": str(getattr(msg, 'id', '0')),
+                "media_type": str(getattr(msg, 'type', 'unknown')),
+                "file_size": int(getattr(doc, 'size', 0) or 0) if doc else 0,
+                "duration": int(getattr(doc, 'duration', 0) or 0) if doc else 0,
+                "width": int(getattr(doc, 'w', 0) or 0) if doc else 0,
+                "height": int(getattr(doc, 'h', 0) or 0) if doc else 0,
+                "count": 1,
+                "created_at": datetime.utcnow().isoformat(),
+                "last_seen": datetime.utcnow().isoformat()
             }
-        except Exception:
-            return {}
-
-    async def update_config(self, new_config: Dict):
-        """更新配置并持久化"""
-        self.config.update(new_config)
-        logger.info(f"智能去重配置已更新: {self.config}")
-
-        # 持久化配置到数据库
-        try:
-            await self._save_config_to_db()
-        except Exception as e:
-            logger.warning(f"保存去重配置到数据库失败: {e}")
-
-    async def _save_config_to_db(self):
-        """保存配置到数据库"""
-        try:
-            import json
-            from sqlalchemy import select
-            from models.models import SystemConfiguration
-
-            from core.container import container
-            async with container.db.session() as session:
-                # 查找或创建配置记录
-                stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
-                result = await session.execute(stmt)
-                config_record = result.scalar_one_or_none()
-
-                if not config_record:
-                    config_record = SystemConfiguration(
-                        key="smart_dedup_config", value=json.dumps(self.config)
-                    )
-                    session.add(config_record)
-                else:
-                    config_record.value = json.dumps(self.config)
-
-                logger.debug("智能去重配置已保存到数据库")
-
-        except Exception as e:
-            logger.error(f"保存去重配置失败: {e}")
-
-    async def _load_config_from_db(self):
-        """从数据库加载配置"""
-        try:
-            import json
-            from sqlalchemy import select
-            from models.models import SystemConfiguration
-
-            from core.container import container
-            async with container.db.session() as session:
-                stmt = select(SystemConfiguration).filter_by(key="smart_dedup_config")
-                result = await session.execute(stmt)
-                config_record = result.scalar_one_or_none()
-
-                if config_record and config_record.value:
-                    db_config = json.loads(config_record.value)
-                    # 合并数据库配置和默认配置
-                    self.config.update(db_config)
-                    logger.info(f"从数据库加载智能去重配置: {self.config}")
-
-        except Exception as e:
-            logger.warning(f"从数据库加载去重配置失败: {e}")
-
-    async def reset_to_defaults(self):
-        """重置为默认配置"""
-        self.config = {
-            "enable_time_window": True,
-            "time_window_hours": 24,
-            "similarity_threshold": 0.85,
-            "enable_content_hash": True,
-            "enable_smart_similarity": True,
-            "cache_cleanup_interval": 3600,
-            "max_text_cache_size": 300,
-            "min_text_length": 10,
-            "strip_numbers": True,
-            "enable_text_fingerprint": True,
-            "fingerprint_ngram": 3,
-            "fingerprint_hamming_threshold": 3,
-            "max_text_fp_cache_size": 500,
-            "max_similarity_checks": 50,
-            "enable_text_similarity_for_video": False,
-            "enable_video_file_id_check": True,
-            "enable_video_partial_hash_check": True,
-            "video_partial_hash_bytes": 262144,
-            "disable_similarity_for_grouped": True,
-        }
-        await self._save_config_to_db()
-        logger.info("智能去重配置已重置为默认值")
-
-    def _compute_text_fingerprint(
-        self, cleaned_text: str, ngram: int = 3
-    ) -> Optional[int]:
-        """基于词级 n-gram 的简易 SimHash（64位）。"""
-        try:
-            tokens = cleaned_text.split()
-            if not tokens:
-                return None
-            shingles = [
-                " ".join(tokens[i : i + ngram])
-                for i in range(max(1, len(tokens) - ngram + 1))
-            ]
-            if not shingles:
-                shingles = tokens
-            vector = [0] * 64
-
-            # ✅ 优化：使用 xxHash 替代 MD5
-            if _HAS_XXHASH:
-                for s in shingles:
-                    # xxh64 直接返回 int，速度极快
-                    h = xxhash.xxh64(s.encode("utf-8")).intdigest()
-                    for i in range(64):
-                        if (h >> i) & 1:
-                            vector[i] += 1
-                        else:
-                            vector[i] -= 1
-            else:
-                # 原有逻辑...
-                for s in shingles:
-                    h = int(hashlib.md5(s.encode("utf-8")).hexdigest(), 16)
-                    for i in range(64):
-                        if (h >> i) & 1:
-                            vector[i] += 1
-                        else:
-                            vector[i] -= 1
-
-            fp = 0
-            for i, v in enumerate(vector):
-                if v > 0:
-                    fp |= 1 << i
-            return fp
-        except Exception:
-            return None
-
-    def _hamming_distance64(self, a: int, b: int) -> int:
-        if _HAS_NUMBA:
-            return _fast_hamming_64(a, b)
-        xor_val = (a ^ b) & 0xFFFFFFFFFFFFFFFF
-
-        # Python 3.10+ 原生支持 (极速)
-        if hasattr(int, "bit_count"):
-            return xor_val.bit_count()
-
-        # 回退算法 (Kernighan's Algorithm / Brian Kernighan's way)
-        # 对于差异较小的指纹（去重场景），此算法只需循环 "差异位数" 次，远少于 64 次
-        count = 0
-        while xor_val:
-            xor_val &= xor_val - 1
-            count += 1
-        return count
-
-    async def _strict_verify_video_features(
-        self,
-        target_chat_id: int,
-        message_obj,
-        file_id: Optional[str],
-        vhash: Optional[str],
-        config: Dict,
-    ) -> bool:
-        """在哈希命中后进行严格复核：比较 duration/分辨率/大小范围 等特征。
-
-        容忍度通过配置控制：
-        - video_duration_tolerance_sec
-        - video_resolution_tolerance_px
-        - video_size_bucket_tolerance
-        """
-        try:
-            # 读取当前消息的特征
-            duration = int(
-                getattr(getattr(message_obj, "video", None), "duration", 0) or 0
-            )
-            width = int(getattr(getattr(message_obj, "video", None), "w", 0) or 0)
-            height = int(getattr(getattr(message_obj, "video", None), "h", 0) or 0)
-            size_val = None
-            if hasattr(message_obj, "document") and getattr(message_obj, "document"):
-                try:
-                    size_val = int(getattr(message_obj.document, "size", 0) or 0)
-                except Exception:
-                    size_val = None
-            size_bucket = self._get_size_range(size_val or 0)
-            # 查找历史一条匹配记录用于对比
-            from repositories.db_operations import DBOperations
-            from core.container import container
-            # 使用 container.db.session 获取会话
-            async with container.db.session() as session:
-                db_ops = await DBOperations.create()
-                rec = await db_ops.find_media_record_by_fileid_or_hash(
-                    session, str(target_chat_id), file_id=file_id, content_hash=vhash
-                )
-                if not rec:
-                    return True  # 没有可以对比的记录时，不阻断
-                tol_d = int(config.get("video_duration_tolerance_sec", 2))
-                tol_r = int(config.get("video_resolution_tolerance_px", 8))
-                tol_s = int(config.get("video_size_bucket_tolerance", 1))
-                # 历史特征
-                h_d = int(getattr(rec, "duration", 0) or 0)
-                h_w = int(getattr(rec, "width", 0) or 0)
-                h_h = int(getattr(rec, "height", 0) or 0)
-                h_bucket = self._get_size_range(int(getattr(rec, "file_size", 0) or 0))
-                # 比较
-                if abs(duration - h_d) > tol_d:
-                    return False
-                if (width and h_w) and abs(width - h_w) > tol_r:
-                    return False
-                if (height and h_h) and abs(height - h_h) > tol_r:
-                    return False
-                # bucket 容忍 1 级（可配置）
-                if size_bucket and h_bucket:
-                    if (
-                        abs(
-                            self._size_bucket_index(size_bucket)
-                            - self._size_bucket_index(h_bucket)
-                        )
-                        > tol_s
-                    ):
-                        return False
-                return True
-        except Exception:
-            return True
-
-    async def _check_video_hash_pcache(self, file_id: str) -> Optional[str]:
-        """从持久化缓存中读取视频 partial-hash。"""
-        try:
-            from core.cache.persistent_cache import get_persistent_cache, loads_json
-
-            pc = get_persistent_cache()
-            key = f"video:hash:{file_id}"
-            logger.debug(f"检查视频哈希持久化缓存，key: {key}")
-            raw = pc.get(key)
-            if raw:
-                logger.debug(f"视频哈希持久化缓存命中，key: {key}")
-                data = loads_json(raw)
-                if isinstance(data, dict):
-                    hash_value = data.get("hash")
-                    logger.debug(f"从缓存中获取到视频哈希: {hash_value}")
-                    return hash_value
-            logger.debug(f"视频哈希持久化缓存未命中，key: {key}")
-        except Exception as e:
-            logger.debug(f"检查视频哈希持久化缓存失败: {e}")
-            return None
-        return None
-
-    async def _write_video_hash_pcache(
-        self, file_id: str, vhash: str, ttl_seconds: int
-    ) -> None:
-        """写入视频 partial-hash 到持久化缓存。"""
-        try:
-            from core.cache.persistent_cache import dumps_json, get_persistent_cache
-
-            pc = get_persistent_cache()
-            key = f"video:hash:{file_id}"
-            ttl = max(60, int(ttl_seconds))
-            logger.debug(
-                f"写入视频哈希持久化缓存，key: {key}, hash: {vhash}, TTL: {ttl}秒"
-            )
-            pc.set(key, dumps_json({"hash": vhash, "ts": int(time.time())}), ttl)
-            logger.debug(f"视频哈希持久化缓存写入完成，key: {key}")
-        except Exception as e:
-            logger.debug(f"写入视频哈希持久化缓存失败: {e}")
-
-
-    async def remove_message(self, message_obj, target_chat_id: int):
-        """Remove message from cache (Rollback)"""
-        try:
-            cache_key = str(target_chat_id)
-            signature = self._generate_signature(message_obj)
-            content_hash = self._generate_content_hash(message_obj)
+            async with self._buffer_lock:
+                self._write_buffer.append(payload)
+                if len(self._write_buffer) > 100:
+                    await self._flush_buffer()
             
-            # Remove from Memory Cache
-            if signature and cache_key in self.time_window_cache:
-                self.time_window_cache[cache_key].pop(signature, None)
-            
-            if content_hash and cache_key in self.content_hash_cache:
-                self.content_hash_cache[cache_key].pop(content_hash, None)
+            # 6. 内存 L1 滚动淘汰 (防止 OOM)
+            max_sig_size = config.get("max_signature_cache_size", 5000)
+            if len(self.time_window_cache[cid]) > max_sig_size:
+                self.time_window_cache[cid].popitem(last=False)
                 
-            # Remove from Persistent Cache
-            if self.config.get("enable_persistent_cache", True):
-                try:
-                    from core.cache.persistent_cache import get_persistent_cache
-                    pc = get_persistent_cache()
-                    if signature:
-                        pc.delete(f"dedup:sig:{target_chat_id}:{signature}")
-                    if content_hash:
-                        pc.delete(f"dedup:hash:{target_chat_id}:{content_hash}")
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+            max_hash_size = config.get("max_content_hash_cache_size", 2000)
+            if len(self.content_hash_cache[cid]) > max_hash_size:
+                self.content_hash_cache[cid].popitem(last=False)
+
+            # 确保后台刷写任务启动
+            if self._flush_task is None or self._flush_task.done():
+                self._flush_task = asyncio.create_task(self._buffer_flush_worker())
+
+        except Exception as e:
+            logger.warning(f"记录消息指纹失败: {e}")
+
+    async def remove_message(
+        self, 
+        message_obj,
+        chat_id: int,
+        signature: Optional[str] = None, 
+        content_hash: Optional[str] = None
+    ):
+        """从缓存和数据库中移除消息 (回滚逻辑)"""
+        try:
+            target_chat_id = chat_id
+            config = self.config
+
+            # 1. 生成指纹 (如果缺失)
+            if not signature:
+                signature = tools.generate_signature(message_obj) if not config.skip_media_sig else None
+            if not content_hash:
+                content_hash = tools.generate_content_hash(message_obj)
             
-            # Remove from Write Buffer (if not flushed yet)
+            # 2. 从 Repo 移除
+            if signature:
+                await self.repo.delete_media_signature(target_chat_id, signature)
+            if content_hash:
+                await self.repo.delete_content_hash(target_chat_id, content_hash)
+                
+            # 3. 从内存缓存移除
+            cid = str(target_chat_id)
+            if signature and cid in self.time_window_cache:
+                self.time_window_cache[cid].pop(signature, None)
+            if content_hash and cid in self.content_hash_cache:
+                self.content_hash_cache[cid].pop(content_hash, None)
+            
+            # 4. 从写缓冲移除 (防止尚未刷入 DB 的记录生效)
             async with self._buffer_lock:
                  self._write_buffer = [
                      item for item in self._write_buffer 
-                     if not (item.get('signature') == signature and item.get('content_hash') == content_hash)
+                     if not (item.get('chat_id') == cid and 
+                             (item.get('signature') == signature or item.get('content_hash') == content_hash))
                  ]
-                 
-            logger.debug(f"Rolled back dedup status for chat {target_chat_id}")
+                
+            logger.debug(f"已回退会话 {target_chat_id} 的去重状态")
         except Exception as e:
-            logger.error(f"Failed to rollback dedup: {e}")
+            logger.warning(f"移除消息失败: {e}")
 
-# 全局智能去重器实例
+    async def _buffer_flush_worker(self):
+        """后台低频刷写任务"""
+        while True:
+            await asyncio.sleep(5.0)
+            await self._flush_buffer()
+
+    async def _flush_buffer(self):
+        async with self._buffer_lock:
+            if not self._write_buffer: return
+            batch = self._write_buffer[:]
+            self._write_buffer.clear()
+        
+        if self.repo:
+            await self.repo.batch_add_media_signatures(batch)
+
+    async def update_config(self, new_config: Dict):
+        for k, v in new_config.items():
+            if hasattr(self.config, k): setattr(self.config, k, v)
+        try: await self.repo.save_config(new_config)
+        except: pass
+
+    def get_stats(self) -> Dict:
+        return {
+            "cached_signatures": sum(len(c) for c in self.time_window_cache.values()),
+            "cached_content_hashes": sum(len(c) for c in self.content_hash_cache.values()),
+            "lsh_forests": len(self.lsh_forests),
+            "tracked_chats": len(self.time_window_cache),
+            "buffer_size": len(self._write_buffer)
+        }
+
+    async def reset_to_defaults(self):
+        self.config = DedupConfig()
+
+# 全局实例
 smart_deduplicator = SmartDeduplicator()

@@ -244,7 +244,7 @@ class SessionMenu(BaseMenu):
         buttons = [
             [Button.inline(f"🔄 去重总开关：{'开启' if enabled else '关闭'}", "new_menu:toggle_dedup_enabled")],
             [Button.inline(f"📊 策略：{'内容哈希' if mode == 'hash' else '签名匹配'}", "new_menu:toggle_dedup_mode")],
-            [Button.inline("👈 返回上一级", "new_menu:session_hub")],
+            [Button.inline("👈 返回上一级", "new_menu:session_dedup")],
         ]
         
         text = (
