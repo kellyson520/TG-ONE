@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-05 11:13
+> Updated: 2026-02-07 10:50
 
 ---
 
@@ -19,18 +19,18 @@ TG ONE/
 ├── 📁 ai                   # AI Provider Integration
 ├── 📄 alembic.ini          # File
 ├── 📁 api                  # Directory
-├── 📄 cleanup_dedup_cache.py # File
+├── 📄 check_greenlet.py    # File
 ├── 📁 controllers          # Directory
 ├── 📁 core                 # Core Business Logic
 ├── 📁 data                 # Directory
-├── 📁 db                   # Directory
+├── 📄 debug_engine_internal.txt # File
+├── 📄 debug_handler.py     # File
 ├── 📄 docker-compose.yml   # File
 ├── 📁 docs                 # Documentation (PSB)
 ├── 📁 enums                # Enumerations
 ├── 📁 filters              # Message Filters
 ├── 📁 handlers             # Command & Event Handlers
 ├── 📁 listeners            # Event Listeners
-├── 📁 logs                 # Directory
 ├── 📄 main.py              # Application Entry
 ├── 📁 middlewares          # Middleware Layer
 ├── 📁 migrations           # Directory
@@ -38,22 +38,25 @@ TG ONE/
 ├── 📄 pytest.ini           # File
 ├── 📁 repositories         # Data Access Layer
 ├── 📄 requirements-dev.txt # File
-├── 📄 requirements.docker.txt # File
 ├── 📄 requirements.txt     # Python Dependencies
-├── 📁 rss                  # RSS Services
 ├── 📁 scheduler            # Task Scheduler
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
-├── 📁 sessions             # Directory
 ├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
+├── 📄 test_out.txt         # File
+├── 📄 test_out_utf8.txt    # File
+├── 📄 test_out_v2.txt      # File
+├── 📄 test_output.txt      # File
+├── 📄 test_output_debug_2.txt # File
+├── 📄 test_output_utf8.txt # File
+├── 📄 test_results.txt     # File
 ├── 📁 tests                # Test Suite
+├── 📄 tests_output.txt     # File
 ├── 📁 ui                   # Bot UI Renderer
-├── 📄 verify_dedup_fix.py  # File
 ├── 📄 version.py           # Version Info
 ├── 📁 web_admin            # FastAPI Admin Backend
-├── 📁 zhuanfaji            # Directory
 ```
 
 ---
@@ -298,8 +301,23 @@ TG ONE/
 │   ├── 20260204_Fix_Menu_Navigation_And_Data
 │   │   ├── report.md
 │   │   └── todo.md
-│   └── 20260204_GitPush_Changelog
-│       ├── report.md
+│   ├── 20260204_GitPush_Changelog
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260205_Fix_Analytics_Service_Errors
+│   │   └── todo.md
+│   ├── 20260205_Fix_Async_And_Null_Errors
+│   │   └── todo.md
+│   ├── 20260205_Fix_Callback_And_Import_Errors
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260205_Fix_Database_Pool_Timeout
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260206_Architecture_Upgrade_Report.md
+│   ├── 20260206_Fix_Sqlite_Lock_Error
+│   │   └── todo.md
+│   └── 20260206_Verify_Archive_Tests
 │       └── todo.md
 ├── Workstream_UI_UX
 │   └── 20260115_Web_Interface_Refactor
@@ -381,76 +399,105 @@ TG ONE/
 │   │   └── 20260127_Local_CI_Workflow
 │   │       ├── report.md
 │   │       └── todo.md
-│   └── Workstream_Maintenance
-│       ├── 20260127_Fix_WebAdmin_Encoding
-│       │   ├── report.md
-│       │   ├── spec.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_CSRF_Verification_Failed
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_ChatInfoService_NameError
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_Chat_Attribute_Error
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_JSON_Serialization_Error
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_Log_Duplication
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_Log_Errors
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_Menu_Callback_Error
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_RuleRepo_UnboundLocalError
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Fix_WebAdmin_Port_Hardcoding
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260202_Remove_Cloud_CI
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260203_Fix_Missing_Route_RuleSettingsNew
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260203_Fix_NewMenuSystem_AttributeError
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260203_Fix_RuleRepository_AttributeError
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260203_Fix_Update_Comparison
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260203_Fix_Version_Pagination
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Changelog_Edit_Message_Error
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Config_Syntax_Error
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Database_And_Import_Issues
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Logic_And_Performance_Issues
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Stability_Safety_Concurrency
-│       │   ├── report.md
-│       │   └── todo.md
-│       ├── 20260204_Fix_Triple_Core_Issues
-│       │   ├── report.md
-│       │   └── todo.md
-│       └── 20260205_Deep_Audit_Menu_and_Logic
+│   ├── Workstream_Maintenance
+│   │   ├── 20260127_Fix_WebAdmin_Encoding
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_CSRF_Verification_Failed
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_ChatInfoService_NameError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_Chat_Attribute_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_JSON_Serialization_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_Log_Duplication
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_Log_Errors
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_Menu_Callback_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_RuleRepo_UnboundLocalError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Fix_WebAdmin_Port_Hardcoding
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260202_Remove_Cloud_CI
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260203_Fix_Missing_Route_RuleSettingsNew
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260203_Fix_NewMenuSystem_AttributeError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260203_Fix_RuleRepository_AttributeError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260203_Fix_Update_Comparison
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260203_Fix_Version_Pagination
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Changelog_Edit_Message_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Config_Syntax_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Database_And_Import_Issues
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Logic_And_Performance_Issues
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Stability_Safety_Concurrency
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260204_Fix_Triple_Core_Issues
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260205_Deep_Audit_Menu_and_Logic
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260205_Fix_AttributeError_Settings_ENABLE_BATCH_FORWARD_API
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260205_Fix_Media_Filter_Unresponsive
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260206_Fix_Archive_Integration_Test
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260206_Fix_Triple_Errors
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260206_Hotfix_Four_Errors
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260206_Verify_Archive_System
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   └── 20260207_Hotfix_Sync_And_UI_Fixes
+│   │       ├── report.md
+│   │       └── todo.md
+│   └── Workstream_UI_UX
+│       └── 20260205_Upgrade_Date_Picker
 │           ├── report.md
+│           ├── spec.md
 │           └── todo.md
 ├── file_list.txt
 ├── finish
@@ -587,6 +634,7 @@ TG ONE/
 ├── session_service.py
 ├── settings.py
 ├── settings_applier.py
+├── smart_buffer.py
 ├── state_service.py
 ├── system_service.py
 ├── task_service.py
