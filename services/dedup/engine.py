@@ -442,17 +442,37 @@ class SmartDeduplicator:
     async def _buffer_flush_worker(self):
         """后台低频刷写任务"""
         while True:
-            await asyncio.sleep(5.0)
-            await self._flush_buffer()
+            try:
+                await asyncio.sleep(5.0)
+                await self._flush_buffer()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"去重引擎刷写线程异常: {e}")
+                await asyncio.sleep(1.0) # 避退一下
 
     async def _flush_buffer(self):
-        async with self._buffer_lock:
-            if not self._write_buffer: return
-            batch = self._write_buffer[:]
-            self._write_buffer.clear()
-        
-        if self.repo:
-            await self.repo.batch_add_media_signatures(batch)
+        batch = []
+        try:
+            async with self._buffer_lock:
+                if not self._write_buffer: return
+                batch = self._write_buffer[:]
+                self._write_buffer.clear()
+            
+            if self.repo:
+                success = await self.repo.batch_add_media_signatures(batch)
+                if not success:
+                    # [修复] 必须放回队列防止任务丢失
+                    logger.warning(f"去重引擎批量写入失败，尝试重新入队 {len(batch)} 条记录")
+                    async with self._buffer_lock:
+                        # 放到队列头部以便下次重试
+                        self._write_buffer = batch + self._write_buffer
+        except Exception as e:
+            logger.error(f"去重引擎刷写缓冲区异常: {e}")
+            # 如果发生其它异常（如 DB 崩溃），也应尝试恢复数据
+            if batch:
+                async with self._buffer_lock:
+                    self._write_buffer = batch + self._write_buffer
 
     async def update_config(self, new_config: Dict):
         for k, v in new_config.items():

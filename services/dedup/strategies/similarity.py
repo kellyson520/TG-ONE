@@ -76,6 +76,9 @@ class SimilarityStrategy(BaseDedupStrategy):
             current_threshold = max(base_threshold, get_adaptive_threshold(curr_len))
             
             # reversed 遍历，优先比对新消息
+            comparisons = 0
+            max_checks = config.get("max_similarity_comparisons", 100)
+            
             for fp, meta in reversed(ctx.text_fp_cache[cache_key].items()):
                 if comparisons >= max_checks: break
                 

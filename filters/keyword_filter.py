@@ -54,21 +54,9 @@ class KeywordFilter(BaseFilter):
         keyword_ok = await self._enhanced_keyword_check(rule, message_text, event)
         
         # [Optimization] 仅在通过基本过滤（发送者+关键词）后才执行去重检查
-        # 避免去重逻辑污染非目标消息的缓存，并修复误判拦截所有任务的问题
-        if sender_ok and keyword_ok:
-            # 智能去重检查：使用新的智能去重系统
-            if getattr(rule, 'enable_dedup', False):
-                # [Fix] 历史任务跳过智能去重，避免中断处理链
-                if getattr(context, 'is_history', False):
-                    logger.debug(f"历史任务跳过智能去重: 规则ID={rule.id}")
-                else:
-                    is_duplicate = await self._check_smart_duplicate(context, rule)
-                    if is_duplicate:
-                        # 处理重复消息删除
-                        await self._handle_duplicate_message_deletion(context, rule)
-                        context.should_forward = False
-                        return False
-
+        # ⚠️ 注意: 智能去重已迁移至 DedupMiddleware，为了防止双重锁定导致的误判，这里不再执行去重。
+        # 这里仅保留关键词和发送者的判断逻辑。
+        
         should_forward = (sender_ok and keyword_ok)
         
         return should_forward

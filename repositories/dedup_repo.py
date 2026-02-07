@@ -112,26 +112,36 @@ class DedupRepository:
             objs = result.scalars().all()
             return [MediaSignatureDTO.model_validate(o) for o in objs]
 
-    async def batch_add(self, records: List[dict]) -> bool:
-        """批量插入媒体签名记录"""
+    async def batch_add_media_signatures(self, records: List[dict]) -> bool:
+        """批量插入媒体签名记录 (支持 SmartDeduplicator v4)"""
         if not records:
             return True
             
         async with self.db.session() as session:
             try:
+                # [核心修复] 过滤掉模型中不存在的字段，防止 bulk_insert_mappings 报错
+                valid_columns = {c.name for c in MediaSignature.__table__.columns}
+                filtered_records = []
+                for rec in records:
+                    filtered_rec = {k: v for k, v in rec.items() if k in valid_columns}
+                    filtered_records.append(filtered_rec)
+
                 # 使用 bulk_insert_mappings 提高性能
                 await session.run_sync(
                     lambda sync_session: sync_session.bulk_insert_mappings(
-                        MediaSignature, records
+                        MediaSignature, filtered_records
                     )
                 )
                 await session.commit()
-                logger.debug(f"批量插入 {len(records)} 条媒体签名记录成功")
+                logger.debug(f"批量插入 {len(filtered_records)} 条媒体签名记录成功")
                 return True
             except Exception as e:
                 logger.error(f"批量插入媒体签名失败: {e}", exc_info=True)
                 await session.rollback()
                 return False
+
+    # 别名兼容
+    batch_add = batch_add_media_signatures
 
     async def delete_by_chat(self, chat_id: str) -> int:
         """删除特定聊天的所有去重记录"""

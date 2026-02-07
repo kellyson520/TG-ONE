@@ -2,6 +2,19 @@
 
 ## 📅 2026-02-07 更新摘要
 
+### 🚀 v1.2.4.0: 去重引擎健壮性与冲突修复 (Dedup Engine Robustness & Fixes)
+- **Core Fixes**:
+    - **Method Alignment**: 修复了 `DedupRepository` 中 `batch_add_media_signatures` 的 `AttributeError` 命名不一致问题。
+    - **Logic De-conflict**: 移除了 `KeywordFilter` 中冗余的去重校验，解决了与 `DedupMiddleware` 双重锁定导致的“全员误判为重复”关键 Bug。
+    - **Reliability Improvement**: 实现刷写缓冲区失败时的**自动重新入队 (Re-queueing)** 机制，确保高负载下的数据完整性。
+    - **Safe Filtering**: 在仓库层引入字段过滤，防止 `bulk_insert_mappings` 因模型冗余字段导致的运行时异常。
+- **Stability**:
+    - **Similarity Guard**: 修复了 `SimilarityStrategy` 中 `comparisons` 变量未定义的 `NameError`。
+    - **History Skip**: 在 `DedupMiddleware` 中增加对 `is_history` 任务的自动跳过，保障了历史补全流程的连贯性。
+- **Verification**:
+    - 新增 `tests/unit/repositories/test_dedup_repo_batch.py` 验证批量写入健壮性。
+
+
 ### 🚀 v1.2.3.9: 数据库监控与高级去重 (Database Monitoring & Advanced Dedup)
 - **Database Monitoring System**:
     - **Performance Dashboard**: 实现 `db_performance_monitor` 面板，实时展示 QPS、慢查询分析 (Slow Query Analysis) 和热点表统计。

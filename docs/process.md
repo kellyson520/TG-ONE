@@ -138,6 +138,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260207_Fix_Dedup_Repository_AttributeError | 修复 DedupRepository AttributeError 与双重去重校验冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Deduplication/20260207_Fix_Dedup_Repository_AttributeError/todo.md) |
 | 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |

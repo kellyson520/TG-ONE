@@ -16,6 +16,12 @@ class DedupMiddleware(Middleware):
             
             # 如果规则开启了去重
             if rule.enable_dedup and target_id:
+                # [Fix] 历史任务跳过智能去重，避免重复拦截历史补全
+                if ctx.metadata.get('is_history', False):
+                    logger.debug(f"⏭️ [Pipeline-Dedup] 历史任务跳过智能去重: 规则ID={rule.id}")
+                    valid_rules.append(rule)
+                    continue
+
                 logger.info(f"🔎 [Pipeline-Dedup] 正在检查去重: 规则ID={rule.id}, 目标ChatID={target_id}")
                 
                 # 解析单条规则的自定义配置 (JSON)
