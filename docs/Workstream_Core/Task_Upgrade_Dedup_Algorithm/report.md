@@ -23,6 +23,7 @@
 - **单元测试**: `pytest tests/unit/services/test_dedup_service.py` 通过 (6 passed, 1 skipped)。
 - **环境兼容**: 已安装 `numba`, `rapidfuzz`, `xxhash`。
 - **采集验证**: 确认 `VideoStrategy` 后台哈希逻辑运行正常。
+- **发布状态**: 已推送到仓库，版本号 `1.2.3.8`，已打标签 `v1.2.3.8`。
 
 ## 5. 遗留与建议 (Future Work)
 - [ ] 考虑引入 Redis 作为分布式 LSH 存储 (当前为进程内存)。

@@ -25,3 +25,9 @@
 - [x] Run `pytest tests/unit/services/test_dedup_service.py` <!-- id: 13 -->
 - [x] Check logs for "LSH Forest" and "Bloom Filter" initialization <!-- id: 14 -->
 - [x] Generate `report.md` <!-- id: 15 -->
+
+## Phase 6: Release (Report)
+- [x] Update `version.py` to 1.2.3.8 <!-- id: 16 -->
+- [x] Update `CHANGELOG.md` with V3 upgrade details <!-- id: 17 -->
+- [x] Commit changes and tag as `v1.2.3.8` <!-- id: 18 -->
+- [x] Push code and tags to repository <!-- id: 19 -->

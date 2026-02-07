@@ -21,6 +21,7 @@ def dedup():
     
     dedup._pcache_repo = MagicMock()
     dedup._pcache_repo.get = AsyncMock(return_value=None)
+    dedup._pcache_repo.set = AsyncMock()
     
     # Disable components
     dedup.bloom_filter = None 
@@ -119,9 +120,11 @@ async def test_no_duplicate_records_message(dedup, msg):
             assert is_dup is False
             assert "无重复" in reason
             
-            # Verify recording called
-            dedup.repo.add_media_signature.assert_called()
-            dedup.repo.add_content_hash.assert_called()
+            # Verify recording (Buffered)
+            assert len(dedup._write_buffer) == 1
+            payload = dedup._write_buffer[0]
+            assert payload['signature'] == "sig:new"
+            assert payload['content_hash'] == "hash:new"
             
             # Verify memory cache updated
             assert str(chat_id) in dedup.time_window_cache
@@ -139,7 +142,7 @@ async def test_readonly_mode(dedup, msg):
         assert is_dup is False
         
         # Verify recording NOT called
-        dedup.repo.add_media_signature.assert_not_called()
+        assert len(dedup._write_buffer) == 0
         
         # Verify memory cache NOT updated
         assert str(chat_id) not in dedup.time_window_cache

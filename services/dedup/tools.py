@@ -224,27 +224,27 @@ def generate_signature(message_obj: Any) -> Optional[str]:
     try:
         if hasattr(message_obj, "photo") and message_obj.photo:
             photo = message_obj.photo
-            # Removed mock detection logic, using photo ID directly if available
+            # Strict Mode: Only use ID
             photo_id = getattr(photo, "id", None)
             if photo_id:
                 return f"photo:{photo_id}"
-            # Fallback to size if ID not available, or if a more general signature is needed
-            if hasattr(photo, "sizes") and photo.sizes:
-                largest = max(photo.sizes, key=lambda x: getattr(x, "size", 0))
-                return f"photo:{largest.w}x{largest.h}:{largest.size}"
         
         elif hasattr(message_obj, "video") and message_obj.video:
             video = message_obj.video
             file_id = getattr(video, "id", None)
-            duration = int(getattr(video, "duration", 0) or 0)
-            if file_id: return f"video:{file_id}:{duration}"
-            if duration > 0: return f"video_nodata:{duration}"
+            # Strict Mode: Only use ID, remove duration fallback
+            if file_id: 
+                # Include duration in signature to be safe, but ID should be enough
+                duration = int(getattr(video, "duration", 0) or 0)
+                return f"video:{file_id}:{duration}"
 
         elif hasattr(message_obj, "document") and message_obj.document:
             doc = message_obj.document
             doc_id = getattr(doc, "id", None)
-            size = getattr(doc, "size", 0)
-            return f"document:{doc_id or 'none'}:{size}:{getattr(doc, 'mime_type', '')}"
+            # Strict Mode: Only use ID
+            if doc_id:
+                size = getattr(doc, "size", 0)
+                return f"document:{doc_id}:{size}:{getattr(doc, 'mime_type', '')}"
             
         return None
     except Exception:

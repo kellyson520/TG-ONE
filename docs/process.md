@@ -16,6 +16,7 @@
 | 20260207_Upgrade_Dedup_Algorithm | 升级去重引擎算法 (Numba/LSH/V3) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Core/Task_Upgrade_Dedup_Algorithm/report.md) |
 | 20260207_Fix_Filter_Deduplication_Conflict | 修复过滤器与去重引擎的逻辑冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Maintenance/20260207_Fix_Filter_Deduplication_Conflict/todo.md) |
 | 20260207_Hotfix_Sync_And_UI_Fixes | 修复时间窗口误判、菜单 UI 响应及会话去重功能 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Maintenance/20260207_Hotfix_Sync_And_UI_Fixes/report.md) |
+| 20260207_Fix_Dedup_Overaggressive | 修复智能去重误判与过激拦截 (Fingerprint V3 Fix) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Core/Task_Fix_Dedup_Overaggressive/report.md) |
 | 20260206_Arch_Upgrade | 高性能架构升级 (日志缓冲/差分监控/聚合公交车) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Architecture_Upgrade_Report.md) |
 | 20260206_Verify_Archive | 归档系统验证与逻辑重构 (Bloom同步/配置动态化) | 2026-02-06 | 2026-02-06 | 100% | [[report.md]](./Workstream_Maintenance/20260206_Verify_Archive_System/report.md) |
 | 20260205_Upgrade_Date_Picker | 升级时间范围选择和日期选择页面 (滚轮式选择) | 2026-02-05 | 2026-02-05 | 100% | [📂 查看](./Workstream_UI_UX/20260205_Upgrade_Date_Picker/report.md) |
