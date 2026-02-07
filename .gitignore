@@ -61,3 +61,16 @@ downloads/
 # Test output files
 test_out*.txt
 test_output*.txt
+test_*.txt
+tests_output.txt
+*.txt
+!requirements.txt
+!requirements-dev.txt
+
+# Debug scripts
+debug_*.py
+check_*.py
+fix_*.py
+repair_*.py
+test_*.py
+!tests/
