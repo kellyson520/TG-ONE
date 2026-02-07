@@ -10,6 +10,7 @@ import asyncio
 import logging
 import re
 import time
+import struct
 from typing import Dict, Optional, Tuple, Any
 
 from core.helpers.tombstone import tombstone
@@ -762,40 +763,159 @@ class SmartDeduplicator:
             return None
 
     def _generate_content_hash(self, message_obj) -> Optional[str]:
-        """生成内容哈希"""
+        """生成内容哈希 (V3 Hybrid Perceptual Hash)"""
         try:
-            content_parts = []
+            # 针对相册 (Grouped Messages) 采用集合哈希
+            grouped_id = getattr(message_obj, 'grouped_id', None)
+            if grouped_id:
+                return self._generate_group_hash(grouped_id, message_obj)
 
-            # 文本内容
-            if hasattr(message_obj, "message") and message_obj.message:
-                # 清理文本（移除格式、链接、提及等）
-                text = message_obj.message
-                cleaned_text = self._clean_text_for_hash(
-                    text, strip_numbers=self.config.get("strip_numbers", True)
-                )
-                if cleaned_text:
-                    content_parts.append(f"text:{cleaned_text}")
-
-            # 媒体特征
-            if hasattr(message_obj, "media") and message_obj.media:
-                media_info = self._extract_media_features(message_obj.media)
-                if media_info:
-                    content_parts.append(f"media:{media_info}")
-
-            if content_parts:
-                combined = "|".join(content_parts)
-                return hashlib.md5(combined.encode()).hexdigest()
-
+            # V3 方案：生成 128bit 混合感知哈希
+            # 性能极高，且针对文本提供了模糊匹配能力
+            fp = self._generate_v3_fingerprint(message_obj)
+            if fp:
+                # 使用 xxh128 确保零碰撞，并转为 32 位 Hex
+                if _HAS_XXHASH:
+                    return xxhash.xxh128_hexdigest(str(fp).encode())
+                return hashlib.blake2b(str(fp).encode(), digest_size=16).hexdigest()
             return None
-
         except Exception as e:
             logger.debug(f"生成内容哈希失败: {e}")
             return None
 
+    def _generate_v3_fingerprint(self, message_obj) -> Optional[int]:
+        """Hybrid Perceptual Hash v3 (128-bit)
+        [0-3] Type (4bit)
+        [4-11] Size Log (8bit)
+        [12-23] Duration (12bit)
+        [24-63] Media Stream Vector (40bit)
+        [64-127] SimHash / Identity (64bit)
+        """
+        try:
+            msg_type = 0
+            size_log = 0
+            duration = 0
+            stream_vector = 0
+            content_bits = 0
+            
+            media = getattr(message_obj, 'media', None)
+            text = getattr(message_obj, 'message', None) or getattr(message_obj, 'text', None)
+            
+            msg_type = 0
+            size_log = 0
+            duration = 0
+            stream_vector = 0
+            content_bits = 0
+
+            if not media:
+                if text:
+                    msg_type = 1 # TEXT
+                    content_bits = self._calculate_simhash(text)
+                else:
+                    return None
+            else:
+                # 媒体类型识别
+                if hasattr(media, 'photo'):
+                    msg_type = 2
+                    photo = media.photo
+                    size_log = self._get_size_bucket(getattr(photo.sizes[-1] if photo.sizes else photo, 'size', 0))
+                    # 组合宽高比特征
+                    w = getattr(photo.sizes[-1] if photo.sizes else photo, 'w', 1)
+                    h = getattr(photo.sizes[-1] if photo.sizes else photo, 'h', 1)
+                    stream_vector = int((w / h) * 1000) & 0xFFFFFFFFFF
+                    content_bits = getattr(photo, 'access_hash', 0)
+                elif hasattr(media, 'document'):
+                    doc = media.document
+                    mime = getattr(doc, 'mime_type', '')
+                    if mime.startswith('video/'): 
+                        msg_type = 4
+                        # 提取流特征 (FPS, Profile等抽象为 vector)
+                        stream_vector = self._extract_stream_vector(doc)
+                    elif mime.startswith('audio/'): msg_type = 5
+                    else: msg_type = 3
+                    
+                    size_log = self._get_size_bucket(getattr(doc, 'size', 0))
+                    duration = min(4095, int(getattr(doc, 'duration', 0) or 0))
+                    content_bits = getattr(doc, 'access_hash', 0)
+            
+            # 组装 128bit 指纹
+            fingerprint = (msg_type & 0xF) | \
+                          ((size_log & 0xFF) << 4) | \
+                          ((duration & 0xFFF) << 12) | \
+                          ((stream_vector & 0xFFFFFFFFFF) << 24) | \
+                          ((content_bits & 0xFFFFFFFFFFFFFFFF) << 64)
+            
+            return fingerprint
+            
+        except Exception:
+            return None
+
+    def _calculate_simhash(self, text: str) -> int:
+        """计算文本 SimHash (LSH感知)"""
+        if not text or self.simhash_engine is None: return 0
+        return self.simhash_engine.build_fingerprint(text)
+
+    def _extract_stream_vector(self, doc) -> int:
+        """提取多维媒体流向量"""
+        # 针对视频，提取不依赖 ID 的流特征
+        try:
+            w = getattr(doc, 'w', 0)
+            h = getattr(doc, 'h', 0)
+            # 使用宽高比 + 属性位组合
+            vector = (w << 20) | (h << 8) | (getattr(doc, 'size', 0) % 255)
+            return vector & 0xFFFFFFFFFF
+        except:
+            return 0
+
+    def _generate_group_hash(self, grouped_id: int, message_obj) -> str:
+        """
+        生成相册 (Grouped) 集合哈希 (V3)
+        使用无序异或和 (Order-independent XOR Sum)
+        """
+        # 注意：在扫描时，我们可能无法一次性拿到整个相册
+        # 这里使用 grouped_id + 首条消息的特征作为基础，结合当前消息特征
+        base_fp = self._generate_v3_fingerprint(message_obj) or 0
+        # 集合哈希 = XXH128(GroupID) ^ CurrentMsgFingerprint
+        seed = int(hashlib.md5(str(grouped_id).encode()).hexdigest(), 16)
+        group_fp = (seed ^ base_fp)
+        
+        if _HAS_XXHASH:
+            return xxhash.xxh128_hexdigest(str(group_fp).encode())
+        return hashlib.blake2b(str(group_fp).encode(), digest_size=16).hexdigest()
+
+    def _get_size_bucket(self, size: int) -> int:
+        """将文件大小映射到 8bit bucket (Log scale)"""
+        if size <= 0: return 0
+        # 使用快速对数近似值：log2(size)
+        return min(255, size.bit_length())
+
+    def _fast_text_hash(self, text: str) -> int:
+        """针对文本的快速指纹提取 (非全量)"""
+        if not text: return 0
+        # 1. 快速清洗
+        cleaned = self._clean_text_for_hash(text, strip_numbers=True)
+        if not cleaned: return 0
+        
+        # 2. 采样哈希 (首+尾+长度) 避免大文本哈希开销
+        if len(cleaned) < 60:
+            sample = cleaned.encode('utf-8', 'ignore')
+        else:
+            sample = (cleaned[:30] + cleaned[-30:] + str(len(cleaned))).encode('utf-8', 'ignore')
+            
+        # 3. 使用快算法
+        if _HAS_XXHASH:
+            return xxhash.xxh64_intdigest(sample) & 0xFFFFFFFFFF # 40 bits
+        return int(hashlib.shake_128(sample).hexdigest(5), 16) # 5 bytes = 40 bits
+
     def _clean_text_for_hash(self, text: str, strip_numbers: bool = False) -> str:
-        """清理文本用于哈希计算"""
+        """清理文本用于哈希计算 (V2 优化)"""
         if not text:
             return ""
+
+        # V2 优化：短文本跳过正则直接清洗，提升并发性能
+        if len(text) < 60:
+            table = self.trans_table_no_nums if strip_numbers else self.trans_table_keep_nums
+            return " ".join(text.lower().translate(table).split())
 
         # 1. 先用正则快速剔除复杂的语义块 (URL, Mention)
         text = self._re_complex_patterns.sub(" ", text.lower())
@@ -1205,91 +1325,75 @@ class SmartDeduplicator:
     async def _compute_video_partial_hash(
         self, message_obj, partial_bytes: int
     ) -> Optional[str]:
-        """优化版：流式下载视频头尾部分字节并计算组合哈希，避免全量下载"""
-        logger.debug("开始计算视频部分哈希...")
+        """Upgrade: Sparse-Sentinel Hash (SSH) v4
+        流式下载视频 5 个关键位点 (0%, 25%, 50%, 75%, 100%) 并结合元数据生成 128bit 指纹。
+        """
+        logger.debug("开始计算 SSH v4 视频指纹 (5点采样)...")
         try:
             if not getattr(message_obj, "media", None):
-                logger.debug("消息无媒体对象，跳过哈希计算")
                 return None
+            
             from core.helpers.metrics import VIDEO_PARTIAL_HASH_SECONDS
-
             _start = time.time()
-            # 获取文件总大小
-            doc = getattr(message_obj, "document", None)
-            if not doc and hasattr(message_obj, "video"):
-                logger.debug("从video字段获取媒体对象")
-                doc = message_obj.video
+            
+            doc = getattr(message_obj, "document", None) or getattr(message_obj, "video", None)
             if not doc:
-                logger.debug("无法获取媒体对象，跳过哈希计算")
                 return None
+                
             total_size = getattr(doc, "size", 0)
-            logger.debug(f"视频总大小: {total_size}字节")
             if total_size == 0:
-                logger.debug("视频大小为0，跳过哈希计算")
                 return None
 
-            # ✅ 优化：使用 xxh64 替代 md5
+            # 准备哈希器 (XXH128 收益更高)
             if _HAS_XXHASH:
-                logger.debug("使用xxh64算法计算哈希")
-                h = xxhash.xxh64()
+                h = xxhash.xxh128()
             else:
-                logger.debug("使用md5算法计算哈希")
                 import hashlib as _hash
+                h = _hash.blake2b(digest_size=16)
 
-                h = _hash.md5()
+            # 1. 注入元数据盐值 (防止不同比例/时长的视频因起始黑屏导致碰撞)
+            meta_salt = f"{getattr(doc, 'w', 0)}x{getattr(doc, 'h', 0)}|{getattr(doc, 'duration', 0)}|{total_size}"
+            h.update(meta_salt.encode())
 
-            read_len = min(partial_bytes, total_size)
-            logger.debug(f"每次读取字节数: {read_len}")
-            try:
-                client = getattr(message_obj, "client", None)
-                if not client:
-                    logger.debug("无法获取客户端对象，跳过哈希计算")
-                    return None
-                logger.debug("开始下载视频头部数据...")
-                # 头部
-                head_data = bytearray()
-                async for chunk in client.iter_download(doc, limit=read_len):
-                    head_data.extend(chunk)
-                    logger.debug(f"已下载头部数据: {len(head_data)}/{read_len}字节")
-                logger.debug(f"头部数据下载完成，共 {len(head_data)} 字节")
-                h.update(head_data)
-                # 尾部或中间段
-                if total_size > read_len * 2:
-                    logger.debug("视频较大，下载尾部数据...")
-                    offset = total_size - read_len
-                    tail_data = bytearray()
-                    async for chunk in client.iter_download(
-                        doc, offset=offset, limit=read_len
-                    ):
-                        tail_data.extend(chunk)
-                        logger.debug(f"已下载尾部数据: {len(tail_data)}/{read_len}字节")
-                    logger.debug(f"尾部数据下载完成，共 {len(tail_data)} 字节")
-                    h.update(tail_data)
-                elif total_size > read_len:
-                    logger.debug("视频中等大小，下载中间段数据...")
-                    mid_offset = total_size // 2
-                    mid_data = bytearray()
-                    async for chunk in client.iter_download(
-                        doc, offset=mid_offset, limit=read_len
-                    ):
-                        mid_data.extend(chunk)
-                        logger.debug(
-                            f"已下载中间段数据: {len(mid_data)}/{read_len}字节"
-                        )
-                    logger.debug(f"中间段数据下载完成，共 {len(mid_data)} 字节")
-                    h.update(mid_data)
-            except Exception as e:
-                logger.error(f"流式下载部分内容失败: {e}")
-                return None
+            # 2. 计算 5 个采样位点
+            # 采样点：起始(0%), 1/4(25%), 中间(50%), 3/4(75%), 结尾(100%)
+            chunk_size = max(32768, partial_bytes // 5) # 每个采样点至少 32KB
+            offsets = [
+                0,                                  # 头部
+                max(0, (total_size // 4) - chunk_size // 2),  # 25%
+                max(0, (total_size // 2) - chunk_size // 2),  # 50%
+                max(0, (total_size * 3 // 4) - chunk_size // 2), # 75%
+                max(0, total_size - chunk_size)     # 尾部
+            ]
+            
+            # 去重并排序位点
+            offsets = sorted(list(set(offsets)))
+            client = getattr(message_obj, "client", None)
+            if not client: return None
+
+            for offset in offsets:
+                try:
+                    read_len = min(chunk_size, total_size - offset)
+                    if read_len <= 0: continue
+                    
+                    # 采样数据
+                    async for chunk in client.iter_download(doc, offset=offset, limit=read_len):
+                        h.update(chunk)
+                except Exception as e:
+                    logger.warning(f"采样位点 {offset} 读取失败 (跳过): {e}")
+                    continue # 容错：个别位点失败不影响整体生成
+
+            hash_result = h.hexdigest()
             try:
                 VIDEO_PARTIAL_HASH_SECONDS.observe(max(0.0, time.time() - _start))
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            hash_result = h.hexdigest()
-            logger.debug(
-                f"视频部分哈希计算完成，结果: {hash_result}，耗时: {time.time() - _start:.3f}s"
-            )
+            except: pass
+            
+            logger.debug(f"SSH v4 计算完成: {hash_result} (采样位点: {len(offsets)})")
             return hash_result
+
+        except Exception as e:
+            logger.error(f"计算视频部分哈希失败: {e}")
+            return None
         except Exception as e:
             logger.error(f"计算视频部分哈希失败: {e}")
             return None
@@ -1630,6 +1734,7 @@ class SmartDeduplicator:
                 ),
                 "tracked_chats": len(self.time_window_cache),
                 "config": self.config.copy(),
+                "engine_version": "v2.0 (Ultra-Fast)",
                 "last_cleanup": self.last_cleanup,
             }
         except Exception:

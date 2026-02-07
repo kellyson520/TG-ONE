@@ -1,7 +1,7 @@
 import pytest
+import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
-import hashlib
 
 from services.session_service import SessionService
 
@@ -30,24 +30,54 @@ async def test_scan_duplicate_messages(session_service, mock_container):
         m1 = MagicMock()
         m1.id = 101
         m1.date = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        m1.photo = MagicMock()
-        m1.photo.sizes = [MagicMock(w=100, h=100, size=5000)]
+        m1.grouped_id = None # Crucial: prevent entering group hash logic
+        photo1 = MagicMock()
+        size1 = MagicMock()
+        size1.w = 100
+        size1.h = 100
+        size1.size = 5000
+        photo1.sizes = [size1]
+        photo1.access_hash = 1
+        m1.media = MagicMock(photo=photo1)
+        m1.photo = photo1
+        m1.document = None
+        m1.video = None
         yield m1
         
         # Msg 2: Duplicate of Msg 1
         m2 = MagicMock()
         m2.id = 102
         m2.date = datetime(2026, 1, 2, tzinfo=timezone.utc)
-        m2.photo = MagicMock()
-        m2.photo.sizes = [MagicMock(w=100, h=100, size=5000)]
+        m2.grouped_id = None
+        photo2 = MagicMock()
+        size2 = MagicMock()
+        size2.w = 100
+        size2.h = 100
+        size2.size = 5000
+        photo2.sizes = [size2]
+        photo2.access_hash = 1
+        m2.media = MagicMock(photo=photo2)
+        m2.photo = photo2
+        m2.document = None
+        m2.video = None
         yield m2
         
         # Msg 3: Unique
         m3 = MagicMock()
         m3.id = 103
         m3.date = datetime(2026, 1, 3, tzinfo=timezone.utc)
-        m3.photo = MagicMock()
-        m3.photo.sizes = [MagicMock(w=200, h=200, size=8000)]
+        m3.grouped_id = None
+        photo3 = MagicMock()
+        size3 = MagicMock()
+        size3.w = 200
+        size3.h = 200
+        size3.size = 8000
+        photo3.sizes = [size3]
+        photo3.access_hash = 2
+        m3.media = MagicMock(photo=photo3)
+        m3.photo = photo3
+        m3.document = None
+        m3.video = None
         yield m3
 
     mock_container.user_client.iter_messages.return_value = mock_iter()
@@ -56,10 +86,11 @@ async def test_scan_duplicate_messages(session_service, mock_container):
     results = await session_service.scan_duplicate_messages(mock_event)
     
     # Verify results
-    # photo:100x100:5000 is the signature
-    sig = "photo:100x100:5000"
-    assert sig in results
-    assert results[sig] == [102] # 101 is the first seen (kept), 102 is the duplicate
+    assert len(results) == 1
+    sig = list(results.keys())[0]
+    assert results[sig] == [102]
+    # sig should be a 32-char hex string (xxhash result)
+    assert len(sig) == 32
     
     # Verify mapping
     session = session_service._get_user_session(chat_id)

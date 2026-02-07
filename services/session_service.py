@@ -817,7 +817,8 @@ class SessionService:
         self.current_scan_results[chat_id] = {}
         
         try:
-            # 使用 reverse=True 从旧到新扫描，保留最早的那条，删除后续重复的
+            # 优化：优先使用内容哈希以增加准确性（能识别重复上传的文件）
+            # 使用 reverse=True 从旧到新扫描
             async for message in client.iter_messages(chat_id, offset_date=begin_date, reverse=True):
                 # 检查结束时间
                 if end_date and message.date > end_date.replace(tzinfo=timezone.utc):
@@ -825,11 +826,12 @@ class SessionService:
                     
                 processed += 1
                 
-                # 生成签名 (复用智能去重引擎逻辑)
-                sig = smart_deduplicator._generate_signature(message)
-                if not sig and (message.text or message.message):
-                    # 如果没有媒体签名且有文本，尝试内容哈希
-                    sig = smart_deduplicator._generate_content_hash(message)
+                # 使用内容哈希作为第一优先级，因为它更准确地识别文件内容
+                sig = smart_deduplicator._generate_content_hash(message)
+                
+                # 如果内容哈希失败，尝试使用签名 (doc_id 等)
+                if not sig:
+                    sig = smart_deduplicator._generate_signature(message)
                 
                 if sig:
                     if sig in seen_sigs:
@@ -953,6 +955,11 @@ class SessionService:
     async def toggle_select_signature(self, chat_id, signature):
         """切换签名的选中状态"""
         session = self._get_user_session(chat_id)
+        
+        # [Critical Fix] 如果传入的是 short_id，则需要从映射中还原
+        if 'sig_mapping' in session and signature in session['sig_mapping']:
+            signature = session['sig_mapping'][signature]
+            
         if 'selected_signatures' not in session:
             session['selected_signatures'] = []
             

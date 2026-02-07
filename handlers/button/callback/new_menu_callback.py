@@ -285,6 +285,16 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await event.answer("✅ 数据看板已刷新")
         elif action == "help_guide":
             await menu_controller.show_help_guide(event)
+        elif action == "detailed_docs":
+            await event.answer("📘 文档正在编写中...", alert=True)
+        elif action == "faq":
+            await event.answer("📚 常见问题解答功能正在建设中...", alert=True)
+        elif action == "tech_support":
+            await event.answer("🛠️ 技术支持联系方式: @SupportBot", alert=True)
+        elif action == "exit":
+            await event.delete()
+        elif action == "close":
+            await event.delete()
         elif action == "forward_search":
             await new_menu_system.show_forward_search(event)
             
@@ -376,7 +386,7 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_session_dedup_menu(event)
         elif action == "dedup_config":
             await new_menu_system.show_dedup_config(event)
-        elif action == "start_dedup_scan":
+        elif action in ["start_dedup_scan", "start_dedup_scan_optimized"]:
             # 使用统一的扫描方法
             await new_menu_system.start_dedup_scan(event)
         elif action == "dedup_results":
@@ -405,10 +415,11 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_select_delete_menu(event)
         elif action.startswith("toggle_select"):
             try:
-                # new_menu:toggle_select:{signature}
+                # new_menu:toggle_select:{signature_or_short_id}
                 signature = ":".join(extra_data) if extra_data else ""
                 from services.session_service import session_manager
 
+                # toggle_select_signature 内部现在会自动处理 short_id 到 full signature 的转换
                 await session_manager.toggle_select_signature(event.chat_id, signature)
                 await new_menu_system.show_select_delete_menu(event)
             except Exception as e:
