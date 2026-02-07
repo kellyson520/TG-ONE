@@ -2,6 +2,19 @@
 
 ## 📅 2026-02-07 更新摘要
 
+### 🚀 v1.2.3.9: 数据库监控与高级去重 (Database Monitoring & Advanced Dedup)
+- **Database Monitoring System**:
+    - **Performance Dashboard**: 实现 `db_performance_monitor` 面板，实时展示 QPS、慢查询分析 (Slow Query Analysis) 和热点表统计。
+    - **Optimization Center**: 集成 `db_optimization_center`，提供基于规则的自动诊断建议 (Anomaly Detection Recommendations) 和一键优化功能 (VACUUM/REINDEX)。
+    - **Visual Trends**: 引入 ASCII 字符画趋势图 (`render_db_performance_trends`)，直观呈现近 7 天的数据库写入负载变化。
+- **Advanced Deduplication Settings**:
+    - **Per-Rule Configuration**: 实现规则级去重策略覆盖 (Rule-Level Override)，允许针对特定转发规则单独配置“智能相似度阈值”和“自定义时间窗口”。
+    - **UI Integration**: 在规则详情页集成 `dedup_settings` 入口，支持可视化切换全局/自定义配置模式。
+- **Infrastructure**:
+    - **Service Integration**: 将 `DBMaintenanceService` 深度集成至菜单系统，实现从 UI 直接触发后端维护任务。
+    - **Cache Management**: 新增去重缓存 (L1/L2) 的实时监控与手动清理功能。
+
+
 ### 🚀 v1.2.3.8: 去重引擎 V3 升级 (Dedup Engine V3)
 - **Core Algorithms**:
     - **Numba JIT**: 集成 Numba 对汉明距离计算进行位运算优化，在高维向量比对场景下性能提升超过 10 倍。

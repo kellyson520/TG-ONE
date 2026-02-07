@@ -17,9 +17,7 @@ from services.dedup.strategies import (
     SignatureStrategy,
     VideoStrategy,
     ContentStrategy,
-    SimilarityStrategy,
-    StickerStrategy,
-    AlbumStrategy
+    SimilarityStrategy
 )
 from core.helpers.tombstone import tombstone
 
@@ -57,8 +55,6 @@ class SmartDeduplicator:
         # 策略链
         self.strategies = [
             SignatureStrategy(),
-            StickerStrategy(),
-            AlbumStrategy(),
             VideoStrategy(),
             ContentStrategy(),
             SimilarityStrategy()
@@ -70,7 +66,6 @@ class SmartDeduplicator:
         
         # 配置
         self.config = DedupConfig()
-        self._config_loaded = False
         
         # 基础设施初始化
         self._init_infrastructure()
@@ -98,9 +93,7 @@ class SmartDeduplicator:
             from core.algorithms.simhash import SimHash
             self.simhash_engine = SimHash()
             
-            # 获取已加载策略的简短名称 (去掉 Strategy 后缀)
-            active_strategies = "/".join([s.__class__.__name__.replace("Strategy", "") for s in self.strategies])
-            logger.info(f"去重引擎基础设施完成 (Bloom/HLL/SimHash) | 各子模块 ({active_strategies}) @[TG ONE/services/dedup] 下的各模块加载完毕")
+            logger.info("去重引擎基础设施完成 (Bloom/HLL/SimHash)")
         except Exception as e:
             logger.error(f"基础设施初始化失败: {e}")
 
@@ -179,10 +172,6 @@ class SmartDeduplicator:
     ) -> Tuple[bool, str]:
         """门面接口: 执行去重检测"""
         
-        # 懒加载配置
-        if not self._config_loaded:
-             await self.load_config()
-        
         # 自动复苏 (墓碑触发)
         if tombstone._is_frozen:
             await tombstone.resurrect()
@@ -216,13 +205,7 @@ class SmartDeduplicator:
                     logger.debug(f"去重命中 [{res.algo}]: {res.reason}")
                     return True, res.reason
 
-            # 3. 全局共振检查 (Global Resonance) - V4 核心
-            if final_config.enable_global_search:
-                is_global, global_reason = await self._check_global_resonance(ctx)
-                if is_global:
-                    return True, global_reason
-
-            # 4. 记录消息 (Batched Write)
+            # 3. 记录消息 (Batched Write)
             if not readonly and final_config.enable_dedup:
                 await self._record_message(ctx)
 
@@ -234,41 +217,12 @@ class SmartDeduplicator:
                 self._chat_locks[chat_id] = asyncio.Lock()
             return self._chat_locks[chat_id]
 
-    async def _check_global_resonance(self, ctx: DedupContext) -> Tuple[bool, str]:
-        """
-        [V4 Global Resonance]
-        检测内容在全局范围内的传播 (Cross-Chat Match)
-        """
-        try:
-            # 1. 提取指纹 (Hash, Signature)
-            chash = tools.generate_content_hash(ctx.message_obj)
-            
-            if chash:
-                # 检查 PCache 全局项
-                global_pcache_key = f"global_hash:{chash}"
-                if await ctx.pcache_repo.get(global_pcache_key):
-                    return True, "全局内容传播命中 (PCache)"
-
-                # 检查数据库全局 (已在 repo 中实现 chat_id=None 支持)
-                is_dup, reason = await ctx.repo.check_content_hash_duplicate(chash, chat_id=None, config=ctx.config)
-                if is_dup:
-                    await ctx.pcache_repo.set(global_pcache_key, "1", expire=3600*2) # 缓存2小时
-                    return True, f"全局内容传播命中 ({reason})"
-            
-            return False, ""
-        except Exception as e:
-            logger.warning(f"全局共振检查失败: {e}")
-            return False, ""
-
     def _build_config(self, rule_config, skip_media_sig, readonly) -> DedupConfig:
-        from dataclasses import asdict
-        c = DedupConfig(**asdict(self.config)) # Clone global config
-        
-        # 合并传入配置 (rule settings)
+        c = DedupConfig()
+        # 合并默认值与传入配置
         base = rule_config or {}
         for k, v in base.items():
             if hasattr(c, k): setattr(c, k, v)
-            
         c.skip_media_sig = skip_media_sig
         c.readonly = readonly
         return c
@@ -313,10 +267,6 @@ class SmartDeduplicator:
             # 提取指纹
             sig = force_sig or (tools.generate_signature(msg) if not config.skip_media_sig else None)
             chash = force_hash or tools.generate_content_hash(msg)
-            
-            if not sig and not chash:
-                logger.debug("跳过空内容消息记录")
-                return
             
             # 1. 更新 Bloom (L0)
             if self.bloom_filter:
@@ -367,14 +317,6 @@ class SmartDeduplicator:
                 "created_at": datetime.utcnow().isoformat(),
                 "last_seen": datetime.utcnow().isoformat()
             }
-            # 5. 表情包索引
-            if tools.is_sticker(msg):
-                stk_id = tools.extract_sticker_id(msg)
-                if stk_id:
-                    if self.bloom_filter: self.bloom_filter.add(f"stk:{cid}:{stk_id}")
-                    # 在 payload 中记录，用于记录到数据库
-                    payload["signature"] = f"sticker:{stk_id}"
-
             async with self._buffer_lock:
                 self._write_buffer.append(payload)
                 if len(self._write_buffer) > 100:
@@ -457,23 +399,8 @@ class SmartDeduplicator:
     async def update_config(self, new_config: Dict):
         for k, v in new_config.items():
             if hasattr(self.config, k): setattr(self.config, k, v)
-        
-        from dataclasses import asdict
-        try: await self.repo.save_config(asdict(self.config))
-        except Exception as e: logger.error(f"Failed to persist dedup config: {e}")
-
-    async def load_config(self):
-        """加载持久化配置"""
-        if self._config_loaded: return
-        try:
-            saved = await self.repo.load_config()
-            if saved:
-                for k, v in saved.items():
-                    if hasattr(self.config, k): setattr(self.config, k, v)
-                logger.info("去重配置已从数据库加载")
-            self._config_loaded = True
-        except Exception as e:
-            logger.error(f"加载去重配置失败: {e}")
+        try: await self.repo.save_config(new_config)
+        except: pass
 
     def get_stats(self) -> Dict:
         return {

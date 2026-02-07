@@ -172,7 +172,7 @@ class KeywordFilter(BaseFilter):
         """
         from services.dedup.engine import smart_deduplicator
         
-        # 智能去重配置
+        # 1. 智能去重基础配置
         window_hours = getattr(rule, 'dedup_time_window_hours', 24)
         if window_hours is None or window_hours < 0:
             window_hours = 24
@@ -184,21 +184,32 @@ class KeywordFilter(BaseFilter):
             'enable_content_hash': getattr(rule, 'enable_content_hash_dedup', True),
             'enable_smart_similarity': getattr(rule, 'enable_smart_similarity', True),
         }
+
+        # [修复核心]: 如果消息没有文本，强制禁用文本类去重策略
+        # 这防止了空字符串生成相同的哈希值，导致所有无文本消息被误判为重复
+        # 优先使用 context.message_text (经过预处理的文本)
+        current_text = getattr(context, 'message_text', None)
+        if not current_text or not str(current_text).strip():
+            rule_config['enable_content_hash'] = False
+            rule_config['enable_smart_similarity'] = False
+            logger.debug(f"消息无文本，已禁用文本去重策略以防止误判: RuleID={getattr(rule, 'id', 'N/A')}")
         
         # [Fix] 安全获取目标聊天 ID
         target_chat = getattr(rule, 'target_chat', None)
         if not target_chat:
-             logger.debug(f"无法获取目标聊天信息，跳过智能去重检查: 规则ID={rule.id}")
-             return False, "Target chat missing"
+             logger.debug(f"无法获取目标聊天信息，跳过智能去重检查: 规则ID={getattr(rule, 'id', 'N/A')}")
+             return False 
              
         target_chat_id = int(target_chat.telegram_chat_id)
         
         # [Optimization] 如果媒体已被全局屏蔽，去重时跳过媒体维度检查，仅保留文本维度
         skip_media_sig = getattr(context, 'media_blocked', False)
         if skip_media_sig:
-             logger.info(f"媒体已被屏蔽，智能去重将跳过媒体签名检查: 规则ID={rule.id}")
+             logger.info(f"媒体已被屏蔽，智能去重将跳过媒体签名检查: 规则ID={getattr(rule, 'id', 'N/A')}")
 
         logger.debug(f"正在进行智能去重检查: chat={target_chat_id}, config={rule_config}, skip_media_sig={skip_media_sig}")
+        
+        # 2. 执行去重检查
         is_duplicate, reason = await smart_deduplicator.check_duplicate(
             context.event.message, target_chat_id, rule_config, skip_media_sig=skip_media_sig
         )

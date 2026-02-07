@@ -42,13 +42,6 @@ class DedupConfig:
     enable_text_similarity_for_video: bool = False
     disable_similarity_for_grouped: bool = True
 
-    # V4 新增: 全局搜索与特殊内容过滤
-    enable_global_search: bool = False
-    enable_sticker_filter: bool = True  # 表情包过滤
-    sticker_strict_mode: bool = False  # 是否严格(强制检查 file_unique_id)
-    enable_album_dedup: bool = True     # 相册聚合去重
-    album_duplicate_threshold: float = 0.8 # 相册重复阈值
-
     def get(self, key: str, default: Any = None) -> Any:
         return getattr(self, key, default)
 

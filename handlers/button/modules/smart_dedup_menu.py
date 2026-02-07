@@ -30,6 +30,7 @@ class SmartDedupMenu(BaseMenu):
             buttons = [
                 [Button.inline("⏰ 时间窗口设置", "new_menu:dedup_time_window"), Button.inline("🔍 相似度设置", "new_menu:dedup_similarity")],
                 [Button.inline("📋 内容哈希设置", "new_menu:dedup_content_hash"), Button.inline("🎞️ 视频去重", "new_menu:dedup_video")],
+                [Button.inline("🎭 表情包去重", "new_menu:dedup_sticker"), Button.inline("🌐 全局共振", "new_menu:dedup_global")],
                 [Button.inline("🎛️ 高级设置", "new_menu:dedup_advanced"), Button.inline("📊 去重统计", "new_menu:dedup_statistics")],
                 [Button.inline("🗑️ 清理缓存", "new_menu:dedup_clear_cache"), Button.inline("🔄 刷新状态", "new_menu:smart_dedup_settings")],
                 [Button.inline("👈 返回主菜单", "new_menu:main_menu")],
@@ -137,7 +138,7 @@ class SmartDedupMenu(BaseMenu):
             text += f"SimHash 指纹: {'✅' if config.get('enable_text_fingerprint') else '❌'}\n"
             
             buttons = [
-                [Button.inline("哈希特征示例", "new_menu:dedup_hash_examples")],
+                [Button.inline("哈希特征示例", "new_menu:dedup_hash_examples"), Button.inline("📓 相册聚合去重", "new_menu:dedup_album")],
                 [Button.inline("手动触发清理", "new_menu:manual_cleanup")],
                 [Button.inline("重置默认配置", "new_menu:reset_dedup_config")],
                 [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")],
@@ -157,5 +158,58 @@ class SmartDedupMenu(BaseMenu):
         
         buttons = [[Button.inline("👈 返回高级设置", "new_menu:dedup_advanced")]]
         await self._render_from_text(event, text, buttons)
+
+    async def show_dedup_sticker(self, event):
+        """表情包去重设置"""
+        try:
+            config = smart_deduplicator.config
+            enabled = config.get("enable_sticker_filter", True)
+            strict = config.get("sticker_strict_mode", False)
+            text = f"🎭 **表情包去重设置**\n\n"
+            text += f"当前状态: {'✅ 启用' if enabled else '❌ 禁用'}\n"
+            text += f"严格模式: {'✅ 开启' if strict else '❌ 关闭'}\n\n"
+            text += "💡 启用后，系统将对表情包进行独立识别和查重。严格模式会强制比对 file_unique_id。"
+            buttons = [
+                [Button.inline(f"{'🔴 关闭' if enabled else '🟢 开启'}", f"new_menu:toggle_sticker_filter:{not enabled}")],
+                [Button.inline(f"{'🔴 关闭' if strict else '🟢 开启'} 严格模式", f"new_menu:toggle_sticker_strict:{not strict}")],
+                [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")],
+            ]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"表情包去重设置失败: {e}")
+
+    async def show_dedup_global(self, event):
+        """全局共振(传播检测)设置"""
+        try:
+            enabled = smart_deduplicator.config.get("enable_global_search", False)
+            text = f"🌐 **全局共振检测 (Global Resonance)**\n\n"
+            text += f"当前状态: {'✅ 启用' if enabled else '❌ 禁用'}\n\n"
+            text += "💡 开启后，系统将检测内容是否在其他会话中已经出现过，可有效拦截跨频道传播的热门/垃圾内容。"
+            buttons = [
+                [Button.inline(f"{'🔴 关闭' if enabled else '🟢 开启'}", f"new_menu:toggle_global_search:{not enabled}")],
+                [Button.inline("👈 返回去重设置", "new_menu:smart_dedup_settings")],
+            ]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"全局共振设置失败: {e}")
+
+    async def show_dedup_album(self, event):
+        """相册聚合去重设置"""
+        try:
+            config = smart_deduplicator.config
+            enabled = config.get("enable_album_dedup", True)
+            threshold = config.get("album_duplicate_threshold", 0.8)
+            text = f"📓 **相册聚合去重设置**\n\n"
+            text += f"当前状态: {'✅ 启用' if enabled else '❌ 禁用'}\n"
+            text += f"重复率阈值: {threshold:.0%}\n\n"
+            text += "💡 针对媒体组(Media Group)，当相册内重复内容超过阈值时整体拦截。"
+            buttons = [
+                [Button.inline(f"{'🔴 关闭' if enabled else '🟢 开启'}", f"new_menu:toggle_album_dedup:{not enabled}")],
+                [Button.inline("70%", "new_menu:set_album_threshold:0.7"), Button.inline("80%⭐", "new_menu:set_album_threshold:0.8"), Button.inline("90%", "new_menu:set_album_threshold:0.9")],
+                [Button.inline("👈 返回高级设置", "new_menu:dedup_advanced")],
+            ]
+            await self._render_from_text(event, text, buttons)
+        except Exception as e:
+            logger.error(f"相册去重设置失败: {e}")
 
 smart_dedup_menu = SmartDedupMenu()

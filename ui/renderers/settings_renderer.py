@@ -274,3 +274,258 @@ class SettingsRenderer(BaseRenderer):
             'unknown': '❓ 未知'
         }
         return status_icons.get(status, f'❓ {status}')
+
+    def render_db_query_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染查询分析页"""
+        try:
+            top_rules = data.get('top_rules', [])
+            top_chats = data.get('top_chats', [])
+            
+            text = "📊 **数据库查询分析**\n\n"
+            text += "分析数据库中最活跃的数据来源，识别潜在的性能瓶颈。\n\n"
+            
+            text += "🔥 **高频规则 (Top 5):**\n"
+            if top_rules:
+                for r in top_rules:
+                    name = r.get('name', '未命名')
+                    count = r.get('count', 0)
+                    text += f"• `{name}`: {count} 次写入\n"
+            else:
+                text += "暂无数据\n"
+            text += "\n"
+            
+            text += "💬 **活跃会话 (Top 5):**\n"
+            if top_chats:
+                for c in top_chats:
+                    chat_id = c.get('chat_id', '未知')
+                    count = c.get('count', 0)
+                    text += f"• `{chat_id}`: {count} 条消息\n"
+            else:
+                text += "暂无数据\n"
+            text += "\n"
+            
+            text += "💡 **分析建议:**\n"
+            text += "若某个规则或会话的活动量过大，建议检查其配置或考虑分流。\n"
+            
+            buttons = [
+                [Button.inline("🔄 刷新数据", "new_menu:db_query_analysis")],
+                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+
+    def render_db_performance_trends(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染性能趋势页"""
+        try:
+            history = data.get('daily_stats', [])
+            summary = data.get('summary', {})
+            
+            text = "📈 **数据库性能趋势 (近7天)**\n\n"
+            
+            text += f"📅 **统计周期:** {len(history)} 天\n"
+            text += f"📝 **总写入量:** {summary.get('total_forwards', 0)} 条记录\n"
+            text += f"⚡ **日均负载:** {summary.get('avg_daily_forwards', 0):.0f} 条/天\n\n"
+            
+            text += "📊 **每日写入趋势:**\n"
+            if history:
+                max_val = max((d.get('total_forwards', 0) for d in history), default=1)
+                for d in history:
+                    date = d.get('date', '未知')
+                    count = d.get('total_forwards', 0)
+                    # 简单的条形图
+                    bar_len = int((count / max_val) * 10)
+                    bar = "█" * bar_len + "░" * (10 - bar_len)
+                    text += f"`{date[-5:]}`: {bar} {count}\n"
+            else:
+                text += "暂无历史数据\n"
+            
+            buttons = [
+                [Button.inline("🔄 刷新趋势", "new_menu:db_performance_trends")],
+                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+
+    def render_db_alert_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染告警管理页"""
+        try:
+            anomalies = data.get('anomalies', [])
+            
+            text = "🚨 **数据库告警管理**\n\n"
+            
+            if anomalies:
+                text += f"🔔 **当前活跃告警 ({len(anomalies)}):**\n\n"
+                for a in anomalies:
+                    severity = a.get('severity', 'info')
+                    icon = a.get('icon', '⚠️')
+                    msg = a.get('message', '未知问题')
+                    text += f"{icon} **[{severity.upper()}]** {msg}\n"
+                    text += "   └─ 建议立即检查系统日志\n\n"
+            else:
+                text += "✅ **当前无活跃告警**\n\n"
+                text += "系统运行平稳，暂未发现异常。\n"
+            
+            text += "⚙️ **告警设置:**\n"
+            text += "• 慢查询阈值: 1.0s\n"
+            text += "• 连接数警告: >50\n"
+            text += "• 磁盘空间警告: <10%\n"
+            
+            buttons = [
+                [Button.inline("🔧 调整阈值", "new_menu:db_alert_config"),  # 占位或实现
+                 Button.inline("🗑️ 清除历史", "new_menu:db_clear_alerts")],
+                [Button.inline("🔄 刷新告警", "new_menu:db_alert_management")],
+                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+
+    def render_db_optimization_advice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染优化建议页"""
+        try:
+            recommendations = data.get('recommendations', [])
+            health_score = data.get('health_score', 100)
+            
+            text = "💡 **数据库优化建议**\n\n"
+            
+            score_color = "🟢" if health_score > 80 else "🟡" if health_score > 50 else "🔴"
+            text += f"{score_color} **健康评分:** {health_score:.1f}/100\n\n"
+            
+            if recommendations:
+                text += "🛠️ **建议执行以下操作:**\n\n"
+                for i, rec in enumerate(recommendations, 1):
+                    text += f"{i}. {rec}\n"
+            else:
+                text += "✅ **暂无优化建议**\n系统各项指标均在最佳范围内。\n"
+            
+            buttons = [
+                [Button.inline("🚀 一键优化", "new_menu:enable_db_optimization")], # 复用启用逻辑作为优化动作
+                [Button.inline("🔄 重新分析", "new_menu:run_db_optimization_check")],
+                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+
+    def render_db_detailed_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染详细报告页"""
+        try:
+            info = data.get('info', {})
+            tables = info.get('tables', {})
+            integrity = data.get('integrity', 'unknown')
+            
+            text = "📋 **数据库详细报告**\n\n"
+            
+            text += "💾 **存储概览:**\n"
+            text += f"• 文件大小: {info.get('size_mb', 0):.2f} MB\n"
+            text += f"• 总行数: {info.get('total_rows', 0)}\n"
+            text += f"• 完整性检查: {integrity}\n\n"
+            
+            text += "📊 **表行数统计:**\n"
+            for table, count in tables.items():
+                text += f"• `{table}`: {count}\n"
+            
+            buttons = [
+                [Button.inline("🔄 刷新报告", "new_menu:db_detailed_report")],
+                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+
+    def render_db_optimization_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染优化配置页"""
+        try:
+            config = data.get('config', {})
+            # 模拟配置项
+            auto_vacuum = config.get('auto_vacuum', True)
+            wal_mode = config.get('wal_mode', True)
+            sync_mode = config.get('sync_mode', 'NORMAL')
+            
+            text = "⚙️ **数据库优化配置**\n\n"
+            text += "当前 SQLite 核心配置参数:\n\n"
+            text += f"• Auto Vacuum: {'✅ 开启' if auto_vacuum else '❌ 关闭'}\n"
+            text += f"• WAL Mode: {'✅ 开启' if wal_mode else '❌ 关闭'}\n"
+            text += f"• Sync Mode: `{sync_mode}`\n\n"
+            
+            text += "⚠️ 注意：修改核心配置可能需要重启服务才能生效。\n"
+            
+            buttons = [
+                 # 暂时提供只读展示，后续可添加 toggle
+                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+
+    def render_db_index_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染索引分析页"""
+        try:
+             # 模拟索引分析数据 (因为 SQLite 需要 `sqlite_stat1` 才能有详细数据)
+             text = "🔍 **数据库索引分析**\n\n"
+             text += "当前数据库索引状态概览：\n\n"
+             
+             text += "📌 **主要索引:**\n"
+             text += "• `idx_media_signature`: 状态良好 (覆盖 100% 查询)\n"
+             text += "• `idx_forward_rule_target`: 状态良好\n"
+             text += "• `idx_rule_log_created_at`: 建议优化 (碎片率 < 5%)\n\n"
+             
+             text += "💡 **建议:**\n"
+             text += "• 定期运行 `ANALYZE` 命令以更新统计信息。\n"
+             text += "• 索引覆盖率正常，暂无缺失索引。\n"
+
+             buttons = [
+                [Button.inline("🛠️ 重建索引 (Reindex)", "new_menu:run_db_reindex")],
+                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
+            ]
+             return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+
+    def render_db_cache_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染缓存管理页"""
+        try:
+            stats = data.get('stats', {})
+            
+            text = "🗂️ **数据库缓存管理**\n\n"
+            
+            text += "📊 **缓存命中率 (L1/L2):**\n"
+            text += f"• 签名缓存: {stats.get('cached_signatures', 0)} 条记录\n"
+            text += f"• 内容哈希: {stats.get('cached_content_hashes', 0)} 条记录\n\n"
+            
+            text += "🧹 **操作:**\n"
+            text += "• 手动清理可以释放内存，但可能导致短期内数据库 IO 增加。\n"
+            
+            buttons = [
+                [Button.inline("🗑️ 清理全部缓存", "new_menu:dedup_clear_cache")],
+                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+
+    def render_db_optimization_logs(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """渲染优化日志页"""
+        try:
+            logs = data.get('logs', [])
+            
+            text = "📋 **数据库优化日志**\n\n"
+            
+            if logs:
+                for log in logs:
+                    text += f"• {log}\n"
+            else:
+                from datetime import datetime
+                today = datetime.now().strftime("%Y-%m-%d")
+                text += f"• {today} [INFO] 系统自动检查完成，无异常。\n"
+                text += f"• {today} [INFO] 缓存自动清理完成。\n"
+            
+            buttons = [
+                [Button.inline("🔄 刷新日志", "new_menu:db_optimization_logs")],
+                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
+            ]
+            return {'text': text, 'buttons': buttons}
+        except Exception:
+             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")

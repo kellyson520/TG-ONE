@@ -78,11 +78,12 @@ class MainMenuRenderer(BaseRenderer):
         
         buttons = [
             [Button.inline("⚙️ 转发规则管理", "new_menu:forward_management"),
-             Button.inline("📋 历史消息处理", "new_menu:history_messages")],
-            [Button.inline("🔍 转发内容搜索", "new_menu:forward_search"),
-             Button.inline("📊 详细统计分析", "new_menu:forward_stats_detailed")],
-            [Button.inline("🎛️ 全局筛选设置", "new_menu:global_forward_settings"),
-             Button.inline("🚀 性能监控优化", "new_menu:forward_performance")],
+             Button.inline("🔗 多源管理", "new_menu:multi_source_management")],
+            [Button.inline("📋 历史消息处理", "new_menu:history_messages"),
+             Button.inline("🔍 转发内容搜索", "new_menu:forward_search")],
+            [Button.inline("📊 详细统计分析", "new_menu:forward_stats_detailed"),
+             Button.inline("🎛️ 全局筛选设置", "new_menu:global_forward_settings")],
+            [Button.inline("🚀 性能监控优化", "new_menu:forward_performance")],
             [Button.inline("🔄 刷新数据", "new_menu:refresh_forward_hub"),
              Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
         ]

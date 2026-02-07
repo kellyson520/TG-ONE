@@ -12,6 +12,10 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260207_Integration_Test_Mixed_Media | 混合媒体集成测试 (Listen-Filter-Forward) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Testing/Task_Integration_Mixed_Media/report.md) |
+| 20260207_Restore_MultiSource_Menu | 修复多源管理从新菜单中丢失的问题 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Maintenance/20260207_Restore_MultiSource_Menu/report.md) |
+| 20260207_Enhance_Update_Robustness | 启动脚本鲁棒性增强与依赖严格对齐 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Maintenance/20260207_Enhance_Update_Robustness/report.md) |
+| 20260207_Fix_Empty_Text_Deduplication_Bug | 修复空文本消息智能去重误判 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Maintenance/20260207_Fix_Empty_Text_Deduplication_Bug/report.md) |
 | 20260207_Fix_Back_Navigation | 修复菜单返回导航错误 | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_UI/20260207_FixBackNavigation/report.md) |
 | 20260207_Upgrade_Dedup_Algorithm | 升级去重引擎算法 (Numba/LSH/V3) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Core/Task_Upgrade_Dedup_Algorithm/report.md) |
 | 20260207_Fix_Filter_Deduplication_Conflict | 修复过滤器与去重引擎的逻辑冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Maintenance/20260207_Fix_Filter_Deduplication_Conflict/todo.md) |
@@ -134,6 +138,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |

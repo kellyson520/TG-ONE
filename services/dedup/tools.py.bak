@@ -73,11 +73,7 @@ def clean_text_for_hash(text: str, strip_numbers: bool = False) -> str:
     else:
         text = text.translate(_TRANS_TABLE_KEEP_NUMS)
         
-    # 3. CJK 处理: 给中日韩字符增加空格以便后续分词 (如果 SimHash 使用 split())
-    # 或者直接在 SimHash 中处理。这里我们采用简单的转换。
-    text = re.sub(r'([\u4e00-\u9fff])', r' \1 ', text)
-    
-    # 4. 归一化空白与大小写
+    # 3. 归一化空白与大小写
     return " ".join(text.split()).lower()
 
 def calculate_simhash(text: str) -> int:
@@ -325,17 +321,4 @@ def extract_video_file_id(message_obj: Any) -> Optional[int]:
         return getattr(message_obj.video, "id", None)
     if hasattr(message_obj, "document") and message_obj.document:
         return getattr(message_obj.document, "id", None)
-    return None
-
-def is_sticker(message_obj: Any) -> bool:
-    """判断是否为表情包"""
-    if hasattr(message_obj, 'sticker') and message_obj.sticker:
-        return True
-    return False
-
-def extract_sticker_id(message_obj: Any) -> Optional[str]:
-    """提取表情包唯一ID"""
-    if hasattr(message_obj, 'sticker') and message_obj.sticker:
-        # Telethon 使用 id
-        return str(getattr(message_obj.sticker, 'id', ''))
     return None

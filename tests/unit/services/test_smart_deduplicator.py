@@ -18,6 +18,7 @@ def dedup():
     dedup._repo.add_text_fingerprint = AsyncMock()
     dedup._repo.save_config = AsyncMock()
     dedup._repo.add_or_update = AsyncMock()
+    dedup._repo.load_config = AsyncMock(return_value={})
     
     dedup._pcache_repo = MagicMock()
     dedup._pcache_repo.get = AsyncMock(return_value=None)
@@ -44,6 +45,7 @@ def msg():
     m.photo = None
     m.video = None
     m.document = None
+    m.sticker = None
     m.media = None
     m.grouped_id = None
     return m

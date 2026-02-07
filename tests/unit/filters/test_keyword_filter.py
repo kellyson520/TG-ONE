@@ -13,6 +13,11 @@ def mock_context():
     context.rule = SimpleNamespace()
     context.rule.id = 1
     context.rule.enable_dedup = False
+    context.rule.forward_mode = "whitelist"
+    context.rule.keywords = []
+    context.rule.enable_reverse_blacklist = False
+    context.rule.enable_reverse_whitelist = False
+    context.rule.is_filter_user_info = False
     context.rule.required_sender_id = None
     context.rule.required_sender_regex = None
     context.rule.enable_search_optimization = False
@@ -68,11 +73,14 @@ async def test_keyword_filter_sender_regex_mismatch(keyword_filter, mock_context
 async def test_keyword_filter_dedup(keyword_filter, mock_context):
     mock_context.rule.enable_dedup = True
     
-    with patch.object(KeywordFilter, "_check_smart_duplicate", return_value=True):
-        with patch.object(KeywordFilter, "_handle_duplicate_message_deletion", return_value=None):
-            result = await keyword_filter._process(mock_context)
-            assert result is False
-            assert mock_context.should_forward is False
+    # Patch RuleFilterService.check_keywords to return True so we reach the dedup logic
+    with patch("services.rule.filter.RuleFilterService.check_keywords", new_callable=AsyncMock) as mock_check:
+        mock_check.return_value = True
+        with patch.object(KeywordFilter, "_check_smart_duplicate", return_value=True):
+            with patch.object(KeywordFilter, "_handle_duplicate_message_deletion", return_value=None):
+                result = await keyword_filter._process(mock_context)
+                assert result is False
+                assert mock_context.should_forward is False
 
 @pytest.mark.asyncio
 async def test_keyword_filter_smart_duplicate_call(keyword_filter, mock_context):
@@ -250,3 +258,23 @@ async def test_keyword_filter_optimized_search_client_fail(keyword_filter, mock_
             result = await keyword_filter._process(mock_context)
             assert result is False
 
+@pytest.mark.asyncio
+async def test_keyword_filter_smart_dedup_empty_text(keyword_filter, mock_context):
+    """
+    验证当消息文本为空时，智能去重应禁用文本相关策略
+    """
+    mock_context.message_text = ""
+    mock_context.rule.target_chat = SimpleNamespace(telegram_chat_id="123")
+    mock_context.rule.enable_content_hash_dedup = True
+    mock_context.rule.enable_smart_similarity = True
+    
+    with patch("services.dedup.engine.smart_deduplicator.check_duplicate", new_callable=AsyncMock) as mock_check:
+        mock_check.return_value = (False, "")
+        
+        await keyword_filter._check_smart_duplicate(mock_context, mock_context.rule)
+        
+        # 检查传给 deduplicator 的 config
+        call_args = mock_check.call_args
+        config = call_args[0][2]
+        assert config['enable_content_hash'] is False
+        assert config['enable_smart_similarity'] is False

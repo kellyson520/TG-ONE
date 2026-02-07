@@ -66,14 +66,9 @@ class SimilarityStrategy(BaseDedupStrategy):
         # 3. 内存缓存滚动比对 (带数学剪枝)
         if ctx.text_fp_cache and str(target_chat_id) in ctx.text_fp_cache:
             cache_key = str(target_chat_id)
-            # --- V4 自适应阈值计算 ---
-            # Threshold = min(0.95, 0.82 + 20 / (Length + 5))
-            def get_adaptive_threshold(length: int) -> float:
-                return min(0.95, 0.82 + 20.0 / (length + 5.0))
-            
-            base_threshold = config.get("similarity_threshold", 0.85)
-            # 如果没强制指定高阈值，则使用自适应阈值
-            current_threshold = max(base_threshold, get_adaptive_threshold(curr_len))
+            threshold = config.get("similarity_threshold", 0.85)
+            comparisons = 0
+            max_checks = int(config.get("max_similarity_checks", 50))
             
             # reversed 遍历，优先比对新消息
             for fp, meta in reversed(ctx.text_fp_cache[cache_key].items()):
@@ -83,17 +78,17 @@ class SimilarityStrategy(BaseDedupStrategy):
                 prev_len = meta.get('len', 0) if isinstance(meta, dict) else 0
                 if prev_len:
                     upper_bound = min(prev_len, curr_len) / max(prev_len, curr_len)
-                    if upper_bound < current_threshold:
+                    if upper_bound < threshold:
                         continue
                 
                 # 计算相似度
                 sim = 1.0 - (bin(current_fp ^ fp).count('1') / 64.0)
                 comparisons += 1
                 
-                if sim >= current_threshold:
+                if sim >= threshold:
                     try: DEDUP_HITS_TOTAL.labels(method="similarity_memory").inc()
                     except: pass
-                    return DedupResult(True, f"文本相似度命中 (T={current_threshold:.2f}): {sim:.2f}", "similarity", fp)
+                    return DedupResult(True, f"文本相似度命中: {sim:.2f}", "similarity", fp)
 
             try: DEDUP_SIMILARITY_COMPARISONS.observe(float(comparisons))
             except: pass

@@ -10,7 +10,14 @@ from telethon import Button
 from core.container import container
 from handlers.button.new_menu_system import new_menu_system
 
+
 logger = logging.getLogger(__name__)
+
+from handlers.button.callback.modules.rule_dedup_settings import (
+    callback_rule_dedup_settings,
+    callback_update_rule_dedup,
+    callback_reset_rule_dedup
+)
 
 
 async def handle_toggle_setting(event, setting_key):
@@ -377,6 +384,18 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_system_overview(event)
         elif action == "forward_management" or action == "rule_management":
             await new_menu_system.show_rule_management(event)
+        elif action == "multi_source_management" or action == "multi_source_page":
+            page = int(extra_data[0]) if extra_data else 0
+            await menu_controller.show_multi_source_management(event, page)
+        elif action == "manage_multi_source":
+            rule_id = int(extra_data[0]) if extra_data else 0
+            await menu_controller.show_multi_source_detail(event, rule_id)
+        elif action == "rule_status":
+            rule_id = int(extra_data[0]) if extra_data else 0
+            await menu_controller.show_rule_status(event, rule_id)
+        elif action == "sync_config":
+            rule_id = int(extra_data[0]) if extra_data else 0
+            await menu_controller.show_sync_config(event, rule_id)
         elif action == "cache_cleanup":
             await menu_controller.show_cache_cleanup(event)
         elif action == "do_cleanup":
@@ -402,6 +421,26 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
         elif action == "execute_delete_all":
             # 执行删除所有重复项
             await new_menu_system.execute_delete_all_duplicates(event)
+        
+        # Rule Dedup Settings
+        elif action == "dedup_settings":
+            rule_id = int(extra_data[0]) if extra_data else 0
+            if rule_id: await callback_rule_dedup_settings(event, rule_id, session, message, extra_data)
+
+        elif action == "update_rule_dedup":
+            # rule_id:key:value
+            if len(extra_data) >= 3:
+                rule_id = int(extra_data[0])
+                key = extra_data[1]
+                val = extra_data[2]
+                await callback_update_rule_dedup(event, rule_id, key, val, session, message)
+            else:
+                 await event.answer("参数错误")
+
+        elif action == "reset_rule_dedup":
+             rule_id = int(extra_data[0]) if extra_data else 0
+             if rule_id: await callback_reset_rule_dedup(event, rule_id, session, message)
+
         elif action == "keep_all_duplicates":
             # 实现保留所有重复项
             from services.session_service import session_manager
@@ -1658,6 +1697,12 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await new_menu_system.show_dedup_statistics(event)
         elif action == "dedup_advanced":
             await new_menu_system.show_dedup_advanced(event)
+        elif action == "dedup_sticker":
+            await new_menu_system.show_dedup_sticker(event)
+        elif action == "dedup_global":
+            await new_menu_system.show_dedup_global(event)
+        elif action == "dedup_album":
+            await new_menu_system.show_dedup_album(event)
 
         # 智能去重配置更新 - 使用新的控制器架构
         elif action == "toggle_time_window":
@@ -1709,6 +1754,16 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await handle_set_cleanup_interval(event, extra_data)
         elif action == "reset_dedup_config":
             await handle_reset_dedup_config(event)
+        elif action == "toggle_sticker_filter":
+            await handle_toggle_sticker_filter(event, extra_data)
+        elif action == "toggle_sticker_strict":
+            await handle_toggle_sticker_strict(event, extra_data)
+        elif action == "toggle_global_search":
+            await handle_toggle_global_search(event, extra_data)
+        elif action == "toggle_album_dedup":
+            await handle_toggle_album_dedup(event, extra_data)
+        elif action == "set_album_threshold":
+            await handle_set_album_threshold(event, extra_data)
         elif action == "dedup_clear_cache":
             await handle_clear_dedup_cache(event)
         elif action == "dedup_hash_examples":
@@ -1772,28 +1827,31 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
                 logger.error(f"刷新优化状态失败: {str(e)}")
                 await event.answer("刷新状态失败", alert=True)
 
-        # 数据库监控子功能（占位符实现）
-        elif action in [
-            "db_query_analysis",
-            "db_performance_trends",
-            "db_alert_management",
-            "db_optimization_advice",
-            "db_detailed_report",
-            "db_performance_report",
-            "db_optimization_config",
-            "db_index_analysis",
-            "db_cache_management",
-            "db_optimization_logs",
-        ]:
-            try:
-                # 临时显示功能开发中
-                await event.answer(
-                    "⚠️ 该功能正在开发中，敬请期待！\n\n🔧 当前可用功能：\n• 数据库监控面板\n• 优化系统启用\n• 性能检查运行",
-                    alert=True,
-                )
-            except Exception as e:
-                logger.error(f"处理数据库监控子功能失败: {str(e)}")
-                await event.answer("功能暂不可用", alert=True)
+        # 数据库监控子功能（真实实现）
+        elif action == "db_query_analysis":
+            await menu_controller.show_db_query_analysis(event)
+        elif action == "db_performance_trends":
+            await menu_controller.show_db_performance_trends(event)
+        elif action == "db_alert_management":
+            await menu_controller.show_db_alert_management(event)
+        elif action == "db_optimization_advice":
+            await menu_controller.show_db_optimization_advice(event)
+        elif action == "db_detailed_report" or action == "db_performance_report":
+            await menu_controller.show_db_detailed_report(event)
+        elif action == "db_optimization_config":
+            await menu_controller.show_db_optimization_config(event)
+        elif action == "db_index_analysis":
+            await menu_controller.show_db_index_analysis(event)
+        elif action == "db_cache_management":
+            await menu_controller.show_db_cache_management(event)
+        elif action == "db_optimization_logs":
+            await menu_controller.show_db_optimization_logs(event)
+        elif action == "run_db_reindex":
+             await menu_controller.run_db_reindex(event)
+        elif action == "db_clear_alerts":
+             await menu_controller.clear_db_alerts(event)
+        elif action == "dedup_clear_cache":
+             await menu_controller.clear_dedup_cache(event)
 
         # 新架构 - 规则管理
         elif action == "rule_statistics":
@@ -2371,3 +2429,62 @@ async def handle_clear_dedup_cache(event):
     except Exception as e:
         logger.error(f"清理缓存失败: {e}")
         await event.answer("清理失败", alert=True)
+async def handle_toggle_sticker_filter(event, extra_data):
+    """切换表情包过滤开关"""
+    try:
+        from services.dedup.engine import smart_deduplicator
+        enable = extra_data[0].lower() == "true" if extra_data else True
+        await smart_deduplicator.update_config({"enable_sticker_filter": enable})
+        await event.answer(f"表情包去重已{'开启' if enable else '关闭'}")
+        await new_menu_system.show_dedup_sticker(event)
+    except Exception as e:
+        logger.error(f"切换表情包设置失败: {e}")
+        await event.answer("设置失败", alert=True)
+
+async def handle_toggle_sticker_strict(event, extra_data):
+    """切换表情包严格比对模式"""
+    try:
+        from services.dedup.engine import smart_deduplicator
+        enable = extra_data[0].lower() == "true" if extra_data else True
+        await smart_deduplicator.update_config({"sticker_strict_mode": enable})
+        await event.answer(f"表情包严格模式已{'开启' if enable else '关闭'}")
+        await new_menu_system.show_dedup_sticker(event)
+    except Exception as e:
+        logger.error(f"切换表情包严格模式失败: {e}")
+        await event.answer("设置失败", alert=True)
+
+async def handle_toggle_global_search(event, extra_data):
+    """切换全局共振检索开关"""
+    try:
+        from services.dedup.engine import smart_deduplicator
+        enable = extra_data[0].lower() == "true" if extra_data else True
+        await smart_deduplicator.update_config({"enable_global_search": enable})
+        await event.answer(f"全局共振检测已{'开启' if enable else '关闭'}")
+        await new_menu_system.show_dedup_global(event)
+    except Exception as e:
+        logger.error(f"切换全局检索失败: {e}")
+        await event.answer("设置失败", alert=True)
+
+async def handle_toggle_album_dedup(event, extra_data):
+    """切换相册聚合去重开关"""
+    try:
+        from services.dedup.engine import smart_deduplicator
+        enable = extra_data[0].lower() == "true" if extra_data else True
+        await smart_deduplicator.update_config({"enable_album_dedup": enable})
+        await event.answer(f"相册聚合去重已{'开启' if enable else '关闭'}")
+        await new_menu_system.show_dedup_album(event)
+    except Exception as e:
+        logger.error(f"切换相册去重失败: {e}")
+        await event.answer("设置失败", alert=True)
+
+async def handle_set_album_threshold(event, extra_data):
+    """设置相册判定阈值"""
+    try:
+        from services.dedup.engine import smart_deduplicator
+        threshold = float(extra_data[0]) if extra_data else 0.8
+        await smart_deduplicator.update_config({"album_duplicate_threshold": threshold})
+        await event.answer(f"相册重复阈值已设置为 {threshold:.0%}")
+        await new_menu_system.show_dedup_album(event)
+    except Exception as e:
+        logger.error(f"设置相册阈值失败: {e}")
+        await event.answer("设置失败", alert=True)

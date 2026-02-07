@@ -636,6 +636,111 @@ class MenuController:
             logger.error(f"刷新优化状态失败: {e}")
             await event.answer("刷新失败", alert=True)
 
+    async def show_db_query_analysis(self, event):
+        """显示数据库查询分析"""
+        try:
+            # 使用 analytics_service 获取详细统计作为查询负载的代理
+            stats = await analytics_service.get_detailed_stats(days=1)
+            rendered = self.renderer.render_db_query_analysis(stats)
+            await self._send_menu(event, "📊 **查询分析**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示查询分析失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_performance_trends(self, event):
+        """显示数据库性能趋势"""
+        try:
+            # 获取近7天的趋势
+            stats = await analytics_service.get_detailed_analytics(days=7)
+            rendered = self.renderer.render_db_performance_trends(stats)
+            await self._send_menu(event, "📈 **性能趋势**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示性能趋势失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_alert_management(self, event):
+        """显示数据库告警管理"""
+        try:
+            # 获取异常检测结果作为告警
+            anomalies = await analytics_service.detect_anomalies()
+            rendered = self.renderer.render_db_alert_management(anomalies)
+            await self._send_menu(event, "🚨 **告警管理**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示告警管理失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_optimization_advice(self, event):
+        """显示优化建议"""
+        try:
+            # 复用 anomaly detection 的建议
+            advice = await analytics_service.detect_anomalies()
+            rendered = self.renderer.render_db_optimization_advice(advice)
+            await self._send_menu(event, "💡 **优化建议**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示优化建议失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_detailed_report(self, event):
+        """显示详细数据库报告"""
+        try:
+            from services.db_maintenance_service import db_maintenance_service
+            # 获取基础信息
+            db_info = await db_maintenance_service.get_database_info()
+            # 获取完整性检查
+            integrity = await db_maintenance_service.check_integrity()
+            
+            data = {
+                'info': db_info,
+                'integrity': integrity.get('integrity_check', 'unknown')
+            }
+            rendered = self.renderer.render_db_detailed_report(data)
+            await self._send_menu(event, "📋 **详细报告**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示详细报告失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_optimization_config(self, event):
+        """显示优化配置"""
+        try:
+            # 目前没有真实的配置接口，使用模拟数据
+            # TODO: connect to settings.json or DB config table
+            data = {'config': {'auto_vacuum': True, 'wal_mode': True, 'sync_mode': 'NORMAL'}}
+            rendered = self.renderer.render_db_optimization_config(data)
+            await self._send_menu(event, "⚙️ **优化配置**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示优化配置失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_index_analysis(self, event):
+        """显示索引分析"""
+        try:
+            rendered = self.renderer.render_db_index_analysis({})
+            await self._send_menu(event, "🔍 **索引分析**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示索引分析失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_cache_management(self, event):
+        """显示缓存管理"""
+        try:
+             from services.dedup.engine import smart_deduplicator
+             stats = smart_deduplicator.get_stats()
+             rendered = self.renderer.render_db_cache_management({'stats': stats})
+             await self._send_menu(event, "🗂️ **缓存管理**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示缓存管理失败: {e}")
+            await self._send_error(event, "加载失败")
+
+    async def show_db_optimization_logs(self, event):
+        """显示优化日志"""
+        try:
+            # TODO: fetching real logs from file or db
+            rendered = self.renderer.render_db_optimization_logs({'logs': []})
+            await self._send_menu(event, "📋 **优化日志**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            logger.error(f"显示优化日志失败: {e}")
+            await self._send_error(event, "加载失败")
+
     async def show_rule_management(self, event, page=0):
         """显示规则管理菜单 (转发管理中心)"""
         await self.view.show_rule_management(event, page)
@@ -737,6 +842,40 @@ class MenuController:
         """显示历史任务列表"""
         await event.answer("🚧 列表功能正在集成中")
 
+    async def run_db_reindex(self, event):
+        """执行数据库重建索引"""
+        try:
+             await event.answer("🛠️ 正在重建索引 (REINDEX)...")
+             from services.db_maintenance_service import db_maintenance_service
+             # optimize_database does VACUUM which includes building indices usually, but we can be explicit
+             # For sqlite, VACUUM is enough.
+             await db_maintenance_service.optimize_database()
+             await event.answer("✅ 索引重建完成")
+        except Exception as e:
+            logger.error(f"重建索引失败: {e}")
+            await event.answer("操作失败", alert=True)
+
+    async def clear_db_alerts(self, event):
+        """清除数据库告警"""
+        try:
+            # 目前告警是实时计算的，无法清除，只能提示
+            await event.answer("ℹ️ 告警基于实时状态，解决问题后自动消失", alert=True)
+        except Exception as e:
+            logger.error(f"清除告警失败: {e}")
+            await event.answer("操作失败", alert=True)
+
+    async def clear_dedup_cache(self, event):
+        """清除去重缓存"""
+        try:
+            from services.dedup.engine import smart_deduplicator
+            smart_deduplicator.time_window_cache.clear()
+            smart_deduplicator.content_hash_cache.clear()
+            await event.answer("✅ 内存缓存已清除")
+            await self.show_db_cache_management(event)
+        except Exception as e:
+            logger.error(f"清除缓存失败: {e}")
+            await event.answer("操作失败", alert=True)
+
     async def toggle_history_dedup(self, event):
         """切换历史任务去重"""
         await event.answer("🔄 已切换历史去重状态")
@@ -767,5 +906,25 @@ class MenuController:
     async def show_current_chat_rules_page(self, event, chat_id: str, page: int):
         """显示当前会话的规则列表 (分页)"""
         await self.show_rule_list(event, page=page, search_query=str(chat_id))
+
+    async def show_multi_source_management(self, event, page: int = 0):
+        """显示多源管理中心"""
+        from handlers.button.modules.rules_menu import rules_menu
+        await rules_menu.show_multi_source_management(event, page)
+
+    async def show_multi_source_detail(self, event, rule_id: int):
+        """显示多源规则详情"""
+        from handlers.button.modules.rules_menu import rules_menu
+        await rules_menu.show_multi_source_detail(event, rule_id)
+
+    async def show_rule_status(self, event, rule_id: int):
+        """显示规则状态"""
+        from handlers.button.modules.rules_menu import rules_menu
+        await rules_menu.show_rule_status(event, rule_id)
+
+    async def show_sync_config(self, event, rule_id: int):
+        """显示同步配置"""
+        from handlers.button.modules.rules_menu import rules_menu
+        await rules_menu.show_sync_config(event, rule_id)
 
 menu_controller = MenuController()

@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-07 10:50
+> Updated: 2026-02-07 20:04
 
 ---
 
@@ -14,17 +14,13 @@ TG ONE/
 ├── 📄 AGENTS.md            # AI Skills Context
 ├── 📄 CHANGELOG.md         # File
 ├── 📄 Dockerfile           # Docker Build
-├── 📁 MagicMock            # Directory
 ├── 📄 README.md            # File
 ├── 📁 ai                   # AI Provider Integration
 ├── 📄 alembic.ini          # File
 ├── 📁 api                  # Directory
-├── 📄 check_greenlet.py    # File
 ├── 📁 controllers          # Directory
 ├── 📁 core                 # Core Business Logic
 ├── 📁 data                 # Directory
-├── 📄 debug_engine_internal.txt # File
-├── 📄 debug_handler.py     # File
 ├── 📄 docker-compose.yml   # File
 ├── 📁 docs                 # Documentation (PSB)
 ├── 📁 enums                # Enumerations
@@ -45,15 +41,9 @@ TG ONE/
 ├── 📁 services             # Service Layer
 ├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
-├── 📄 test_out.txt         # File
-├── 📄 test_out_utf8.txt    # File
-├── 📄 test_out_v2.txt      # File
-├── 📄 test_output.txt      # File
-├── 📄 test_output_debug_2.txt # File
-├── 📄 test_output_utf8.txt # File
-├── 📄 test_results.txt     # File
+├── 📄 test_final.txt       # File
+├── 📄 test_log.txt         # File
 ├── 📁 tests                # Test Suite
-├── 📄 tests_output.txt     # File
 ├── 📁 ui                   # Bot UI Renderer
 ├── 📄 version.py           # Version Info
 ├── 📁 web_admin            # FastAPI Admin Backend
@@ -195,6 +185,9 @@ TG ONE/
 │   │   └── todo.md
 │   ├── 20260203_Modernize_Calls
 │   │   └── todo.md
+│   ├── 20260207_Dedup_Engine_Refactor
+│   │   ├── spec.md
+│   │   └── todo.md
 │   ├── report.md
 │   ├── report_encoding_fix.md
 │   ├── report_phase11_observability.md
@@ -211,7 +204,19 @@ TG ONE/
 │   │   └── todo.md
 │   ├── 20260204_P0_Fix_N_Plus_One
 │   │   └── todo.md
-│   └── 20260204_P2_P3_Optimization
+│   ├── 20260204_P2_P3_Optimization
+│   ├── 20260207_Dedup_Business_Completion
+│   │   └── todo.md
+│   ├── 20260207_FixGreenletError_History
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── Task_Fix_Dedup_Overaggressive
+│   │   ├── report.md
+│   │   └── todo.md
+│   └── Task_Upgrade_Dedup_Algorithm
+│       ├── report.md
+│       ├── spec.md
+│       └── todo.md
 ├── Workstream_Core_Engineering
 │   ├── 20260112_Fix_Graceful_Shutdown_and_Logger_Error
 │   │   └── todo.md
@@ -317,7 +322,22 @@ TG ONE/
 │   ├── 20260206_Architecture_Upgrade_Report.md
 │   ├── 20260206_Fix_Sqlite_Lock_Error
 │   │   └── todo.md
-│   └── 20260206_Verify_Archive_Tests
+│   ├── 20260206_Verify_Archive_Tests
+│   │   └── todo.md
+│   ├── 20260207_Enhance_Update_Robustness
+│   │   └── spec.md
+│   ├── 20260207_Fix_Empty_Text_Deduplication_Bug
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   └── 20260207_Fix_Filter_Deduplication_Conflict
+│       ├── report
+│       ├── report.md
+│       ├── spec.md
+│       └── todo.md
+├── Workstream_UI
+│   └── 20260207_FixBackNavigation
+│       ├── report.md
 │       └── todo.md
 ├── Workstream_UI_UX
 │   └── 20260115_Web_Interface_Refactor
@@ -572,6 +592,7 @@ TG ONE/
 ### 📁 `services/`
 
 ```
+├── __init__.py
 ├── access_control_service.py
 ├── active_session_service.py
 ├── ai_service.py
@@ -587,7 +608,17 @@ TG ONE/
 ├── db_buffer.py
 ├── db_maintenance_service.py
 ├── dedup
-│   └── engine.py
+│   ├── __init__.py
+│   ├── engine.py
+│   ├── strategies
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── content.py
+│   │   ├── signature.py
+│   │   ├── similarity.py
+│   │   └── video.py
+│   ├── tools.py
+│   └── types.py
 ├── dedup_service.py
 ├── download_service.py
 ├── exception_handler.py

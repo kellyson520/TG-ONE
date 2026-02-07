@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==========================================
 # TG ONE 工业级 Supervisor 守护进程
-# 版本: 2.0 (Industrial-Grade Auto-Update)
+# 版本: 3.0 (Industrial Evolution - Heavy Duty)
 # ==========================================
 
 # 定义常量
@@ -10,17 +10,108 @@ DATA_DIR="$APP_DIR/data"
 BACKUP_DIR="$DATA_DIR/backups/auto_update"
 LOCK_FILE="$DATA_DIR/UPDATE_LOCK.json"
 EXIT_CODE_UPDATE=10  # 约定：Python返回10代表请求系统级更新
+BACKUP_LIMIT=10      # 保留备份数量
 
 # 确保目录存在
 mkdir -p "$BACKUP_DIR"
 
 cd "$APP_DIR" || exit 1
 
+# --- 函数：备份清理 (Rotation) ---
+prune_backups() {
+    local dir="$1"
+    local pattern="$2"
+    local limit="$3"
+    
+    # 查找符合模式的文件数量
+    local count=$(ls -1 $dir/$pattern 2>/dev/null | wc -l)
+    
+    if [ "$count" -gt "$limit" ]; then
+        echo "🧹 [守护进程] 正在清理旧备份 (保留最新 $limit 个)..."
+        # 按时间排序，获取超出的部分并删除
+        ls -t $dir/$pattern | tail -n +$((limit + 1)) | xargs rm -f
+    fi
+}
+
+# --- 函数：依赖安装重试逻辑 ---
+install_with_retry() {
+    local max_retries=3
+    local count=0
+    
+    echo "📦 [守护进程] 发现环境变更，开始同步依赖..."
+    
+    while [ $count -lt $max_retries ]; do
+        # 1. 尝试安装
+        pip install --no-cache-dir -r requirements.txt
+        
+        if [ $? -eq 0 ]; then
+            # 2. 严格对齐：卸载不在清单中的包
+            echo "🧹 [守护进程] 正在执行严格依赖对齐 (卸载无关包)..."
+            python3 -c "
+import json, subprocess, sys
+try:
+    with open('requirements.txt') as f:
+        reqs = {line.split('#')[0].split(';')[0].split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].split('!=')[0].split('[')[0].strip().lower().replace('_', '-') 
+                for line in f if line.strip() and not line.startswith('#')}
+    res = subprocess.run([sys.executable, '-m', 'pip', 'list', '--format=json'], capture_output=True, text=True)
+    if res.returncode == 0:
+        installed = {p['name'].lower().replace('_', '-') for p in json.loads(res.stdout)}
+        protected = {'pip', 'setuptools', 'wheel', 'pip-tools', 'distribute', 'certifi', 'pkg-resources'}
+        to_remove = installed - reqs - protected
+        if to_remove:
+            print(f'[DependencyGuard] Removing extraneous: {to_remove}')
+            subprocess.run([sys.executable, '-m', 'pip', 'uninstall', '-y'] + list(to_remove))
+except Exception as e:
+    print(f'[DependencyGuard] Alignment error: {e}')
+"
+            echo "✅ [守护进程] 依赖同步完成。"
+            return 0
+        fi
+        
+        count=$((count + 1))
+        echo "⚠️ [守护进程] 依赖安装失败 (尝试 $count/$max_retries)，3秒后重试..."
+        sleep 3
+    done
+    
+    echo "❌ [守护进程] 依赖安装在 $max_retries 次尝试后彻底失败，尝试启动应用..."
+    return 1
+}
+
+# --- 函数：智能依赖检查与修复 ---
+check_and_fix_dependencies() {
+    if [ ! -f "requirements.txt" ]; then
+        return 0
+    fi
+
+    # 1. 快速检查：Python 级深度校验 (pkg_resources 是事实标准)
+    python3 -c "
+import sys
+import pkg_resources
+from pkg_resources import parse_requirements
+
+try:
+    with open('requirements.txt') as f:
+        reqs = [str(r) for r in parse_requirements(f.read())]
+        pkg_resources.require(reqs)
+    sys.exit(0)
+except Exception as e:
+    print(f'[DependencyCheck] Missing/Mismatch: {e}')
+    sys.exit(1)
+" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        return 0
+    fi
+
+    # 2. 只有检查失败时，才执行安装逻辑
+    echo "🔧 [守护进程] 检测到 Python 依赖缺失或版本不匹配，触发热修复..."
+    install_with_retry
+    return $?
+}
+
 # --- 函数：执行回滚 ---
 perform_rollback() {
     echo "🚨 [守护进程] 更新失败，正在启动回滚..."
-    
-    # 查找最新的代码备份
     LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/code_backup_*.tar.gz 2>/dev/null | head -1)
     
     if [ -z "$LATEST_BACKUP" ]; then
@@ -29,18 +120,16 @@ perform_rollback() {
     fi
     
     echo "⏪ [守护进程] 正在从备份恢复: $LATEST_BACKUP"
-    # 解压备份覆盖当前目录 (排除 data 目录以免覆盖用户数据)
     tar -xzf "$LATEST_BACKUP" -C "$APP_DIR"
     
     if [ $? -eq 0 ]; then
         echo "✅ [守护进程] 回滚成功。"
-        # 记录失败状态供 Python 读取并通知
-        echo "{\"status\": \"shell_failed\", \"error\": \"基础设施更新阶段失败（Git/Pip），已自动回滚\", \"timestamp\": \"$(date -u +%H:%M:%S)\"}" > "$DATA_DIR/update_state.json"
-        # 删除锁文件，允许旧版本正常启动
+        echo "{\"status\": \"shell_failed\", \"error\": \"基础设施更新阶段失败，已自动回滚\", \"timestamp\": \"$(date -u +%H:%M:%S)\"}" > "$DATA_DIR/update_state.json"
         rm -f "$LOCK_FILE"
+        # 回滚后恢复依赖
+        install_with_retry
     else
         echo "☠️ [守护进程] 回滚失败！"
-        echo "{\"status\": \"critical_failed\", \"error\": \"代码回滚彻底失败，系统处于不一致状态\", \"timestamp\": \"$(date -u +%H:%M:%S)\"}" > "$DATA_DIR/update_state.json"
     fi
 }
 
@@ -48,23 +137,21 @@ perform_rollback() {
 perform_update() {
     echo "🔄 [守护进程] 接管系统更新流程..."
     
-    # 1. 创建代码级备份 (防 Git 失败)
+    # 1. 备份 (创建前清理超限备份)
+    prune_backups "$BACKUP_DIR" "code_backup_*.tar.gz" "$BACKUP_LIMIT"
+    
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     BACKUP_PATH="$BACKUP_DIR/code_backup_$TIMESTAMP.tar.gz"
-    echo "📦 [守护进程] 正在创建代码备份: $BACKUP_PATH"
-    # 排除 .git, data, __pycache__ 等
+    echo "📦 [守护进程] 创建备份: $BACKUP_PATH"
     tar --exclude='./data' --exclude='./.git' --exclude='./__pycache__' --exclude='./logs' --exclude='./temp' --exclude='./sessions' -czf "$BACKUP_PATH" . 2>/dev/null
     
-    # 2. 获取目标版本 (从锁文件读取，默认 origin/main)
+    # 2. 拉取代码
     TARGET_VERSION="origin/main"
     if [ -f "$LOCK_FILE" ]; then
         TARGET_VERSION=$(python3 -c "import json; print(json.load(open('$LOCK_FILE')).get('version', 'origin/main'))" 2>/dev/null || echo "origin/main")
     fi
     
-    # 记录更新前的依赖哈希
-    REQ_HASH_BEFORE=$(md5sum requirements.txt 2>/dev/null || echo "none")
-    
-    echo "⬇️ [守护进程] 正在同步代码至: $TARGET_VERSION"
+    echo "⬇️ [守护进程] 同步代码至: $TARGET_VERSION"
     git fetch origin && git reset --hard "$TARGET_VERSION"
     
     if [ $? -ne 0 ]; then
@@ -73,39 +160,18 @@ perform_update() {
         return
     fi
     
-    # 3. 执行依赖安装 (仅在 requirements.txt 变化时)
-    echo "📦 [守护进程] 正在检查 Python 依赖..."
-    
-    # 获取更新后的依赖哈希
-    REQ_HASH_AFTER=$(md5sum requirements.txt 2>/dev/null || echo "none")
-    
-    if [ "$REQ_HASH_BEFORE" != "$REQ_HASH_AFTER" ]; then
-        echo "📦 [守护进程] 检测到依赖变更，开始更新..."
-        pip install --no-cache-dir -r requirements.txt
-        
-        if [ $? -ne 0 ]; then
-            echo "❌ [守护进程] Pip 安装失败。"
-            perform_rollback
-            return
-        fi
-    else
-        echo "✅ [守护进程] 依赖未发生变化，跳过安装。"
-    fi
-    
-    echo "✅ [守护进程] 基础设施更新完成，交还控制权给 Python..."
+    echo "✅ [守护进程] 代码更新完成，依赖检查将由下次循环自动处理。"
 }
 
-# --- 一次性初始化 (仅首次启动执行) ---
-echo "🚀 [守护进程] TG ONE 工业级守护进程正在启动..."
+# --- 初始化设置 ---
+echo "🚀 [守护进程] TG ONE 守护进程启动 (v3.0)"
 
-# 1. 内存优化 (Jemalloc)
+# 内存优化
 JEMALLOC_PATH=""
 if [ -f "/usr/lib/libjemalloc.so.2" ]; then
     JEMALLOC_PATH="/usr/lib/libjemalloc.so.2"
 elif [ -f "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2" ]; then
     JEMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
-elif [ -f "/usr/lib/aarch64-linux-gnu/libjemalloc.so.2" ]; then
-    JEMALLOC_PATH="/usr/lib/aarch64-linux-gnu/libjemalloc.so.2"
 fi
 
 if [ -n "$JEMALLOC_PATH" ]; then
@@ -114,19 +180,15 @@ if [ -n "$JEMALLOC_PATH" ]; then
     echo "✅ [守护进程] 内存优化已启用: Jemalloc"
 fi
 
-# 2. Python 环境预调优
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONUNBUFFERED=1
 
-# 3. 初始健康检查
-echo "🔍 [守护进程] 正在执行初始健康检查..."
-if [ -f "scripts/ops/database_health_check.py" ]; then
-    python3 scripts/ops/database_health_check.py || echo "⚠️ [守护进程] 数据库健康检查失败（非致命）"
-fi
-
-# --- 主循环 (死循环保活) ---
+# --- 主循环 (Process Loop) ---
 while true; do
-    echo "🚀 [守护进程] 正在启动 TG ONE 应用..."
+    # 核心增强：每次启动进程前先行验证环境，支持热补丁
+    check_and_fix_dependencies
+
+    echo "🚀 [守护进程] 正在启动 Python 主程序..."
     
     # 启动 Python 主程序
     python3 -u main.py
@@ -138,21 +200,18 @@ while true; do
     
     # 判断退出原因
     if [ $EXIT_CODE -eq $EXIT_CODE_UPDATE ]; then
-        # 情况A: Python 请求更新
         perform_update
         echo "🔄 [守护进程] 3 秒后重启..."
         sleep 3
     else
-        # 情况B: 异常崩溃或正常退出
+        # 异常退出处理
         if [ -f "$LOCK_FILE" ]; then
-            echo "⚠️ [守护进程] 检测到更新状态下的崩溃！"
-            # 如果锁文件存在且不是 Exit 10，说明是更新后的第一次启动崩溃了
-            # 或者更新中途容器重启了，尝试再次执行更新确保环境正确
+            echo "⚠️ [守护进程] 更新后首次启动失败，尝试恢复..."
             perform_update
         fi
         
         if [ $EXIT_CODE -ne 0 ]; then
-            echo "🔥 [守护进程] 检测到崩溃，冷却中（5秒）..."
+            echo "🔥 [守护进程] 检测到异常崩溃，冷却 5 秒..."
             sleep 5
         else
             echo "👋 [守护进程] 正常关闭。"
@@ -160,3 +219,4 @@ while true; do
         fi
     fi
 done
+

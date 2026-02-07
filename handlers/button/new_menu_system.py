@@ -168,6 +168,9 @@ class NewMenuSystem(BaseMenu):
     async def show_dedup_time_window(self, event): await self.smart_dedup_menu.show_dedup_time_window(event)
     async def show_dedup_statistics(self, event): await self.smart_dedup_menu.show_dedup_statistics(event)
     async def show_dedup_advanced(self, event): await self.smart_dedup_menu.show_dedup_advanced(event)
+    async def show_dedup_sticker(self, event): await self.smart_dedup_menu.show_dedup_sticker(event)
+    async def show_dedup_global(self, event): await self.smart_dedup_menu.show_dedup_global(event)
+    async def show_dedup_album(self, event): await self.smart_dedup_menu.show_dedup_album(event)
     async def show_dedup_hash_examples(self, event): await self.smart_dedup_menu.show_dedup_hash_examples(event)
     async def show_dedup_cache_management(self, event):
          await self._render_from_text(event, "🧹 **去重缓存管理**\n\n[开发中] 此处将显示各规则的活跃缓存命中率、过期条数，并支持手动清理特定规则的哈希集。", [[Button.inline("👈 返回", "new_menu:smart_dedup_settings")]])

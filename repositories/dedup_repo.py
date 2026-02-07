@@ -13,20 +13,28 @@ class DedupRepository:
     def __init__(self, db):
         self.db = db
 
-    async def find_by_signature(self, chat_id: str, signature: str) -> Optional[MediaSignatureDTO]:
-        """根据签名查找"""
+    async def find_by_signature(self, chat_id: Optional[str], signature: str) -> Optional[MediaSignatureDTO]:
+        """根据签名查找 (chat_id=None 表示全局)"""
         async with self.db.session() as session:
-            stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
+            filters = [MediaSignature.signature == signature]
+            if chat_id is not None:
+                filters.append(MediaSignature.chat_id == str(chat_id))
+            stmt = select(MediaSignature).filter(*filters).limit(1)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return MediaSignatureDTO.model_validate(obj) if obj else None
 
-    async def find_by_file_id_or_hash(self, chat_id: str, file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
-        """优先使用 file_id 查找，其次使用 content_hash"""
+    async def find_by_file_id_or_hash(self, chat_id: Optional[str], file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
+        """优先使用 file_id 查找，其次使用 content_hash (chat_id=None 为全局)"""
         async with self.db.session() as session:
+            # 基础过滤器
+            base_filters = []
+            if chat_id is not None:
+                base_filters.append(MediaSignature.chat_id == str(chat_id))
+
             if file_id:
                 stmt = select(MediaSignature).filter(
-                    MediaSignature.chat_id == str(chat_id),
+                    *base_filters,
                     MediaSignature.file_id == file_id
                 ).limit(1)
                 result = await session.execute(stmt)
@@ -36,7 +44,7 @@ class DedupRepository:
             
             if content_hash:
                 stmt = select(MediaSignature).filter(
-                    MediaSignature.chat_id == str(chat_id),
+                    *base_filters,
                     MediaSignature.content_hash == content_hash
                 ).limit(1)
                 result = await session.execute(stmt)
@@ -136,12 +144,12 @@ class DedupRepository:
 
     # Compatibility Methods for DedupEngine
 
-    async def check_content_hash_duplicate(self, content_hash: str, chat_id: str, config: dict = None) -> (bool, str):
-
+    async def check_content_hash_duplicate(self, content_hash: str, chat_id: Optional[str], config: dict = None) -> (bool, str):
         """检查内容哈希重复"""
         rec = await self.find_by_file_id_or_hash(chat_id, content_hash=content_hash)
         if rec:
-            return True, f"内容哈希重复 (Last seen: {rec.last_seen})"
+            origin = f"in chat {rec.chat_id}" if chat_id is None else "locally"
+            return True, f"内容哈希重复 ({origin}, Last seen: {rec.last_seen})"
         return False, ""
 
     async def exists_media_signature(self, chat_id: str, signature: str) -> bool:
@@ -194,9 +202,49 @@ class DedupRepository:
         await self.delete_media_signature(chat_id, signature)
 
     async def save_config(self, config: dict):
-        """保存配置 (Placeholder)"""
-        # Repo doesn't seem to manage config storage in this table.
-        # Maybe another table? RuleRepo?
-        # For now log it.
-        logger.debug(f"Saving config: {config}")
-        pass
+        """保存全局去重配置到 SystemConfiguration"""
+        try:
+            import json
+            from models.system import SystemConfiguration
+            
+            async with self.db.session() as session:
+                key = "dedup_global_config"
+                value = json.dumps(config)
+                
+                # Check existing
+                stmt = select(SystemConfiguration).filter_by(key=key)
+                result = await session.execute(stmt)
+                obj = result.scalar_one_or_none()
+                
+                if obj:
+                    obj.value = value
+                    obj.updated_at = datetime.utcnow().isoformat()
+                else:
+                    obj = SystemConfiguration(
+                        key=key,
+                        value=value,
+                        data_type="json",
+                        description="Global Deduplication Configuration"
+                    )
+                    session.add(obj)
+                await session.commit()
+                logger.debug("去重全局配置已保存")
+        except Exception as e:
+            logger.error(f"Save dedup config failed: {e}")
+
+    async def load_config(self) -> dict:
+        """从 SystemConfiguration 加载配置"""
+        try:
+            import json
+            from models.system import SystemConfiguration
+            
+            async with self.db.session() as session:
+                stmt = select(SystemConfiguration).filter_by(key="dedup_global_config")
+                result = await session.execute(stmt)
+                obj = result.scalar_one_or_none()
+                
+                if obj and obj.value:
+                    return json.loads(obj.value)
+        except Exception as e:
+            logger.error(f"Load dedup config failed: {e}")
+        return {}

@@ -254,6 +254,10 @@ class Settings(BaseSettings):
         default="main",
         description="用于更新的 Git 分支"
     )
+    UPDATE_BACKUP_LIMIT: int = Field(
+        default=10,
+        description="保留的自动更新备份数量"
+    )
 
     # === 灰度发布与通道配置 ===
     UPDATE_CHANNEL: str = Field(

@@ -544,8 +544,11 @@ async def create_buttons(rule, _back_callback="settings"):
                 ),
             ]
         )
-        # 去重快捷操作
-        buttons.append([Button.inline("🔎 扫描重复媒体", f"dedup_scan_now:{rule.id}")])
+        # 去重快捷操作与高级设置
+        buttons.append([
+            Button.inline("🔎 扫描重复媒体", f"dedup_scan_now:{rule.id}"),
+            Button.inline("⚙️ 去重高级设置", f"dedup_settings:{rule.id}")
+        ])
         buttons.append(
             [
                 Button.inline(

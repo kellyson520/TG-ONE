@@ -18,8 +18,22 @@ class DedupMiddleware(Middleware):
             if rule.enable_dedup and target_id:
                 logger.info(f"🔎 [Pipeline-Dedup] 正在检查去重: 规则ID={rule.id}, 目标ChatID={target_id}")
                 
+                # 解析单条规则的自定义配置 (JSON)
+                rule_config = {}
+                if rule.custom_config:
+                    try:
+                        import json
+                        cfg = json.loads(rule.custom_config)
+                        # 仅提取去重相关配置
+                        dedup_keys = {"similarity_threshold", "time_window_hours", "enable_smart_similarity", "enable_content_hash", "enable_sticker_filter", "sticker_strict_mode"}
+                        for k in dedup_keys:
+                            if k in cfg: rule_config[k] = cfg[k]
+                    except Exception as e:
+                        logger.warning(f"Failed to parse rule custom_config: {e}")
+
                 # Optimistic Dedup: Check AND tentative record (Lock)
-                is_dup, reason = await dedup_service.check_and_lock(target_id, ctx.message_obj)
+                # 注入单条规则配置
+                is_dup, reason = await dedup_service.check_and_lock(target_id, ctx.message_obj, rule_config=rule_config)
                 
                 if is_dup:
                     logger.info(f"🚫 [Pipeline-Dedup] 发现重复消息，跳过规则: 规则ID={rule.id}, 原因={reason}")

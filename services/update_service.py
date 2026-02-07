@@ -101,10 +101,12 @@ class UpdateService:
                 db_backup_path = self._state_file.parent / "backups" / "auto_update" / f"bot.db.{timestamp}.bak"
                 db_backup_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # 使用 shutil.copy2 保持元数据
                 import shutil
                 shutil.copy2(db_file, db_backup_path)
                 logger.info(f"✅ [更新] 数据库已备份至 {db_backup_path}")
+                
+                # 旋转备份
+                self._rotate_backups(db_backup_path.parent, "bot.db.*.bak", settings.UPDATE_BACKUP_LIMIT)
 
             # 2. 写入状态锁
             state = {
@@ -764,10 +766,40 @@ class UpdateService:
                         z.write(file_path, arcname)
                         
             logger.info(f"已创建本地备份: {backup_path}")
+            
+            # 旋转备份
+            self._rotate_backups(backup_dir, "update_backup_*.zip", settings.UPDATE_BACKUP_LIMIT)
+            
             return backup_path
         except Exception as e:
             logger.error(f"创建本地备份失败: {e}")
             return None
+
+    def _rotate_backups(self, directory: Path, pattern: str, limit: int = 10):
+        """旋转备份文件，保留最新的 N 个"""
+        try:
+            if not directory.exists():
+                return
+            
+            import glob
+            # 获取匹配 pattern 的所有文件，按修改时间降序排序
+            file_list = sorted(
+                glob.glob(str(directory / pattern)),
+                key=os.path.getmtime,
+                reverse=True
+            )
+            
+            if len(file_list) > limit:
+                to_delete = file_list[limit:]
+                logger.info(f"🧹 [更新] 发现备份超限 ({len(file_list)} > {limit})，正在清理旧备份 {pattern}...")
+                for f in to_delete:
+                    try:
+                        os.remove(f)
+                        logger.debug(f"已删除旧备份: {os.path.basename(f)}")
+                    except Exception as e:
+                        logger.warning(f"删除物理文件失败: {f}, 错误: {e}")
+        except Exception as e:
+            logger.error(f"旋转备份失败: {e}")
 
     async def _restore_from_local_backup(self, backup_path_str: str) -> Tuple[bool, str]:
         """从本地 Zip 备份还原"""

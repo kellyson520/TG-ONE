@@ -41,6 +41,9 @@ class DeduplicationService:
     async def get_dedup_config(self) -> Dict[str, Any]:
         """获取去重配置"""
         try:
+            # 确保加载配置
+            await smart_deduplicator.load_config()
+
             # [Refactor Fix] 直接使用顶层导入的实例
             config = smart_deduplicator.config
             stats = smart_deduplicator.get_stats()
@@ -225,7 +228,7 @@ class DeduplicationService:
             ]
         }
     
-    async def is_duplicate(self, chat_id: int, message_obj) -> bool:
+    async def is_duplicate(self, chat_id: int, message_obj, rule_config: Dict = None) -> bool:
         """
         检查消息是否重复
         复用 services.dedup.engine 中的智能去重逻辑
@@ -235,6 +238,7 @@ class DeduplicationService:
         is_dup, reason = await smart_deduplicator.check_duplicate(
             message_obj,
             chat_id,
+            rule_config=rule_config,
             readonly=True  # 只读模式，不记录新消息到缓存
         )
         
@@ -262,7 +266,7 @@ class DeduplicationService:
             pass
         return 0
         
-    async def check_and_lock(self, chat_id: int, message_obj) -> Tuple[bool, str]:
+    async def check_and_lock(self, chat_id: int, message_obj, rule_config: Dict = None) -> Tuple[bool, str]:
         """
         [Transaction Start] 乐观去重检查 + 锁定
         检查消息是否重复。如果未重复，立即在内存/缓存中记录（锁定），防止并发处理。
@@ -283,6 +287,7 @@ class DeduplicationService:
         return await smart_deduplicator.check_duplicate(
             message_obj,
             chat_id,
+            rule_config=rule_config,
             readonly=False
         )
 

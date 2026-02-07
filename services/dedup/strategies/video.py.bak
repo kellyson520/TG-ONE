@@ -2,7 +2,6 @@
 from datetime import datetime
 import asyncio
 import logging
-import os
 from typing import Optional, Dict, Any
 
 from services.dedup.strategies.base import BaseDedupStrategy
@@ -14,9 +13,6 @@ from services.dedup.tools import (
     generate_v3_fingerprint
 )
 from core.helpers.metrics import DEDUP_HITS_TOTAL, VIDEO_HASH_PCACHE_HITS_TOTAL
-from services.dedup.tools import _HAS_XXHASH
-import xxhash
-import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +43,7 @@ class VideoStrategy(BaseDedupStrategy):
                 try: DEDUP_HITS_TOTAL.labels(method="video_file_id").inc()
                 except: pass
                 # 检测到重复，回填 PCache
-                await ctx.pcache_repo.set(pcache_key, "1", expire=86400 * 30)
+                await ctx.pcache_repo.set(pcache_key, "1", ttl=86400 * 30)
                 return DedupResult(True, "视频FileID重复", "video_file_id", str(file_id))
 
         # 2. 深度 SSH v4 (Sparse-Sentinel Hash) 内容检查
@@ -159,33 +155,27 @@ class VideoStrategy(BaseDedupStrategy):
             client = getattr(ctx.message_obj, 'client', None)
             if not client or not doc: return
             
-            # SSH v5: 动态采样点
-            duration = int(getattr(doc, 'duration', 0) or 0)
-            num_points = max(5, duration // 30) # 每30秒一个采样点，最少5个
-            num_points = min(num_points, 20)      # 最多20个，防止过载
+            # 5 点采样逻辑 (SSH v4)
+            from services.dedup.tools import _HAS_XXHASH
+            import xxhash
+            import hashlib
             
             h = xxhash.xxh128() if _HAS_XXHASH else hashlib.blake2b(digest_size=16)
             total_size = doc.size
             chunk_size = 65536 # 64KB per point
             
             # 元数据盐值
-            h.update(f"{getattr(doc, 'w', 0)}x{getattr(doc, 'h', 0)}|{duration}|{total_size}".encode())
+            h.update(f"{getattr(doc, 'w', 0)}x{getattr(doc, 'h', 0)}|{getattr(doc, 'duration', 0)}|{total_size}".encode())
             
-            # 生成均匀分布的采样点
-            if num_points <= 2:
-                offsets = [0, total_size - chunk_size]
-            else:
-                offsets = [int(i * (total_size - chunk_size) / (num_points - 1)) for i in range(num_points)]
-            
+            offsets = [0, total_size // 4, total_size // 2, total_size * 3 // 4, max(0, total_size - chunk_size)]
             for offset in sorted(list(set(offsets))):
-                if offset < 0: continue
                 async for chunk in client.iter_download(doc, offset=offset, limit=chunk_size):
                     h.update(chunk)
             
             vhash = h.hexdigest()
             # 写入 PCache
             if file_id:
-                await ctx.pcache_repo.set(f"vhash:{file_id}", vhash, expire=86400 * 180) # 180天
+                await ctx.pcache_repo.set(f"vhash:{file_id}", vhash, ttl=86400 * 180) # 180天
             
             # 记录到 DB
             await ctx.repo.add_media_signature(str(ctx.target_chat_id), f"video_hash:{vhash}", getattr(ctx.message_obj, 'id', 0))

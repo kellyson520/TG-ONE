@@ -84,6 +84,33 @@ class MenuRenderer:
         
     def render_db_optimization_center(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return self.settings_renderer.render_db_optimization_center(data)
+
+    def render_db_query_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_query_analysis(data)
+
+    def render_db_performance_trends(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_performance_trends(data)
+    
+    def render_db_alert_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_alert_management(data)
+
+    def render_db_optimization_advice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_optimization_advice(data)
+
+    def render_db_detailed_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_detailed_report(data)
+
+    def render_db_optimization_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_optimization_config(data)
+
+    def render_db_index_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_index_analysis(data)
+
+    def render_db_cache_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_cache_management(data)
+
+    def render_db_optimization_logs(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.settings_renderer.render_db_optimization_logs(data)
         
     # --- Task & History Ops ---
     

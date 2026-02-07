@@ -17,6 +17,10 @@ def dedup():
     dedup._repo.add_content_hash = AsyncMock()
     dedup._repo.add_text_fingerprint = AsyncMock()
     
+    dedup._pcache_repo = MagicMock()
+    dedup._pcache_repo.get = AsyncMock(return_value=None)
+    dedup._pcache_repo.set = AsyncMock()
+    
     # Disable others
     dedup.bloom_filter = None 
     dedup.hll = None
@@ -31,20 +35,41 @@ async def test_video_partial_hash_check(dedup):
     config = {'enable_dedup': True, 'enable_video_partial_hash_check': True}
     
     msg = MagicMock()
-    msg.file_path = "video_file.mp4"
-    msg.video = MagicMock() # Ensure is_video returns True
+    msg.video = MagicMock()
+    msg.video.id = 999
     
-    # Setup repo to return True for partial hash signature
-    # expected signature: video_partial:<hash>
-    dedup.repo.exists_media_signature.side_effect = lambda cid, sig: sig == "video_partial:mockhash123"
+    # Note: SSH v5 uses background tasks and PCache. 
+    # To test the logic, we mock pcache and check if search behaves.
+    dedup.pcache_repo.get.side_effect = lambda k: b"mockhash123" if k == "vhash:999" else None
     
-    with patch("services.dedup.strategies.video.os.path.exists", return_value=True):
-        with patch("services.dedup.strategies.video.calculate_video_partial_file_hash", return_value="mockhash123"):
+    # DB search result
+    dedup.repo.exists_media_signature.side_effect = lambda cid, sig: sig == "video_hash:mockhash123"
+    
+    # Mock strict verify to pass
+    with patch("services.dedup.strategies.video.VideoStrategy._strict_verify", return_value=True):
+        is_dup, reason = await dedup.check_duplicate(msg, chat_id, config)
+        
+        assert is_dup is True
+        assert "内容哈希" in reason
+        assert "video_hash:mockhash123" in dedup.repo.exists_media_signature.call_args[0][1]
+
+@pytest.mark.asyncio
+async def test_video_file_id_check(dedup):
+    """Test fast file_id check"""
+    chat_id = 12345
+    config = {'enable_dedup': True, 'enable_video_file_id_check': True}
+    
+    msg = MagicMock()
+    msg.video = MagicMock()
+    msg.video.id = 888
+    
+    dedup.repo.exists_video_file_id.return_value = True
+    
+    with patch("services.dedup.tools.is_video", return_value=True):
+        with patch("services.dedup.tools.extract_video_file_id", return_value=888):
             is_dup, reason = await dedup.check_duplicate(msg, chat_id, config)
-            
             assert is_dup is True
-            assert "PartialHash" in reason
-            assert "video_partial:mockhash123" in dedup.repo.exists_media_signature.call_args[0][1]
+            assert "FileID" in reason
 
 @pytest.mark.asyncio
 async def test_video_partial_hash_skip_if_no_file(dedup):
