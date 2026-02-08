@@ -54,6 +54,26 @@ class UpdateService:
         import shutil
         return shutil.which("git") is not None
 
+    async def get_current_version(self) -> str:
+        """获取当前系统版本 (Git SHA 或 状态文件记录)"""
+        if self._is_git_repo:
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    "git", "rev-parse", "--short", "HEAD",
+                    cwd=str(settings.BASE_DIR),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                out, _ = await process.communicate()
+                if process.returncode == 0:
+                    return out.decode().strip()
+            except Exception:
+                pass
+        
+        # Fallback to state
+        state = self._get_state()
+        return state.get("current_version", "")[:8]
+
     def _get_state(self) -> Dict:
         """从状态文件读取更新历史"""
         if self._state_file.exists():

@@ -37,7 +37,7 @@ from .commands.media_commands import (
 )
 from .commands.system_commands import (
     handle_logs_command, handle_download_logs_command,
-    handle_history_command, handle_targeted_rollback_command,
+    handle_history_command, handle_rollback_command,
     handle_db_info_command, handle_db_backup_command,
     handle_db_optimize_command, handle_db_health_command,
     handle_video_cache_stats_command, handle_video_cache_clear_command,

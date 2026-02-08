@@ -160,6 +160,62 @@ class SystemService:
             logger.error(f"DB Optimization failed: {e}")
             return {"success": False, "error": str(e)}
 
+    async def get_system_status(self) -> Dict[str, Any]:
+        """获取系统状态信息"""
+        import psutil
+        from version import get_version
+        from services.update_service import update_service
+        
+        try:
+            process = psutil.Process()
+            with process.oneshot():
+                cpu_percent = process.cpu_percent()
+                memory_info = process.memory_info()
+                create_time = process.create_time()
+                
+            uptime_seconds = time.time() - create_time
+            uptime_str = self._format_uptime(uptime_seconds)
+            
+            # 版本信息
+            version_str = get_version()
+            git_ver = await update_service.get_current_version()
+            if git_ver:
+                version_str += f" ({git_ver})"
+            elif not update_service._is_git_repo:
+                version_str += " (非 Git 仓库)"
+
+            disk = psutil.disk_usage(str(settings.BASE_DIR))
+            
+            return {
+                "cpu_percent": cpu_percent,
+                "memory_percent": round(process.memory_percent(), 1),
+                "memory_used_mb": round(memory_info.rss / 1024 / 1024, 1),
+                "disk_percent": disk.percent,
+                "uptime": uptime_str,
+                "version": version_str
+            }
+        except Exception as e:
+            logger.error(f"Get system status failed: {e}")
+            return {
+                "cpu_percent": 0,
+                "memory_percent": 0,
+                "memory_used_mb": 0,
+                "disk_percent": 0,
+                "uptime": "Unknown",
+                "version": "Unknown"
+            }
+
+    def _format_uptime(self, seconds):
+        m, s = divmod(seconds, 60)
+        h, m = divmod(m, 60)
+        d, h = divmod(h, 24)
+        if d > 0:
+            return f"{int(d)}天 {int(h)}小时"
+        elif h > 0:
+            return f"{int(h)}小时 {int(m)}分"
+        else:
+            return f"{int(m)}分 {int(s)}秒"
+
 class GuardService:
     """
     Guard service for hot-reloading and system health monitoring.

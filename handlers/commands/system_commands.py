@@ -159,11 +159,13 @@ async def handle_update_command(event, parts=None):
     ]
     await msg.edit(text, buttons=buttons)
 
-async def callback_confirm_update(event):
+async def callback_confirm_update(event, target=None, **kwargs):
     """处理确认更新回调"""
-    data = event.data.decode("utf-8")
-    parts = data.split(":")
-    target = parts[1] if len(parts) > 1 else "origin/main"
+    # 优先使用 router 参数，其次解析 data
+    if not target:
+        data = event.data.decode("utf-8")
+        parts = data.split(":")
+        target = parts[1] if len(parts) > 1 else "origin/main"
     
     await event.edit(f"🚀 **正在触发系统更新序列...**\n\n目标: `{target}`\n\n系统将由于更新重启，请在 60 秒后重新连接。", buttons=None)
     await asyncio.sleep(2)
@@ -190,7 +192,7 @@ async def handle_rollback_command(event):
     ]
     await event.respond(text, buttons=buttons)
 
-async def callback_confirm_rollback(event):
+async def callback_confirm_rollback(event, **kwargs):
     """处理确认回滚回调"""
     await event.edit("🚑 **正在触发紧急回滚序列...**\n\n系统将立即重启以进行文件恢复。", buttons=None)
     await asyncio.sleep(2)
