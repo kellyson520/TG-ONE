@@ -15,8 +15,20 @@ ENV PIP_NO_CACHE_DIR=1 \
 # 2. 从官方镜像获取 uv (锁定版本以确保构建稳定性)
 COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /usr/local/bin/uv
 
+# 显示构建横幅 (Builder Stage)
+RUN echo "\n\
+\033[1;36m====================================================================\033[0m\n\
+\033[1;36m   _______   _____     ____    _   __   ______\033[0m\n\
+\033[1;36m  /_  __/ | / /   |   / __ \  / | / /  / ____/\033[0m\n\
+\033[1;36m   / / /  |/ / /| |  / / / / /  |/ /  / __/   \033[0m\n\
+\033[1;36m  / / / /|  / ___ | / /_/ / / /|  /  / /___   \033[0m\n\
+\033[1;36m /_/ /_/ |_/_/  |_| \____/ /_/ |_/  /_____/   \033[0m\n\
+\033[1;36m====================================================================\033[0m\n\
+\033[1;32m🚀 [BUILD] Starting Build Process...\033[0m\n"
+
 # 3. 创建虚拟环境
-RUN uv venv /opt/venv
+RUN echo "\033[1;34m🛠️  [BUILD] Creating Virtual Environment...\033[0m" && \
+    uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # 4. 安装 Python 依赖 (使用清华源加速)
@@ -26,7 +38,9 @@ ENV UV_LINK_MODE=copy
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r requirements.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+    echo "\033[1;34m📦 [BUILD] Installing Dependencies via uv...\033[0m" && \
+    uv pip install -r requirements.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    echo "\033[1;32m✅ [BUILD] Dependencies Installed Successfully.\033[0m"
 
 # ==========================================
 # 第二阶段：运行阶段 (Runtime)
@@ -55,6 +69,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # 5. Jemalloc 内存优化将由启动脚本动态配置
 
+# 运行时横幅
+RUN echo "\n\
+\033[1;35m====================================================================\033[0m\n\
+\033[1;35m🛠️  [RUNTIME] Setting up Runtime Environment...\033[0m\n\
+\033[1;35m====================================================================\033[0m\n"
+
 # 从构建阶段复制虚拟环境
 COPY --from=builder /opt/venv /opt/venv
 
@@ -62,7 +82,9 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /usr/local/bin/uv
 
 # 创建必要目录
-RUN mkdir -p /app/temp /app/sessions /app/logs
+RUN echo "\033[1;34m📂 [RUNTIME] Creating Directories...\033[0m" && \
+    mkdir -p /app/temp /app/sessions /app/logs && \
+    echo "\033[1;32m✅ [RUNTIME] Ready to Launch.\033[0m"
 
 # 复制项目代码
 COPY . .
