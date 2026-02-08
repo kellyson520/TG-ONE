@@ -97,6 +97,21 @@ async def is_admin(event: Any, client: Optional[Any] = None) -> bool:
         logger.error(f"检查管理员权限时出错: {str(e)}")
         return False
 
+async def is_admin_or_owner(user_id: Union[int, str]) -> bool:
+    """
+    检查用户是否为管理员或所有者。
+    
+    Args:
+        user_id: 用户的 Telegram ID
+    """
+    try:
+        mod = __import__('services.user_service', fromlist=['user_service'])
+        user_service = mod.user_service
+        return bool(await user_service.is_admin(int(user_id)))
+    except Exception as e:
+        logger.error(f"is_admin_or_owner 检查出错: {str(e)}")
+        return False
+
 
 
 async def get_sender_info(event: Any, rule_id: Any) -> Optional[str]:

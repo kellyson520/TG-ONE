@@ -69,6 +69,11 @@ from handlers.commands.dedup_commands import (
 # handle_dedup_scan_command is in system commands but used by dedup wrapper
 from handlers.commands.system_commands import handle_dedup_scan_command
 
+from handlers.priority_handler import (
+    set_priority_handler,
+    queue_status_handler
+)
+
 async def _check_permission(event):
     """(可选) 统一权限检查"""
     return True
@@ -285,6 +290,15 @@ async def register_handlers(client):
     @client.on(events.NewMessage(pattern=r"^/delete_rss_user"))
     async def del_rss_user_wrapper(event):
         await handle_delete_rss_user_command(event, "delete_rss_user", event.message.text.split())
+
+    # --- 优先级 (QoS) ---
+    @client.on(events.NewMessage(pattern=r"^/vip"))
+    async def vip_wrapper(event):
+        await set_priority_handler(event)
+
+    @client.on(events.NewMessage(pattern=r"^/queue_status"))
+    async def queue_status_wrapper(event):
+        await queue_status_handler(event)
 
     # --- 通用 ---
     @client.on(events.NewMessage(pattern=r"^/help"))
