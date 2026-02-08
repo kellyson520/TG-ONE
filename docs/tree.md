@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-07 20:04
+> Updated: 2026-02-08 09:26
 
 ---
 
@@ -14,6 +14,7 @@ TG ONE/
 ├── 📄 AGENTS.md            # AI Skills Context
 ├── 📄 CHANGELOG.md         # File
 ├── 📄 Dockerfile           # Docker Build
+├── 📁 MagicMock            # Directory
 ├── 📄 README.md            # File
 ├── 📁 ai                   # AI Provider Integration
 ├── 📄 alembic.ini          # File
@@ -31,6 +32,7 @@ TG ONE/
 ├── 📁 middlewares          # Middleware Layer
 ├── 📁 migrations           # Directory
 ├── 📁 models               # Data Models
+├── 📄 output.txt           # File
 ├── 📄 pytest.ini           # File
 ├── 📁 repositories         # Data Access Layer
 ├── 📄 requirements-dev.txt # File
@@ -39,10 +41,12 @@ TG ONE/
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
+├── 📄 telegram-forwarder-opt-20260207214438.log # File
 ├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
 ├── 📄 test_final.txt       # File
 ├── 📄 test_log.txt         # File
+├── 📄 test_result.log      # File
 ├── 📁 tests                # Test Suite
 ├── 📁 ui                   # Bot UI Renderer
 ├── 📄 version.py           # Version Info
@@ -207,9 +211,6 @@ TG ONE/
 │   ├── 20260204_P2_P3_Optimization
 │   ├── 20260207_Dedup_Business_Completion
 │   │   └── todo.md
-│   ├── 20260207_FixGreenletError_History
-│   │   ├── report.md
-│   │   └── todo.md
 │   ├── Task_Fix_Dedup_Overaggressive
 │   │   ├── report.md
 │   │   └── todo.md
@@ -268,6 +269,11 @@ TG ONE/
 │   ├── test_fix_progress.md
 │   ├── test_summary.txt
 │   └── todo.md
+├── Workstream_Deduplication
+│   └── 20260207_Upgrade_Deduplication_Engine_v4
+│       ├── report.md
+│       ├── spec.md
+│       └── todo.md
 ├── Workstream_Documentation
 │   └── 20260109_Task_Backlog_Archive
 │       ├── readme.md
@@ -322,16 +328,16 @@ TG ONE/
 │   ├── 20260206_Architecture_Upgrade_Report.md
 │   ├── 20260206_Fix_Sqlite_Lock_Error
 │   │   └── todo.md
-│   ├── 20260206_Verify_Archive_Tests
-│   │   └── todo.md
-│   ├── 20260207_Enhance_Update_Robustness
-│   │   └── spec.md
-│   ├── 20260207_Fix_Empty_Text_Deduplication_Bug
-│   │   ├── report.md
-│   │   ├── spec.md
-│   │   └── todo.md
-│   └── 20260207_Fix_Filter_Deduplication_Conflict
-│       ├── report
+│   └── 20260206_Verify_Archive_Tests
+│       └── todo.md
+├── Workstream_Refactor
+│   └── Callback_Split_Plan
+│       ├── inventory
+│       │   └── components.md
+│       ├── proposal.md
+│       └── todo.md
+├── Workstream_Testing
+│   └── Task_Integration_Mixed_Media
 │       ├── report.md
 │       ├── spec.md
 │       └── todo.md
@@ -389,13 +395,16 @@ TG ONE/
 │   │   ├── 20260204_Fix_AddMode_KeyError
 │   │   │   ├── report.md
 │   │   │   └── todo.md
-│   │   └── 20260204_Menu_System_Integrity_Audit
-│   │       ├── audit_report.md
-│   │       ├── deep_audit_final_report.md
-│   │       ├── deep_audit_summary.md
-│   │       ├── handler_audit_report.md
+│   │   ├── 20260204_Menu_System_Integrity_Audit
+│   │   │   ├── audit_report.md
+│   │   │   ├── deep_audit_final_report.md
+│   │   │   ├── deep_audit_summary.md
+│   │   │   ├── handler_audit_report.md
+│   │   │   ├── report.md
+│   │   │   ├── test_results.md
+│   │   │   └── todo.md
+│   │   └── 20260207_FixGreenletError_History
 │   │       ├── report.md
-│   │       ├── test_results.md
 │   │       └── todo.md
 │   ├── Workstream_Core_Engineering
 │   │   ├── 20260129_Align_Tests_UserHandler
@@ -408,6 +417,13 @@ TG ONE/
 │   │   │   ├── report.md
 │   │   │   └── todo.md
 │   │   └── 20260202_Fix_Callback_And_Web_Tests
+│   │       ├── report.md
+│   │       └── todo.md
+│   ├── Workstream_Deduplication
+│   │   ├── 20260207_Fix_Dedup_Repository_AttributeError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   └── 20260207_Fix_Media_Signature_Integrity_Error_P1
 │   │       ├── report.md
 │   │       └── todo.md
 │   ├── Workstream_Feature
@@ -511,8 +527,35 @@ TG ONE/
 │   │   │   ├── report.md
 │   │   │   ├── spec.md
 │   │   │   └── todo.md
-│   │   └── 20260207_Hotfix_Sync_And_UI_Fixes
+│   │   ├── 20260207_Enhance_Update_Robustness
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   ├── test_plan.md
+│   │   │   └── todo.md
+│   │   ├── 20260207_Fix_Empty_Text_Deduplication_Bug
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260207_Fix_Filter_Deduplication_Conflict
+│   │   │   ├── report
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260207_Hotfix_Sync_And_UI_Fixes
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260207_Restore_MultiSource_Menu
+│   │   │   └── report.md
+│   │   ├── 20260208_Fix_Forward_Hub_Refresh_Error
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Fix_Missing_Dependency_Check_Log
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   └── 20260208_Fix_Redundant_Shutdown_Warning
 │   │       ├── report.md
+│   │       ├── spec.md
 │   │       └── todo.md
 │   └── Workstream_UI_UX
 │       └── 20260205_Upgrade_Date_Picker
@@ -553,6 +596,7 @@ TG ONE/
 │   │   │   ├── changelog_callback.py
 │   │   │   ├── common_utils.py
 │   │   │   ├── rule_actions.py
+│   │   │   ├── rule_dedup_settings.py
 │   │   │   ├── rule_nav.py
 │   │   │   ├── rule_settings.py
 │   │   │   └── sync_settings.py
@@ -612,10 +656,12 @@ TG ONE/
 │   ├── engine.py
 │   ├── strategies
 │   │   ├── __init__.py
+│   │   ├── album.py
 │   │   ├── base.py
 │   │   ├── content.py
 │   │   ├── signature.py
 │   │   ├── similarity.py
+│   │   ├── sticker.py
 │   │   └── video.py
 │   ├── tools.py
 │   └── types.py

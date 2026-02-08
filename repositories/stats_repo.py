@@ -20,7 +20,7 @@ class StatsRepository:
         if self._flush_task is None:
             self._shutdown_event.clear()
             self._flush_task = asyncio.create_task(self._cron_flush())
-            logger.info("Stats buffer flush task started")
+            logger.info("统计缓冲刷新任务已启动")
 
     async def stop(self):
         """Stop background flushing task and flush remaining"""
@@ -33,7 +33,7 @@ class StatsRepository:
             self._flush_task = None
             # Final flush
             await self.flush_logs()
-            logger.info("Stats buffer flush task stopped")
+            logger.info("统计缓冲刷新任务已停止")
 
     async def _cron_flush(self):
         """Periodic flush loop"""

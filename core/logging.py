@@ -459,7 +459,7 @@ def setup_logging() -> logging.Logger:
     try:
         eff = logging.getLevelName(root_logger.level)
         logger.info(
-            "Log system initialized (Core)",
+            "日志系统已初始化 (核心)",
             level=eff,
             format=log_format,
             max_bytes=settings.LOG_MAX_BYTES,

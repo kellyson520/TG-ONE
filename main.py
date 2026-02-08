@@ -78,8 +78,7 @@ async def main():
         await lifecycle.start()
     except Exception as e:
         logger.critical(f"系统启动失败: {e}", exc_info=True)
-        # 尝试优雅关闭
-        await lifecycle.stop()
+        # 注意：lifecycle.start() 内部在捕获严重异常时已调用过 stop()，此处不再重复调用
         sys.exit(1)
         
     # 4. 保持运行

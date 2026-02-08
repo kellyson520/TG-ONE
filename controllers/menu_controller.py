@@ -49,10 +49,10 @@ class MenuController:
             logger.error(f"显示主菜单失败: {e}")
             await self._send_error(event, "看板加载失败")
 
-    async def show_forward_hub(self, event):
+    async def show_forward_hub(self, event, force_refresh: bool = False):
         """显示转发管理中心"""
         try:
-            stats = await self.service.get_forward_hub_data()
+            stats = await self.service.get_forward_hub_data(force_refresh=force_refresh)
             render_data = self.renderer.render_forward_hub(stats)
             await self._send_menu(event, "🔄 **转发管理中心**", [render_data['text']], render_data['buttons'], "🏠 > 🔄")
         except Exception as e:

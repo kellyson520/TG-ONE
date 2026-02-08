@@ -47,6 +47,10 @@ class LifecycleManager:
 
     async def stop(self) -> None:
         """停止系统"""
+        if self.coordinator.is_shutting_down():
+            logger.debug("LifecycleManager: Shutdown already in progress, skipping.")
+            return
+            
         logger.info("LifecycleManager: Initiating shutdown...")
         await self.coordinator.shutdown()
         self._running = False

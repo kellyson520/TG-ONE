@@ -31,7 +31,7 @@ class NotificationService:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid Admin ID in settings: {uid}")
         
-        logger.info(f"NotificationService init with {len(self.admin_ids)} admins")
+        logger.info(f"通知服务已初始化，当前有 {len(self.admin_ids)} 位管理员")
 
     async def notify_admins(self, message: str, level: str = "INFO"):
         """向所有管理员发送通知"""

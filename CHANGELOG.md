@@ -1,6 +1,18 @@
 # Change Log
 
-## 📅 2026-02-07 更新摘要
+## 📅 2026-02-08 更新摘要
+
+### 🚀 v1.2.4.1: 运维卫生与关闭流程优化 (DevOps & Shutdown Optimization)
+- **DevOps & Logging**:
+    - **Visible Dependency Check**: 增强了 `entrypoint.sh` 的守护进程日志，在校验依赖时增加 `🔍校验中...` 和 `✅校验通过` 的明确输出，消除重启时的“黑盒”状态。
+    - **Shutdown Idempotency**: 优化了 `ShutdownCoordinator` 和 `LifecycleManager` 的协作逻辑，通过状态预检实现关闭流程的幂等性。
+    - **Log Noise Reduction**: 将重复触发关闭流程时的警告级别从 `WARNING` 降级为 `INFO`，解决了多触发源导致的噪音警告。
+- **Arch Integrity**:
+    - **Redunancy Removal**: 移除了 `main.py` 启动异常块中冗余的 `lifecycle.stop()` 调用，系统现由 `lifecycle.start()` 内部闭环处理严重异常。
+- **Engineering Hygiene**:
+    - **Automated Archiving**: 使用 `docs-archiver` 技能完成了 10+ 个已结算任务（如 `20260207_FixGreenletError_History` 等）的归档清理。
+    - **Tree Sync**: 同步更新 `docs/tree.md` 索引，确保物理文件与目录文档一致。
+    - **Cleanup**: 清理了调试用的临时脚本 `tests/reproduce_double_shutdown.py`。
 
 ### 🚀 v1.2.4.0: 去重引擎健壮性与冲突修复 (Dedup Engine Robustness & Fixes)
 - **Core Fixes**:

@@ -1,9 +1,10 @@
 from typing import List, Optional
 import logging
-from sqlalchemy import select
+from datetime import datetime
+from sqlalchemy import select, case
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from models.models import MediaSignature
 from schemas.media import MediaSignatureDTO
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -119,21 +120,66 @@ class DedupRepository:
             
         async with self.db.session() as session:
             try:
-                # [核心修复] 过滤掉模型中不存在的字段，防止 bulk_insert_mappings 报错
+                # 1. 动态获取模型字段，过滤掉非法的字段
                 valid_columns = {c.name for c in MediaSignature.__table__.columns}
-                filtered_records = []
+                
+                # 2. 内存预分发与去重 (处理当前批次内的重复)
+                # 使用 (chat_id, signature) 作为复合主键进行归并
+                merged_records = {}
                 for rec in records:
+                    chat_id = str(rec.get("chat_id"))
+                    sig = rec.get("signature")
+                    if not sig:
+                        continue
+                        
+                    key = (chat_id, sig)
+                    # 仅保留数据库支持的字段
                     filtered_rec = {k: v for k, v in rec.items() if k in valid_columns}
-                    filtered_records.append(filtered_rec)
+                    # 确保类型一致
+                    filtered_rec["chat_id"] = chat_id
+                    
+                    if key in merged_records:
+                        # 合并统计：次数累加，时间取最新
+                        existing = merged_records[key]
+                        existing["count"] = (existing.get("count") or 1) + (filtered_rec.get("count") or 1)
+                        if filtered_rec.get("last_seen", "") > existing.get("last_seen", ""):
+                            existing["last_seen"] = filtered_rec["last_seen"]
+                            existing["updated_at"] = filtered_rec.get("updated_at") or filtered_rec["last_seen"]
+                    else:
+                        merged_records[key] = filtered_rec
 
-                # 使用 bulk_insert_mappings 提高性能
-                await session.run_sync(
-                    lambda sync_session: sync_session.bulk_insert_mappings(
-                        MediaSignature, filtered_records
+                final_records = list(merged_records.values())
+                if not final_records:
+                    return True
+
+                # 3. 执行 SQLite Upsert (处理与数据库已有数据的冲突)
+                def do_upsert(sync_session):
+                    stmt = sqlite_insert(MediaSignature).values(final_records)
+                    
+                    # 冲突处理：如果 chat_id + signature 已存在，则累加 count 并更新时间
+                    upsert_stmt = stmt.on_conflict_do_update(
+                        index_elements=['chat_id', 'signature'],
+                        set_={
+                            'count': MediaSignature.count + stmt.excluded.count,
+                            'last_seen': stmt.excluded.last_seen,
+                            'updated_at': stmt.excluded.updated_at,
+                            # 同时也尝试补全可能缺失的其他元数据 (如 content_hash)
+                            'content_hash': case(
+                                (
+                                    (MediaSignature.content_hash == None) | 
+                                    (MediaSignature.content_hash == ""),
+                                    stmt.excluded.content_hash
+                                ),
+                                else_=MediaSignature.content_hash
+                            )
+                        }
                     )
-                )
+                    sync_session.execute(upsert_stmt)
+
+                await session.run_sync(do_upsert)
                 await session.commit()
-                logger.debug(f"批量插入 {len(filtered_records)} 条媒体签名记录成功")
+                
+                logger.debug(f"批量插入/更新 {len(final_records)} 条媒体签名成功 (原始批次: {len(records)})")
                 return True
             except Exception as e:
                 logger.error(f"批量插入媒体签名失败: {e}", exc_info=True)

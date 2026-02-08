@@ -285,6 +285,9 @@ async def callback_new_menu_handler(event, action_data, session, message, data):
             await menu_controller.show_main_menu(event)
         elif action == "forward_hub":
             await menu_controller.show_forward_hub(event)
+        elif action == "refresh_forward_hub":
+            await menu_controller.show_forward_hub(event, force_refresh=True)
+            await event.answer("✅ 转发中心已刷新")
         elif action == "dedup_hub":
             await menu_controller.show_dedup_hub(event)
         elif action == "analytics_hub":

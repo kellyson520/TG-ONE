@@ -84,6 +84,7 @@ check_and_fix_dependencies() {
     fi
 
     # 1. 快速检查：Python 级深度校验 (pkg_resources 是事实标准)
+    echo "🔍 [守护进程] 正在校验 Python 依赖环境..."
     python3 -c "
 import sys
 import pkg_resources
@@ -100,6 +101,7 @@ except Exception as e:
 " 2>/dev/null
 
     if [ $? -eq 0 ]; then
+        echo "✅ [守护进程] 依赖环境校验通过。"
         return 0
     fi
 

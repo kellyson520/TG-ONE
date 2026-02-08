@@ -81,7 +81,7 @@ class GroupCommitCoordinator:
             return
         self._running = True
         self._task = asyncio.create_task(self._loop())
-        logger.info("GroupCommitCoordinator started.")
+        logger.info("GroupCommitCoordinator 已启动。")
 
     async def stop(self):
         """Stop the background loop and force final flush."""
@@ -89,7 +89,7 @@ class GroupCommitCoordinator:
         if self._task:
             self._flush_event.set() # Wake up loop
             await self._task
-            logger.info("GroupCommitCoordinator stopped.")
+            logger.info("GroupCommitCoordinator 已停止。")
 
     async def trigger_flush(self):
         """External signal to trigger immediate flush."""
@@ -137,7 +137,7 @@ class GroupCommitCoordinator:
                 await session.commit()
                 
             duration = (time.time() - start_time) * 1000
-            logger.info(f"Group Commit: Flushed {count} items in {duration:.2f}ms")
+            logger.info(f"Group Commit: 已刷入 {count} 条数据，耗时 {duration:.2f}ms")
             
         except Exception as e:
             logger.error(f"Failed to flush {count} items to DB: {e}", exc_info=True)

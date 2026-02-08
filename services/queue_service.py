@@ -49,7 +49,7 @@ class MessageQueueService:
         if not self._processor_callback:
             raise RuntimeError("Processor callback must be set before starting MessageQueueService")
 
-        logger.info(f"Starting MessageQueueService with {self.workers} workers (Queue Size: {self.queue.maxsize})")
+        logger.info(f"正在启动 MessageQueueService，包含 {self.workers} 个工作线程 (队列大小: {self.queue.maxsize})")
         for i in range(self.workers):
             task = asyncio.create_task(self._worker_loop(i))
             self._worker_tasks.append(task)
@@ -60,16 +60,16 @@ class MessageQueueService:
         Gracefully stops the service.
         Waits for the queue to drain before cancelling workers.
         """
-        logger.info("Stopping MessageQueueService... Waiting for queue to drain.")
+        logger.info("正在停止 MessageQueueService... 正在等待队列清空")
         await self.queue.join()  # Wait for all items to be processed
         
-        logger.info("Queue drained. Cancelling workers.")
+        logger.info("队列已清空。正在取消工作线程")
         for task in self._worker_tasks:
             task.cancel()
         
         await asyncio.gather(*self._worker_tasks, return_exceptions=True)
         self._started = False
-        logger.info("MessageQueueService stopped.")
+        logger.info("MessageQueueService 已停止")
 
     async def enqueue(self, item: Any):
         """
@@ -79,7 +79,7 @@ class MessageQueueService:
         try:
             # Check if queue is dangerously full
             if self.queue.full():
-                logger.warning("MessageQueue is FULL! Applying Backpressure (Blocking Producer).")
+                logger.warning("消息队列已满！正在应用背压 (阻塞生产者)")
             
             await self.queue.put(item)
         except Exception as e:

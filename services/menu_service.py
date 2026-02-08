@@ -18,10 +18,10 @@ class MenuService:
         from core.helpers.realtime_stats import get_main_menu_stats
         return await get_main_menu_stats(force_refresh=force_refresh)
 
-    async def get_forward_hub_data(self) -> Dict[str, Any]:
+    async def get_forward_hub_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """获取转发中心展示数据"""
         from core.helpers.realtime_stats import realtime_stats_cache
-        stats = await realtime_stats_cache.get_forward_stats()
+        stats = await realtime_stats_cache.get_forward_stats(force_refresh=force_refresh)
         return {'overview': stats.get('today', {})}
 
     async def get_dedup_hub_data(self) -> Dict[str, Any]:

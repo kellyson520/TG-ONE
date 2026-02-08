@@ -1,7 +1,8 @@
-VERSION = "1.2.4.0"
+VERSION = "1.2.4.1"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.4.1: 运维卫生与关闭流程优化 - 增强 `entrypoint.sh` 依赖检查日志可见性，修复重复关闭导致的警告噪音，移除启动异常块中的冗余停止调用，并完成历史任务的自动化归档清理。
 - v1.2.4.0: 去重引擎健壮性及逻辑冲突修复 - 修复 DedupRepository AttributeError (batch_add 命名不一致), 解决 KeywordFilter 与 DedupMiddleware 双重校验导致的误判拦截, 完善缓冲区回滚机制与相似度引擎变量初始化。
 - v1.2.3.9: 数据库监控与高级去重 - 新增数据库性能监控面板 (Query Analysis/Trends/Alerts), 集成规则级去重高级配置 (自定义相似度/时间窗口), 优化 `db_maintenance_service` 交互体验。
 - v1.2.3.8: 去重引擎 V3 升级 - 引入 Numba 加速、LSH Forest 语义类似检索、SSH v5 视频采样哈希、Tombstone 状态管理及策略模式重构,大幅提升性能与检索精度。

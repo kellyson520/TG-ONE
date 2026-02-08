@@ -47,7 +47,7 @@ class Bootstrap:
 
     async def run(self) -> None:
         """执行完整的系统启动序列"""
-        logger.info("🚀 Starting system bootstrap sequence...")
+        logger.info("🚀 正在启动系统引导序列...")
         
         # 1. 基础环境与配置
         await self._check_database()
@@ -81,7 +81,7 @@ class Bootstrap:
             logger.critical(f"Start-up Memory Violation: {e}")
             # Consider exiting if crucial
             
-        logger.info("✅ Bootstrap Sequence Complete. System is now RUNNING.")
+        logger.info("✅ 引导序列完成。系统现已运行。")
         set_ready(True)
 
     async def _check_database(self) -> None:
@@ -183,7 +183,7 @@ class Bootstrap:
         try:
             from web_admin.routers.websocket_router import broadcast_event
             container.bus.set_broadcaster(broadcast_event)
-            logger.info("EventBus broadcaster wired")
+            logger.info("事件总线广播器已连接")
         except ImportError:
             logger.warning("WebSocket router not found, EventBus broadcasting disabled")
         

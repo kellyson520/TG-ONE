@@ -52,7 +52,7 @@ class Container:
         
         # 初始化事件总线
         self.bus = EventBus()
-        logger.info("EventBus initialized")
+        logger.info("事件总线已初始化")
         
         # 服务列表，用于统一管理生命周期
         self.services: List[asyncio.Task[Any]] = []
@@ -135,7 +135,7 @@ class Container:
         if not hasattr(self, '_group_commit_coordinator'):
             from services.db_buffer import GroupCommitCoordinator
             self._group_commit_coordinator = GroupCommitCoordinator(self.db.session)
-            logger.info("GroupCommitCoordinator initialized (Lazy)")
+            logger.info("GroupCommitCoordinator 已初始化 (惰性加载)")
         return self._group_commit_coordinator
 
     @property
@@ -158,7 +158,7 @@ class Container:
             from services.queue_service import MessageQueueService
             self._queue_service = MessageQueueService(max_size=1000)
             self._queue_service.set_processor(self._process_ingestion_queue)
-            logger.info("MessageQueueService initialized (Lazy)")
+            logger.info("MessageQueueService 已初始化 (惰性加载)")
         return self._queue_service
 
     @property
@@ -170,7 +170,7 @@ class Container:
             # 延迟注册监听
             self.bus.subscribe("FORWARD_SUCCESS", dedup_service.on_forward_success)
             self._dedup_service = dedup_service
-            logger.info("Deduplication service initialized (Lazy)")
+            logger.info("去重服务已初始化 (惰性加载)")
         return self._dedup_service
 
     @property
@@ -247,7 +247,7 @@ class Container:
         # 初始化服务
         from services.download_service import DownloadService
         self.downloader = DownloadService(user_client)
-        logger.info("DownloadService initialized")
+        logger.info("下载服务已初始化")
         
         # 组装管道 (Order matters!)
         pipeline = Pipeline()
@@ -269,27 +269,27 @@ class Container:
         # [Dependency Injection] 将 downloader 直接注入 worker，解耦全局依赖
         from services.worker_service import WorkerService
         self.worker = WorkerService(user_client, self.task_repo, pipeline, self.downloader)
-        logger.info("WorkerService initialized with injected dependencies")
+        logger.info("WorkerService 已初始化 (依赖注入完成)")
         
         # 初始化调度器
         from scheduler.summary_scheduler import SummaryScheduler
         self.scheduler = SummaryScheduler(user_client, bot_client, self.task_repo, self.db)
-        logger.info("SummaryScheduler initialized with injected dependencies")
+        logger.info("总结调度器已初始化 (依赖注入完成)")
         
         # 初始化优化的聊天更新器
         from scheduler.optimized_chat_updater import OptimizedChatUpdater
         self.chat_updater = OptimizedChatUpdater(user_client, self.db)
-        logger.info("OptimizedChatUpdater initialized with injected dependencies")
+        logger.info("优化聊天更新器已初始化 (依赖注入完成)")
         
         # 初始化通知服务 (H.5.C3)
         from services.notification_service import NotificationService
         self.notification_service = NotificationService(bot_client, self.bus)
-        logger.info("NotificationService initialized")
+        logger.info("通知服务已初始化")
 
         # 初始化 RSS 拉取服务 (AIMD)
         from services.rss_pull_service import RSSPullService
         self.rss_puller = RSSPullService(user_client, bot_client)
-        logger.info("RSSPullService initialized")
+        logger.info("RSS 拉取服务已初始化")
 
         # 让 ChatInfoService 能够调用 Telegram API
         self.chat_info_service.set_client(user_client)
@@ -301,13 +301,13 @@ class Container:
         if not self.worker or not self.scheduler or not self.chat_updater:
             raise RuntimeError("Clients not initialized. Call init_with_client() first.")
             
-        logger.info("🚀 Starting all services...")
+        logger.info("🚀 正在启动所有服务...")
 
         # Initialize global HTTP session
         import aiohttp
         if self.http_session is None or self.http_session.closed:
             self.http_session = aiohttp.ClientSession()
-            logger.info("Global HTTP Session initialized")
+            logger.info("全局 HTTP 会话已初始化")
         
         # 使用 asyncio.create_task 启动并由 Container 持有引用
         if self.worker:
@@ -329,75 +329,75 @@ class Container:
         await self.group_commit_coordinator.start()
 
         # 可以在这里添加健康检查或启动顺序控制
-        logger.info(f"✅ {len(self.services)} services started.")
+        logger.info(f"✅ {len(self.services)} 个服务已启动。")
 
     async def shutdown(self) -> None:
         """统一优雅关闭"""
-        logger.info("🛑 Stopping all services...")
+        logger.info("🛑 正在停止所有服务...")
         
         # 1. 先停止接收新任务 (Scheduler)
         if self.scheduler:
             self.scheduler.stop()
-            logger.info("SummaryScheduler stopped accepting new tasks")
+            logger.info("总结调度器已停止接收新任务")
             
         # 2. 停止消费者 (Worker)
         if self.worker:
-            logger.info("Stopping WorkerService...")
+            logger.info("正在停止 WorkerService...")
             await self.worker.stop()
-            logger.info("WorkerService stopped")
+            logger.info("WorkerService 已停止")
             
         # 3. 停止辅助服务
         if self.chat_updater:
-            logger.info("Stopping OptimizedChatUpdater...")
+            logger.info("正在停止优化聊天更新器...")
             await self.chat_updater.stop()
-            logger.info("OptimizedChatUpdater stopped")
+            logger.info("优化聊天更新器已停止")
         
         if self.downloader:
-            logger.info("Stopping DownloadService...")
+            logger.info("正在停止下载服务...")
             await self.downloader.shutdown()
-            logger.info("DownloadService stopped")
+            logger.info("下载服务已停止")
 
         if self.rss_puller:
-            logger.info("Stopping RSSPullService...")
+            logger.info("正在停止 RSS 拉取服务...")
             await self.rss_puller.stop()
-            logger.info("RSSPullService stopped")
+            logger.info("RSS 拉取服务已停止")
 
         # 停止 StatsRepository 的缓冲刷新任务 (H.5)
         if self.stats_repo:
-            logger.info("Stopping StatsRepository...")
+            logger.info("正在停止统计仓库...")
             await self.stats_repo.stop()
             
         # 停止背压队列服务
         if self.queue_service:
-            logger.info("Stopping MessageQueueService...")
+            logger.info("正在停止消息队列服务...")
             await self.queue_service.stop()
             
         # 停止 Group Commit Coordinator
         if self.group_commit_coordinator:
-            logger.info("Stopping GroupCommitCoordinator...")
+            logger.info("正在停止 GroupCommitCoordinator...")
             await self.group_commit_coordinator.stop()
 
         # 保存 Bloom Filter
         try:
             from services.bloom_filter import bloom_filter_service
             bloom_filter_service.save()
-            logger.info("Bloom Filter saved")
+            logger.info("布隆过滤器已保存")
         except Exception as e:
             logger.error(f"Failed to save Bloom Filter: {e}")
             
         # Close HTTP Session
         if self.http_session and not self.http_session.closed:
             await self.http_session.close()
-            logger.info("Global HTTP Session closed")
+            logger.info("全局 HTTP 会话已关闭")
 
         # 4. 等待所有后台任务结束
         # cancel 掉还在运行的 task (如 scheduler 的无限循环)
-        logger.info(f"Cancelling {len(self.services)} running tasks...")
+        logger.info(f"正在取消 {len(self.services)} 个运行中的任务...")
         for task in self.services:
             if not task.done():
                 task.cancel()
         
-        logger.info("Waiting for all tasks to complete...")
+        logger.info("正在等待所有任务完成...")
         await asyncio.gather(*self.services, return_exceptions=True)
         
         # 清空服务列表
@@ -406,7 +406,7 @@ class Container:
         # [Fix] 不要在这里 dispose engine，因为它是全局共享的
         # 让 main.py 或生命周期管理器负责最终的 dispose
         # await self.db.close() 
-        logger.info("✅ System shutdown complete")
+        logger.info("✅ 系统关闭完成")
     
     async def _on_stats_update(self, data: Dict[str, Any]) -> None:
         """处理转发成功事件，并发写入日志和统计表"""

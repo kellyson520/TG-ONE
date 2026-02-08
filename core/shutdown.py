@@ -124,8 +124,8 @@ class ShutdownCoordinator:
         # 防止重复关闭
         async with self._lock:
             if self._is_shutting_down:
-                logger.warning("关闭流程已在进行中，忽略重复调用")
-                return False
+                logger.info("系统关闭流程已由其他任务触发，忽略此次重复调用。")
+                return True
             self._is_shutting_down = True
         
         self._shutdown_start_time = time.time()
