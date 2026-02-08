@@ -31,7 +31,7 @@
 ### 1. 安装依赖
 
 ```bash
-pip install flask flask-cors
+uv pip install flask flask-cors
 ```
 
 ### 2. 启动Web管理系统

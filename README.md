@@ -23,7 +23,14 @@ Telegram 转发器核心重构项目 (Core Refactoring).
 
 ## 🔧 系统运维与升级 (Maintenance)
 
-本项目内置了工业级的自动升级与回滚系统，支持以下三种管理方式：
+## 🛠️ 安装与配置 (Installation)
+详细安装指南请参阅 [Setup Guide](docs/setup_guide.md)。
+本项目使用 `uv` 作为包管理器加速构建。
+
+1. 安装 uv: `pip install uv`
+2. 安装依赖: `uv pip install -r requirements.txt`
+
+本系统内置了工业级的自动升级与回滚系统，支持以下三种管理方式：
 
 ### 1. 命令行管理 (CLI)
 在服务器终端执行：

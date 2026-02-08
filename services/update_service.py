@@ -791,10 +791,13 @@ class UpdateService:
             return ""
 
     async def _sync_dependencies(self) -> bool:
-        """执行后台依赖安装"""
+        """执行后台依赖安装 (使用 uv 加速)"""
         try:
+            # 优先使用 uv
+            cmd = ["uv", "pip", "install", "--python", sys.executable, "-r", "requirements.txt"]
+            
             process = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "pip", "install", "-r", "requirements.txt",
+                *cmd,
                 cwd=str(settings.BASE_DIR),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE

@@ -42,39 +42,23 @@ install_with_retry() {
     echo "📦 [守护进程] 发现环境变更，开始同步依赖..."
     
     while [ $count -lt $max_retries ]; do
-        # 1. 尝试安装
-        pip install --no-cache-dir -r requirements.txt
+        # 使用 uv pip sync 强制对齐依赖 (自动安装缺失、卸载多余)
+        # 注意: 在 Docker 环境中，uv 需要明确指定 python 环境或 --system
+        echo "🔄 [守护进程] 执行 uv pip sync (Try $((count + 1))/$max_retries)..."
+        
+        uv pip sync requirements.txt --python $(which python3)
         
         if [ $? -eq 0 ]; then
-            # 2. 严格对齐：卸载不在清单中的包
-            echo "🧹 [守护进程] 正在执行严格依赖对齐 (卸载无关包)..."
-            python3 -c "
-import json, subprocess, sys
-try:
-    with open('requirements.txt') as f:
-        reqs = {line.split('#')[0].split(';')[0].split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].split('!=')[0].split('[')[0].strip().lower().replace('_', '-') 
-                for line in f if line.strip() and not line.startswith('#')}
-    res = subprocess.run([sys.executable, '-m', 'pip', 'list', '--format=json'], capture_output=True, text=True)
-    if res.returncode == 0:
-        installed = {p['name'].lower().replace('_', '-') for p in json.loads(res.stdout)}
-        protected = {'pip', 'setuptools', 'wheel', 'pip-tools', 'distribute', 'certifi', 'pkg-resources'}
-        to_remove = installed - reqs - protected
-        if to_remove:
-            print(f'[DependencyGuard] Removing extraneous: {to_remove}')
-            subprocess.run([sys.executable, '-m', 'pip', 'uninstall', '-y'] + list(to_remove))
-except Exception as e:
-    print(f'[DependencyGuard] Alignment error: {e}')
-"
-            echo "✅ [守护进程] 依赖同步完成。"
+            echo "✅ [守护进程] 依赖同步完成 (uv sync)。"
             return 0
         fi
         
         count=$((count + 1))
-        echo "⚠️ [守护进程] 依赖安装失败 (尝试 $count/$max_retries)，3秒后重试..."
+        echo "⚠️ [守护进程] 依赖同步失败，3秒后重试..."
         sleep 3
     done
     
-    echo "❌ [守护进程] 依赖安装在 $max_retries 次尝试后彻底失败，尝试启动应用..."
+    echo "❌ [守护进程] 依赖同步在 $max_retries 次尝试后彻底失败，尝试启动应用..."
     return 1
 }
 

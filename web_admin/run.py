@@ -76,7 +76,7 @@ def check_dependencies():
     except ImportError as e:
         print(f"❌ 缺少必要依赖: {e}")
         print("💡 请运行以下命令安装依赖:")
-        print("   pip install flask flask-cors")
+        print("   uv pip install flask flask-cors")
         sys.exit(1)
     
     # 检查项目模块

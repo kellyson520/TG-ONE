@@ -11,7 +11,7 @@ try:
     HAS_TQDM = True
 except ImportError:
     HAS_TQDM = False
-    print("⚠️ 提示: 安装 tqdm 可获得更好的进度显示 (pip install tqdm)")
+    print("⚠️ 提示: 安装 tqdm 可获得更好的进度显示 (uv pip install tqdm)")
 
 # Force UTF-8 output
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):

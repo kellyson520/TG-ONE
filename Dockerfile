@@ -12,22 +12,18 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # 1. 安装编译依赖
 # 使用缓存挂载加速 apt
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# 2. 从官方镜像获取 uv (锁定版本以确保构建稳定性)
+COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /usr/local/bin/uv
 
-# 2. 创建虚拟环境
-RUN python -m venv /opt/venv
+# 3. 创建虚拟环境
+RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# 3. 安装 Python 依赖 (使用清华源加速)
-# 使用缓存挂载加速 pip
+# 4. 安装 Python 依赖 (使用清华源加速)
+# 使用缓存挂载加速 uv
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # ==========================================
 # 第二阶段：运行阶段 (Runtime)
@@ -58,6 +54,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # 从构建阶段复制虚拟环境
 COPY --from=builder /opt/venv /opt/venv
+
+# 确保运行时拥有 uv (从官方镜像复制，锁定版本)
+COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /usr/local/bin/uv
 
 # 创建必要目录
 RUN mkdir -p /app/temp /app/sessions /app/logs
