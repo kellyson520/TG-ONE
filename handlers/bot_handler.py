@@ -12,17 +12,45 @@ from core.helpers.media.media import *
 
 # [Refactor Fix] 更新内部模块导入路径
 from .button.callback.callback_handlers import handle_callback
-from .command_handlers import *
 from .link_handlers import handle_message_link
-# [Phase 7 Fix] 导入新增命令处理函数
-from .commands.media_commands import handle_download_command
-from .commands.cancel_command import handle_cancel_command
-from .commands.system_commands import (
-    handle_logs_command, 
-    handle_download_logs_command,
-    handle_history_command,
-    handle_targeted_rollback_command
+
+# New Architecture: Direct imports from individual command modules
+from .commands.rule_commands import (
+    handle_bind_command, handle_settings_command, handle_switch_command,
+    handle_add_command, handle_replace_command, handle_list_keyword_command,
+    handle_list_replace_command, handle_remove_command, handle_remove_all_keyword_command,
+    handle_clear_all_command, handle_start_command, handle_help_command,
+    handle_export_keyword_command, handle_export_replace_command,
+    handle_add_all_command, handle_replace_all_command, handle_import_command,
+    handle_import_excel_command, handle_ufb_bind_command, handle_ufb_unbind_command,
+    handle_ufb_item_change_command, handle_clear_all_keywords_command,
+    handle_clear_all_keywords_regex_command, handle_clear_all_replace_command,
+    handle_copy_keywords_command, handle_copy_keywords_regex_command,
+    handle_copy_replace_command, handle_copy_rule_command, handle_changelog_command,
+    handle_list_rule_command, handle_search_command, handle_search_bound_command,
+    handle_search_public_command, handle_search_all_command, handle_delete_rule_command,
+    handle_delete_rss_user_command
 )
+from .commands.media_commands import (
+    handle_set_duration_command, handle_set_resolution_command,
+    handle_set_size_command, handle_download_command
+)
+from .commands.system_commands import (
+    handle_logs_command, handle_download_logs_command,
+    handle_history_command, handle_targeted_rollback_command,
+    handle_db_info_command, handle_db_backup_command,
+    handle_db_optimize_command, handle_db_health_command,
+    handle_video_cache_stats_command, handle_video_cache_clear_command,
+    handle_system_status_command, handle_update_command,
+    handle_dedup_scan_command
+)
+from .commands.cancel_command import handle_cancel_command
+from .commands.admin_commands import handle_admin_panel_command
+from .commands.stats_commands import (
+    handle_forward_stats_command, handle_forward_search_command
+)
+from .commands.dedup_commands import handle_dedup_enable_command
+
 # [Phase 4] Priority Queue Handlers
 from .priority_handler import set_priority_handler, queue_status_handler
 

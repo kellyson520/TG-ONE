@@ -16,6 +16,7 @@
 3.  **用户交互**:
     -   新增 `/vip <priority>` 指令，支持动态调整群组基础权重。
     -   新增 `/queue_status` 指令，实时监控各泳道深度与拥塞源。
+    -   **[Hotfix]**: 修复了 `priority_handler.py` 中 `is_admin_or_owner` 导出缺失导致的系统启动失败。
 
 ## 3. 验证结果 (Test: tests/test_qos_v4.py)
 场景模拟：
