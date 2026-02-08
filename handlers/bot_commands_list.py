@@ -8,7 +8,11 @@ BOT_COMMANDS = [
     BotCommand(command="admin", description="⚙️ 系统管理面板"),
     BotCommand(command="cancel", description="❌ 取消当前操作/退出模式"),
     
-    # --- 🛠️ 规则管理 (核心) ---
+    # --- � 优先级队列 (QoS) ---
+    BotCommand(command="vip", description="🚀 设置当前群组优先级"),
+    BotCommand(command="queue_status", description="🚥 查看队列拥塞状态"),
+    
+    # --- �🛠️ 规则管理 (核心) ---
     BotCommand(command="settings", description="🔧 管理当前会话规则 (s)"),
     BotCommand(command="bind", description="🔗 绑定新转发规则 (b)"),
     BotCommand(command="switch", description="🔀 切换当前管理的规则 (sw)"),

@@ -357,3 +357,55 @@ class RuleRepository:
         async with self.db.session() as session:
             stmt = select(Chat).order_by(Chat.id.asc())
             return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]
+
+    async def get_priority_map(self) -> Dict[int, int]:
+        """获取源聊天优先级映射 {telegram_chat_id(int): priority}"""
+        try:
+            pc = get_persistent_cache()
+            raw = pc.get("rules:priority_map")
+            if raw:
+                data = loads_json(raw)
+                return {int(k): v for k, v in data.items()}
+        except Exception:
+            pass
+            
+        priority_map = {}
+        async with self.db.session() as session:
+            # 1. Direct Rules
+            stmt1 = (
+                select(Chat.telegram_chat_id, ForwardRule.priority)
+                .join(ForwardRule, ForwardRule.source_chat_id == Chat.id)
+                .where(ForwardRule.enable_rule == True)
+                .where(ForwardRule.priority > 0)
+            )
+            for row in (await session.execute(stmt1)):
+                if row[0]: 
+                    try:
+                        key = int(row[0])
+                        priority_map[key] = max(priority_map.get(key, 0), row[1])
+                    except ValueError:
+                        pass
+
+            # 2. Mapped Rules
+            stmt2 = (
+                select(Chat.telegram_chat_id, ForwardRule.priority)
+                .join(ForwardMapping, ForwardMapping.source_chat_id == Chat.id)
+                .join(ForwardRule, ForwardMapping.rule_id == ForwardRule.id)
+                .where(ForwardMapping.enabled == True)
+                .where(ForwardRule.enable_rule == True)
+                .where(ForwardRule.priority > 0)
+            )
+            for row in (await session.execute(stmt2)):
+                 if row[0]:
+                    try:
+                        key = int(row[0])
+                        priority_map[key] = max(priority_map.get(key, 0), row[1])
+                    except ValueError:
+                        pass
+            
+        try:
+            pc.set("rules:priority_map", dumps_json(priority_map), ttl=60)
+        except Exception:
+            pass
+            
+        return priority_map

@@ -12,6 +12,8 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260208_Implement_Priority_Queue | 实现多级优先级队列 (解决积压延迟) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Implement_Priority_Queue/report.md) |
+| 20260208_Investigate_Forward_Delay | 调查消息转发延迟 (积压导致) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Investigate_Forward_Delay/report.md) |
 | 20260207_Integration_Test_Mixed_Media | 混合媒体集成测试 (Listen-Filter-Forward) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Testing/Task_Integration_Mixed_Media/report.md) |
 | 20260208_Fix_Missing_Dependency_Check_Log | 修复更新重启后日志缺失依赖检查输出的问题 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Missing_Dependency_Check_Log/report.md) |
 | 20260208_Fix_Redundant_Shutdown_Warning | 修复重复调用关闭流程导致的警告噪音 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Redundant_Shutdown_Warning/report.md) |
@@ -140,6 +142,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260208_LogAnalysis_P1 | 20260208 日志深度分析与异常诊断 | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260208_LogAnalysis_P1/todo.md) |
 | 20260207_Fix_Dedup_Repository_AttributeError | 修复 DedupRepository AttributeError 与双重去重校验冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Deduplication/20260207_Fix_Dedup_Repository_AttributeError/todo.md) |
 | 20260207_Fix_Media_Signature_Integrity_Error | 修复媒体签名唯一约束冲突问题 | 2026-02-07 | 2026-02-08 | 100% | [[report.md]](./Workstream_Deduplication/20260207_Fix_Media_Signature_Integrity_Error_P1/report.md) |
 | 20260208_Fix_Forward_Hub_Refresh_Error | 修复刷新转发中心失败问题 (force_refresh 传参错误) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Forward_Hub_Refresh_Error/report.md) |

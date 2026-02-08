@@ -23,6 +23,8 @@ from .commands.system_commands import (
     handle_history_command,
     handle_targeted_rollback_command
 )
+# [Phase 4] Priority Queue Handlers
+from .priority_handler import set_priority_handler, queue_status_handler
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +211,12 @@ async def handle_command(client, event):
             "download": lambda: handle_download_command(event, client, parts),
             "cancel": lambda: handle_cancel_command(event),
             "menu": lambda: handle_settings_command(event, "menu", parts), # /menu is alias for /settings
+            # Priority Queue Coammands
+            "set_priority": lambda: set_priority_handler(event),
+            "vip": lambda: set_priority_handler(event),
+            "p": lambda: set_priority_handler(event),
+            "queue_status": lambda: queue_status_handler(event),
+            "qs": lambda: queue_status_handler(event),
         }
 
         handler = command_handlers.get(command)

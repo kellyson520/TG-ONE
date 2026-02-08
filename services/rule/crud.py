@@ -76,6 +76,7 @@ class RuleCRUDService:
                     'forward_mode': dto.forward_mode,
                     'is_ai': dto.is_ai,
                     'is_summary': dto.is_summary,
+                    'priority': dto.priority,
                 }
                 # Sanitize Chat titles for view if needed (DTO already contains basic fields)
                 if rule_data['source_chat'].get('title') is None: rule_data['source_chat']['title'] = f"Chat {rule_data['source_chat'].get('telegram_chat_id')}"
@@ -148,6 +149,7 @@ class RuleCRUDService:
             'delay_seconds': rule_dto.delay_seconds,
             'force_pure_forward': rule_dto.force_pure_forward,
             'enable_sync': rule_dto.enable_sync,
+            'priority': rule_dto.priority,
             # Add missing fields from Phase 1 requirements if any
         }
 

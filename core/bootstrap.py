@@ -308,7 +308,7 @@ class Bootstrap:
             
             await self.bot_client(SetBotCommandsRequest(
                 scope=BotCommandScopeDefault(),
-                lang_code='en',
+                lang_code='',
                 commands=BOT_COMMANDS
             ))
             logger.info(f"已成功注册 {len(BOT_COMMANDS)} 个 Bot 命令")

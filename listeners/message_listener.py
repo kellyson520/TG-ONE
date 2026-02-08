@@ -8,6 +8,8 @@
 from __future__ import annotations
 import logging
 import asyncio
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from telethon import events
@@ -78,6 +80,27 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
         # 其他人发送的消息都处理
         return True
     
+    # Priority State (Closure)
+    _priority_state = {
+        "map": {},
+        "last_update": 0
+    }
+
+    async def _get_chat_priority(chat_id: int) -> int:
+        """获取聊天优先级 (带缓存)"""
+        now = time.time()
+        # Update cache every 60s
+        if now - _priority_state["last_update"] > 60:
+            try:
+                # Use lazy property to avoid import cycle issues if any
+                _priority_state["map"] = await container.rule_repo.get_priority_map()
+                _priority_state["last_update"] = now
+                logger.debug(f"Priority map updated: {len(_priority_state['map'])} entries")
+            except Exception as e:
+                logger.warning(f"Priority map update failed: {e}")
+        
+        return _priority_state["map"].get(chat_id, 0)
+
     # 用户客户端监听器 - 只写入任务队列
     @user_client.on(events.NewMessage(func=should_process))
     async def user_message_listener(event):
@@ -151,13 +174,30 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                 "has_media": bool(event.message.media),
                 "grouped_id": event.message.grouped_id  # 捕获 grouped_id
             }
-            # 写入背压消息队列 (Default Priority = 0)
+            
+            # [Priority Enhancement] 计算优先级
+            base_priority = 10 # 默认 Live 消息
+            
+            # 1. Catch-up Detection (Old Messages > 5 min -> Low Priority)
+            if event.message.date:
+                try:
+                    msg_ts = event.message.date.timestamp()
+                    if time.time() - msg_ts > 300: # 5 minutes
+                        base_priority = 0
+                except:
+                    pass
+            
+            # 2. Rule based Priority
+            rule_priority = await _get_chat_priority(event.chat_id)
+            final_priority = base_priority + rule_priority
+            
+            # 写入背压消息队列 (With Calculated Priority)
             await container.queue_service.enqueue(
-                ("process_message", payload, 0)
+                ("process_message", payload, final_priority)
             )
             from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)
-            logger.info(f"✅ [监听器] 普通消息已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级=0, 分组ID={event.message.grouped_id}")
+            logger.info(f"✅ [监听器] 普通消息已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级={final_priority} (Base={base_priority}, Rule={rule_priority}), 分组ID={event.message.grouped_id}")
         except Exception as e:
             from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)

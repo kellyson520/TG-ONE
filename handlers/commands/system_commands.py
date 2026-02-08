@@ -172,7 +172,7 @@ async def callback_confirm_update(event):
              from handlers.bot_commands_list import BOT_COMMANDS
              await event.client(SetBotCommandsRequest(
                  scope=BotCommandScopeDefault(),
-                 lang_code='en',
+                 lang_code='',
                  commands=BOT_COMMANDS
              ))
         except Exception as e:
