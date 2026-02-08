@@ -2,6 +2,12 @@
 
 ## 📅 2026-02-08 更新摘要
 
+### 🚀 v1.2.4.2: 修复 Bot 命令菜单乱码 (Fix Bot Command Encoding)
+- **Critical Encoding Fix**:
+    - **Double-Encoding Recovery**: 深度分析并修复了 `handlers/bot_commands_list.py` 中的严重乱码问题（UTF-8 -> GBK -> UTF-8 双重编码破坏），恢复了所有 Bot Command 的中文描述与 Emoji。
+    - **Recovery Script**: 开发并执行了专用的逆向修复脚本，成功还原了 90+ 行受损代码。
+    - **Verification**: 通过 `syntax_check.py` 验证了修复后文件的 Python 语法完整性，并移除了可能导致编译问题的 UTF-8 BOM 头。
+
 ### 🚀 v1.2.4.1: 运维卫生与关闭流程优化 (DevOps & Shutdown Optimization)
 - **DevOps & Logging**:
     - **Visible Dependency Check**: 增强了 `entrypoint.sh` 的守护进程日志，在校验依赖时增加 `🔍校验中...` 和 `✅校验通过` 的明确输出，消除重启时的“黑盒”状态。
