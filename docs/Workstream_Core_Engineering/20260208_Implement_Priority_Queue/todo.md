@@ -51,7 +51,7 @@
     - [x] 在 `core.helpers.common` 中定义 `is_admin_or_owner`
     - [x] 更新 `priority_handler.py` 导入路径
     - [x] 验证 `priority_handler.py` 加载正常
-- [ ] Integration Verification (QoS 4.0 Full Link)
+- [x] Integration Verification (QoS 4.0 Full Link)
 
 ### Phase 3: 严格优先调度 (Strict Priority Egress) - [已完成] ✅
 - [x] **Worker Loop**:

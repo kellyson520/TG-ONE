@@ -12,6 +12,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260208_FixSenderFilterMetadata | 修复 SenderFilter MessageContext 缺失 metadata 属性错误 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Bugfix/20260208_FixSenderFilterMetadata/report.md) |
 | 20260208_Implement_Priority_Queue | 实现多级优先级队列 (解决积压延迟) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Implement_Priority_Queue/report.md) |
 | 20260208_Investigate_Forward_Delay | 调查消息转发延迟 (积压导致) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Investigate_Forward_Delay/report.md) |
 | 20260207_Integration_Test_Mixed_Media | 混合媒体集成测试 (Listen-Filter-Forward) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Testing/Task_Integration_Mixed_Media/report.md) |
@@ -138,10 +139,13 @@
 
 | 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
 
+| 20260208_Enhance_Priority_Display | 完善日志优先级显示 (数字转描述/Emoji) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Enhance_Priority_Display/report.md) |
 | 20260208_Fix_Import_Error_Startup | 修复 Bot 命令导入错误引起启动故障 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Import_Error_Startup/report.md) |
 | 20260208_Enhance_Update_Service | 增强升级服务与自动回滚机制 (修复死循环) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Enhance_Update_Service/report.md) |
 | 20260208_Advanced_Update_Interface | 增强升级与回滚全接口支持 (CLI & Bot) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Advanced_Update_Interface/report.md) |
 | 20260208_Update_Build | 升级构建系统使用 uv 替代 pip | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Update_Build_System_to_uv/report.md) |
+| 20260208_Beautify_Build | 美化 Docker 构建输出界面 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Beautify_Docker_Build_UX/report.md) |
+
 
 ### 进行中任务 ⏳
 

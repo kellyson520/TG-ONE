@@ -15,11 +15,11 @@ router = APIRouter(prefix="/api/system", tags=["System Stats"])
 
 @router.get("/tasks", response_model=ResponseSchema)
 async def get_tasks_list(
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=200),
-    status: Optional[str] = None,
-    user = Depends(admin_required),
-    task_repo = Depends(deps.get_task_repo)
+    page: int=Query(1, ge=1),
+    limit: int=Query(50, ge=1, le=200),
+    status: Optional[str]=None,
+    user=Depends(admin_required),
+    task_repo=Depends(deps.get_task_repo)
 ):
     """获取任务队列列表"""
     try:
@@ -177,6 +177,7 @@ async def get_db_pool_status(user = Depends(admin_required)):
         logger.error(f"Error fetching DB pool status: {e}")
         return ResponseSchema(success=False, error=str(e))
 
+
 @router.get("/eventbus/stats", response_model=ResponseSchema)
 async def get_eventbus_stats(
     user = Depends(admin_required),
@@ -189,6 +190,7 @@ async def get_eventbus_stats(
     except Exception as e:
         logger.error(f"Error fetching EventBus stats: {e}")
         return ResponseSchema(success=False, error=str(e))
+
 
 @router.get("/exceptions/stats", response_model=ResponseSchema)
 async def get_exception_stats(

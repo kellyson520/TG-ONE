@@ -152,8 +152,10 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                     if event.chat_id in user_session:
                         user_session.pop(event.chat_id)
                     from core.helpers.id_utils import get_display_name_async
+                    from core.helpers.priority_utils import format_priority_log
                     chat_display = await get_display_name_async(event.chat_id)
-                    logger.info(f"🚀 [监听器] 手动下载任务已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级=100")
+                    p_desc = format_priority_log(100, event.chat_id)
+                    logger.info(f"🚀 [监听器] 手动下载任务已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级={p_desc}")
                 else:
                     # 如果发的不是文件（且不是取消指令）
                     if event.text != "/cancel":
@@ -196,8 +198,10 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                 ("process_message", payload, final_priority)
             )
             from core.helpers.id_utils import get_display_name_async
+            from core.helpers.priority_utils import format_priority_log
             chat_display = await get_display_name_async(event.chat_id)
-            logger.info(f"✅ [监听器] 普通消息已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级={final_priority} (Base={base_priority}, Rule={rule_priority}), 分组ID={event.message.grouped_id}")
+            p_desc = format_priority_log(final_priority, event.chat_id)
+            logger.info(f"✅ [监听器] 普通消息已写入队列: 来源={chat_display}({event.chat_id}), 消息ID={event.id}, 优先级={p_desc}, 分组ID={event.message.grouped_id}")
         except Exception as e:
             from core.helpers.id_utils import get_display_name_async
             chat_display = await get_display_name_async(event.chat_id)

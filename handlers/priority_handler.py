@@ -32,12 +32,11 @@ async def set_priority_handler(event):
         "**指令用法**:\n"
         "• 群组内: `/vip <priority>`\n"
         "• 私聊中: `/vip <rule_id> <priority>`\n"
-        "\n"
-        "**示例**:\n"
-        "`/vip 100` (最高优, Admin)\n"
-        "`/vip 50` (高优, VIP)\n"
-        "`/vip 10` (普通)\n"
-        "`/vip 0` (低优)"
+        "`/vip <priority>` (设置当前规则优先级)\n"
+        "`/vip 100` (🚑 CRITICAL / Emergency)\n"
+        "`/vip 50` (🏎️ FAST / VIP)\n"
+        "`/vip 10` (🚗 STANDARD / Normal)\n"
+        "`/vip 0` (🚗 STANDARD / Bulk)"
     )
 
     rule_id: Optional[int] = None
@@ -102,10 +101,12 @@ async def set_priority_handler(event):
         result = await rule_management_service.update_rule(rule_id, priority=priority)
         
         if result.get('success'):
+            from core.helpers.priority_utils import get_priority_description
+            p_desc = get_priority_description(priority)
             await event.reply(
                 f"✅ **优先级已更新**\n"
                 f"• 规则 ID: `{rule_id}`\n"
-                f"• 新优先级: `{priority}`\n"
+                f"• 新优先级: `{p_desc} ({priority})`\n"
                 f"• 状态: 已生效 (Cached)"
             )
         else:

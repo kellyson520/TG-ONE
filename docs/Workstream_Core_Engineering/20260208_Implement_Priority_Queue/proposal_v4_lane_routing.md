@@ -50,23 +50,23 @@ async def get_next_task():
 ## 4. 实施变更清单 (Tasks)
 
 ### Phase 1: 多级队列重构 (Infrastructure)
-- [ ] **QueueService**:
-    - [ ] 移除 `self.queue` (Single).
-    - [ ] 新增 `self.lanes = { 'critical': Queue(), 'fast': Queue(), 'standard': Queue() }`.
-    - [ ] 保持 `pending_counts` 用于 CAP 计算。
+- [x] **QueueService**:
+    - [x] 移除 `self.queue` (Single).
+    - [x] 新增 `self.lanes = { 'critical': Queue(), 'fast': Queue(), 'standard': Queue() }`.
+    - [x] 保持 `pending_counts` 用于 CAP 计算.
 
 ### Phase 2: 动态路由 (Ingress)
-- [ ] **Enqueue**:
-    - [ ] 计算 CAP Score。
-    - [ ] **Router**:
+- [x] **Enqueue**:
+    - [x] 计算 CAP Score。
+    - [x] **Router**:
         -   Score >= 90: -> `critical`
         -   Score >= 40: -> `fast`
         -   Score < 40: -> `standard`
-    - [ ] 记录 Metrics: `lane_depth_critical`, `lane_depth_fast`, `lane_depth_standard`.
+    - [x] 记录 Metrics: `lane_depth_critical`, `lane_depth_fast`, `lane_depth_standard`.
 
 ### Phase 3: 权重调度 (Egress)
-- [ ] **Worker Loop**:
-    - [ ] 实现简单的权重轮询 (或简单版：`Critical > Fast > Standard` + 偶尔强制取 Standard 防止由于 Fast 持续满载导致的完全饿死)。
+- [x] **Worker Loop**:
+    - [x] 实现简单的权重轮询 (或简单版：`Critical > Fast > Standard` + 偶尔强制取 Standard 防止由于 Fast 持续满载导致的完全饿死)。
     -   *成熟方案建议*: 使用 `Strict Priority` (严谨模式) 配合 `Standard` 泳道的 **TTL**。如果 Fast 满载，Standard 消息只是晚点处理，不会丢。由于我们有 CAP 降级，Fast 不会永远满载 (刷屏者会被踢出 Fast)，所以 **Strict Priority** 是安全的！
     -   *修正*: 采用 **Strict Priority** (先取 Critical, 再 Fast, 再 Standard)。
         -   **为什么安全?** 因为 CAP 算法保证了没有人能长期霸占 Fast Lane (流量整形)。

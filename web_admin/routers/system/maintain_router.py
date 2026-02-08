@@ -230,7 +230,6 @@ async def get_system_resources(user = Depends(login_required)):
         import psutil
         cpu_percent = psutil.cpu_percent(interval=None)
         memory = psutil.virtual_memory()
-        
         return ResponseSchema(success=True, data={
             'cpu': cpu_percent,
             'memory': memory.percent,

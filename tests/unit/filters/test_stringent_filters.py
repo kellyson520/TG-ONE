@@ -91,7 +91,9 @@ async def test_init_filter_cache_isolation():
         dup_signatures=[], 
         chat_id=111,
         message_text=None,
-        buttons=None
+        buttons=None,
+        metadata={},
+        is_media_group=False
     )
     ctx1.event.message.grouped_id = 999
     ctx1.event.chat_id = 111
@@ -104,7 +106,9 @@ async def test_init_filter_cache_isolation():
         dup_signatures=[], 
         chat_id=222,
         message_text=None,
-        buttons=None
+        buttons=None,
+        metadata={},
+        is_media_group=False
     )
     ctx2.event.message.grouped_id = 999
     ctx2.event.chat_id = 222

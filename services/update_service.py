@@ -275,17 +275,62 @@ class UpdateService:
             logger.critical(f"☠️ [更新] 严重错误：数据库回滚失败: {e}")
 
     async def start_periodic_check(self):
-        """启动滚动检查任务"""
+        """启动更新检查服务"""
         # 启动时首先验证更新健康度 (处理手动更新后的崩溃自愈)
-        # 注意：post_update_bootstrap 应该在 main.py 中更早调用
-        # 这里保留 verify_update_health 用于自动更新的健康检查
         await self.verify_update_health()
 
+        # 1. 始终启动: 外部信号监听 (用于响应 manage_update.py 或其他进程发出的更新指令)
+        asyncio.create_task(self._watch_external_signals(), name="update_signal_watcher")
+
+        # 2. 条件启动: 自动更新检查
         if not settings.AUTO_UPDATE_ENABLED:
-            logger.info("自动更新功能已关闭。")
+            logger.info("自动更新功能已关闭 (仅响应手动/外部指令)。")
             return
 
         logger.info(f"自动更新已开启，检查间隔: {settings.UPDATE_CHECK_INTERVAL} 秒")
+        # 启动周期性检查循环
+        asyncio.create_task(self._run_periodic_update_check(), name="periodic_update_check")
+
+    async def _watch_external_signals(self):
+        """监听外部更新信号 (UPDATE_LOCK.json)"""
+        lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
+        logger.info("📡 [UpdateService] 外部信号监听器已就绪")
+        
+        while not self._stop_event.is_set():
+            try:
+                await asyncio.sleep(5)  # 高频检查 (5s)
+                
+                if not lock_file.exists():
+                    continue
+
+                try:
+                    content = json.loads(lock_file.read_text(encoding='utf-8'))
+                    status = content.get("status")
+                    
+                    # 如果发现 "processing" 或 "rollback_requested" 状态，说明有外部工具(如 manage_update.py)
+                    # 请求了更新，但因为它是独立进程，无法直接重启主进程。
+                    # 所以我们需要在这里主动自杀，交由 entrypoint.sh 接管。
+                    if status in ["processing", "rollback_requested"]:
+                        logger.warning(f"📡 [UpdateService] 检测到外部更新信号 (Status: {status})，正在执行受控重启...")
+                        
+                        # 确保发出通知
+                        await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
+                        
+                        # 给最后一条日志一点时间输出
+                        await asyncio.sleep(1)
+                        sys.exit(EXIT_CODE_UPDATE)
+                        
+                except json.JSONDecodeError:
+                    pass # 正在写入中?
+                except Exception:
+                    pass
+
+            except Exception as e:
+                logger.error(f"信号监听异常: {e}")
+                await asyncio.sleep(10)
+
+    async def _run_periodic_update_check(self):
+        """执行周期性自动更新检查"""
         while not self._stop_event.is_set():
             try:
                 await asyncio.sleep(settings.UPDATE_CHECK_INTERVAL)
@@ -298,6 +343,8 @@ class UpdateService:
                 has_update, remote_ver = await self.check_for_updates(force=False)
                 if has_update:
                     logger.info(f"🆕 [更新] 发现新版本 (目标: {remote_ver})，正在启动高可靠执行逻辑...")
+                    # 注意: 这里调用 perform_update 会直接下载代码并覆盖，
+                    # 成功后 guard_service.trigger_restart() 会重启。
                     success, msg = await self.perform_update()
                     if success:
                         logger.info("✅ [更新] 原子同步完成，正在触发智能重启...")

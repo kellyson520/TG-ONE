@@ -1,7 +1,12 @@
-VERSION = "1.2.4.3"
+VERSION = "1.2.4.5"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.4.5: QoS 4.0 动态泳道路由 (Lane Routing) 完整版
+  - 实现物理隔离的 Critical/Fast/Standard 三泳道系统
+  - 引入 汉化版 拥塞感知路由 (CAP) 与 动态评分日志显示
+  - 修复 /vip 指令在 QoS 4.0 下的描述对齐问题
+- v1.2.4.4: 构建系统升级与核心 Bug 修复 - 迁移至 `uv` 包管理器以提升 5x 构建效率；修复 `SenderFilter` 中 `MessageContext` 缺失 `metadata` 属性导致的转发中断；实现多级优先级队列解决高负载延迟；修复启动阶段 Bot 命令导入错误与关闭流程冗余。
 - v1.2.4.3: 工业级更新交互与故障自愈 - 引入 Uptime Guard (故障自动回滚)、UPDATE_VERIFYING 稳定性观察机制及物理包 Failover；新增 `manage_update.py` CLI 工具与 Bot 端带二次确认的 `/update`、`/rollback` 指令。
 - v1.2.4.2: 修复 Bot 命令菜单乱码 - 深度分析并修复了 `bot_commands_list.py` 中的双重编码破坏，恢复了所有中文字符描述与 Emoji，并通过语法校验与单体修复确保了命令注册的稳定性。
 - v1.2.4.1: 运维卫生与关闭流程优化 - 增强 `entrypoint.sh` 依赖检查日志可见性，修复重复关闭导致的警告噪音，移除启动异常块中的冗余停止调用，并完成历史任务的自动化归档清理。
