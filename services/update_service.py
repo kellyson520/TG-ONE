@@ -140,6 +140,34 @@ class UpdateService:
                 lock_file.unlink()
             raise RuntimeError("更新准备失败")
 
+    async def request_rollback(self):
+        """
+        请求紧急回滚。
+        设置锁文件状态为 rollback_requested 并退出，由守护进程接管执行回滚。
+        """
+        try:
+            logger.critical("🚑 [更新] 收到手动回滚请求，正在准备环境...")
+            
+            # 写锁
+            state = {
+                "status": "rollback_requested",
+                "start_time": datetime.now().isoformat(),
+                "version": "rollback"
+            }
+            lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
+            lock_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(lock_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+                
+            await self._emit_event("SYSTEM_ALERT", {"message": "🚑 系统紧急回滚已触发，正在重启恢复..."})
+            sys.exit(EXIT_CODE_UPDATE)
+        except SystemExit:
+            raise
+        except Exception as e:
+            logger.error(f"❌ [回滚] 请求失败: {e}")
+            raise RuntimeError("回滚请求失败")
+
     async def post_update_bootstrap(self):
         """
         [阶段2] 启动引导：检查锁 -> DB迁移 -> 清理锁
@@ -194,10 +222,21 @@ class UpdateService:
         except Exception as e:
             logger.error(f"❌ [更新] 引导任务失败: {e}")
         finally:
-            # 无论成功失败，移除锁文件，允许系统进入服务状态
-            if lock_file.exists():
-                lock_file.unlink()
-            logger.info("✅ [更新] 系统就绪检查完成。")
+            # 将“硬更新锁”转换为“稳定性观察锁”
+            # 这有两个作用：
+            # 1. Web 维护页面 (MaintenanceMiddleware) 会因为 UPDATE_LOCK.json 消失而恢复正常服务
+            # 2. entrypoint.sh 守护进程仍能通过 UPDATE_VERIFYING.json 识别出系统处于更新后的观察期
+            try:
+                verify_lock = settings.BASE_DIR / "data" / "UPDATE_VERIFYING.json"
+                if lock_file.exists():
+                    import shutil
+                    shutil.move(str(lock_file), str(verify_lock))
+                    logger.info("✅ [更新] 数据库后置引导完成，已切换至稳定性观察模式。")
+                else:
+                    logger.debug("未发现更新锁文件，跳过状态切换。")
+            except Exception as e:
+                logger.error(f"切换更新锁状态失败: {e}")
+                if lock_file.exists(): lock_file.unlink()
 
     def _rollback_db(self, backup_path: str):
         """回滚数据库到备份版本"""
@@ -856,6 +895,11 @@ class UpdateService:
                 cwd=str(settings.BASE_DIR)
             )
             await process.wait()
+            if process.returncode == 0:
+                # 清理锁文件
+                for f in ["UPDATE_LOCK.json", "UPDATE_VERIFYING.json"]:
+                    lock_f = settings.BASE_DIR / "data" / f
+                    if lock_f.exists(): lock_f.unlink()
             return process.returncode == 0, f"Git 回滚至 {prev[:8]}"
             
         # 2. 如果是 HTTP 模式
@@ -865,7 +909,12 @@ class UpdateService:
                 return False, "未找到 HTTP 更新的本地备份文件"
             
             logger.critical(f"🚑 [回滚] 正在还原备份包: {Path(backup_file).name}...")
-            return await self._restore_from_local_backup(backup_file)
+            success, msg = await self._restore_from_local_backup(backup_file)
+            if success:
+                for f in ["UPDATE_LOCK.json", "UPDATE_VERIFYING.json"]:
+                    lock_f = settings.BASE_DIR / "data" / f
+                    if lock_f.exists(): lock_f.unlink()
+            return success, msg
 
     def stop(self):
         """停止更新监控"""

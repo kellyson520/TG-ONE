@@ -136,20 +136,23 @@
 | 20260204_Industrial_Grade_Update | 工业级自动升级系统 (Supervisor + 状态机 + 原子回滚) | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Infrastructure/20260204_Industrial_Grade_Update_System/report.md) |
 | 20260204_Menu_Fix | 修复菜单导航循环、虚假数据及归档崩溃 | 2026-02-04 | 2026-02-04 | 100% | [[report.md]](./Workstream_Maintenance/20260204_Fix_Menu_Navigation_And_Data/report.md) |
 
+| 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
+
+| 20260208_Fix_Import_Error_Startup | 修复 Bot 命令导入错误引起启动故障 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Import_Error_Startup/report.md) |
+| 20260208_Enhance_Update_Service | 增强升级服务与自动回滚机制 (修复死循环) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Enhance_Update_Service/report.md) |
+| 20260208_Advanced_Update_Interface | 增强升级与回滚全接口支持 (CLI & Bot) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Infrastructure/20260208_Advanced_Update_Interface/report.md) |
 
 ### 进行中任务 ⏳
 
-
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
-| 20260208_LogAnalysis_P1 | 20260208 日志深度分析与异常诊断 | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260208_LogAnalysis_P1/todo.md) |
-| 20260207_Fix_Dedup_Repository_AttributeError | 修复 DedupRepository AttributeError 与双重去重校验冲突 | 2026-02-07 | 2026-02-07 | 100% | [📂 查看](./Workstream_Deduplication/20260207_Fix_Dedup_Repository_AttributeError/todo.md) |
-| 20260207_Fix_Media_Signature_Integrity_Error | 修复媒体签名唯一约束冲突问题 | 2026-02-07 | 2026-02-08 | 100% | [[report.md]](./Workstream_Deduplication/20260207_Fix_Media_Signature_Integrity_Error_P1/report.md) |
-| 20260208_Fix_Forward_Hub_Refresh_Error | 修复刷新转发中心失败问题 (force_refresh 传参错误) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Fix_Forward_Hub_Refresh_Error/report.md) |
-| 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |
-| 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
+| 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
 | 20260202_Online_Update | 添加联网更新功能与自动重启 | 2026-02-02 | 进行中 | 0% | [📂 查看](./docs/Workstream_Feature/20260202_Online_Update_Feature/todo.md) |
+| 20260206_Verify_Archive_Tests | 归档系统单元测试与集成测试验证 | 2026-02-06 | 进行中 | 10% | [[todo.md]](./Workstream_Maintenance/20260206_Verify_Archive_Tests/todo.md) |
+| 20260208_LogAnalysis_P1 | 20260208 日志深度分析与异常诊断 | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260208_LogAnalysis_P1/todo.md) |
+| 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
+| 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 
 
 

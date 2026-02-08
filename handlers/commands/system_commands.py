@@ -130,75 +130,73 @@ async def handle_admin_panel_command(event):
     # This usually involves buttons, might be complex. Stub for now.
     await reply_and_delete(event, "Admin panel coming soon.")
 
-async def handle_update_command(event):
-    """处理 /update 命令，手动触发更新"""
+async def handle_update_command(event, parts=None):
+    """处理 /update [target] 命令，手动触发更新"""
     await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
-    msg = await event.respond("🔍 正在检查更新...", parse_mode="md")
     
+    target = parts[0] if parts else "origin/main"
+    
+    msg = await event.respond(f"🔍 正在检查针对 `{target}` 的更新...", parse_mode="md")
+    
+    # 获取当前版本信息
     has_update, remote_ver = await update_service.check_for_updates(force=True)
     
-    if not has_update:
-        # [Fix Loop] 如果没有更新，明确告知用户并提供强制更新选项
-        from telethon import Button
-        buttons = [
-            [Button.inline("⚡ 强制重新部署", "confirm_update"), Button.inline("❌ 关闭", "delete")]
-        ]
-        await msg.edit(
-            f"✅ **当前已是最新版本**\n\n当前版本: `{remote_ver}`\n\n如果您遇到系统异常或文件损坏，可以尝试强制重新部署。",
-            buttons=buttons
-        )
-        return
-
-    # [Fix Loop] 添加二次确认按钮
     from telethon import Button
-    buttons = [
-        [Button.inline("🚀 确认更新", "confirm_update"), Button.inline("❌ 取消", "delete")]
-    ]
-    await msg.edit(f"🆕 **检测到新版本**: `{remote_ver}`\n\n是否立即执行更新并重启？", buttons=buttons)
+    text = (
+        f"🚀 **系统更新/重部署确认**\n\n"
+        f"目标版本/分支: `{target}`\n"
+        f"状态: {'发现新版本' if has_update else '当前已是最新或强制重新部署'}\n\n"
+        f"操作影响: \n"
+        f"1. 数据库自动备份\n"
+        f"2. 守护进程同步代码\n"
+        f"3. 自动安装缺失依赖\n"
+        f"4. 系统自动重启并应用迁移\n\n"
+        f"确定要开始吗？"
+    )
     
-    # Logic moved to callback_confirm_update to prevent auto-execution
+    buttons = [
+        [Button.inline("🚀 确认执行", data=f"confirm_update:{target}"), Button.inline("❌ 取消", data="delete")]
+    ]
+    await msg.edit(text, buttons=buttons)
 
 async def callback_confirm_update(event):
     """处理确认更新回调"""
-    msg = await event.edit("🚀 正在执行更新流程，请稍候...", buttons=None)
+    data = event.data.decode("utf-8")
+    parts = data.split(":")
+    target = parts[1] if len(parts) > 1 else "origin/main"
     
-    success, result_msg = await update_service.perform_update()
+    await event.edit(f"🚀 **正在触发系统更新序列...**\n\n目标: `{target}`\n\n系统将由于更新重启，请在 60 秒后重新连接。", buttons=None)
+    await asyncio.sleep(2)
     
-    if success:
-        # 主动触发一次 Bot 命令注册
-        try:
-             from telethon.tl.functions.bots import SetBotCommandsRequest
-             from telethon.tl.types import BotCommandScopeDefault
-             from handlers.bot_commands_list import BOT_COMMANDS
-             await event.client(SetBotCommandsRequest(
-                 scope=BotCommandScopeDefault(),
-                 lang_code='',
-                 commands=BOT_COMMANDS
-             ))
-        except Exception as e:
-             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-        await msg.edit(f"🚀 **系统更新成功！**\n\n{result_msg}\n\n系统将在 3 秒后自动重启。")
-        await asyncio.sleep(3)
-        from services.system_service import guard_service
-        guard_service.trigger_restart()
-    else:
-        await msg.edit(f"❌ **更新失败**\n\n原因: `{result_msg}`")
+    # 调用 trigger_update (会引发 sys.exit)
+    await update_service.trigger_update(target_version=target)
 
 async def handle_rollback_command(event):
-    """紧急回滚命令"""
+    """触发回滚确认"""
     await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
-    msg = await event.respond("🚑 正在启动紧急回滚流程...", parse_mode="md")
     
-    success, result_msg = await update_service.rollback()
+    from telethon import Button
+    text = (
+        "🚑 **紧急回滚确认**\n\n"
+        "操作影响: \n"
+        "1. 尝试回退至上一个本地 Git 版本记录\n"
+        "2. 若 Git 失败则从物理备份还原文件\n"
+        "3. 系统强制重启\n\n"
+        "⚠️ **警告**: 此操作仅限系统崩溃无法自愈时使用。"
+    )
     
-    if success:
-        await msg.edit(f"🏥 **回滚指令执行成功**\n\n{result_msg}\n\n正在强制重启...")
-        await asyncio.sleep(2)
-        from services.system_service import guard_service
-        guard_service.trigger_restart()
-    else:
-        await msg.edit(f"❌ **回滚失败**\n\n原因: `{result_msg}`")
+    buttons = [
+        [Button.inline("⚠️ 确认强制回滚", data="confirm_rollback"), Button.inline("❌ 取消", data="delete")]
+    ]
+    await event.respond(text, buttons=buttons)
+
+async def callback_confirm_rollback(event):
+    """处理确认回滚回调"""
+    await event.edit("🚑 **正在触发紧急回滚序列...**\n\n系统将立即重启以进行文件恢复。", buttons=None)
+    await asyncio.sleep(2)
+    
+    # 复用 UpdateService 的请求回滚逻辑
+    await update_service.request_rollback()
 
 async def handle_history_command(event):
     """显示更新历史"""
@@ -216,28 +214,6 @@ async def handle_history_command(event):
         text += f"🔹 `{item['short_sha']}` - {item['author']}\n"
         text += f"📅 `{item['timestamp']}`\n"
         text += f"📝 {item['message']}\n"
-        text += f"回滚: `/rollback {item['sha']}`\n\n"
+        text += f"回滚至此: `/update {item['sha']}`\n\n"
         
     await msg.edit(text)
-
-async def handle_targeted_rollback_command(event, parts):
-    """回滚命令：支持无参(自动回滚至上个版本)或有参(指定 Commit SHA)"""
-    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
-    
-    if len(parts) < 1:
-        msg = await event.respond("🚑 正在启动紧急回滚流程 (自动恢复上个本地记录)...", parse_mode="md")
-        success, result_msg = await update_service.rollback()
-        
-        if success:
-            await msg.edit(f"🏥 **回滚指令执行成功**\n\n{result_msg}\n\n正在强制重启...")
-            await asyncio.sleep(2)
-            from services.system_service import guard_service
-            guard_service.trigger_restart()
-        else:
-            await msg.edit(f"❌ **回滚失败**\n\n原因: `{result_msg}`")
-        return
-        
-    sha = parts[0]
-    msg = await event.respond(f"🚑 正在请求定向回滚到版本 `{sha[:8]}`...", parse_mode="md")
-    # 定向回滚通过 Supervisor 重新同步代码
-    await update_service.trigger_update(target_version=sha)

@@ -1,4 +1,16 @@
 # Change Log
+ 
+## 📅 2026-02-08 更新摘要
+
+### 🚀 v1.2.4.3: 工业级更新交互与故障自愈 (Advanced Update & Rollback Interface)
+- **Infrastructure & Reliability**:
+    - **Uptime Guard**: 在 `entrypoint.sh` 中引入“启动守护绿洲”，实现在更新后 15 秒内发生崩溃时自动执行回滚，彻底终结“坏版本导致死循环”的运维隐患。
+    - **State Verification**: 引入 `UPDATE_VERIFYING.json` 中间态锁，使系统在“观察期”内仍能识别潜在故障并触发安全降级。
+    - **Physical Failover**: 增强物理备份逻辑，在 Git 回滚受阻时（如仓库损坏），自动通过 `.tar.gz` 原始代码包还原核心目录。
+- **Interactive Interfaces (Maximum Reuse)**:
+    - **Python CLI**: 新增 `scripts/ops/manage_update.py`，支持终端查看状态 (`status`)、补丁/全量更新 (`upgrade`) 和紧急救急 (`rollback`)。
+    - **Bot Management**: 在 `/update` 和 `/rollback` 指令中集成二次确认逻辑与目标版本选择，支持精确回滚至历史版本 (`/history` 跳转)。
+    - **Architecture Consistency**: 重构 `UpdateService` 将原本分散在 CLI 和 Bot 的更新逻辑收口为统一的异步状态机指令，确保操作幂等与状态同步。
 
 ## 📅 2026-02-08 更新摘要
 

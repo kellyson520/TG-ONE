@@ -284,9 +284,14 @@ callback_router.add_route("other_callback:{rest}", handle_other_callback)
 from handlers.button.callback.modules.changelog_callback import callback_changelog_page
 callback_router.add_route("cl_page:{page}", callback_changelog_page)
 
-# 确认更新
-from handlers.commands.system_commands import callback_confirm_update
+# 确认更新与回滚
+from handlers.commands.system_commands import (
+    callback_confirm_update,
+    callback_confirm_rollback
+)
 callback_router.add_route("confirm_update", callback_confirm_update)
+callback_router.add_route("confirm_update:{target}", callback_confirm_update)
+callback_router.add_route("confirm_rollback", callback_confirm_rollback)
 
 # [Fix] 通用 Toggle 处理器 - 处理所有 toggle_* 回调
 from .generic_toggle import handle_generic_toggle

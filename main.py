@@ -44,9 +44,10 @@ async def main():
     """主入口函数"""
     # --- 1. 升级后置处理 (关键插入点) ---
     # 在加载任何 ORM 模型或启动 Web 服务前执行
-    # 确保数据库 Schema 与新代码匹配
+    # 确保数据库 Schema 与新代码匹配，并启动健康观察期
     from services.update_service import update_service
-    await update_service.post_update_bootstrap()
+    await update_service.verify_update_health()    # 检查历史故障并尝试自愈
+    await update_service.post_update_bootstrap()   # 执行迁移等任务
     
     # 3. 初始化全局客户端 (在异步环境内初始化，确保绑定正确的 Event Loop)
     try:

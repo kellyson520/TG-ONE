@@ -1366,3 +1366,63 @@ async def handle_changelog_command(event):
     # 使用分页显示逻辑
     from handlers.button.callback.modules.changelog_callback import show_changelog
     await show_changelog(event, page=1)
+
+
+# =================== 搜索命令实现 ===================
+
+async def _common_search_handler(event, parts, search_type):
+    """通用搜索处理函数"""
+    from handlers.search_ui_manager import SearchUIManager
+    from core.helpers.search_system import SearchFilter, get_search_system
+    from core.container import container
+    from core.helpers.auto_delete import reply_and_delete, async_delete_user_message
+
+    if len(parts) < 2:
+        await reply_and_delete(event, f"🔍 用法: /{event.message.text.split()[0][1:]} <关键词>")
+        return
+
+    query = " ".join(parts[1:])
+    
+    # 获取搜索系统（集成用户客户端）
+    search_system = get_search_system(container.user_client)
+    
+    # 构建筛选器
+    filters = SearchFilter(search_type=search_type)
+    
+    # 执行搜索
+    response = await search_system.search(query, filters, 1)
+    
+    # 生成界面
+    message_text = SearchUIManager.generate_search_message(response)
+    buttons = SearchUIManager.generate_pagination_buttons(response, "search")
+    
+    # 删除指令并回复
+    try:
+        await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    except Exception:
+        pass
+    await reply_and_delete(event, message_text, buttons=buttons, parse_mode="html")
+
+
+async def handle_search_command(event, command, parts):
+    """处理 /search 命令 - 全局聚合搜索"""
+    from core.helpers.search_system import SearchType
+    await _common_search_handler(event, parts, SearchType.ALL)
+
+
+async def handle_search_bound_command(event, command, parts):
+    """处理 /search_bound 命令 - 在绑定频道搜索"""
+    from core.helpers.search_system import SearchType
+    await _common_search_handler(event, parts, SearchType.BOUND_CHATS)
+
+
+async def handle_search_public_command(event, command, parts):
+    """处理 /search_public 命令 - 搜索公开频道"""
+    from core.helpers.search_system import SearchType
+    await _common_search_handler(event, parts, SearchType.PUBLIC_CHATS)
+
+
+async def handle_search_all_command(event, command, parts):
+    """处理 /search_all 命令 - 全局聚合搜索"""
+    from core.helpers.search_system import SearchType
+    await _common_search_handler(event, parts, SearchType.ALL)
