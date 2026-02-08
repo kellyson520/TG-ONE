@@ -21,6 +21,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # 4. 安装 Python 依赖 (使用清华源加速)
 # 使用缓存挂载加速 uv
+# 显式设置 UV_LINK_MODE=copy 以消除 Docker 缓存层无法硬链接的警告
+ENV UV_LINK_MODE=copy
+
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install -r requirements.txt --index-url https://pypi.tuna.tsinghua.edu.cn/simple
@@ -69,4 +72,5 @@ RUN chmod +x /app/scripts/ops/entrypoint.sh
 
 # 启动命令
 # 关键修复：使用 bash 显式执行脚本，绕过文件系统的执行权限限制
+ENV UV_LINK_MODE=copy
 CMD ["bash", "/app/scripts/ops/entrypoint.sh"]
