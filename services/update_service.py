@@ -524,7 +524,12 @@ class UpdateService:
                 # 暂时允许非 GitHub 但记录警告 (根据用户需求，这里可以更严格)
             
             # 3. 官方仓库比对
-            normalized_url = url.replace("https://", "").replace(".git", "")
+            normalized_url = url.replace("https://", "").replace("http://", "")
+            if normalized_url.endswith(".git"):
+                normalized_url = normalized_url[:-4]
+            if normalized_url.startswith("github.com/"):
+                 normalized_url = normalized_url[11:]
+
             if normalized_url != OFFICIAL_REPO:
                 logger.warning(f"⚠️ [安全提示] 正在使用非官方仓库更新: {normalized_url} (官方: {OFFICIAL_REPO})")
             

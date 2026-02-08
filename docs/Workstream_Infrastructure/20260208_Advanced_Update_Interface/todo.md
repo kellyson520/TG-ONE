@@ -16,10 +16,10 @@
 - [x] 增加更新任务的状态锁定，防止并发指令造成冲突。
 
 ### Phase 2: 命令行管理工具 (CLI)
-- [x] 创建 `scripts/ops/manage_update.py`。
-- [x] 支持用法: `python scripts/ops/manage_update.py status`。
-- [x] 支持用法: `python scripts/ops/manage_update.py upgrade [version]`。
-- [x] 支持用法: `python scripts/ops/manage_update.py rollback`。
+- [x] 创建 `manage_update.py` (Moved to Root).
+- [x] 支持用法: `python manage_update.py status`。
+- [x] 支持用法: `python manage_update.py upgrade [version]`。
+- [x] 支持用法: `python manage_update.py rollback`。
 
 ### Phase 3: 机器人指令集成 (Bot)
 - [x] 在 `rule_commands.py` 或相关模块增加 `handle_update_command`。

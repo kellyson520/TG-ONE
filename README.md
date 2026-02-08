@@ -29,13 +29,13 @@ Telegram 转发器核心重构项目 (Core Refactoring).
 在服务器终端执行：
 ```bash
 # 查看当前版本状态
-python scripts/ops/manage_update.py status
+python manage_update.py status
 
 # 升级到指定分支或补丁版本 (Commit SHA)
-python scripts/ops/manage_update.py upgrade origin/main
+python manage_update.py upgrade origin/main
 
 # 紧急手动回滚
-python scripts/ops/manage_update.py rollback
+python manage_update.py rollback
 ```
 
 ### 2. Bot 指令管理
