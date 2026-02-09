@@ -2,6 +2,7 @@
 TG ONE 统一生命周期管理中心 (Lifecycle Manager)
 负责整合应用启动 (Bootstrap) 和 优雅关闭 (Shutdown) 流程。
 """
+import asyncio
 import logging
 from typing import Optional
 from telethon import TelegramClient
@@ -20,6 +21,8 @@ class LifecycleManager:
         self.bootstrap = Bootstrap(user_client, bot_client)
         self.coordinator = get_shutdown_coordinator()
         self._running = False
+        self.stop_event = asyncio.Event()
+        self.exit_code = 0
 
     @classmethod
     def get_instance(cls, user_client: Optional[TelegramClient] = None, bot_client: Optional[TelegramClient] = None) -> 'LifecycleManager':
@@ -45,8 +48,18 @@ class LifecycleManager:
             await self.stop()
             raise
 
+    def shutdown(self, exit_code: int = 0) -> None:
+        """触发停止信号 (同步方法，可从信号处理程序调用)"""
+        logger.info(f"LifecycleManager: Shutdown signal received (code: {exit_code})")
+        self.exit_code = exit_code
+        self.stop_event.set()
+
     async def stop(self) -> None:
-        """停止系统"""
+        """停止系统 (执行实际的清理工作)"""
+        # 确保 stop_event 被设置，防止等待者死锁
+        if not self.stop_event.is_set():
+            self.stop_event.set()
+
         if self.coordinator.is_shutting_down():
             logger.debug("LifecycleManager: Shutdown already in progress, skipping.")
             return
