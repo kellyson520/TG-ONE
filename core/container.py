@@ -65,6 +65,7 @@ class Container:
         self.rss_puller: Optional[Any] = None  
         self.user_client: Optional[TelegramClient] = None
         self.bot_client: Optional[TelegramClient] = None
+        self._lifecycle: Optional[Any] = None
         
         # 注册核心事件监听 (延迟到属性访问或 start 时可能更好，但为了保证监听有效性，部分可能需要在 init 或第一次使用时注册)
         # 这里暂时保留核心的内部监听，外部服务的监听移至 dedicated setup 方法或 lazy property
@@ -241,6 +242,10 @@ class Container:
             self._rule_filter_service = RuleFilterService()
         return self._rule_filter_service
 
+    @property
+    def lifecycle(self) -> Any:
+        return self._lifecycle
+
     # --- Controllers (UI/Domain) ---
 
     @property
@@ -275,6 +280,11 @@ class Container:
     def init_with_client(self, user_client: TelegramClient, bot_client: TelegramClient) -> Any:
         self.user_client = user_client
         self.bot_client = bot_client
+        
+        # 挂载生命周期管理器 (为了让 update_service 等能够访问)
+        from core.lifecycle import get_lifecycle
+        self._lifecycle = get_lifecycle(user_client, bot_client)
+        
         # 初始化服务
         from services.download_service import DownloadService
         self.downloader = DownloadService(user_client)
