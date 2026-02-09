@@ -17,7 +17,7 @@ from core.helpers.tombstone import tombstone
 from services.update_service import update_service
 from core.helpers.metrics import set_ready, update_heartbeat
 
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any 
 
 send_welcome_message: Optional[Callable[[Any], Any]] = None
 start_heartbeat: Optional[Callable[[Any, Any], Any]] = None
@@ -270,7 +270,6 @@ class Bootstrap:
         
         self.coordinator.register_cleanup(_stop_accepting_requests, priority=0, timeout=2.0)
         
-        # Priority 1: Cron & Guards Stop
         async def _stop_auxiliary() -> None:
             from scheduler.cron_service import cron_service
             from services.system_service import guard_service
@@ -279,6 +278,14 @@ class Bootstrap:
             await asyncio.sleep(0.1)
             
         self.coordinator.register_cleanup(_stop_auxiliary, priority=1, timeout=5.0, name="stop_auxiliary")
+        
+        # Priority 2: Stop Web Server (Wait for graceful shutdown)
+        if settings.WEB_ENABLED:
+            try:
+                from web_admin.fastapi_app import stop_web_server
+                self.coordinator.register_cleanup(stop_web_server, priority=2, timeout=5.0, name="web_server_stop")
+            except ImportError:
+                pass
         
         # Priority 2: Shutdown Container
         self.coordinator.register_cleanup(container.shutdown, priority=2, timeout=10.0, name="container_shutdown")

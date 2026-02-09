@@ -304,10 +304,15 @@ else:
 
 
 # 导出 app 对象供外部使用
-__all__ = ["app", "start_web_server"]
+__all__ = ["app", "start_web_server", "stop_web_server"]
+
+
+# 全局服务器实例引用
+_server_instance = None
 
 async def start_web_server(host: str, port: int) -> None:
     """异步启动 Web 服务器"""
+    global _server_instance
     import uvicorn
     import logging
     
@@ -321,7 +326,29 @@ async def start_web_server(host: str, port: int) -> None:
         app, 
         host=host, 
         port=port, 
-        log_config=None,  # 禁用 uvicorn 内部日志配置，直接使用已经配置好的 root logger
+        log_config=None,  # 禁用 uvicorn 内部日志配置
+        timeout_keep_alive=30, # 保持连接超时
     )
+    
+    # 手动设置 should_exit 而不是依赖 uvicorn 的信号处理
+    # 因为我们在 main.py 中已经有统一的信号处理逻辑
     server = uvicorn.Server(config)
+    
+    # 覆盖 install_signal_handlers 方法以禁用它
+    # 或者如果不传递 install_signal_handlers 参数到 Config (新版 uvicorn 可能略有不同，但通常 Server 不会强制 install 除非 Config 说要)
+    # Config 默认 install_signal_handlers=True. 
+    # 但是 Config 不直接接受参数来覆盖 Server 的行为，Server.run 会调用 install_signal_handlers
+    # 正确的做法是：
+    config.install_signal_handlers = False # 禁用 Uvicorn 的信号劫持
+    
+    _server_instance = server
+    logger.info(f"正在启动 Uvicorn Server on {host}:{port}")
     await server.serve()
+
+async def stop_web_server() -> None:
+    """手动停止 Web 服务器"""
+    global _server_instance
+    if _server_instance:
+        logger.info("正在停止 Web Server...")
+        _server_instance.should_exit = True
+        # 此时 start_web_server 中 await server.serve() 会在不久后返回
