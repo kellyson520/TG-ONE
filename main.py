@@ -85,14 +85,11 @@ async def main():
     # 4. 保持运行
     logger.info(f"系统主循环已启动 (PID: {os.getpid()}) - 按 Ctrl+C 停止")
     
-    # 等待关闭信号
-    stop_event = asyncio.Event()
-    
     # 注册信号处理
     def handle_signal():
-        if not stop_event.is_set():
+        if not lifecycle.stop_event.is_set():
             logger.info("Received stop signal, initiating shutdown...")
-            stop_event.set()
+            lifecycle.shutdown(0)
     
     try:
         loop = asyncio.get_running_loop()
@@ -104,8 +101,7 @@ async def main():
 
     # 主循环
     try:
-        while not stop_event.is_set():
-            await asyncio.sleep(1)
+        await lifecycle.stop_event.wait()
     except asyncio.CancelledError as e:
         logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
     except KeyboardInterrupt:
@@ -115,12 +111,21 @@ async def main():
     # 5. 优雅关闭
     logger.info("正在执行主程序退出流程...")
     await lifecycle.stop()
+    
+    # 6. 返回退出码
+    return lifecycle.exit_code
 
 if __name__ == '__main__':
     try:
-        asyncio.run(main())
+        # 获取由 main() 返回的退出码
+        exit_code = asyncio.run(main())
+        sys.exit(exit_code or 0)
     except KeyboardInterrupt:
         # 捕获最外层的 KeyboardInterrupt (如 Windows 下的 Ctrl+C)
-        pass
+        sys.exit(0)
+    except SystemExit as e:
+        # 如果 main() 或其调用的函数直接调用了 sys.exit
+        sys.exit(e.code)
     except Exception as e:
         logger.critical(f"Fatal startup error: {e}", exc_info=True)
+        sys.exit(1)
