@@ -16,7 +16,7 @@ class DedupRepository:
 
     async def find_by_signature(self, chat_id: Optional[str], signature: str) -> Optional[MediaSignatureDTO]:
         """根据签名查找 (chat_id=None 表示全局)"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             filters = [MediaSignature.signature == signature]
             if chat_id is not None:
                 filters.append(MediaSignature.chat_id == str(chat_id))
@@ -27,7 +27,7 @@ class DedupRepository:
 
     async def find_by_file_id_or_hash(self, chat_id: Optional[str], file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
         """优先使用 file_id 查找，其次使用 content_hash (chat_id=None 为全局)"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 基础过滤器
             base_filters = []
             if chat_id is not None:
@@ -57,7 +57,7 @@ class DedupRepository:
 
     async def add_or_update(self, chat_id: str, signature: str, **kwargs) -> bool:
         """新增或更新媒体签名"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             try:
                 stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
                 result = await session.execute(stmt)
@@ -103,7 +103,7 @@ class DedupRepository:
 
     async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignatureDTO]:
         """获取重复媒体记录"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             stmt = select(MediaSignature).filter(
                 MediaSignature.chat_id == str(chat_id),
                 MediaSignature.count > 1
@@ -118,7 +118,7 @@ class DedupRepository:
         if not records:
             return True
             
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             try:
                 # 1. 动态获取模型字段，过滤掉非法的字段
                 valid_columns = {c.name for c in MediaSignature.__table__.columns}
@@ -191,7 +191,7 @@ class DedupRepository:
 
     async def delete_by_chat(self, chat_id: str) -> int:
         """删除特定聊天的所有去重记录"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             from sqlalchemy import delete
             stmt = delete(MediaSignature).where(MediaSignature.chat_id == str(chat_id))
             result = await session.execute(stmt)
@@ -245,7 +245,7 @@ class DedupRepository:
 
     async def delete_media_signature(self, chat_id: str, signature: str):
         """删除签名"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             from sqlalchemy import delete
             stmt = delete(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
             await session.execute(stmt)
@@ -263,7 +263,7 @@ class DedupRepository:
             import json
             from models.system import SystemConfiguration
             
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 key = "dedup_global_config"
                 value = json.dumps(config)
                 
@@ -294,7 +294,7 @@ class DedupRepository:
             import json
             from models.system import SystemConfiguration
             
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 stmt = select(SystemConfiguration).filter_by(key="dedup_global_config")
                 result = await session.execute(stmt)
                 obj = result.scalar_one_or_none()

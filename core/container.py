@@ -241,6 +241,37 @@ class Container:
             self._rule_filter_service = RuleFilterService()
         return self._rule_filter_service
 
+    # --- Controllers (UI/Domain) ---
+
+    @property
+    def rule_controller(self) -> Any:
+        if not hasattr(self, '_rule_controller'):
+            from controllers.domain import RuleController
+            self._rule_controller = RuleController(self)
+        return self._rule_controller
+
+    @property
+    def admin_controller(self) -> Any:
+        if not hasattr(self, '_admin_controller'):
+            from controllers.domain import AdminController
+            self._admin_controller = AdminController(self)
+        return self._admin_controller
+
+    @property
+    def media_controller(self) -> Any:
+        if not hasattr(self, '_media_controller'):
+            from controllers.domain import MediaController
+            self._media_controller = MediaController(self)
+        return self._media_controller
+
+    @property
+    def ui(self) -> Any:
+        """UI 渲染器集合"""
+        if not hasattr(self, '_ui'):
+            from core.container import UIContainer
+            self._ui = UIContainer(self)
+        return self._ui
+
     def init_with_client(self, user_client: TelegramClient, bot_client: TelegramClient) -> Any:
         self.user_client = user_client
         self.bot_client = bot_client
@@ -448,6 +479,51 @@ class Container:
         except Exception as e:
             logger.error(f"Batch ingestion failed: {e}", exc_info=True)
 
+
+
+
+class UIContainer:
+    """封装所有渲染器的容器"""
+    def __init__(self, container: Container):
+        self._container = container
+
+    @property
+    def base(self):
+        from ui.renderers.base_renderer import BaseRenderer
+        return BaseRenderer()
+
+    @property
+    def main_menu(self):
+        from ui.renderers.main_menu_renderer import MainMenuRenderer
+        return MainMenuRenderer()
+
+    @property
+    def rule(self):
+        from ui.renderers.rule_renderer import RuleRenderer
+        return RuleRenderer()
+
+    @property
+    def settings(self):
+        from ui.renderers.settings_renderer import SettingsRenderer
+        return SettingsRenderer()
+
+    @property
+    def admin(self):
+        from ui.renderers.admin_renderer import AdminRenderer
+        return AdminRenderer()
+
+    @property
+    def task(self):
+        from ui.renderers.task_renderer import TaskRenderer
+        return TaskRenderer()
+
+    @property
+    def media(self):
+        from ui.renderers.media_renderer import MediaRenderer
+        return MediaRenderer()
+
+    def render_error(self, message: str, back_target: str = "main_menu"):
+        return self.base.render_error(message, back_target)
 
 
 _container = None

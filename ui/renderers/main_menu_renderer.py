@@ -6,312 +6,185 @@ from .base_renderer import BaseRenderer
 logger = logging.getLogger(__name__)
 
 class MainMenuRenderer(BaseRenderer):
-    """主菜单渲染器"""
+    """主菜单渲染器 (UIRE-2.0)"""
     
-    def render(self, stats: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            today_stats = stats.get('today', {})
-            dedup_stats = stats.get('dedup', {})
-            
-            forwards = today_stats.get('total_forwards', 0)
-            cached = dedup_stats.get('cached_signatures', 0)
-            size_mb = today_stats.get('total_size_bytes', 0) / 1024 / 1024
-            saved_mb = today_stats.get('saved_traffic_bytes', 0) / 1024 / 1024
-            
-            text = (
-                "🌌 **Telegram 智能中枢**\n"
-                "➖➖➖➖➖➖➖➖➖➖\n\n"
-                
-                "📊 **今日数据看板**\n"
-                "├─ 📤 转发消息：`{forwards:,}` 条\n"
-                "├─ 🧹 拦截重复：`{cached:,}` 次\n"
-                "├─ 🛡️ 拦截流量：`{saved_mb:.1f}` MB\n"
-                "└─ 💾 消耗流量：`{size_mb:.1f}` MB\n\n"
-                
-                "⚙️ **系统状态**\n"
-                f"└─ 🟢 运行正常  |  ⏳ 延迟: 低\n\n"
-                
-                "👇 **请选择功能模块**"
-            ).format(forwards=forwards, cached=cached, size_mb=size_mb, saved_mb=saved_mb)
-            
-            buttons = [
-                [Button.inline("🔄 转发管理中心", "new_menu:forward_hub"),
-                 Button.inline("🧹 智能去重中心", "new_menu:dedup_hub")],
-                [Button.inline("📊 数据分析中心", "new_menu:analytics_hub"),
-                 Button.inline("⚙️ 系统设置中心", "new_menu:system_hub")],
-                [Button.inline("🔄 刷新数据", "new_menu:refresh_main_menu"),
-                 Button.inline("📖 使用帮助", "new_menu:help_guide")],
-                [Button.inline("🔒 退出系统", "new_menu:exit")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception as e:
-            return self.create_error_view("数据加载失败", "系统数据暂时不可用，请尝试刷新或稍后重试。", "new_menu:exit")
+    def render(self, stats: Dict[str, Any]) -> ViewResult:
+        """渲染系统主页 (Phase 4)"""
+        today = stats.get('today', {})
+        dedup = stats.get('dedup', {})
+        
+        forwards = today.get('total_forwards', 0)
+        cached = dedup.get('cached_signatures', 0)
+        size_mb = today.get('total_size_bytes', 0) / 1024 / 1024
+        saved_mb = today.get('saved_traffic_bytes', 0) / 1024 / 1024
+        
+        return (self.new_builder()
+            .set_title("Telegram 智能中枢", icon="🌌")
+            .add_section("今日数据看板", [], icon="📊")
+            .add_status_grid({
+                "转发消息": f"{forwards:,} 条",
+                "拦截重复": f"{cached:,} 次",
+                "节省流量": f"{saved_mb:.1f} MB",
+                "消耗流量": f"{size_mb:.1f} MB"
+            })
+            .add_section("系统状态", "🟢 运行良好 | ⏳ 延迟: 低", icon="⚙️")
+            .add_button("🔄 转发中心", "new_menu:forward_hub")
+            .add_button("🧹 智能去重", "new_menu:dedup_hub")
+            .add_button("📊 数据分析", "new_menu:analytics_hub")
+            .add_button("⚙️ 系统设置", "new_menu:system_hub")
+            .add_button("🔄 刷新", "new_menu:refresh_main_menu", icon="🔄")
+            .add_button("📖 帮助", "new_menu:help_guide", icon="📖")
+            .add_button("🔒 退出", "new_menu:exit", icon="❌")
+            .build())
 
-    def render_forward_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_forward_hub(self, data: Dict[str, Any]) -> ViewResult:
         """渲染转发管理中心"""
         overview = data.get('overview', {})
-        text = (
-            "🔄 **转发管理中心**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "📝 **描述**\n"
-            "全面管理您的转发规则、历史消息处理、筛选设置等功能。\n\n"
-        )
+        builder = self.new_builder()
+        builder.set_title("转发管理中心", icon="🔄")
+        builder.add_breadcrumb(["首页", "转发中心"])
+        builder.add_section("概览", "全面管理您的转发规则、历史消息处理及全局筛选。")
+        
         if overview:
-            forwards = overview.get('total_forwards', 0)
-            size_mb = overview.get('total_size_bytes', 0) / 1024 / 1024
-            chats = overview.get('active_chats', 0)
-            text += (
-                "📊 **今日数据概览**\n"
-                f"  📤 转发消息：**{forwards:,}** 条\n"
-                f"  💾 数据传输：**{size_mb:.1f}** MB\n"
-                f"  💬 活跃聊天：**{chats}** 个\n\n"
-            )
-        else:
-            text += "📊 **今日数据概览** - 正在加载...\n\n"
+            builder.add_status_grid({
+                "今日转发": f"{overview.get('total_forwards', 0):,} 条",
+                "数据传输": f"{overview.get('total_size_bytes', 0) / 1024 / 1024:.1f} MB",
+                "活跃聊天": f"{overview.get('active_chats', 0)} 个"
+            })
         
-        text += (
-            "⚡ **快速操作中心**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        
-        buttons = [
-            [Button.inline("⚙️ 转发规则管理", "new_menu:forward_management"),
-             Button.inline("🔗 多源管理", "new_menu:multi_source_management")],
-            [Button.inline("📋 历史消息处理", "new_menu:history_messages"),
-             Button.inline("🔍 转发内容搜索", "new_menu:forward_search")],
-            [Button.inline("📊 详细统计分析", "new_menu:forward_stats_detailed"),
-             Button.inline("🎛️ 全局筛选设置", "new_menu:global_forward_settings")],
-            [Button.inline("🚀 性能监控优化", "new_menu:forward_performance")],
-            [Button.inline("🔄 刷新数据", "new_menu:refresh_forward_hub"),
-             Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
-        ]
-        return {'text': text, 'buttons': buttons}
+        builder.add_button("⚙️ 规则管理", "new_menu:forward_management")
+        builder.add_button("🔗 多源管理", "new_menu:multi_source_management")
+        builder.add_button("📋 历史处理", "new_menu:history_messages")
+        builder.add_button("🔍 内容搜索", "new_menu:forward_search")
+        builder.add_button("📊 详细统计", "new_menu:forward_stats_detailed")
+        builder.add_button("🎛️ 全局筛选", "new_menu:global_forward_settings")
+        builder.add_button("🚀 性能监控", "new_menu:forward_performance")
+        builder.add_button("刷新", "new_menu:refresh_forward_hub", icon="🔄")
+        builder.add_button("返回首页", "new_menu:main_menu", icon=UIStatus.BACK)
+        return builder.build()
 
-    def render_dedup_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_dedup_hub(self, data: Dict[str, Any]) -> ViewResult:
         """渲染智能去重中心"""
         config = data.get('config', {})
         stats = data.get('stats', {})
-        enabled_features = data.get('enabled_features', [])
         
-        text = (
-            "🧹 **智能去重中心**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "📝 **描述**\n"
-            "全面的重复内容检测和管理系统，保证转发内容的独特性。\n\n"
-        )
-        
-        features_text = ", ".join(enabled_features) if enabled_features else "💫 暂无启用"
-        time_window = config.get('time_window_hours', 24)
-        similarity = config.get('similarity_threshold', 0.85)
-        
-        text += (
-            "📊 **系统状态概览**\n"
-            f"  ⚙️ 启用功能：{features_text}\n"
-            f"  ⏰ 时间窗口：**{time_window}** 小时\n"
-            f"  🎯 相似度阈值：**{similarity:.0%}**\n\n"
-        )
-        
-        signatures = stats.get('cached_signatures', 0)
-        hashes = stats.get('cached_content_hashes', 0)
-        chats = stats.get('tracked_chats', 0)
-        
-        text += (
-            "💾 **缓存数据统计**\n"
-            f"  📝 内容签名：**{signatures:,}** 条\n"
-            f"  🔐 哈希值：**{hashes:,}** 条\n"
-            f"  💬 跟踪聊天：**{chats}** 个\n\n"
-        )
-        
-        text += (
-            "⚡ **功能管理中心**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        
-        buttons = [
-            [Button.inline("⏰ 时间窗口设置", "new_menu:dedup_time_window"),
-             Button.inline("🎯 相似度调节", "new_menu:dedup_similarity")],
-            [Button.inline("🔐 内容哈希管理", "new_menu:dedup_content_hash"),
-             Button.inline("📊 数据统计分析", "new_menu:dedup_statistics")],
-            [Button.inline("⚙️ 高级功能设置", "new_menu:dedup_advanced"),
-             Button.inline("🗑️ 缓存数据清理", "new_menu:dedup_cache_management")],
-            [Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
-        ]
-        return {'text': text, 'buttons': buttons}
+        return (self.new_builder()
+            .set_title("智能去重中心", icon="🧹")
+            .add_breadcrumb(["首页", "去重中心"])
+            .add_section("策略状态", [], icon="📊")
+            .add_status_grid({
+                "时间窗口": f"{config.get('time_window_hours', 24)}h",
+                "相似阈值": f"{config.get('similarity_threshold', 0.85):.0%}",
+                "启用功能": "、".join(data.get('enabled_features', []))[:15]
+            })
+            .add_section("缓存统计", [], icon="💾")
+            .add_status_grid({
+                "内容签名": f"{stats.get('cached_signatures', 0):,}",
+                "哈希条目": f"{stats.get('cached_content_hashes', 0):,}",
+                "追踪会话": f"{stats.get('tracked_chats', 0)}"
+            })
+            .add_button("⏰ 时间设置", "new_menu:dedup_time_window")
+            .add_button("🎯 相似调节", "new_menu:dedup_similarity")
+            .add_button("🔐 哈希管理", "new_menu:dedup_content_hash")
+            .add_button("📊 数据详情", "new_menu:dedup_statistics")
+            .add_button("⚙️ 高级功能", "new_menu:dedup_advanced")
+            .add_button("🗑️ 垃圾清理", "new_menu:dedup_cache_management")
+            .add_button("返回主页", "new_menu:main_menu", icon=UIStatus.BACK)
+            .build())
 
-    def render_analytics_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_analytics_hub(self, data: Dict[str, Any]) -> ViewResult:
         """渲染数据分析中心"""
         overview = data.get('overview', {})
-        top_type = data.get('top_type')
-        top_chat = data.get('top_chat')
-        top_rule = data.get('top_rule')
         
-        text = "📊 **数据分析中心**\n\n"
-        text += "全面的数据统计、性能监控和异常检测。\n\n"
+        builder = self.new_builder()
+        builder.set_title("数据分析中心", icon="📊")
+        builder.add_breadcrumb(["首页", "分析中心"])
         
         if overview:
-            trend = overview.get('trend', {})
-            text += "📈 **转发趋势:**\n"
-            text += f"今日: {overview.get('today_total', 0)} 条 {trend.get('text', '')}\n"
-            text += f"昨日: {overview.get('yesterday_total', 0)} 条\n"
-            text += f"数据大小: {overview.get('data_size_mb', 0):.1f} MB\n\n"
-            
-            if top_type:
-                text += f"🎯 热门类型: {top_type['name']} ({top_type['count']} 条)\n"
-            if top_chat:
-                text += f"💬 活跃聊天: {top_chat['chat_id']} ({top_chat['count']} 条)\n"
-            if top_rule:
-                text += f"⚙️ 热门规则: {top_rule['rule_id']} ({top_rule['count']} 条)\n"
-
-            hourly = overview.get('hourly', {}) or {}
-            if hourly:
-                try:
-                    keys = [f"{h:02d}" for h in range(24)]
-                    values = [hourly.get(k, 0) for k in keys]
-                    max_v = max(values) if values else 0
-                    if max_v > 0:
-                        text += "\n🕒 小时分布\n"
-                        for i in range(0, 24, 6):
-                            seg_keys = keys[i:i+6]
-                            seg_vals = values[i:i+6]
-                            bar = ''.join('▇' if v and v / max_v > 0.66 else '▅' if v and v / max_v > 0.33 else '▂' if v and v > 0 else '·' for v in seg_vals)
-                            text += f"{seg_keys[0]}-{seg_keys[-1]} {bar}\n"
-                        text += "\n"
-                except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-        else:
-            text += "📈 **数据概览:** 正在加载...\n\n"
+            builder.add_section("转发趋势", f"今日: {overview.get('today_total', 0)} 条 | 昨日: {overview.get('yesterday_total', 0)} 条")
+            builder.add_status_grid({
+                "数据量": f"{overview.get('data_size_mb', 0):.1f} MB",
+                "最热类型": data.get('top_type', {}).get('name', 'N/A'),
+                "活跃会话": str(data.get('top_chat', {}).get('chat_id', 'N/A'))[:10]
+            })
         
-        text += "\n🔍 **分析工具:**"
-        
-        buttons = [
-            [Button.inline("📊 转发分析", "new_menu:forward_analytics"),
-             Button.inline("⏱️ 实时监控", "new_menu:realtime_monitor")],
-            [Button.inline("🚨 异常检测", "new_menu:anomaly_detection"),
-             Button.inline("📈 性能分析", "new_menu:performance_analysis")],
-            [Button.inline("🗄️ 数据库监控", "new_menu:db_performance_monitor"),
-             Button.inline("🔧 数据库优化", "new_menu:db_optimization_center")],
-            [Button.inline("📋 详细报告", "new_menu:detailed_analytics"),
-             Button.inline("📤 导出数据", "new_menu:export_report")],
-            [Button.inline("🧾 导出CSV", "new_menu:export_csv")],
-            [Button.inline("👈 返回主菜单", "new_menu:main_menu")]
-        ]
-        return {'text': text, 'buttons': buttons}
+        builder.add_button("📊 转发统计", "new_menu:forward_analytics")
+        builder.add_button("⏱️ 实时监控", "new_menu:realtime_monitor")
+        builder.add_button("🚨 异常扫描", "new_menu:anomaly_detection")
+        builder.add_button("📈 性能剖析", "new_menu:performance_analysis")
+        builder.add_button("🗄️ DB 监控", "new_menu:db_performance_monitor")
+        builder.add_button("🔧 DB 优化", "new_menu:db_optimization_center")
+        builder.add_button("📋 详细报告", "new_menu:detailed_analytics")
+        builder.add_button("📤 导出 CSV", "new_menu:export_csv")
+        builder.add_button("返回首页", "new_menu:main_menu", icon=UIStatus.BACK)
+        return builder.build()
 
-    def render_system_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_system_hub(self, data: Dict[str, Any]) -> ViewResult:
         """渲染系统设置中心"""
-        system_resources = data.get('system_resources', {})
-        config_status = data.get('config_status', {})
+        res = data.get('system_resources', {})
+        conf = data.get('config_status', {})
         
-        text = "⚙️ **系统设置中心**\n\n"
-        text += "系统配置、会话管理和状态监控。\n\n"
-        
-        if system_resources:
-            text += "🖥️ **系统状态:**\n"
-            text += f"运行时间: {system_resources.get('uptime_hours', 0)} 小时\n"
-            text += f"CPU使用: {system_resources.get('cpu_percent', 0):.1f}%\n"
-            text += f"内存使用: {system_resources.get('memory_percent', 0):.1f}%\n\n"
-        else:
-            text += "🖥️ **系统状态:** 监控中...\n\n"
-        
-        text += "⚙️ **配置状态:**\n"
-        text += f"• 转发规则: {config_status.get('forward_rules', '未知')}\n"
-        text += f"• 智能去重: {config_status.get('smart_dedup', '未知')}\n"
-        text += f"• 数据记录: {config_status.get('data_recording', '未知')}\n\n"
-        
-        text += "🛠️ **管理功能:**"
-        
-        buttons = [
-            [Button.inline("⚙️ 基础设置", "new_menu:system_settings"),
-             Button.inline("💬 会话管理", "new_menu:session_management")],
-            [Button.inline("📋 系统概览", "new_menu:system_overview"),
-             Button.inline("📊 系统状态", "new_menu:system_status")],
-            [Button.inline("🔧 高级配置", "new_menu:system_settings"),
-             Button.inline("🗑️ 数据清理", "new_menu:cache_cleanup")],
-            [Button.inline("📚 日志查看", "new_menu:log_viewer"),
-             Button.inline("🔄 重启服务", "new_menu:system_status")],
-            [Button.inline("🧳 归档/优化一次", "new_menu:db_archive_once")],
-            [Button.inline("🧨 强制归档（测试）", "new_menu:db_archive_force")],
-            [Button.inline("🌸 重建Bloom索引", "new_menu:rebuild_bloom")],
-            [Button.inline("👈 返回主菜单", "new_menu:main_menu")]
-        ]
-        return {'text': text, 'buttons': buttons}
+        return (self.new_builder()
+            .set_title("系统管理中心", icon="⚙️")
+            .add_breadcrumb(["首页", "系统设置"])
+            .add_section("硬件资源", [], icon="🖥️")
+            .add_status_grid({
+                "运行时间": f"{res.get('uptime_hours', 0)}h",
+                "CPU 负载": f"{res.get('cpu_percent', 0):.1f}%",
+                "内存占用": f"{res.get('memory_percent', 0):.1f}%"
+            })
+            .add_section("模块健康度", [], icon="⚙️")
+            .add_status_grid({
+                "转发引擎": conf.get('forward_rules', 'ERR'),
+                "智去中心": conf.get('smart_dedup', 'ERR'),
+                "数据落盘": conf.get('data_recording', 'ERR')
+            })
+            .add_button("⚙️ 基础设置", "new_menu:system_settings")
+            .add_button("💬 会话管理", "new_menu:session_management")
+            .add_button("📋 系统概览", "new_menu:system_overview")
+            .add_button("📊 系统状态", "new_menu:system_status")
+            .add_button("🔧 高级配置", "new_menu:system_settings")
+            .add_button("🗑️ 缓存清理", "new_menu:cache_cleanup")
+            .add_button("📚 日志观察", "new_menu:log_viewer")
+            .add_button("🔄 重启引擎", "new_menu:system_status")
+            .add_button("🏢 归档一次", "new_menu:db_archive_once")
+            .add_button("🔙 返回主菜单", "new_menu:main_menu")
+            .build())
 
-    def render_help_guide(self) -> Dict[str, Any]:
+    def render_help_guide(self) -> ViewResult:
         """渲染帮助说明页面"""
-        text = "❓ **帮助说明**\n\n"
-        text += "🎯 **四大功能模块介绍:**\n\n"
-        
-        text += "🔄 **转发管理**\n"
-        text += "• 创建和管理转发规则\n"
-        text += "• 批量处理历史消息\n"
-        text += "• 全局转发设置\n"
-        text += "• 性能优化配置\n\n"
-        
-        text += "🧹 **智能去重**\n"
-        text += "• 时间窗口去重\n"
-        text += "• 内容哈希比较\n"
-        text += "• 智能相似度检测\n"
-        text += "• 缓存管理\n\n"
-        
-        text += "📊 **数据分析**\n"
-        text += "• 转发统计分析\n"
-        text += "• 实时性能监控\n"
-        text += "• 异常检测报告\n"
-        text += "• 数据导出功能\n\n"
-        
-        text += "⚙️ **系统设置**\n"
-        text += "• 基础系统配置\n"
-        text += "• 会话管理\n"
-        text += "• 系统状态监控\n"
-        text += "• 日志管理\n\n"
-        
-        text += "💡 **使用建议:**\n"
-        text += "1. 首次使用建议先配置转发规则\n"
-        text += "2. 启用智能去重提高效率\n"
-        text += "3. 定期查看数据分析了解使用情况\n"
-        text += "4. 根据需要调整系统设置"
-        
-        buttons = [
-            [Button.inline("📖 在线帮助文档", "new_menu:detailed_docs"),
-             Button.inline("❓ 常见问题解答", "new_menu:faq")],
-            [Button.inline("🛠️ 技术支持", "new_menu:tech_support"),
-             Button.inline("ℹ️ 版本更新信息", "new_menu:version_info")],
-            [Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
-        ]
-        return {'text': text, 'buttons': buttons}
+        return (self.new_builder()
+            .set_title("系统操作指南", icon="📖")
+            .add_breadcrumb(["首页", "使用帮助"])
+            .add_section("核心功能", [
+                "🔄 转发管理: 创建转发路径，历史消息补发。",
+                "🧹 智能去重: 时间/相似度指纹过滤技术。",
+                "📊 数据分析: 流量走势与转发漏斗模型。",
+                "⚙️ 系统设置: 底层配置、日志与引擎维护。"
+            ])
+            .add_section("快速入门", "初次使用请先在“转发管理”中添加源与目标的关联规则。")
+            .add_button("📚 详细文档", "new_menu:detailed_docs", icon="📖")
+            .add_button("❓ 常见问题", "new_menu:faq", icon="❓")
+            .add_button("🛠️ 获取支持", "new_menu:tech_support", icon="🛠️")
+            .add_button("返回", "new_menu:main_menu", icon=UIStatus.BACK)
+            .build())
 
-    def render_faq(self) -> Dict[str, Any]:
+    def render_faq(self) -> ViewResult:
         """渲染常见问题解答"""
-        text = (
-            "❓ **常见问题解答 (FAQ)**\n\n"
-            "Q1: **如何添加新的转发规则？**\n"
-            "A: 在主菜单点击“🔄 转发管理中心”，然后选择“⚙️ 转发规则管理” -> “➕ 新建规则”。\n\n"
-            "Q2: **去重功能不起作用怎么办？**\n"
-            "A: 请检查是否开启了“🧹 智能去重中心”中的相关开关（时间窗口或内容哈希），并确认相似度阈值设置合理。\n\n"
-            "Q3: **为什么转发有延迟？**\n"
-            "A: 系统可能会进行媒体下载、去重检测等处理。如果延迟过高，请检查服务器负载或网络状态。\n\n"
-            "Q4: **如何备份数据？**\n"
-            "A: 进入“⚙️ 系统设置中心” -> “⚙️ 基础设置” -> “💾 数据库备份”。\n"
-        )
-        buttons = [[Button.inline("👈 返回帮助", "new_menu:help_guide")]]
-        return {'text': text, 'buttons': buttons}
+        return (self.new_builder()
+            .set_title("常见问题 FAQ", icon="❓")
+            .add_section("如何建立转发？", "转发中心 -> 规则管理 -> 新建规则 -> 选择源与目标。")
+            .add_section("内容重复了？", "检查去重策略是否开启，时间窗口是否足够长（建议24h）。")
+            .add_section("转发很慢？", "系统默认 1s 延迟保护账号，可在高级设置中调整。")
+            .add_button("返回帮助", "new_menu:help_guide", icon=UIStatus.BACK)
+            .build())
 
-    def render_detailed_docs(self) -> Dict[str, Any]:
+    def render_detailed_docs(self) -> ViewResult:
         """渲染详细文档"""
-        text = (
-            "📖 **详细使用文档**\n\n"
-            "📚 **核心概念**\n"
-            "• **Source (源)**: 消息来源的频道或群组。\n"
-            "• **Target (目标)**: 消息转发的目的地。\n"
-            "• **Rule (规则)**: 定义如何从源转发到目标的配置集合。\n\n"
-            "🛠️ **高级功能**\n"
-            "• **正则匹配**: 支持使用 Python 正则表达式过滤消息。\n"
-            "• **媒体过滤**: 可按文件类型（图/文/视）或大小筛选。\n"
-            "• **历史迁移**: 支持将过去的聊天记录批量转发到新目标。\n\n"
-            "🔗 **更多资源**\n"
-            "访问 GitHub 仓库查看完整部署和开发指南。\n"
-        )
-        buttons = [[Button.inline("👈 返回帮助", "new_menu:help_guide")]]
-        return {'text': text, 'buttons': buttons}
+        return (self.new_builder()
+            .set_title("核心开发文档", icon="📖")
+            .add_section("转发流模型", "Source -> Middleware (Filtering/Dedup/AI) -> Target")
+            .add_section("媒体过滤", "支持按类型（Image/Video/File）及大小（MB）进行正则级匹配。")
+            .add_section("智能增强", "集成 AI 进行 Prompt 处理与内容润色（需配置 API Key）。")
+            .add_button("返回帮助", "new_menu:help_guide", icon=UIStatus.BACK)
+            .build())

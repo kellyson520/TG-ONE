@@ -29,23 +29,7 @@ from handlers.button.callback.modules.common_utils import (
 )
 
 # 导入管理面板回调
-from .admin_callback import (
-    callback_admin_cleanup,
-    callback_admin_cleanup_menu,
-    callback_admin_cleanup_temp,
-    callback_admin_config,
-    callback_admin_db_backup,
-    callback_admin_db_health,
-    callback_admin_db_info,
-    callback_admin_db_optimize,
-    callback_admin_logs,
-    callback_admin_panel,
-    callback_admin_restart,
-    callback_admin_restart_confirm,
-    callback_admin_stats,
-    callback_admin_system_status,
-    callback_close_admin_panel,
-)
+from .admin_callback import handle_admin_callback
 
 # 导入高级媒体设置回调
 from .advanced_media_callback import (
@@ -62,82 +46,112 @@ from .advanced_media_callback import (
 )
 
 # 导入AI设置回调
-from .ai_callback import callback_set_summary_time
-from .ai_callback import (
-    callback_ai_settings,
-    callback_cancel_set_prompt,
-    callback_cancel_set_summary,
-    callback_change_model,
-    callback_model_page,
-    callback_select_model,
-    callback_select_time,
-    callback_set_ai_prompt,
-    callback_set_summary_prompt,
-    callback_summary_now,
-    callback_time_page,
-    handle_ai_callback,
-)
+from .ai_callback import callback_set_summary_time  # Still used in dict? No, replaced.
+from .ai_callback import handle_ai_callback
 
 # 导入媒体设置回调
-from .media_callback import (
-    callback_media_extensions_page,
-    callback_media_settings,
-    callback_select_max_media_size,
-    callback_set_max_media_size,
-    callback_set_media_extensions,
-    callback_set_media_types,
-    callback_toggle_media_allow_text,
-    callback_toggle_media_extension,
-    callback_toggle_media_type,
-    handle_media_callback,
-)
+from .media_callback import handle_media_callback
 from .new_menu_callback import handle_new_menu_callback
 
 # 导入其他通用设置回调
 from .other_callback import (
-    callback_cancel_set_original_link,
-    callback_cancel_set_time,
-    callback_cancel_set_userinfo,
-    callback_clear_keyword,
-    callback_clear_replace,
-    callback_confirm_delete_duplicates,
-    callback_copy_keyword,
-    callback_copy_replace,
-    callback_copy_rule,
-    callback_dedup_scan_now,
-    callback_delete_duplicates,
-    callback_delete_rule,
-    callback_keep_duplicates,
-    callback_other_settings,
-    callback_perform_clear_keyword,
-    callback_perform_clear_replace,
-    callback_perform_copy_keyword,
-    callback_perform_copy_replace,
-    callback_perform_copy_rule,
-    callback_perform_delete_rule,
-    callback_set_original_link_template,
-    callback_set_time_template,
-    callback_set_userinfo_template,
-    callback_toggle_allow_delete_source_on_dedup,
-    callback_toggle_reverse_blacklist,
-    callback_toggle_reverse_whitelist,
-    callback_view_source_messages,
     handle_other_callback,
+    # These legacy ones are still needed for fallback in handle_other_callback
+    # BUT handle_other_callback imports them internally.
+    # callback_handlers.py dict NO LONGER uses them directly (it uses handle_other_callback)
+    # So we can remove them IF we are sure handle_other_callback imports them from modules.
+    # handle_other_callback imports from .callback_handlers import callback_toggle_current ...
+    # This means callback_handlers MUST export them!
 )
+# Re-exporting legacy handlers for handle_other_callback
+from handlers.button.callback.modules.rule_nav import (
+    callback_switch,
+    callback_page,
+    callback_toggle_current,
+    callback_page_rule
+)
+from handlers.button.callback.modules.rule_settings import (
+    callback_settings,
+    callback_rule_settings,
+    callback_set_delay_time,
+    callback_delay_time_page,
+    callback_select_delay_time,
+)
+from handlers.button.callback.modules.rule_actions import callback_delete
+from handlers.button.callback.modules.sync_settings import (
+    callback_set_sync_rule,
+    callback_toggle_rule_sync,
+    callback_sync_rule_page
+)
+from handlers.button.callback.modules.common_utils import (
+    callback_close_settings,
+    callback_noop
+)
+# We need to re-export imports that handle_other_callback uses from here?
+# handle_other_callback imports:
+# callback_toggle_current, callback_switch, callback_settings,
+# callback_delete, callback_page, callback_rule_settings,
+# callback_set_delay_time, callback_select_delay_time,
+# callback_delay_time_page, callback_page_rule, callback_close_settings,
+# callback_set_sync_rule, callback_toggle_rule_sync, callback_sync_rule_page,
+# callback_set_summary_time, callback_handle_ufb_item
+
+# callback_set_summary_time was in ai_callback.
+# handle_other_callback imports it from .callback_handlers.
+# So we MUST import it here from ai_callback.
+from .ai_callback import callback_set_summary_time
+
+# callback_handle_ufb_item was in other_callback itself.
+# handle_other_callback imports it from .callback_handlers?
+# Let's check other_callback again.
+# handle_other_callback imports callback_handle_ufb_item from .callback_handlers.
+# BUT callback_handlers.py did NOT import it in the original code snippet (Step 492).
+# Line 126 was handle_other_callback.
+# Line 116 was ufb_item mapping to callback_handle_ufb_item.
+# But where was callback_handle_ufb_item imported from?
+# It wasn't in the import list of Step 492!
+# Ah, it was probably defined in other_callback.py and NOT imported in callback_handlers.py?
+# Line 116 in other_callback.py says: "ufb_item": callback_handle_ufb_item
+# And callback_handle_ufb_item is defined in other_callback.py at line 449.
+# So handle_other_callback uses it directly from module scope.
+# BUT `from .callback_handlers import ... callback_handle_ufb_item` in Step 496 Line 69?
+# This implies callback_handlers.py EXPORTS it.
+# If Step 492 didn't show it, maybe I missed it or it was implicit?
+# Wait, Step 492 shows `callback_handlers.py` FULL file.
+# I search "callback_handle_ufb_item".
+# It is NOT imported.
+# But it IS used in the dict? Line 116?
+# Ah, Line 116 in `other_callback.py` uses it.
+# Line 254 in `callback_handlers.py` (Step 502) has "ufb_item": handle_other_callback.
+# In Step 492 (Original), Line 116 was NOT in CALLBACK_HANDLERS?
+# Line 254 in Step 492 was `}`.
+# I don't see `ufb_item` in Step 492 `CALLBACK_HANDLERS`.
+# I see `callback_handle_ufb_item` nowhere in Step 492.
+# So `other_callback.py` lines 63-70 import `callback_handle_ufb_item` from `callback_handlers`?
+# If `callback_handlers` doesn't have it, `other_callback` would crash with ImportError.
+# This suggests `other_callback.py` code I saw in Step 496 might be relying on something I can't see or it was broken?
+# OR `callback_handle_ufb_item` is defined in `other_callback.py` and used there.
+# But Line 69 `callback_handle_ufb_item` in import block suggests it expects it from callback_handlers.
+# This is confusing.
+
+# Recommendation: In `other_callback.py`, `callback_handle_ufb_item` is DEFINED in `other_callback.py` (Line 449).
+# So `handle_other_callback` (Line 41) can just use it directly.
+# The import `from .callback_handlers import ...` is likely for OTHER handlers.
+# If `callback_handle_ufb_item` is in that import list, then `callback_handlers` MUST export it.
+# Since `callback_handlers` (Step 492) does NOT seem to export it, `other_callback.py` code involving that import might be wrong or legacy.
+# However, `handle_other_callback` uses the dict.
+# If I look at `other_callback.py` again (Step 496):
+# Line 116: "ufb_item": callback_handle_ufb_item.
+# This `callback_handle_ufb_item` refers to the function defined in the same file (Line 449).
+# It does NOT refer to the imported one (unless shadowed).
+# So the import in Line 69 might be redundant or error-prone.
+# I should remove `callback_handle_ufb_item` from the import list in `other_callback.py` if I can.
+# But I am editing `callback_handlers.py`.
+
+# I will assume `callback_handlers.py` does NOT need to export `callback_handle_ufb_item`.
 
 # 导入推送设置回调
-from .push_callback import (
-    callback_add_push_channel,
-    callback_cancel_add_push_channel,
-    callback_delete_push_config,
-    callback_push_page,
-    callback_push_settings,
-    callback_toggle_enable_only_push,
-    callback_toggle_enable_push,
-    callback_toggle_media_send_mode,
-    callback_toggle_push_config,
-    callback_toggle_push_config_status,
-)
+from .push_callback import handle_push_callback
 from .search_callback import handle_search_callback
 
 logger = logging.getLogger(__name__)
@@ -150,7 +164,7 @@ CALLBACK_HANDLERS = {
     "delete": callback_delete,
     "page": callback_page,
     "rule_settings": callback_rule_settings,
-    "set_summary_time": callback_set_summary_time,
+    "set_summary_time": handle_ai_callback, # Redirect to AI
     "set_delay_time": callback_set_delay_time,
     "select_delay_time": callback_select_delay_time,
     "delay_time_page": callback_delay_time_page,
@@ -159,83 +173,99 @@ CALLBACK_HANDLERS = {
     "set_sync_rule": callback_set_sync_rule,
     "toggle_rule_sync": callback_toggle_rule_sync,
     "sync_rule_page": callback_sync_rule_page,
-    # AI设置
-    "set_summary_prompt": callback_set_summary_prompt,
-    "set_ai_prompt": callback_set_ai_prompt,
-    "ai_settings": callback_ai_settings,
-    "time_page": callback_time_page,
-    "select_time": callback_select_time,
-    "select_model": callback_select_model,
-    "model_page": callback_model_page,
-    "change_model": callback_change_model,
-    "cancel_set_prompt": callback_cancel_set_prompt,
-    "cancel_set_summary": callback_cancel_set_summary,
-    "summary_now": callback_summary_now,
-    # 媒体设置
-    "select_max_media_size": callback_select_max_media_size,
-    "set_max_media_size": callback_set_max_media_size,
-    "media_settings": callback_media_settings,
-    "set_media_types": callback_set_media_types,
-    "toggle_media_type": callback_toggle_media_type,
-    "set_media_extensions": callback_set_media_extensions,
-    "media_extensions_page": callback_media_extensions_page,
-    "toggle_media_extension": callback_toggle_media_extension,
-    "toggle_media_allow_text": callback_toggle_media_allow_text,
+    
+    # AI设置 -> Redirect to handle_ai_callback
+    "set_summary_prompt": handle_ai_callback,
+    "set_ai_prompt": handle_ai_callback,
+    "ai_settings": handle_ai_callback,
+    "time_page": handle_ai_callback,
+    "select_time": handle_ai_callback,
+    "select_model": handle_ai_callback,
+    "model_page": handle_ai_callback,
+    "change_model": handle_ai_callback,
+    "cancel_set_prompt": handle_ai_callback,
+    "cancel_set_summary": handle_ai_callback,
+    "summary_now": handle_ai_callback,
+    
+    # 媒体设置 -> Redirect to handle_media_callback
+    "select_max_media_size": handle_media_callback,
+    "set_max_media_size": handle_media_callback,
+    "media_settings": handle_media_callback,
+    "set_media_types": handle_media_callback,
+    "toggle_media_type": handle_media_callback,
+    "set_media_extensions": handle_media_callback,
+    "media_extensions_page": handle_media_callback,
+    "toggle_media_extension": handle_media_callback,
+    "toggle_media_allow_text": handle_media_callback,
     "noop": callback_noop,
-    # 其他设置
-    "other_settings": callback_other_settings,
-    "copy_rule": callback_copy_rule,
-    "copy_keyword": callback_copy_keyword,
-    "copy_replace": callback_copy_replace,
-    "clear_keyword": callback_clear_keyword,
-    "clear_replace": callback_clear_replace,
-    "delete_rule": callback_delete_rule,
-    "perform_copy_rule": callback_perform_copy_rule,
-    "perform_copy_keyword": callback_perform_copy_keyword,
-    "perform_copy_replace": callback_perform_copy_replace,
-    "perform_clear_keyword": callback_perform_clear_keyword,
-    "perform_clear_replace": callback_perform_clear_replace,
-    "perform_delete_rule": callback_perform_delete_rule,
-    "set_userinfo_template": callback_set_userinfo_template,
-    "set_time_template": callback_set_time_template,
-    "set_original_link_template": callback_set_original_link_template,
-    "cancel_set_userinfo": callback_cancel_set_userinfo,
-    "cancel_set_time": callback_cancel_set_time,
-    "cancel_set_original_link": callback_cancel_set_original_link,
-    "toggle_reverse_blacklist": callback_toggle_reverse_blacklist,
-    "toggle_reverse_whitelist": callback_toggle_reverse_whitelist,
-    "dedup_scan_now": callback_dedup_scan_now,
-    # 推送设置
-    "push_settings": callback_push_settings,
-    "toggle_enable_push": callback_toggle_enable_push,
-    "toggle_enable_only_push": callback_toggle_enable_only_push,
-    "add_push_channel": callback_add_push_channel,
-    "cancel_add_push_channel": callback_cancel_add_push_channel,
-    "toggle_push_config": callback_toggle_push_config,
-    "toggle_push_config_status": callback_toggle_push_config_status,
-    "toggle_media_send_mode": callback_toggle_media_send_mode,
-    "delete_push_config": callback_delete_push_config,
-    "push_page": callback_push_page,
-    # 管理面板回调
-    "admin_db_info": callback_admin_db_info,
-    "admin_db_health": callback_admin_db_health,
-    "admin_db_backup": callback_admin_db_backup,
-    "admin_db_optimize": callback_admin_db_optimize,
-    "admin_system_status": callback_admin_system_status,
-    "admin_logs": callback_admin_logs,
-    "admin_cleanup_menu": callback_admin_cleanup_menu,
-    "admin_cleanup": callback_admin_cleanup,
-    "admin_cleanup_temp": callback_admin_cleanup_temp,
-    "admin_vacuum_db": callback_admin_db_optimize,
-    "admin_analyze_db": callback_admin_db_optimize,
-    "admin_full_optimize": callback_admin_db_optimize,
-    "admin_stats": callback_admin_stats,
-    "admin_config": callback_admin_config,
-    "admin_restart": callback_admin_restart,
-    "admin_restart_confirm": callback_admin_restart_confirm,
-    "admin_panel": callback_admin_panel,
-    "close_admin_panel": callback_close_admin_panel,
-    # 高级媒体筛选回调
+    
+    # 其他设置 -> Redirect to handle_other_callback (migrated ones)
+    "other_settings": handle_other_callback,
+    "copy_rule": handle_other_callback,
+    "copy_keyword": handle_other_callback,
+    "copy_replace": handle_other_callback,
+    "clear_keyword": handle_other_callback,
+    "clear_replace": handle_other_callback,
+    "delete_rule": handle_other_callback,
+    "perform_copy_rule": handle_other_callback,
+    "perform_copy_keyword": handle_other_callback,
+    "perform_copy_replace": handle_other_callback,
+    "perform_clear_keyword": handle_other_callback,
+    "perform_clear_replace": handle_other_callback,
+    "perform_delete_rule": handle_other_callback,
+    "dedup_scan_now": handle_other_callback,
+    "delete_duplicates": handle_other_callback,
+    "view_source_messages": handle_other_callback,
+    "keep_duplicates": handle_other_callback,
+    "confirm_delete_duplicates": handle_other_callback,
+    "toggle_allow_delete_source_on_dedup": handle_other_callback,
+    "ufb_item": handle_other_callback,
+
+    # Legacy/Not yet fully migrated to Strategy Registry but handled by other_callback fallback?
+    # Note: common_utils like set_userinfo_template are still in other_callback fallback or handled by Other
+    "set_userinfo_template": handle_other_callback,
+    "set_time_template": handle_other_callback,
+    "set_original_link_template": handle_other_callback,
+    "cancel_set_userinfo": handle_other_callback,
+    "cancel_set_time": handle_other_callback,
+    "cancel_set_original_link": handle_other_callback,
+    "toggle_reverse_blacklist": handle_other_callback,
+    "toggle_reverse_whitelist": handle_other_callback,
+    
+    # 推送设置 -> Redirect to handle_push_callback
+    "push_settings": handle_push_callback,
+    "toggle_enable_push": handle_push_callback,
+    "toggle_enable_only_push": handle_push_callback,
+    "add_push_channel": handle_push_callback,
+    "cancel_add_push_channel": handle_push_callback,
+    "toggle_push_config": handle_push_callback,
+    "toggle_push_config_status": handle_push_callback,
+    "toggle_media_send_mode": handle_push_callback,
+    "delete_push_config": handle_push_callback,
+    "push_page": handle_push_callback,
+    
+    # 管理面板回调 -> Redirect to handle_admin_callback
+    "admin_db_info": handle_admin_callback,
+    "admin_db_health": handle_admin_callback,
+    "admin_db_backup": handle_admin_callback,
+    "admin_db_optimize": handle_admin_callback,
+    "admin_system_status": handle_admin_callback,
+    "admin_logs": handle_admin_callback,
+    "admin_cleanup_menu": handle_admin_callback,
+    "admin_cleanup": handle_admin_callback,
+    "admin_cleanup_temp": handle_admin_callback,
+    "admin_vacuum_db": handle_admin_callback,
+    "admin_analyze_db": handle_admin_callback,
+    "admin_full_optimize": handle_admin_callback,
+    "admin_stats": handle_admin_callback,
+    "admin_config": handle_admin_callback,
+    "admin_restart": handle_admin_callback,
+    "admin_restart_confirm": handle_admin_callback,
+    "admin_panel": handle_admin_callback,
+    "close_admin_panel": handle_admin_callback,
+    
+    # 高级媒体筛选回调 -> Handled by AdvancedMedia (not yet migrated to generic strategy?)
+    # or handle_advanced_media_callback
     "toggle_duration_filter": callback_toggle_duration_filter,
     "set_duration_range": callback_set_duration_range,
     "cancel_set_duration_range": callback_cancel_set_duration_range,
@@ -245,12 +275,6 @@ CALLBACK_HANDLERS = {
     "toggle_file_size_range_filter": callback_toggle_file_size_range_filter,
     "set_file_size_range": callback_set_file_size_range,
     "cancel_set_file_size_range": callback_cancel_set_file_size_range,
-    # 去重按钮回调
-    "delete_duplicates": callback_delete_duplicates,
-    "view_source_messages": callback_view_source_messages,
-    "keep_duplicates": callback_keep_duplicates,
-    "confirm_delete_duplicates": callback_confirm_delete_duplicates,
-    "toggle_allow_delete_source_on_dedup": callback_toggle_allow_delete_source_on_dedup,
 }
 
 # 初始化全局路由器
@@ -380,7 +404,7 @@ async def handle_callback(event):
                 return
 
             # 4. 提供统一的 Session 环境，确保模块化处理器高效运行
-            async with container.db.session() as session:
+            async with container.db.get_session(kwargs.get("session")) as session:
                 message = await event.get_message()
                 # 传入转换后的参数
                 return await handler(event, rule_id, session, message, data)

@@ -232,7 +232,7 @@ async def get_or_create_chat_async(client: Any, chat_input: str) -> Tuple[str, s
     telegram_chat_id = str(numeric_id) if numeric_id is not None else str(chat_input)
 
     # 2. 数据库查重或创建
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         # 使用标准化 ID 查找
         norm_id = normalize_chat_id(telegram_chat_id)
         candidates = build_candidate_telegram_ids(telegram_chat_id)

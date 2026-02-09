@@ -26,7 +26,7 @@ class RuleCRUDService:
     @log_execution()
     async def get_rule_list(self, page: int = 0, page_size: int = 10, search_query: str = None) -> Dict[str, Any]:
         """获取规则列表 (Updated to use standard Repo or direct DTO construction)"""
-        async with self.container.db.session() as session:
+        async with self.container.db.get_session() as session:
             # Note: Repository get_all is strict pagination, but search query is complex dynamic.
             # For now, we keep manual construction but align output format.
             stmt = select(ForwardRule).options(
@@ -160,7 +160,7 @@ class RuleCRUDService:
         # This writes to DB, so Repo should handle validation
     
         try:
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 # 验证源聊天和目标聊天是否存在
                 # Use Repo find_chat
                 source_chat_dto = await self.container.rule_repo.find_chat(source_chat_id)
@@ -197,6 +197,9 @@ class RuleCRUDService:
                 self.container.rule_repo.clear_cache(int(source_chat_dto.telegram_chat_id))
                 self.container.rule_repo.clear_cache(int(target_chat_dto.telegram_chat_id))
                 
+                # [QoS Fix] 发送更新事件
+                self.container.bus.publish("RULE_UPDATED", {"rule_id": new_rule.id, "action": "create"})
+                
                 return {'success': True, 'rule_id': new_rule.id}
 
         except Exception as e:
@@ -205,7 +208,7 @@ class RuleCRUDService:
 
     @handle_errors(default_return={'success': False, 'error': 'Rule update failed'})
     async def update_rule(self, rule_id: int, **settings) -> Dict[str, Any]:
-        async with self.container.db.session() as session:
+        async with self.container.db.get_session() as session:
             stmt = select(ForwardRule).options(
                 selectinload(ForwardRule.source_chat),
                 selectinload(ForwardRule.target_chat)
@@ -234,11 +237,14 @@ class RuleCRUDService:
             if source_id: self.container.rule_repo.clear_cache(source_id)
             if target_id: self.container.rule_repo.clear_cache(target_id)
             
+            # [QoS Fix] 发送更新事件，触发监听器刷新优先级映射
+            self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "update"})
+            
             return {'success': True, 'rule_id': rule_id, 'source_chat_id': source_id, 'target_chat_id': target_id}
 
     @handle_errors(default_return={'success': False, 'error': 'Rule deletion failed'})
     async def delete_rule(self, rule_id: int) -> Dict[str, Any]:
-         async with self.container.db.session() as session:
+         async with self.container.db.get_session() as session:
             stmt = select(ForwardRule).options(
                 selectinload(ForwardRule.source_chat),
                 selectinload(ForwardRule.target_chat)
@@ -256,6 +262,9 @@ class RuleCRUDService:
             
             if source_id: self.container.rule_repo.clear_cache(source_id)
             if target_id: self.container.rule_repo.clear_cache(target_id)
+            
+            # [QoS Fix] 发送更新事件
+            self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
             
             return {'success': True, 'message': 'Deleted successfully', 'source_chat_id': source_id, 'target_chat_id': target_id}
 

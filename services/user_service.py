@@ -82,7 +82,7 @@ class UserService:
     async def get_all_users(self) -> List[UserDTO]:
         """获取所有用户 (Admin Only)"""
         # This should ideally use UserRepository.get_all
-        async with self.container.db.session() as session:
+        async with self.container.db.get_session() as session:
             stmt = select(User)
             result = await session.execute(stmt)
             users = result.scalars().all()

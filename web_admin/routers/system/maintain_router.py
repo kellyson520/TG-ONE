@@ -188,7 +188,7 @@ async def get_archive_status(
             "task_queue": TaskQueue
         }
         
-        async with db.session() as session:
+        async with db.get_session() as session:
             for key, model in models.items():
                 count_stmt = select(func.count()).select_from(model)
                 res = await session.execute(count_stmt)

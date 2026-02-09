@@ -34,7 +34,7 @@ class ActiveSessionService:
         Enriches data with parsed device info.
         """
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(ActiveSession).options(selectinload(ActiveSession.user))
             if user_id:
                 stmt = stmt.where(ActiveSession.user_id == user_id)
@@ -65,7 +65,7 @@ class ActiveSessionService:
     async def revoke_session(self, session_id: int) -> bool:
         """Revoke a specific session by Primary Key ID"""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(ActiveSession).where(ActiveSession.id == session_id)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
@@ -79,7 +79,7 @@ class ActiveSessionService:
     async def revoke_user_sessions(self, user_id: int, exclude_session_id: Optional[str] = None):
         """Revoke all sessions for a user, optionally keeping current one"""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
              stmt = delete(ActiveSession).where(ActiveSession.user_id == user_id)
              if exclude_session_id:
                  stmt = stmt.where(ActiveSession.session_id != exclude_session_id)

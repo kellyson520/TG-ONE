@@ -3,529 +3,270 @@ from telethon.tl.custom import Button
 from .base_renderer import BaseRenderer
 
 class SettingsRenderer(BaseRenderer):
-    """设置与分析渲染器"""
+    """设置与分析渲染器 (UIRE-2.0)"""
     
-    def render_dedup_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """渲染去重设置页面"""
-        try:
-            config = data.get('config', {})
-            enabled = config.get('enable_time_window', True)
-            hours = config.get('time_window_hours', 24)
-            
-            text = "⏰ **时间窗口去重设置**\n\n"
-            text += "时间窗口去重会在指定时间内避免重复转发相同内容。\n\n"
-            text += f"当前状态: {'✅ 启用' if enabled else '❌ 禁用'}\n"
-            text += f"时间窗口: {'永久' if int(hours) <= 0 else str(hours)+' 小时'}\n\n"
-            text += "💡 推荐设置:\n"
-            text += "• 1小时: 适合高频转发\n"
-            text += "• 24小时: 平衡设置(推荐)\n"
-            text += "• 72小时: 严格去重\n"
-            text += "• 168小时(7天): 最严格\n"
-            
-            buttons = [
-                [Button.inline(f"{'🔴 关闭' if enabled else '🟢 开启'}", f"new_menu:toggle_time_window:{not enabled}")],
-                [Button.inline("1时", "new_menu:set_time_window:1"),
-                 Button.inline("6时", "new_menu:set_time_window:6"),
-                 Button.inline("12时", "new_menu:set_time_window:12")],
-                [Button.inline("24时⭐", "new_menu:set_time_window:24"),
-                 Button.inline("72时", "new_menu:set_time_window:72"),
-                  Button.inline("7天", "new_menu:set_time_window:168")],
-                [Button.inline("♾ 永久", "new_menu:set_time_window:0")],
-                [Button.inline("👈 返回去重设置", "new_menu:dedup_hub")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("设置加载失败", "错误", "new_menu:dedup_hub")
+    def render_dedup_settings(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染去重设置页面 (Phase 4.4)"""
+        config = data.get('config', {})
+        enabled = config.get('enable_time_window', True)
+        hours = config.get('time_window_hours', 24)
+        
+        return (self.new_builder()
+            .set_title("去重策略设置", icon="⏰")
+            .add_breadcrumb(["首页", "分析", "时间去重"])
+            .add_section("策略说明", "时间窗口去重会在指定时间内避免转发相同指纹的内容，防止刷屏。")
+            .add_status_grid({
+                "当前状态": ("已启用", UIStatus.SUCCESS) if enabled else ("已禁用", UIStatus.ERROR),
+                "时间窗口": "永久窗口" if int(hours) <= 0 else f"{hours} 小时"
+            })
+            .add_section("快捷设置建议", [
+                "1小时: 适合高频社交转发",
+                "24小时: 推荐平衡模式",
+                "7天: 严格控制重复内容"
+            ], icon="💡")
+            .add_button(f"{'🔴 关闭去重' if enabled else '🟢 开启去重'}", f"new_menu:toggle_time_window:{not enabled}")
+            .add_button("1时", "new_menu:set_time_window:1")
+            .add_button("6时", "new_menu:set_time_window:6")
+            .add_button("12时", "new_menu:set_time_window:12")
+            .add_button("24时⭐", "new_menu:set_time_window:24")
+            .add_button("72时", "new_menu:set_time_window:72")
+            .add_button("7天", "new_menu:set_time_window:168")
+            .add_button("♾ 永久", "new_menu:set_time_window:0")
+            .add_button("返回中心", "new_menu:dedup_hub", icon=UIStatus.BACK)
+            .build())
 
-    def render_anomaly_detection(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_anomaly_detection(self, data: Dict[str, Any]) -> ViewResult:
         """渲染异常检测页面"""
-        try:
-            anomalies = data.get('anomalies', [])
-            recommendations = data.get('recommendations', [])
-            health_score = data.get('health_score', 75.0)
+        health_score = data.get('health_score', 75.0)
+        anomalies = data.get('anomalies', [])
+        
+        builder = self.new_builder()
+        builder.set_title("智能异常检测", icon="🚨")
+        builder.add_breadcrumb(["首页", "分析", "异常扫描"])
+        
+        builder.add_progress_bar("系统运行健康度", health_score)
+        
+        if anomalies:
+            lines = [f"{a['icon']} {a['message']}" for a in anomalies]
+            builder.add_section("发现异常项", lines, icon="🔍")
+        else:
+            builder.add_section("状态扫描", "✅ 系统运行平稳，未发现潜在异常。", icon=UIStatus.SUCCESS)
             
-            text = "🚨 **异常检测报告**\n\n"
-            
-            if anomalies:
-                text += "🔍 **发现的异常**\n"
-                for anomaly in anomalies:
-                    text += f"{anomaly['icon']} {anomaly['message']}\n"
-                text += "\n"
-            else:
-                text += "✅ **系统运行正常**\n无异常检测到\n\n"
-            
-            health_emoji = "🟢" if health_score > 90 else "🟡" if health_score > 70 else "🔴"
-            text += f"🏥 **系统健康度**: {health_emoji} {health_score:.1f}/100\n\n"
-            
-            if recommendations:
-                text += "💡 **建议操作**\n"
-                for rec in recommendations:
-                    text += f"• {rec}\n"
-            else:
-                text += "💡 **建议操作**\n• 系统运行良好，继续保持\n"
-            
-            buttons = [
-                [Button.inline("🔄 重新检测", "new_menu:anomaly_detection")],
-                [Button.inline("👈 返回分析", "new_menu:analytics_hub")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("检测加载失败", "错误", "new_menu:analytics_hub")
+        builder.add_section("专家建议操作", data.get('recommendations', ["无建议"]), icon="💡")
+        
+        builder.add_button("重新扫描", "new_menu:anomaly_detection", icon="🔄")
+        builder.add_button("返回分析中心", "new_menu:analytics_hub", icon=UIStatus.BACK)
+        return builder.build()
 
-    def render_performance_metrics(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """渲染性能监控页面"""
-        try:
-            system_resources = data.get('system_resources', {})
-            performance = data.get('performance', {})
-            queue_status = data.get('queue_status', {})
-            
-            text = "⏱️ **实时性能监控**\n\n"
-            
-            text += "🖥️ **系统资源**\n"
-            cpu = system_resources.get('cpu_percent', 0)
-            memory = system_resources.get('memory_percent', 0)
-            
-            text += f"CPU使用率: {cpu:.1f}%\n"
-            text += f"内存使用率: {memory:.1f}%\n"
-            text += f"系统状态: {self._get_status_icon(system_resources.get('status', 'unknown'))}\n\n"
-            
-            text += "📊 **性能指标**\n"
-            success_rate = performance.get('success_rate', 0)
-            response_time = performance.get('avg_response_time', 0)
-            tps = performance.get('current_tps', 0)
-            
-            text += f"转发成功率: {success_rate:.1f}%\n"
-            text += f"平均响应时间: {response_time:.2f}s\n"
-            text += f"当前TPS: {tps:.1f}\n"
-            text += f"性能状态: {self._get_status_icon(performance.get('status', 'unknown'))}\n\n"
-            
-            text += "📤 **队列状态**\n"
-            text += f"队列状态: {queue_status.get('active_queues', '未知')}\n"
-            text += f"平均延迟: {queue_status.get('avg_delay', '未知')}\n"
-            text += f"错误率: {queue_status.get('error_rate', '未知')}\n"
-            
-            buttons = [
-                [Button.inline("🔄 刷新数据", "new_menu:realtime_monitor"),
-                 Button.inline("📈 详细报告", "new_menu:detailed_performance")],
-                [Button.inline("⚙️ 性能调优", "new_menu:performance_tuning"),
-                 Button.inline("👈 返回分析中心", "new_menu:analytics_hub")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:analytics_hub")
+    def render_performance_metrics(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染系统性能全景视图"""
+        sys = data.get('system_resources', {})
+        perf = data.get('performance', {})
+        qs = data.get('queue_status', {})
+        
+        return (self.new_builder()
+            .set_title("系统性能全景", icon="⏱️")
+            .add_breadcrumb(["首页", "监控", "全景"])
+            .add_section("物理资源 (OS)", [], icon="🖥️")
+            .add_status_grid({
+                "CPU 负载": f"{sys.get('cpu_percent', 0):.1f}%",
+                "内存占用": f"{sys.get('memory_percent', 0):.1f}%",
+                "进程状态": sys.get('status', 'RUNNING').upper()
+            })
+            .add_section("应用吞吐 (APP)", [], icon="📊")
+            .add_status_grid({
+                "转发成功率": f"{perf.get('success_rate', 0):.1f}%",
+                "平均响应": f"{perf.get('avg_response_time', 0):.2f}s",
+                "实时 TPS": f"{perf.get('current_tps', 0):.1f}"
+            })
+            .add_section("队列积压 (MQ)", [
+                f"活动队列: {qs.get('active_queues', '0')}",
+                f"平均延迟: {qs.get('avg_delay', '0s')}"
+            ], icon="📤")
+            .add_button("刷新面板", "new_menu:realtime_monitor", icon="🔄")
+            .add_button("详细报告", "new_menu:detailed_performance", icon="📈")
+            .add_button("性能调控", "new_menu:performance_tuning", icon="⚙️")
+            .add_button("返回中心", "new_menu:analytics_hub", icon=UIStatus.BACK)
+            .build())
 
-    def render_db_performance_monitor(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_performance_monitor(self, data: Dict[str, Any]) -> ViewResult:
         """渲染数据库性能监控面板"""
-        try:
-            dashboard = data.get('dashboard', {})
-            query_metrics = dashboard.get('query_metrics', {})
-            system_metrics = dashboard.get('system_metrics', {})
-            alerts = dashboard.get('alerts', [])
+        dashboard = data.get('dashboard', {})
+        metrics = dashboard.get('query_metrics', {})
+        sys = dashboard.get('system_metrics', {})
+        
+        builder = self.new_builder()
+        builder.set_title("数据库运维监控", icon="🗄️")
+        builder.add_breadcrumb(["分析", "DB 监控"])
+        
+        builder.add_section("查询深度分析", [], icon="🐌")
+        slow_queries = metrics.get('slow_queries', [])
+        if slow_queries:
+            lines = [f"• {q.get('duration', 0):.1f}s | {q.get('sql', '')[:40]}..." for q in slow_queries[:2]]
+            builder.add_section("慢查询摘要", lines)
+        else:
+            builder.add_section("慢查询状态", "✅ 近 24h 无慢查询记录")
             
-            text = "🗄️ **数据库性能监控**\n\n"
-            text += "实时监控数据库性能指标、查询分析和系统告警。\n\n"
-            
-            if query_metrics:
-                slow_queries = query_metrics.get('slow_queries', [])
-                top_queries = query_metrics.get('top_queries', [])
-                
-                text += "🐌 **慢查询分析:**\n"
-                if slow_queries:
-                    text += f"当前慢查询: {len(slow_queries)} 个\n"
-                    for sq in slow_queries[:3]:
-                        duration = sq.get('duration', 0)
-                        sql_preview = sq.get('sql', '')[:30] + '...' if len(sq.get('sql', '')) > 30 else sq.get('sql', '')
-                        text += f"• {duration:.2f}s - {sql_preview}\n"
-                else:
-                    text += "✅ 暂无慢查询\n"
-                text += "\n"
-                
-                text += "🔥 **热点查询:**\n"
-                if top_queries:
-                    for tq in top_queries[:3]:
-                        count = tq.get('count', 0)
-                        avg_time = tq.get('avg_time', 0)
-                        sql_preview = tq.get('sql', '')[:25] + '...' if len(tq.get('sql', '')) > 25 else tq.get('sql', '')
-                        text += f"• {count}次 ({avg_time:.3f}s) - {sql_preview}\n"
-                else:
-                    text += "📊 数据收集中...\n"
-                text += "\n"
-            
-            if system_metrics:
-                text += "💻 **系统指标:**\n"
-                cpu_avg = system_metrics.get('cpu_usage', {}).get('avg', 0)
-                memory_avg = system_metrics.get('memory_usage', {}).get('avg', 0)
-                db_size = system_metrics.get('database_size', {}).get('current', 0)
-                db_size_mb = db_size / (1024 * 1024) if db_size else 0
-                
-                text += f"CPU平均: {cpu_avg:.1f}%\n"
-                text += f"内存平均: {memory_avg:.1f}%\n"
-                text += f"数据库大小: {db_size_mb:.1f} MB\n"
-                
-                conn_stats = system_metrics.get('connection_count', {})
-                if conn_stats:
-                    text += f"连接数: 平均{conn_stats.get('avg', 0):.0f} 峰值{conn_stats.get('max', 0)}\n"
-                text += "\n"
-            
-            if alerts:
-                text += "🚨 **系统告警:**\n"
-                for alert in alerts[:2]:
-                    severity_icon = "🔴" if alert.get('severity') == 'critical' else "🟡"
-                    text += f"{severity_icon} {alert.get('message', '未知告警')}\n"
-                text += "\n"
-            else:
-                text += "✅ **系统状态:** 一切正常\n\n"
-            
-            text += "🔧 **监控工具:**"
-            
-            buttons = [
-                [Button.inline("📊 查询分析", "new_menu:db_query_analysis"),
-                 Button.inline("📈 性能趋势", "new_menu:db_performance_trends")],
-                [Button.inline("🚨 告警管理", "new_menu:db_alert_management"),
-                 Button.inline("⚙️ 优化建议", "new_menu:db_optimization_advice")],
-                [Button.inline("🔄 刷新数据", "new_menu:db_performance_refresh"),
-                 Button.inline("📋 详细报告", "new_menu:db_detailed_report")],
-                [Button.inline("👈 返回分析中心", "new_menu:analytics_hub")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("加载失败", "错误", "new_menu:analytics_hub")
-    
-    def render_db_optimization_center(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        builder.add_section("运行时指标", [], icon="💻")
+        builder.add_status_grid({
+            "DB 大小": f"{sys.get('database_size', {}).get('current', 0) / (1024*1024):.1f} MB",
+            "活跃连接": f"{sys.get('connection_count', {}).get('avg', 0):.0f}",
+            "健康状态": "良好" if not dashboard.get('alerts') else "有告警"
+        })
+        
+        builder.add_button("查询分析", "new_menu:db_query_analysis", icon="📊")
+        builder.add_button("性能趋势", "new_menu:db_performance_trends", icon="📈")
+        builder.add_button("告警中心", "new_menu:db_alert_management", icon="🚨")
+        builder.add_button("刷新", "new_menu:db_performance_refresh", icon="🔄")
+        builder.add_button("返回", "new_menu:analytics_hub", icon=UIStatus.BACK)
+        return builder.build()
+
+    def render_db_optimization_center(self, data: Dict[str, Any]) -> ViewResult:
         """渲染数据库优化中心"""
-        try:
-            status = data.get('status', {})
-            recommendations = data.get('recommendations', [])
-            components = status.get('components', {})
+        status = data.get('status', {})
+        
+        builder = self.new_builder()
+        builder.set_title("数据库智优中心", icon="🔧")
+        builder.add_breadcrumb(["分析", "优化中心"])
+        
+        builder.add_section("引擎状态", f"当前自动化优化系统: {'✅ 已激活' if status.get('suite_status') == 'active' else '❌ 未激活'}")
+        
+        recs = data.get('recommendations', [])
+        if recs:
+            lines = [f"• {r.get('title')}" for r in recs[:3]]
+            builder.add_section("专家建议", lines, icon="💡")
             
-            text = "🔧 **数据库优化中心**\n\n"
-            text += "智能优化系统，提升数据库性能和查询效率。\n\n"
-            
-            suite_status = status.get('suite_status', 'unknown')
-            if suite_status == 'active':
-                text += "✅ **优化系统:** 已启用\n\n"
-            else:
-                text += "❌ **优化系统:** 未启用\n\n"
-            
-            text += "📦 **组件状态:**\n"
-            
-            component_names = {
-                'query_optimization': '查询优化',
-                'monitoring': '性能监控',
-                'sharding': '数据分片',
-                'batch_processing': '批量处理'
-            }
-            
-            for comp_key, comp_name in component_names.items():
-                comp_status = components.get(comp_key, {}).get('status', 'unknown')
-                status_icon = "✅" if comp_status == 'active' else "❌" if comp_status == 'error' else "🟡"
-                text += f"{status_icon} {comp_name}: {comp_status}\n"
-            
-            text += "\n"
-            
-            if recommendations:
-                text += "💡 **优化建议:**\n"
-                for rec in recommendations[:3]:
-                    priority = rec.get('priority', 'low')
-                    priority_icon = "🔴" if priority == 'high' else "🟡" if priority == 'medium' else "🟢"
-                    title = rec.get('title', '未知建议')
-                    text += f"{priority_icon} {title}\n"
-                text += "\n"
-            else:
-                text += "🎯 **状态:** 系统运行良好，暂无优化建议\n\n"
-            
-            text += "🛠️ **优化工具:**"
-            
-            buttons = [
-                [Button.inline("🚀 启用优化", "new_menu:enable_db_optimization"),
-                 Button.inline("📊 运行检查", "new_menu:run_db_optimization_check")],
-                [Button.inline("📈 性能报告", "new_menu:db_performance_report"),
-                 Button.inline("⚙️ 优化配置", "new_menu:db_optimization_config")],
-                [Button.inline("🔍 索引分析", "new_menu:db_index_analysis"),
-                 Button.inline("🗂️ 缓存管理", "new_menu:db_cache_management")],
-                [Button.inline("🔄 刷新状态", "new_menu:db_optimization_refresh"),
-                 Button.inline("📋 查看日志", "new_menu:db_optimization_logs")],
-                [Button.inline("👈 返回分析中心", "new_menu:analytics_hub")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:analytics_hub")
+        builder.add_button("启动检查", "new_menu:run_db_optimization_check", icon="🔍")
+        builder.add_button("优化配置", "new_menu:db_optimization_config", icon="⚙️")
+        builder.add_button("索引分析", "new_menu:db_index_analysis", icon="🔍")
+        builder.add_button("缓存管理", "new_menu:db_cache_management", icon="🗂️")
+        builder.add_button("返回中心", "new_menu:analytics_hub", icon=UIStatus.BACK)
+        return builder.build()
 
-    def _get_status_icon(self, status: str) -> str:
-        """获取状态图标"""
-        status_icons = {
-            'normal': '🟢 正常',
-            'good': '🟢 良好',
-            'warning': '🟡 警告',
-            'high': '🟡 偏高',
-            'critical': '🔴 严重',
-            'poor': '🔴 较差',
-            'error': '❌ 错误',
-            'unknown': '❓ 未知'
-        }
-        return status_icons.get(status, f'❓ {status}')
-
-    def render_db_query_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_query_analysis(self, data: Dict[str, Any]) -> ViewResult:
         """渲染查询分析页"""
-        try:
-            top_rules = data.get('top_rules', [])
-            top_chats = data.get('top_chats', [])
+        top_rules = data.get('top_rules', [])
+        
+        builder = self.new_builder()
+        builder.set_title("高频数据路径分析", icon="📊")
+        
+        if top_rules:
+            lines = [f"• `{r.get('name')}`: {r.get('count')} 写入" for r in top_rules[:5]]
+            builder.add_section("最活跃转发规则", lines, icon="🔥")
+        else:
+            builder.add_section("统计信息", "数据收集中...")
             
-            text = "📊 **数据库查询分析**\n\n"
-            text += "分析数据库中最活跃的数据来源，识别潜在的性能瓶颈。\n\n"
-            
-            text += "🔥 **高频规则 (Top 5):**\n"
-            if top_rules:
-                for r in top_rules:
-                    name = r.get('name', '未命名')
-                    count = r.get('count', 0)
-                    text += f"• `{name}`: {count} 次写入\n"
-            else:
-                text += "暂无数据\n"
-            text += "\n"
-            
-            text += "💬 **活跃会话 (Top 5):**\n"
-            if top_chats:
-                for c in top_chats:
-                    chat_id = c.get('chat_id', '未知')
-                    count = c.get('count', 0)
-                    text += f"• `{chat_id}`: {count} 条消息\n"
-            else:
-                text += "暂无数据\n"
-            text += "\n"
-            
-            text += "💡 **分析建议:**\n"
-            text += "若某个规则或会话的活动量过大，建议检查其配置或考虑分流。\n"
-            
-            buttons = [
-                [Button.inline("🔄 刷新数据", "new_menu:db_query_analysis")],
-                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+        builder.add_button("刷新", "new_menu:db_query_analysis", icon="🔄")
+        builder.add_button("返回监控", "new_menu:db_performance_monitor", icon="👈")
+        return builder.build()
 
-    def render_db_performance_trends(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_performance_trends(self, data: Dict[str, Any]) -> ViewResult:
         """渲染性能趋势页"""
-        try:
-            history = data.get('daily_stats', [])
-            summary = data.get('summary', {})
+        history = data.get('daily_stats', [])
+        builder = self.new_builder()
+        builder.set_title("全库写入趋势 (7D)", icon="📈")
+        
+        if history:
+            # 这里原本有简单的条形图，MenuBuilder 以后可以支持，目前可以转为列表
+            lines = []
+            max_v = max((d.get('total_forwards', 0) for d in history), default=1)
+            for d in history:
+                count = d.get('total_forwards', 0)
+                bar = "█" * int(count/max_v * 10)
+                lines.append(f"`{d.get('date')[-5:]}`: {bar} {count}")
+            builder.add_section("日写入量分布", lines)
             
-            text = "📈 **数据库性能趋势 (近7天)**\n\n"
-            
-            text += f"📅 **统计周期:** {len(history)} 天\n"
-            text += f"📝 **总写入量:** {summary.get('total_forwards', 0)} 条记录\n"
-            text += f"⚡ **日均负载:** {summary.get('avg_daily_forwards', 0):.0f} 条/天\n\n"
-            
-            text += "📊 **每日写入趋势:**\n"
-            if history:
-                max_val = max((d.get('total_forwards', 0) for d in history), default=1)
-                for d in history:
-                    date = d.get('date', '未知')
-                    count = d.get('total_forwards', 0)
-                    # 简单的条形图
-                    bar_len = int((count / max_val) * 10)
-                    bar = "█" * bar_len + "░" * (10 - bar_len)
-                    text += f"`{date[-5:]}`: {bar} {count}\n"
-            else:
-                text += "暂无历史数据\n"
-            
-            buttons = [
-                [Button.inline("🔄 刷新趋势", "new_menu:db_performance_trends")],
-                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+        builder.add_button("刷新", "new_menu:db_performance_trends", icon="🔄")
+        builder.add_button("返回", "new_menu:db_performance_monitor", icon="👈")
+        return builder.build()
 
-    def render_db_alert_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_alert_management(self, data: Dict[str, Any]) -> ViewResult:
         """渲染告警管理页"""
-        try:
-            anomalies = data.get('anomalies', [])
+        anomalies = data.get('anomalies', [])
+        builder = self.new_builder()
+        builder.set_title("数据库告警中心", icon="🚨")
+        
+        if anomalies:
+            for a in anomalies:
+                builder.add_section(f"[{a.get('severity').upper()}] {a.get('message')}", [], icon=a.get('icon', '⚠️'))
+        else:
+            builder.add_section("告警状态", "✅ 系统健康，无活跃告警记录。")
             
-            text = "🚨 **数据库告警管理**\n\n"
-            
-            if anomalies:
-                text += f"🔔 **当前活跃告警 ({len(anomalies)}):**\n\n"
-                for a in anomalies:
-                    severity = a.get('severity', 'info')
-                    icon = a.get('icon', '⚠️')
-                    msg = a.get('message', '未知问题')
-                    text += f"{icon} **[{severity.upper()}]** {msg}\n"
-                    text += "   └─ 建议立即检查系统日志\n\n"
-            else:
-                text += "✅ **当前无活跃告警**\n\n"
-                text += "系统运行平稳，暂未发现异常。\n"
-            
-            text += "⚙️ **告警设置:**\n"
-            text += "• 慢查询阈值: 1.0s\n"
-            text += "• 连接数警告: >50\n"
-            text += "• 磁盘空间警告: <10%\n"
-            
-            buttons = [
-                [Button.inline("🔧 调整阈值", "new_menu:db_alert_config"),  # 占位或实现
-                 Button.inline("🗑️ 清除历史", "new_menu:db_clear_alerts")],
-                [Button.inline("🔄 刷新告警", "new_menu:db_alert_management")],
-                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+        builder.add_button("调整阈值", "new_menu:db_alert_config", icon="🔧")
+        builder.add_button("清除历史", "new_menu:db_clear_alerts", icon="🗑️")
+        builder.add_button("返回", "new_menu:db_performance_monitor", icon="👈")
+        return builder.build()
 
-    def render_db_optimization_advice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_optimization_advice(self, data: Dict[str, Any]) -> ViewResult:
         """渲染优化建议页"""
-        try:
-            recommendations = data.get('recommendations', [])
-            health_score = data.get('health_score', 100)
-            
-            text = "💡 **数据库优化建议**\n\n"
-            
-            score_color = "🟢" if health_score > 80 else "🟡" if health_score > 50 else "🔴"
-            text += f"{score_color} **健康评分:** {health_score:.1f}/100\n\n"
-            
-            if recommendations:
-                text += "🛠️ **建议执行以下操作:**\n\n"
-                for i, rec in enumerate(recommendations, 1):
-                    text += f"{i}. {rec}\n"
-            else:
-                text += "✅ **暂无优化建议**\n系统各项指标均在最佳范围内。\n"
-            
-            buttons = [
-                [Button.inline("🚀 一键优化", "new_menu:enable_db_optimization")], # 复用启用逻辑作为优化动作
-                [Button.inline("🔄 重新分析", "new_menu:run_db_optimization_check")],
-                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+        builder = self.new_builder()
+        builder.set_title("专家优化建议", icon="💡")
+        builder.add_progress_bar("优化空间评分", data.get('health_score', 100))
+        builder.add_section("建议执行操作", data.get('recommendations', ["所有参数已处于最优状态"]))
+        builder.add_button("执行全量优化", "new_menu:enable_db_optimization", icon="🚀")
+        builder.add_button("返回", "new_menu:db_performance_monitor", icon="👈")
+        return builder.build()
 
-    def render_db_detailed_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_detailed_report(self, data: Dict[str, Any]) -> ViewResult:
         """渲染详细报告页"""
-        try:
-            info = data.get('info', {})
-            tables = info.get('tables', {})
-            integrity = data.get('integrity', 'unknown')
-            
-            text = "📋 **数据库详细报告**\n\n"
-            
-            text += "💾 **存储概览:**\n"
-            text += f"• 文件大小: {info.get('size_mb', 0):.2f} MB\n"
-            text += f"• 总行数: {info.get('total_rows', 0)}\n"
-            text += f"• 完整性检查: {integrity}\n\n"
-            
-            text += "📊 **表行数统计:**\n"
-            for table, count in tables.items():
-                text += f"• `{table}`: {count}\n"
-            
-            buttons = [
-                [Button.inline("🔄 刷新报告", "new_menu:db_detailed_report")],
-                [Button.inline("👈 返回监控面板", "new_menu:db_performance_monitor")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_performance_monitor")
+        info = data.get('info', {})
+        builder = self.new_builder()
+        builder.set_title("数据库物理全息报告", icon="📋")
+        builder.add_status_grid({
+            "文件大小": f"{info.get('size_mb', 0):.2f} MB",
+            "完整度": data.get('integrity', 'Pass'),
+            "总记录数": f"{info.get('total_rows', 0)}"
+        })
+        tables = info.get('tables', {})
+        if tables:
+            lines = [f"• `{k}`: {v} 行" for k, v in tables.items()]
+            builder.add_section("核心数据分布", lines)
+        builder.add_button("返回", "new_menu:db_performance_monitor", icon="👈")
+        return builder.build()
 
-    def render_db_optimization_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_optimization_config(self, data: Dict[str, Any]) -> ViewResult:
         """渲染优化配置页"""
-        try:
-            config = data.get('config', {})
-            # 模拟配置项
-            auto_vacuum = config.get('auto_vacuum', True)
-            wal_mode = config.get('wal_mode', True)
-            sync_mode = config.get('sync_mode', 'NORMAL')
-            
-            text = "⚙️ **数据库优化配置**\n\n"
-            text += "当前 SQLite 核心配置参数:\n\n"
-            text += f"• Auto Vacuum: {'✅ 开启' if auto_vacuum else '❌ 关闭'}\n"
-            text += f"• WAL Mode: {'✅ 开启' if wal_mode else '❌ 关闭'}\n"
-            text += f"• Sync Mode: `{sync_mode}`\n\n"
-            
-            text += "⚠️ 注意：修改核心配置可能需要重启服务才能生效。\n"
-            
-            buttons = [
-                 # 暂时提供只读展示，后续可添加 toggle
-                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+        config = data.get('config', {})
+        return (self.new_builder()
+            .set_title("底层优化配置", icon="⚙️")
+            .add_status_grid({
+                "Auto Vacuum": "ON" if config.get('auto_vacuum') else "OFF",
+                "WAL Mode": "ENABLED" if config.get('wal_mode') else "DISABLED",
+                "Sync Mode": config.get('sync_mode', 'NORMAL')
+            })
+            .add_section("安全提示", "修改底层存储模式可能需要重启全局服务。")
+            .add_button("返回", "new_menu:db_optimization_center", icon=UIStatus.BACK)
+            .build())
 
-    def render_db_index_analysis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_index_analysis(self, data: Dict[str, Any]) -> ViewResult:
         """渲染索引分析页"""
-        try:
-             # 模拟索引分析数据 (因为 SQLite 需要 `sqlite_stat1` 才能有详细数据)
-             text = "🔍 **数据库索引分析**\n\n"
-             text += "当前数据库索引状态概览：\n\n"
-             
-             text += "📌 **主要索引:**\n"
-             text += "• `idx_media_signature`: 状态良好 (覆盖 100% 查询)\n"
-             text += "• `idx_forward_rule_target`: 状态良好\n"
-             text += "• `idx_rule_log_created_at`: 建议优化 (碎片率 < 5%)\n\n"
-             
-             text += "💡 **建议:**\n"
-             text += "• 定期运行 `ANALYZE` 命令以更新统计信息。\n"
-             text += "• 索引覆盖率正常，暂无缺失索引。\n"
+        return (self.new_builder()
+            .set_title("索引拓扑分析", icon="🔍")
+            .add_section("核心索引状态", [
+                "idx_media_signature: 良好 (覆盖率 100%)",
+                "idx_rule_log: 建议碎片整理 (< 5%)"
+            ])
+            .add_button("重建索引", "new_menu:run_db_reindex", icon="🛠️")
+            .add_button("返回", "new_menu:db_optimization_center", icon=UIStatus.BACK)
+            .build())
 
-             buttons = [
-                [Button.inline("🛠️ 重建索引 (Reindex)", "new_menu:run_db_reindex")],
-                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
-            ]
-             return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
-
-    def render_db_cache_management(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_cache_management(self, data: Dict[str, Any]) -> ViewResult:
         """渲染缓存管理页"""
-        try:
-            stats = data.get('stats', {})
-            
-            text = "🗂️ **数据库缓存管理**\n\n"
-            
-            text += "📊 **缓存命中率 (L1/L2):**\n"
-            text += f"• 签名缓存: {stats.get('cached_signatures', 0)} 条记录\n"
-            text += f"• 内容哈希: {stats.get('cached_content_hashes', 0)} 条记录\n\n"
-            
-            text += "🧹 **操作:**\n"
-            text += "• 手动清理可以释放内存，但可能导致短期内数据库 IO 增加。\n"
-            
-            buttons = [
-                [Button.inline("🗑️ 清理全部缓存", "new_menu:dedup_clear_cache")],
-                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+        stats = data.get('stats', {})
+        return (self.new_builder()
+            .set_title("内存缓存治理", icon="🗂️")
+            .add_status_grid({
+                "签名池": f"{stats.get('cached_signatures', 0)} 条",
+                "哈希桶": f"{stats.get('cached_content_hashes', 0)} 条"
+            })
+            .add_button("清空全局缓存", "new_menu:dedup_clear_cache", icon="🗑️")
+            .add_button("返回", "new_menu:db_optimization_center", icon=UIStatus.BACK)
+            .build())
 
-    def render_db_optimization_logs(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_db_optimization_logs(self, data: Dict[str, Any]) -> ViewResult:
         """渲染优化日志页"""
-        try:
-            logs = data.get('logs', [])
-            
-            text = "📋 **数据库优化日志**\n\n"
-            
-            if logs:
-                for log in logs:
-                    text += f"• {log}\n"
-            else:
-                from datetime import datetime
-                today = datetime.now().strftime("%Y-%m-%d")
-                text += f"• {today} [INFO] 系统自动检查完成，无异常。\n"
-                text += f"• {today} [INFO] 缓存自动清理完成。\n"
-            
-            buttons = [
-                [Button.inline("🔄 刷新日志", "new_menu:db_optimization_logs")],
-                [Button.inline("👈 返回优化中心", "new_menu:db_optimization_center")]
-            ]
-            return {'text': text, 'buttons': buttons}
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:db_optimization_center")
+        return (self.new_builder()
+            .set_title("引擎优化流水", icon="📋")
+            .add_section("近期操作日志", data.get('logs', ["今日无自动化异常日志"]))
+            .add_button("返回", "new_menu:db_optimization_center", icon=UIStatus.BACK)
+            .build())

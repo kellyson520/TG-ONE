@@ -276,7 +276,7 @@ class DBMaintenanceService:
             from models.models import ErrorLog, RuleLog, Chat, ForwardRule
             
             tables = {}
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 for model in [Chat, ForwardRule, ErrorLog, RuleLog]:
                     stmt = select(func.count()).select_from(model)
                     count = (await session.execute(stmt)).scalar() or 0
@@ -313,7 +313,7 @@ class DBMaintenanceService:
         try:
             from core.container import container
             from sqlalchemy import text
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 result = await session.execute(text("PRAGMA integrity_check"))
                 status = result.scalar()
             return {

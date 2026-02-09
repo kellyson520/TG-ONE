@@ -39,7 +39,7 @@ class RSSPullService:
         await self.timing_wheel.start()
         
         # 加载所有活跃订阅
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(RSSSubscription).where(RSSSubscription.is_active == True)
             result = await session.execute(stmt)
             subscriptions = result.scalars().all()
@@ -88,7 +88,7 @@ class RSSPullService:
 
         has_new_content = False
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 sub = await session.get(RSSSubscription, sub_id)
                 if not sub or not sub.is_active:
                     return
@@ -112,7 +112,7 @@ class RSSPullService:
             # 即使出错也重新排期，使用惩罚性延迟或保持现状
             await asyncio.sleep(60)
             if self._running:
-                async with container.db.session() as session:
+                async with container.db.get_session() as session:
                     sub = await session.get(RSSSubscription, sub_id)
                     if sub: await self.schedule_subscription(sub)
 
@@ -213,7 +213,7 @@ class RSSPullService:
         asyncio.create_task(self._add_sub_worker(sub_id))
 
     async def _add_sub_worker(self, sub_id: int):
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             sub = await session.get(RSSSubscription, sub_id)
             if sub:
                 await self.schedule_subscription(sub)

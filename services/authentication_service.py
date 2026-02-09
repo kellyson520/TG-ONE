@@ -90,7 +90,7 @@ class AuthenticationService:
         expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             try:
                 # 1. Enforce Max Sessions (Security Best Practice)
                 MAX_SESSIONS = settings.MAX_ACTIVE_SESSIONS
@@ -143,7 +143,7 @@ class AuthenticationService:
             return None
 
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             # Check if session exists in DB (by hash)
             token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
             stmt = select(ActiveSession).where(ActiveSession.refresh_token_hash == token_hash)
@@ -181,7 +181,7 @@ class AuthenticationService:
         """Revoke a single session by refresh token."""
         token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = delete(ActiveSession).where(ActiveSession.refresh_token_hash == token_hash)
             await session.execute(stmt)
             await session.commit()
@@ -189,7 +189,7 @@ class AuthenticationService:
     async def revoke_session_by_id(self, session_id: int):
         """Revoke a single session by ID (Admin)."""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = delete(ActiveSession).where(ActiveSession.id == session_id)
             await session.execute(stmt)
             await session.commit()
@@ -197,7 +197,7 @@ class AuthenticationService:
     async def revoke_user_sessions(self, user_id: int):
         """Revoke all sessions for a user."""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = delete(ActiveSession).where(ActiveSession.user_id == user_id)
             await session.execute(stmt)
             await session.commit()
@@ -222,7 +222,7 @@ class AuthenticationService:
     async def get_active_sessions(self, user_id: Optional[int] = None) -> List[Dict]:
         """Get list of active sessions."""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(ActiveSession).options(selectinload("user"))
             
             # Join user to get username if needed, but ActiveSession has user_id
@@ -254,7 +254,7 @@ class AuthenticationService:
         secret = pyotp.random_base32()
         
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
              stmt = select(User).where(User.id == user_id)
              result = await session.execute(stmt)
              user = result.scalar_one_or_none()
@@ -285,7 +285,7 @@ class AuthenticationService:
     async def verify_and_enable_2fa(self, user_id: int, token: str) -> bool:
         """Verify the token and enable 2FA if correct."""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
              stmt = select(User).where(User.id == user_id)
              result = await session.execute(stmt)
              user = result.scalar_one_or_none()
@@ -318,7 +318,7 @@ class AuthenticationService:
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(token):
             # Update user in DB
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 db_user = await session.get(User, user.id)
                 if not db_user:
                     return False
@@ -337,7 +337,7 @@ class AuthenticationService:
     async def disable_2fa(self, user_id: int) -> bool:
         """Disable 2FA for a user."""
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
              stmt = select(User).where(User.id == user_id)
              result = await session.execute(stmt)
              user = result.scalar_one_or_none()
@@ -400,7 +400,7 @@ class AuthenticationService:
             明文备份码列表 (仅此一次展示机会)
         """
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
@@ -437,7 +437,7 @@ class AuthenticationService:
         # 标准化输入 (去除空格，转大写)
         code = code.strip().upper().replace(" ", "")
         
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
@@ -481,7 +481,7 @@ class AuthenticationService:
             }
         """
         from core.container import container
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()

@@ -203,7 +203,7 @@ class ForwardLogBatchWriter:
         try:
             from core.container import container
             
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 from models.models import RuleLog
                 
                 logs = []

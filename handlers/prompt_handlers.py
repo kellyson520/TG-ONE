@@ -90,7 +90,7 @@ async def handle_prompt_setting(
             if not lines:
                 return True
             db_ops = await DBOperations.create()
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 await db_ops.add_keywords(
                     session, rule_id, lines, is_regex=False, is_blacklist=True
                 )
@@ -119,7 +119,7 @@ async def handle_prompt_setting(
             if not indices:
                 return True
             db_ops = await DBOperations.create()
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 deleted_count, _ = await db_ops.delete_keywords(
                     session, rule_id, indices
                 )
@@ -159,7 +159,7 @@ async def handle_prompt_setting(
             if not patterns:
                 return True
             db_ops = await DBOperations.create()
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 await db_ops.add_replace_rules(session, rule_id, patterns, contents)
             # 清除状态
             if sender_id in session_manager.user_sessions:
@@ -189,7 +189,7 @@ async def handle_prompt_setting(
             if not indices:
                 return True
             # 将序号转为对应记录删除
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 result = await session.execute(
                     select(ReplaceRule).filter(ReplaceRule.rule_id == int(rule_id))
                 )
@@ -217,7 +217,7 @@ async def handle_prompt_setting(
     )
     try:
         logger.info(f"查询规则ID:{rule_id}")
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             rule = await session.get(ForwardRule, int(rule_id))
             if rule:
                 old_prompt = (
@@ -329,7 +329,7 @@ async def handle_add_push_channel(event, client, sender_id, chat_id, rule_id, me
 
     try:
         # 获取规则
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             rule = await session.get(ForwardRule, int(rule_id))
             if not rule:
                 logger.warning(f"未找到规则ID:{rule_id}")

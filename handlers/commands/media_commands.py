@@ -13,7 +13,7 @@ async def handle_set_duration_command(event, parts):
     """/set_duration <min> [max]"""
     # 从container获取数据库会话
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             rule = await _get_current_rule_for_chat(session, event)
             if not rule:
@@ -61,7 +61,7 @@ async def handle_set_resolution_command(event, parts):
     """/set_resolution <min_w> <min_h> [max_w] [max_h]"""
     # 从container获取数据库会话
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             rule = await _get_current_rule_for_chat(session, event)
             if not rule:
@@ -127,7 +127,7 @@ async def handle_set_size_command(event, parts):
     """/set_size <min> [max]，支持K/M/G单位"""
     # 从container获取数据库会话
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             rule = await _get_current_rule_for_chat(session, event)
             if not rule:

@@ -25,7 +25,7 @@ class AuditRepository:
     ):
         """记录审计日志"""
         try:
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 log_entry = AuditLog(
                     action=action,
                     user_id=user_id,
@@ -56,7 +56,7 @@ class AuditRepository:
     ):
         """查询审计日志 (带分页)"""
         try:
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 # 1. 查询总数
                 count_query = select(func.count()).select_from(AuditLog)
                 if user_id:

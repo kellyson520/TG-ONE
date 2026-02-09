@@ -27,7 +27,7 @@ class TaskService:
         logger.info(f"[TaskService] 开始列出任务，类型={task_type}，限制={limit}")
         
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 stmt = (
                     select(TaskQueue)
                     .order_by(TaskQueue.id.desc())
@@ -83,7 +83,7 @@ class TaskService:
             包含任务详情的字典
         """
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 if task_id is not None:
                     stmt = select(TaskQueue).filter(TaskQueue.id == task_id)
                     result = await session.execute(stmt)
@@ -138,7 +138,7 @@ class TaskService:
     async def get_recent_failed_samples(self, limit: int = 20, task_type: Optional[str] = 'history_forward') -> Dict[str, Any]:
         """获取最近任务的失败样本 (原生异步)"""
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 stmt = select(TaskQueue).order_by(TaskQueue.id.desc()).limit(1)
                 if task_type:
                     stmt = stmt.filter(TaskQueue.task_type == task_type)
@@ -179,7 +179,7 @@ class TaskService:
     async def get_task_status(self, task_id: str) -> Optional[Dict]:
         """获取任务状态"""
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 stmt = select(TaskQueue).where(TaskQueue.task_data.like(f"%{task_id}%"))
                 result = await session.execute(stmt)
                 task = result.scalar_one_or_none()
@@ -193,7 +193,7 @@ class TaskService:
     async def get_active_tasks_count(self) -> int:
         """获取活跃任务数量"""
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 from sqlalchemy import func
                 stmt = select(func.count(TaskQueue.id)).where(TaskQueue.status.in_(["pending", "running"]))
                 result = await session.execute(stmt)
@@ -258,7 +258,7 @@ class TaskService:
             return False
 
         try:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 from sqlalchemy import select
                 from datetime import datetime
                 

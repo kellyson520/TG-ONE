@@ -18,7 +18,7 @@ class AccessControlService:
             if (datetime.utcnow() - self._last_refresh).total_seconds() < 60:
                 return self._rules_cache
         
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(AccessControlList).where(AccessControlList.is_active == True)
             result = await session.execute(stmt)
             self._rules_cache = result.scalars().all()
@@ -97,7 +97,7 @@ class AccessControlService:
         if rule_type not in ['ALLOW', 'BLOCK']:
             raise ValueError("Invalid rule type. Must be ALLOW or BLOCK.")
             
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             # Check existing
             stmt = select(AccessControlList).where(AccessControlList.ip_address == ip_address)
             result = await session.execute(stmt)
@@ -124,7 +124,7 @@ class AccessControlService:
 
     async def delete_rule(self, ip_address: str) -> bool:
         """Delete a rule by IP."""
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(AccessControlList).where(AccessControlList.ip_address == ip_address)
             result = await session.execute(stmt)
             rule = result.scalar_one_or_none()
@@ -138,7 +138,7 @@ class AccessControlService:
 
     async def get_all_rules(self) -> List[AccessControlList]:
         """Get all ACL rules."""
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             stmt = select(AccessControlList).order_by(AccessControlList.created_at.desc())
             result = await session.execute(stmt)
             return result.scalars().all()

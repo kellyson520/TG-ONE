@@ -186,7 +186,7 @@ class OptimizedChatUpdater:
                 stats_results = await api_optimizer.get_multiple_chat_statistics(chat_ids)
                 
                 # 更新数据库
-                async with self.db.session() as session:
+                async with self.db.get_session() as session:
                     for chat_id, stats in stats_results.items():
                         if 'error' not in stats:
                             await self._update_chat_in_db(session, chat_id, stats)
@@ -255,7 +255,7 @@ class OptimizedChatUpdater:
         
         try:
             # 获取需要更新的聊天（限制数量）
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 from sqlalchemy import select
                 stmt = select(Chat).filter(
                     Chat.is_active == True

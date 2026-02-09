@@ -19,7 +19,7 @@ class RulesMenu(BaseMenu):
         from core.container import container
         page = int(page)
         per_page = 5
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             total = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
             total_pages = (total + per_page - 1) // per_page
             if page > total_pages and total_pages > 0: page = total_pages

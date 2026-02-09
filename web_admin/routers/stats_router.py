@@ -284,7 +284,7 @@ async def api_stats_series(
         
         # 默认返回 7 天内的每日趋势
         # 我们可以从 RuleStatistics 表聚合
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             from models.models import RuleStatistics
             from sqlalchemy import func
             

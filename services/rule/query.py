@@ -70,7 +70,7 @@ class RuleQueryService:
         if session:
             return await _logic(session)
         else:
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 return await _logic(session)
 
     @staticmethod

@@ -7,9 +7,7 @@ import logging
 from telethon import Button
 
 from services.menu_service import menu_service
-from services.rule.facade import rule_management_service
 from services.session_service import session_service
-from services.analytics_service import analytics_service
 # 避免循环引用，这里不直接导入 forward_manager 等，按需导入或使用 container
 
 logger = logging.getLogger(__name__)
@@ -24,6 +22,8 @@ class MenuController:
         from ui.menu_renderer import MenuRenderer
         self.renderer = MenuRenderer()
         self.service = menu_service
+        from core.container import container
+        self.container = container
 
     async def _send_menu(self, event, title: str, body_lines: list, buttons: list, breadcrumb: str = None):
         """统一发送/编辑菜单"""
@@ -42,258 +42,100 @@ class MenuController:
     async def show_main_menu(self, event, force_refresh: bool = False):
         """显示主菜单"""
         try:
+            # 兼容性：创建临时控制器实例以进行维护检查
+            from controllers.domain.admin_controller import AdminController
+            admin_ctrl = AdminController(self.container)
+            await admin_ctrl.check_maintenance(event)
+            
             stats = await self.service.get_main_menu_data(force_refresh=force_refresh)
             render_data = self.renderer.render_main_menu(stats)
             await self._send_menu(event, "🏠 **主菜单**", [render_data['text']], render_data['buttons'])
         except Exception as e:
+            if isinstance(e, ControllerAbort):
+                 return await self.container.ui.render_error(e.message, e.back_target)
             logger.error(f"显示主菜单失败: {e}")
             await self._send_error(event, "看板加载失败")
 
     async def show_forward_hub(self, event, force_refresh: bool = False):
         """显示转发管理中心"""
         try:
+            from controllers.domain.admin_controller import AdminController
+            admin_ctrl = AdminController(self.container)
+            await admin_ctrl.check_maintenance(event)
+
             stats = await self.service.get_forward_hub_data(force_refresh=force_refresh)
             render_data = self.renderer.render_forward_hub(stats)
             await self._send_menu(event, "🔄 **转发管理中心**", [render_data['text']], render_data['buttons'], "🏠 > 🔄")
         except Exception as e:
+            if isinstance(e, ControllerAbort):
+                 return await self.container.ui.render_error(e.message, e.back_target)
             logger.error(f"显示转发中心失败: {e}")
             await self._send_error(event, "转发中心加载失败")
 
     async def show_dedup_hub(self, event):
         """显示智能去重中心"""
-        try:
-            from core.helpers.realtime_stats import realtime_stats_cache
-            stats = await realtime_stats_cache.get_dedup_stats()
-            
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_dedup_hub(stats)
-            
-            await self._send_menu(
-                event,
-                title="🧹 **智能去重中心**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 🧹"
-            )
-        except Exception as e:
-            logger.error(f"显示去重中心失败: {e}")
-            await self._send_error(event, "去重中心加载失败")
+        await self.container.media_controller.show_dedup_hub(event)
 
     async def show_analytics_hub(self, event):
         """显示数据分析中心"""
-        try:
-            overview_data = await analytics_service.get_analytics_overview()
-            
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_analytics_hub(overview_data)
-            
-            await self._send_menu(
-                event,
-                title="📊 **数据分析中心**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 📊"
-            )
-        except Exception as e:
-            logger.error(f"显示分析中心失败: {e}")
-            await self._send_error(event, "分析中心加载失败")
+        await self.container.admin_controller.show_analytics_hub(event)
 
     async def show_system_hub(self, event):
         """显示系统设置中心"""
-        try:
-            stats = await self.service.get_system_hub_data()
-            render_data = self.renderer.render_system_hub(stats)
-            await self._send_menu(event, "⚙️ **系统设置中心**", [render_data['text']], render_data['buttons'], "🏠 > ⚙️")
-        except Exception as e:
-            logger.error(f"显示系统中心失败: {e}")
-            await self._send_error(event, "系统中心加载失败")
+        await self.container.admin_controller.show_system_hub(event)
 
     async def show_rule_list(self, event, page: int = 0, search_query: str = None):
         """显示规则列表 (分页)"""
-        try:
-            from services.rule_management_service import rule_management_service
-            page_size = 5
-            data = await rule_management_service.get_rule_list(page=page, page_size=page_size, search_query=search_query)
-            
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_rule_list(data)
-            
-            await self._send_menu(
-                event,
-                title="📋 **规则列表**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 🔄 > 📋"
-            )
-        except Exception as e:
-            logger.error(f"显示规则列表失败: {e}")
-            await self._send_error(event, "规则列表加载失败")
+        await self.container.rule_controller.list_rules(event, page=page, search_query=search_query)
 
     async def show_rule_detail(self, event, rule_id: int):
         """显示单条规则详情"""
-        try:
-            from services.rule_management_service import rule_management_service
-            # 获取原始详情数据
-            data = await rule_management_service.get_rule_detail(rule_id)
-            if not data.get('success'):
-                return await self._send_error(event, data.get('error', '未知错误'))
+        await self.container.rule_controller.show_detail(event, rule_id)
 
-            # 使用 Renderer 渲染
-            render_data = self.renderer.render_rule_detail({'rule': data})
-            
-            await self._send_menu(
-                event,
-                title=f"📝 **规则详情：{rule_id}**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb=f"🏠 > 🔄 > 📋 > 📝 {rule_id}"
-            )
-        except Exception as e:
-            logger.error(f"显示规则详情失败: {e}")
-            await self._send_error(event, "加载详情失败")
-
-    async def _get_rule_obj_as_dict(self, rule_id: int):
-        """获取规则对象并转换为 Renderer 喜欢的字典格式"""
-        from services.rule_management_service import rule_management_service
-        data = await rule_management_service.get_rule_detail(rule_id)
-        return data
 
     async def show_rule_basic_settings(self, event, rule_id: int):
         """显示基础转发设置"""
-        data = await self._get_rule_obj_as_dict(rule_id)
-        render_data = self.renderer.render_rule_basic_settings({'rule': data})
-        await self._send_menu(event, "⚙️ **基础设置**", [render_data['text'].split('\n\n', 1)[1]], render_data['buttons'], f"🏠 > 📝 {rule_id} > ⚙️")
+        await self.container.rule_controller.show_basic_settings(event, rule_id)
 
     async def show_rule_display_settings(self, event, rule_id: int):
         """显示内容显示设置"""
-        data = await self._get_rule_obj_as_dict(rule_id)
-        render_data = self.renderer.render_rule_display_settings({'rule': data})
-        await self._send_menu(event, "🎨 **显示设置**", [render_data['text'].split('\n\n', 1)[1]], render_data['buttons'], f"🏠 > 📝 {rule_id} > 🎨")
+        await self.container.rule_controller.show_display_settings(event, rule_id)
 
     async def show_rule_advanced_settings(self, event, rule_id: int):
         """显示高级功能配置"""
-        data = await self._get_rule_obj_as_dict(rule_id)
-        render_data = self.renderer.render_rule_advanced_settings({'rule': data})
-        await self._send_menu(event, "🚀 **高级配置**", [render_data['text'].split('\n\n', 1)[1]], render_data['buttons'], f"🏠 > 📝 {rule_id} > 🚀")
+        await self.container.rule_controller.show_advanced_settings(event, rule_id)
 
     async def toggle_rule_setting_new(self, event, rule_id: int, setting_key: str):
         """通用规则布尔设置切换业务逻辑"""
-        try:
-            from services.rule_management_service import rule_management_service
-            # 处理特殊非布尔值（可选）
-            # 执行切换
-            await rule_management_service.toggle_rule_boolean_setting(rule_id, setting_key)
-            await event.answer("✅ 设置已更新")
-            
-            # 智能返回：根据 setting_key 决定返回哪个子页面
-            basic_keys = ['enabled', 'use_bot', 'forward_mode', 'handle_mode', 'is_delete_original']
-            display_keys = ['message_mode', 'is_preview', 'is_original_sender', 'is_original_time', 'is_original_link', 'is_filter_user_info', 'enable_comment_button']
-            
-            if setting_key in basic_keys:
-                await self.show_rule_basic_settings(event, rule_id)
-            elif setting_key in display_keys:
-                await self.show_rule_display_settings(event, rule_id)
-            else:
-                await self.show_rule_advanced_settings(event, rule_id)
-                
-        except Exception as e:
-            logger.error(f"切换规则设置失败: {e}")
-            await event.answer(f"❌ 操作失败: {e}", alert=True)
+        await self.container.rule_controller.toggle_setting(event, rule_id, setting_key)
 
     async def show_manage_keywords(self, event, rule_id: int):
         """管理规则关键词"""
-        try:
-            keywords = await rule_management_service.get_keywords(rule_id, is_blacklist=None)
-            
-            text = f"🔎 **关键词管理** (规则 `{rule_id}`)\n\n"
-            if not keywords:
-                text += "📭 目前没有任何关键词，所有消息都将放行。"
-            else:
-                for i, k in enumerate(keywords, 1):
-                    mode = "正则" if k.is_regex else "普通"
-                    type = "黑名单" if k.is_blacklist else "白名单"
-                    text += f"{i}. `{k.keyword}` ({mode}|{type})\n"
-            
-            buttons = [
-                [Button.inline("➕ 添加关键词", f"new_menu:add_keyword:{rule_id}")],
-                [Button.inline("🧹 清空关键词", f"new_menu:clear_keywords_confirm:{rule_id}")],
-                [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
-            ]
-            await self._send_menu(event, "🔎 **关键词管理**", [text], buttons)
-        except Exception as e:
-            logger.error(f"显示关键词管理失败: {e}")
-            await self._send_error(event, "操作失败")
+        await self.container.rule_controller.show_keywords(event, rule_id)
 
     async def toggle_rule_status(self, event, rule_id: int):
         """快捷切换规则状态"""
-        try:
-            from services.rule_management_service import rule_management_service
-            data = await rule_management_service.get_rule_detail(rule_id)
-            new_status = not data.get('enabled', False)
-            await rule_management_service.toggle_rule_status(rule_id, new_status)
-            await event.answer(f"✅ 规则已{'开启' if new_status else '关闭'}")
-            await self.show_rule_detail(event, rule_id)
-        except Exception as e:
-            await self._send_error(event, f"操作失败: {e}")
+        await self.container.rule_controller.toggle_status(event, rule_id)
 
     async def delete_rule_confirm(self, event, rule_id: int):
         """删除规则二次确认"""
-        buttons = [
-            [Button.inline("Confirm 🗑️ 确认删除", f"new_menu:delete_rule_do:{rule_id}"),
-             Button.inline("❌ 取消", f"new_menu:rule_detail:{rule_id}")]
-        ]
-        await self._send_menu(event, "⚠️ **删除确认**", [f"确定要删除规则 `{rule_id}` 吗？此操作不可逆！"], buttons)
+        await self.container.rule_controller.delete_confirm(event, rule_id)
 
     async def delete_rule_do(self, event, rule_id: int):
         """执行删除规则"""
-        try:
-            from services.rule_management_service import rule_management_service
-            await rule_management_service.delete_rule(rule_id)
-            await event.answer("✅ 规则已删除")
-            await self.show_rule_list(event)
-        except Exception as e:
-            await self._send_error(event, f"删除失败: {e}")
+        await self.container.rule_controller.delete_do(event, rule_id)
 
     async def show_db_backup(self, event):
         """展示备份界面"""
-        text = "💾 **数据库备份与维护**\n您可以手动触发现有数据库的备份，或者管理历史备份。"
-        buttons = [
-            [Button.inline("✅ 立即备份", "new_menu:do_backup")],
-            [Button.inline("📂 历史备份管理", "new_menu:view_backups")],
-            [Button.inline("👈 返回系统中心", "new_menu:system_hub")]
-        ]
-        await self._send_menu(event, "💾 **数据库备份**", [text], buttons)
+        await self.container.admin_controller.show_backup_management(event)
 
     async def show_cache_cleanup(self, event):
         """展示缓存清理"""
-        text = "🗑️ **缓存与垃圾清理**\n此操作将扫描并删除临时文件、会话快照和过期日志。"
-        buttons = [
-            [Button.inline("🔥 确认清理", "new_menu:do_cleanup")],
-            [Button.inline("👈 返回系统中心", "new_menu:system_hub")]
-        ]
-        await self._send_menu(event, "🗑️ **垃圾清理**", [text], buttons)
+        await self.container.admin_controller.show_cache_cleanup(event)
 
     async def show_manage_replace_rules(self, event, rule_id: int):
         """管理规则替换规则"""
-        try:
-            rules = await rule_management_service.get_replace_rules(rule_id)
-            
-            text = f"🔄 **替换规则管理** (规则 `{rule_id}`)\n\n"
-            if not rules:
-                text += "📭 目前没有任何替换规则。"
-            else:
-                for i, r in enumerate(rules, 1):
-                    text += f"{i}. `{r.pattern}` ➔ `{r.content}`\n"
-            
-            buttons = [
-                [Button.inline("➕ 添加替换规则", f"new_menu:add_replace:{rule_id}")],
-                [Button.inline("🧹 清空替换规则", f"new_menu:clear_replaces_confirm:{rule_id}")],
-                [Button.inline("👈 返回详情", f"new_menu:rule_detail:{rule_id}")]
-            ]
-            await self._send_menu(event, "🔄 **替换规则管理**", [text], buttons)
-        except Exception as e:
-            logger.error(f"显示替换规则管理失败: {e}")
-            await self._send_error(event, "操作失败")
+        await self.container.rule_controller.show_replaces(event, rule_id)
 
     async def show_session_management(self, event):
         """显示会话管理中心"""
@@ -316,56 +158,7 @@ class MenuController:
 
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""
-        try:
-            metrics = await analytics_service.get_performance_metrics()
-            sys_res = metrics.get('system_resources', {})
-            qs = metrics.get('queue_status', {})
-            status = await analytics_service.get_system_status()
-
-            cpu_usage = sys_res.get('cpu_usage', 0)
-            mem_usage = sys_res.get('memory_usage', 0)
-            
-            # 安全地转换 error_rate (可能是字符串 "0.0%" 或数字)
-            error_rate_raw = qs.get('error_rate', 0)
-            if isinstance(error_rate_raw, str):
-                # 移除百分号并转换
-                error_rate = float(error_rate_raw.rstrip('%'))
-            else:
-                error_rate = float(error_rate_raw)
-            
-            def status_icon(s):
-                return "🟢" if s == 'running' else "🔴" if s == 'stopped' else "⚪"
-
-            text = (
-                "🖥️ **系统实时监控**\n\n"
-                f"⚙️ **系统资源**\n"
-                f"• CPU使用率: {cpu_usage}%\n"
-                f"• 内存使用率: {mem_usage}%\n\n"
-                f"📥 **任务队列**\n"
-                f"• 待处理: {qs.get('pending_tasks', 0)}\n"
-                f"• 活跃队列: {qs.get('active_queues', 0)}\n"
-                f"• 错误率: {error_rate:.2f}%\n\n"
-                f"🛡️ **服务状态**\n"
-                f"• 数据库: {status_icon(status.get('db'))} {status.get('db')}\n"
-                f"• 机器人: {status_icon(status.get('bot'))} {status.get('bot')}\n"
-                f"• 去重服务: {status_icon(status.get('dedup'))} {status.get('dedup')}"
-            )
-
-            buttons = [
-                [Button.inline("🔄 刷新数据", "new_menu:forward_performance")],
-                [Button.inline("👈 返回分析中心", "new_menu:analytics_hub")]
-            ]
-
-            await self.view._render_page(
-                event,
-                title="🖥️ **系统实时监控**",
-                body_lines=[text],
-                buttons=buttons,
-                breadcrumb="🏠 > 📊 分析 > 🖥️ 监控"
-            )
-        except Exception as e:
-            logger.error(f"显示实时监控失败: {e}")
-            await event.answer("加载监控数据失败", alert=True)
+        await self.container.admin_controller.show_realtime_monitor(event)
 
     async def show_help_guide(self, event):
         """显示帮助说明页面"""
@@ -428,29 +221,10 @@ class MenuController:
 
     async def show_history_task_actions(self, event):
         """显示历史任务操作菜单 (增强版)"""
-        try:
-            # 获取当前选中的规则信息
-            res = await self.service.get_selected_rule(event.chat_id)
-            
-            # 使用渲染器生成页面内容
-            from services.forward_settings_service import forward_settings_service
-            settings = await forward_settings_service.get_global_media_settings()
-            
-            data = {
-                'selected': res,
-                'dedup_enabled': settings.get('history_dedup_enabled', False)
-            }
-            
-            render_data = self.task_renderer.render_history_task_actions(data)
-            await self._send_menu(event, render_data['text'], [], render_data['buttons'])
-            
-        except Exception as e:
-            logger.error(f"显示历史任务操作子菜单失败: {e}")
-            await self._send_error(event, "操作菜单加载失败")
+        await self.container.media_controller.show_task_actions(event)
     async def show_history_time_range(self, event):
         """显示历史任务时间范围设置"""
-        from handlers.button.modules.history import history_module
-        await history_module.show_time_range_selection(event)
+        await self.container.media_controller.show_time_range(event)
 
     async def _set_user_state(self, event, state: str, rule_id: int, extra: dict = None):
         """统一设置用户会话状态"""
@@ -460,286 +234,87 @@ class MenuController:
 
     async def enter_add_keyword_state(self, event, rule_id: int):
         """进入添加关键词状态"""
-        await self._set_user_state(event, f"kw_add:{rule_id}", rule_id)
-        text = (
-            "➕ **添加关键词**\n\n"
-            "请输入要添加的关键词。支持以下格式：\n"
-            "• `关键词` (普通匹配)\n"
-            "• `re:正则表达式` (正则匹配)\n"
-            "• 多对多：每行一个关键词\n\n"
-            "也可发送 `取消` 返回。"
-        )
-        buttons = [[Button.inline("❌ 取消", f"new_menu:keywords:{rule_id}")]]
-        await self._send_menu(event, "➕ **添加关键词**", [text], buttons)
+        await self.container.rule_controller.enter_add_keyword_state(event, rule_id)
 
     async def enter_add_replace_state(self, event, rule_id: int):
         """进入添加替换规则状态"""
-        await self._set_user_state(event, f"rr_add:{rule_id}", rule_id)
-        text = (
-            "➕ **添加替换规则**\n\n"
-            "请输入替换规则，格式为：\n"
-            "`旧内容 ➔ 新内容` (中间使用空格或箭头分隔)\n\n"
-            "例如：`苹果 香蕉` 或 `re:^Hello ➔ Hi`\n\n"
-            "也可发送 `取消` 返回。"
-        )
-        buttons = [[Button.inline("❌ 取消", f"new_menu:replaces:{rule_id}")]]
-        await self._send_menu(event, "➕ **添加替换规则**", [text], buttons)
+        await self.container.rule_controller.enter_add_replace_state(event, rule_id)
 
     async def clear_keywords_confirm(self, event, rule_id: int):
         """清空关键词确认"""
-        buttons = [
-            [Button.inline("Confirm 🧹 确认清空", f"new_menu:clear_keywords_do:{rule_id}"),
-             Button.inline("❌ 取消", f"new_menu:keywords:{rule_id}")]
-        ]
-        await self._send_menu(event, "⚠️ **清空确认**", ["确定要清空该规则的所有关键词吗？"], buttons)
+        await self.container.rule_controller.clear_keywords_confirm(event, rule_id)
 
     async def clear_keywords_do(self, event, rule_id: int):
         """执行清空关键词"""
-        try:
-            from services.rule_management_service import rule_management_service
-            await rule_management_service.clear_keywords(rule_id)
-            await event.answer("✅ 关键词已清空")
-            await self.show_manage_keywords(event, rule_id)
-        except Exception as e:
-            await self._send_error(event, f"操作失败: {e}")
+        await self.container.rule_controller.execute_clear_keywords(event, rule_id)
 
     async def clear_replaces_confirm(self, event, rule_id: int):
         """清空替换规则确认"""
-        buttons = [
-            [Button.inline("Confirm 🧹 确认清空", f"new_menu:clear_replaces_do:{rule_id}"),
-             Button.inline("❌ 取消", f"new_menu:replaces:{rule_id}")]
-        ]
-        await self._send_menu(event, "⚠️ **清空确认**", ["确定要清空该规则的所有替换规则吗？"], buttons)
+        await self.container.rule_controller.clear_replaces_confirm(event, rule_id)
 
     async def clear_replaces_do(self, event, rule_id: int):
         """执行清空替换规则"""
-        try:
-            await rule_management_service.clear_replace_rules(rule_id)
-            await event.answer("✅ 替换规则已清空")
-            await self.show_manage_replace_rules(event, rule_id)
-        except Exception as e:
-            await self._send_error(event, f"操作失败: {e}")
+        await self.container.rule_controller.execute_clear_replaces(event, rule_id)
 
     async def show_db_performance_monitor(self, event):
         """显示数据库性能监控面板"""
-        try:
-            from ui.menu_renderer import menu_renderer
-            
-            # 收集数据库性能数据
-            dashboard_data = {
-                'query_metrics': {
-                    'slow_queries': [],  # 慢查询列表
-                    'top_queries': []    # 热点查询列表
-                },
-                'system_metrics': {
-                    'cpu_usage': {'avg': 0},
-                    'memory_usage': {'avg': 0},
-                    'database_size': {'current': 0},
-                    'connection_count': {'avg': 0, 'max': 0}
-                },
-                'alerts': []  # 告警列表
-            }
-            
-            # 尝试获取实际的性能数据
-            try:
-                metrics = await analytics_service.get_performance_metrics()
-                sys_res = metrics.get('system_resources', {})
-                dashboard_data['system_metrics']['cpu_usage']['avg'] = sys_res.get('cpu_percent', 0)
-                dashboard_data['system_metrics']['memory_usage']['avg'] = sys_res.get('memory_percent', 0)
-            except Exception as e:
-                logger.warning(f"获取性能数据失败: {e}")
-            
-            # 渲染页面
-            rendered = menu_renderer.render_db_performance_monitor({'dashboard': dashboard_data})
-            await self.view._render_page(
-                event,
-                title="🗄️ **数据库性能监控**",
-                body_lines=[rendered['text']],
-                buttons=rendered['buttons']
-            )
-        except Exception as e:
-            logger.error(f"显示数据库性能监控失败: {e}")
-            await self._send_error(event, "加载监控面板失败")
+        await self.container.admin_controller.show_performance_monitor(event)
 
     async def show_db_optimization_center(self, event):
         """显示数据库优化中心"""
-        try:
-            from ui.menu_renderer import menu_renderer
-            
-            # 收集优化系统状态
-            optimization_data = {
-                'status': {
-                    'suite_status': 'inactive',  # 优化系统状态
-                    'components': {
-                        'query_optimization': {'status': 'inactive'},
-                        'monitoring': {'status': 'active'},
-                        'sharding': {'status': 'inactive'},
-                        'batch_processing': {'status': 'inactive'}
-                    }
-                },
-                'recommendations': []  # 优化建议列表
-            }
-            
-            # 渲染页面
-            rendered = menu_renderer.render_db_optimization_center(optimization_data)
-            await self.view._render_page(
-                event,
-                title="🔧 **数据库优化中心**",
-                body_lines=[rendered['text']],
-                buttons=rendered['buttons']
-            )
-        except Exception as e:
-            logger.error(f"显示数据库优化中心失败: {e}")
-            await self._send_error(event, "加载优化中心失败")
+        await self.container.admin_controller.show_optimization_center(event)
 
     async def enable_db_optimization(self, event):
         """启用数据库优化"""
-        try:
-            await event.answer("✅ 数据库优化已启用")
-            await self.show_db_optimization_center(event)
-        except Exception as e:
-            logger.error(f"启用数据库优化失败: {e}")
-            await event.answer("启用失败", alert=True)
+        await self.container.admin_controller.show_optimization_center(event)
 
     async def run_db_optimization_check(self, event):
         """运行数据库优化检查"""
-        try:
-            await event.answer("🔍 正在运行优化检查...")
-            from services.system_service import system_service
-            result = await system_service.run_db_optimization()
-            
-            if result.get('success'):
-                await event.answer(f"✅ {result.get('message')} (耗时: {result.get('duration')}s)")
-            else:
-                await event.answer(f"❌ 优化失败: {result.get('error')}", alert=True)
-
-            await self.show_db_optimization_center(event)
-        except Exception as e:
-            logger.error(f"运行优化检查失败: {e}")
-            await event.answer("检查失败", alert=True)
+        await self.container.admin_controller.run_optimization_check(event)
 
     async def refresh_db_performance(self, event):
         """刷新数据库性能数据"""
-        try:
-            await event.answer("🔄 正在刷新数据...")
-            await self.show_db_performance_monitor(event)
-        except Exception as e:
-            logger.error(f"刷新性能数据失败: {e}")
-            await event.answer("刷新失败", alert=True)
+        await self.container.admin_controller.show_performance_monitor(event)
 
     async def refresh_db_optimization_status(self, event):
         """刷新数据库优化状态"""
-        try:
-            await event.answer("🔄 正在刷新状态...")
-            await self.show_db_optimization_center(event)
-        except Exception as e:
-            logger.error(f"刷新优化状态失败: {e}")
-            await event.answer("刷新失败", alert=True)
+        await self.container.admin_controller.show_optimization_center(event)
 
     async def show_db_query_analysis(self, event):
         """显示数据库查询分析"""
-        try:
-            # 使用 analytics_service 获取详细统计作为查询负载的代理
-            stats = await analytics_service.get_detailed_stats(days=1)
-            rendered = self.renderer.render_db_query_analysis(stats)
-            await self._send_menu(event, "📊 **查询分析**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示查询分析失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_query_analysis(event)
 
     async def show_db_performance_trends(self, event):
         """显示数据库性能趋势"""
-        try:
-            # 获取近7天的趋势
-            stats = await analytics_service.get_detailed_analytics(days=7)
-            rendered = self.renderer.render_db_performance_trends(stats)
-            await self._send_menu(event, "📈 **性能趋势**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示性能趋势失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_performance_trends(event)
 
     async def show_db_alert_management(self, event):
         """显示数据库告警管理"""
-        try:
-            # 获取异常检测结果作为告警
-            anomalies = await analytics_service.detect_anomalies()
-            rendered = self.renderer.render_db_alert_management(anomalies)
-            await self._send_menu(event, "🚨 **告警管理**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示告警管理失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_alert_management(event)
 
     async def show_db_optimization_advice(self, event):
         """显示优化建议"""
-        try:
-            # 复用 anomaly detection 的建议
-            advice = await analytics_service.detect_anomalies()
-            rendered = self.renderer.render_db_optimization_advice(advice)
-            await self._send_menu(event, "💡 **优化建议**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示优化建议失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_optimization_advice(event)
 
     async def show_db_detailed_report(self, event):
         """显示详细数据库报告"""
-        try:
-            from services.db_maintenance_service import db_maintenance_service
-            # 获取基础信息
-            db_info = await db_maintenance_service.get_database_info()
-            # 获取完整性检查
-            integrity = await db_maintenance_service.check_integrity()
-            
-            data = {
-                'info': db_info,
-                'integrity': integrity.get('integrity_check', 'unknown')
-            }
-            rendered = self.renderer.render_db_detailed_report(data)
-            await self._send_menu(event, "📋 **详细报告**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示详细报告失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_detailed_report(event)
 
     async def show_db_optimization_config(self, event):
         """显示优化配置"""
-        try:
-            # 目前没有真实的配置接口，使用模拟数据
-            # TODO: connect to settings.json or DB config table
-            data = {'config': {'auto_vacuum': True, 'wal_mode': True, 'sync_mode': 'NORMAL'}}
-            rendered = self.renderer.render_db_optimization_config(data)
-            await self._send_menu(event, "⚙️ **优化配置**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示优化配置失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_optimization_config(event)
 
     async def show_db_index_analysis(self, event):
         """显示索引分析"""
-        try:
-            rendered = self.renderer.render_db_index_analysis({})
-            await self._send_menu(event, "🔍 **索引分析**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示索引分析失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_index_analysis(event)
 
     async def show_db_cache_management(self, event):
         """显示缓存管理"""
-        try:
-             from services.dedup.engine import smart_deduplicator
-             stats = smart_deduplicator.get_stats()
-             rendered = self.renderer.render_db_cache_management({'stats': stats})
-             await self._send_menu(event, "🗂️ **缓存管理**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示缓存管理失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_cache_management(event)
 
     async def show_db_optimization_logs(self, event):
         """显示优化日志"""
-        try:
-            # TODO: fetching real logs from file or db
-            rendered = self.renderer.render_db_optimization_logs({'logs': []})
-            await self._send_menu(event, "📋 **优化日志**", [rendered['text']], rendered['buttons'])
-        except Exception as e:
-            logger.error(f"显示优化日志失败: {e}")
-            await self._send_error(event, "加载失败")
+        await self.container.admin_controller.show_db_optimization_logs(event)
 
     async def show_rule_management(self, event, page=0):
         """显示规则管理菜单 (转发管理中心)"""
@@ -747,39 +322,15 @@ class MenuController:
 
     async def rebuild_bloom_index(self, event):
         """重启 Bloom 索引系统"""
-        try:
-            await event.answer("🌸 正在尝试重建 Bloom 索引...")
-            from repositories.archive_repair import repair_bloom_index
-            success = await asyncio.to_thread(repair_bloom_index)
-            if success:
-                await event.answer("✅ Bloom 索引重建完成")
-            else:
-                await event.answer("❌ 重建失败", alert=True)
-        except Exception as e:
-            logger.error(f"重建 Bloom 索引失败: {e}")
-            await event.answer("操作异常", alert=True)
+        await self.container.admin_controller.rebuild_bloom_index(event)
 
     async def run_db_archive_once(self, event):
         """运行一次性归档"""
-        try:
-            await event.answer("📦 正在启动自动归档任务...")
-            from scheduler.db_archive_job import archive_once
-            await asyncio.to_thread(archive_once)
-            await event.answer("✅ 归档任务已完成")
-        except Exception as e:
-            logger.error(f"执行归档失败: {e}")
-            await event.answer("归档失败", alert=True)
+        await self.container.admin_controller.run_archive_once(event)
 
     async def run_db_archive_force(self, event):
         """运行强制归档"""
-        try:
-            await event.answer("🚨 正在启动强制归档（全量迁移）...")
-            from scheduler.db_archive_job import archive_force
-            await asyncio.to_thread(archive_force)
-            await event.answer("✅ 强制归档完成")
-        except Exception as e:
-            logger.error(f"强制归档失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.admin_controller.run_archive_force(event)
 
     # --- 历史数据处理 ---
     async def show_history_task_selector(self, event):
@@ -792,51 +343,19 @@ class MenuController:
 
     async def start_history_task(self, event):
         """启动历史迁移任务"""
-        try:
-            # 业务逻辑交由 session_service
-            res = await session_service.start_history_task(event.sender_id)
-            if res.get('success'):
-                await event.answer("🚀 历史任务已开始处理", alert=True)
-                # 刷新显示当前进度
-                await self.show_current_history_task(event)
-            else:
-                await event.answer(f"❌ 启动失败: {res.get('message', '未知错误')}", alert=True)
-        except Exception as e:
-            logger.error(f"启动历史任务失败: {e}")
-            await event.answer("启动失败", alert=True)
+        await self.container.media_controller.start_task(event)
 
     async def cancel_history_task(self, event):
         """取消历史迁移任务"""
-        try:
-            ok = await session_service.stop_history_task(event.sender_id)
-            if ok:
-                await event.answer("⏹️ 任务已停止", alert=True)
-                await self.show_current_history_task(event)
-            else:
-                await event.answer("❌ 停止失败或任务未运行", alert=True)
-        except Exception as e:
-            logger.error(f"停止任务失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.media_controller.cancel_task(event)
 
     async def pause_history_task(self, event):
         """暂停历史任务"""
-        try:
-            # 简化：暂停即停止当前循环
-            ok = await session_service.stop_history_task(event.sender_id)
-            await event.answer("⏸️ 已暂停" if ok else "❌ 暂停失败")
-            await self.show_current_history_task(event)
-        except Exception as e:
-            logger.error(f"暂停失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.media_controller.pause_task(event)
 
     async def resume_history_task(self, event):
         """恢复历史任务"""
-        try:
-            # 简化：恢复即重新开始
-            await self.start_history_task(event)
-        except Exception as e:
-            logger.error(f"恢复失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.media_controller.start_task(event)
 
     async def show_history_task_list(self, event):
         """显示历史任务列表"""
@@ -844,87 +363,233 @@ class MenuController:
 
     async def run_db_reindex(self, event):
         """执行数据库重建索引"""
-        try:
-             await event.answer("🛠️ 正在重建索引 (REINDEX)...")
-             from services.db_maintenance_service import db_maintenance_service
-             # optimize_database does VACUUM which includes building indices usually, but we can be explicit
-             # For sqlite, VACUUM is enough.
-             await db_maintenance_service.optimize_database()
-             await event.answer("✅ 索引重建完成")
-        except Exception as e:
-            logger.error(f"重建索引失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.admin_controller.run_reindex(event)
 
     async def clear_db_alerts(self, event):
         """清除数据库告警"""
-        try:
-            # 目前告警是实时计算的，无法清除，只能提示
-            await event.answer("ℹ️ 告警基于实时状态，解决问题后自动消失", alert=True)
-        except Exception as e:
-            logger.error(f"清除告警失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.admin_controller.clear_alerts(event)
 
     async def clear_dedup_cache(self, event):
         """清除去重缓存"""
-        try:
-            from services.dedup.engine import smart_deduplicator
-            smart_deduplicator.time_window_cache.clear()
-            smart_deduplicator.content_hash_cache.clear()
-            await event.answer("✅ 内存缓存已清除")
-            await self.show_db_cache_management(event)
-        except Exception as e:
-            logger.error(f"清除缓存失败: {e}")
-            await event.answer("操作失败", alert=True)
+        await self.container.admin_controller.clear_dedup_cache(event)
 
     async def toggle_history_dedup(self, event):
         """切换历史任务去重"""
-        await event.answer("🔄 已切换历史去重状态")
-        await self.show_history_task_selector(event)
-
-    async def show_rule_statistics(self, event):
-        """显示规则统计数据"""
-        try:
-            from services.rule_management_service import rule_management_service
-            stats = await rule_management_service.get_rule_statistics()
-            # 简易渲染
-            text = "📊 **规则运行统计**\n\n"
-            text += f"总规则数: {stats.get('total_count', 0)}\n有效规则: {stats.get('active_count', 0)}\n"
-            await self.view._render_page(event, title="📊 **统计概览**", body_lines=[text], buttons=[[Button.inline("👈 返回", "new_menu:analytics_hub")]])
-        except Exception as e:
-            logger.error(f"获取规则统计失败: {e}")
-            await event.answer("获取统计失败", alert=True)
+        await self.container.media_controller.toggle_dedup(event)
 
     async def show_current_chat_rules(self, event, chat_id: str):
         """显示当前会话的规则列表"""
-        try:
-            # 尝试作为搜索查询传递给规则列表
-            await self.show_rule_list(event, search_query=str(chat_id))
-        except Exception as e:
-            logger.error(f"显示会话规则失败: {e}")
-            await event.answer("加载失败", alert=True)
+        await self.container.rule_controller.list_rules(event, search_query=str(chat_id))
 
     async def show_current_chat_rules_page(self, event, chat_id: str, page: int):
         """显示当前会话的规则列表 (分页)"""
-        await self.show_rule_list(event, page=page, search_query=str(chat_id))
+        await self.container.rule_controller.list_rules(event, page=page, search_query=str(chat_id))
+
+    async def show_rule_statistics(self, event):
+        """显示规则统计数据"""
+        await self.container.rule_controller.show_rule_statistics(event)
 
     async def show_multi_source_management(self, event, page: int = 0):
         """显示多源管理中心"""
-        from handlers.button.modules.rules_menu import rules_menu
-        await rules_menu.show_multi_source_management(event, page)
+        await self.container.rule_controller.show_multi_source_management(event, page)
 
     async def show_multi_source_detail(self, event, rule_id: int):
         """显示多源规则详情"""
-        from handlers.button.modules.rules_menu import rules_menu
-        await rules_menu.show_multi_source_detail(event, rule_id)
+        await self.container.rule_controller.show_multi_source_detail(event, rule_id)
 
     async def show_rule_status(self, event, rule_id: int):
         """显示规则状态"""
-        from handlers.button.modules.rules_menu import rules_menu
-        await rules_menu.show_rule_status(event, rule_id)
+        await self.container.rule_controller.show_rule_status(event, rule_id)
 
     async def show_sync_config(self, event, rule_id: int):
         """显示同步配置"""
-        from handlers.button.modules.rules_menu import rules_menu
-        await rules_menu.show_sync_config(event, rule_id)
+        await self.container.rule_controller.show_sync_config(event, rule_id)
+
+    # --- AI 设置相关 ---
+    async def show_ai_settings(self, event, rule_id: int):
+        """显示 AI 设置页面"""
+        await self.container.media_controller.show_ai_settings(event, rule_id)
+
+    async def show_summary_time_selection(self, event, rule_id: int, page: int = 0):
+        """显示 AI 总结时间选择"""
+        await self.container.media_controller.show_summary_time_selection(event, rule_id, page)
+
+    async def select_summary_time(self, event, rule_id: int, time: str):
+        """设置 AI 总结时间"""
+        await self.container.media_controller.select_summary_time(event, rule_id, time)
+
+    async def show_model_selection(self, event, rule_id: int, page: int = 0):
+        """显示 AI 模型选择"""
+        await self.container.media_controller.show_model_selection(event, rule_id, page)
+
+    async def select_ai_model(self, event, rule_id: int, model: str):
+        """设置 AI 模型"""
+        await self.container.media_controller.select_ai_model(event, rule_id, model)
+
+    async def run_summary_now(self, event, rule_id: int):
+        """立即执行 AI 总结"""
+        await self.container.media_controller.run_summary_now(event, rule_id)
+
+    async def enter_set_ai_prompt_state(self, event, rule_id: int, is_summary: bool = False):
+        """进入 AI 提示词设置状态"""
+        await self.container.media_controller.enter_set_ai_prompt_state(event, rule_id, is_summary)
+
+    async def cancel_ai_state(self, event, rule_id: int):
+        """取消 AI 状态并返回设置"""
+        await self.container.media_controller.cancel_ai_state(event, rule_id)
+
+    # --- 管理员面板增强 ---
+    async def show_admin_panel(self, event):
+        """显示管理员面板"""
+        await self.container.admin_controller.show_admin_panel(event)
+
+    async def show_admin_logs(self, event):
+        """显示运行日志"""
+        await self.container.admin_controller.show_system_logs(event)
+
+    async def show_admin_cleanup_menu(self, event):
+        """显示清理维护菜单"""
+        await self.container.admin_controller.show_admin_cleanup_menu(event)
+
+    async def execute_admin_cleanup(self, event, days: int):
+        """执行日志清理"""
+        await self.container.admin_controller.execute_admin_cleanup_logs(event, days)
+
+    async def execute_admin_cleanup_temp(self, event):
+        """清理临时文件"""
+        await self.container.admin_controller.execute_cleanup_temp(event)
+
+    async def show_admin_stats(self, event):
+        """显示统计报告"""
+        await self.container.admin_controller.show_stats(event)
+
+    async def toggle_maintenance_mode(self, event):
+        """切换维护模式"""
+        await self.container.admin_controller.toggle_maintenance_mode(event)
+
+    async def show_admin_config(self, event):
+        """显示系统配置"""
+        await self.container.admin_controller.show_config(event)
+
+    async def show_restart_confirm(self, event):
+        """显示重启确认"""
+        await self.container.admin_controller.show_restart_confirm(event)
+
+    async def execute_restart(self, event):
+        """执行重启"""
+        await self.container.admin_controller.execute_restart(event)
+
+    # --- 规则复制相关 ---
+    async def show_copy_rule_selection(self, event, rule_id: int, page: int = 0):
+        """显示复制规则目标选择"""
+        await self.container.rule_controller.show_copy_selection(event, rule_id, page)
+
+    async def perform_rule_copy(self, event, source_id: int, target_id: int):
+        """执行规则复制"""
+        await self.container.rule_controller.perform_copy(event, source_id, target_id)
+
+    # --- 规则去重设置 ---
+    async def show_rule_dedup_settings(self, event, rule_id: int):
+        """显示单条规则的去重详细设置"""
+        await self.container.media_controller.show_rule_dedup_settings(event, rule_id)
+
+    async def update_rule_dedup(self, event, rule_id: int, key: str, val: str):
+        """更新规则去重设置"""
+        await self.container.media_controller.update_rule_dedup(event, rule_id, key, val)
+
+    async def reset_rule_dedup(self, event, rule_id: int):
+        """重置规则去重设置"""
+        await self.container.media_controller.reset_rule_dedup(event, rule_id)
+
+    async def run_legacy_dedup_cmd(self, event, rule_id: int, cmd_type: str):
+        """运行旧版基于规则的去重命令"""
+        await self.container.media_controller.run_legacy_dedup_cmd(event, rule_id, cmd_type)
+
+    async def run_admin_db_cmd(self, event, cmd_type: str):
+        """运行数据库管理命令"""
+        await self.container.admin_controller.run_admin_db_cmd(event, cmd_type)
+
+
+
+    # --- 媒体设置 ---
+    async def show_media_settings(self, event, rule_id: int):
+        """显示规则的媒体设置"""
+        await self.container.media_controller.show_settings(event, rule_id)
+
+    async def show_max_media_size_selection(self, event, rule_id: int):
+        """显示媒体大小选择"""
+        await self.container.media_controller.show_max_size_selection(event, rule_id)
+
+    async def set_max_media_size(self, event, rule_id: int, size: int):
+        """设置最大媒体大小"""
+        await self.container.media_controller.set_max_size(event, rule_id, size)
+
+    async def toggle_media_boolean(self, event, rule_id: int, field: str):
+        """切换媒体布尔设置"""
+        await self.container.media_controller.toggle_boolean(event, rule_id, field)
+
+    async def show_media_types_selection(self, event, rule_id: int):
+        """显示媒体类型选择"""
+        await self.container.media_controller.show_types_selection(event, rule_id)
+
+    async def toggle_media_type(self, event, rule_id: int, media_type: str):
+        """切换媒体类型过滤"""
+        await self.container.media_controller.toggle_type(event, rule_id, media_type)
+
+    async def show_media_extensions_page(self, event, rule_id: int, page: int = 0):
+        """显示媒体扩展名选择页"""
+        await self.container.media_controller.show_media_extensions(event, rule_id, page)
+
+    async def toggle_media_extension(self, event, rule_id: int, extension: str, page: int = 0):
+        """切换媒体后缀过滤"""
+        await self.container.media_controller.toggle_extension(event, rule_id, extension, page)
+
+    # --- 推送设置 ---
+    async def show_push_settings(self, event, rule_id: int, page: int = 0):
+        """显示规则推送设置"""
+        await self.container.media_controller.show_push_settings(event, rule_id, page)
+
+    async def toggle_push_boolean(self, event, rule_id: int, field: str):
+        """切换推送布尔设置"""
+        await self.container.media_controller.toggle_boolean(event, rule_id, field)
+
+    async def show_push_config_details(self, event, config_id: int):
+        """显示推送配置详情"""
+        await self.container.media_controller.show_push_config_details(event, config_id)
+
+    async def toggle_push_config_status(self, event, config_id: int):
+        """切换推送配置状态"""
+        await self.container.media_controller.toggle_push_config_status(event, config_id)
+
+    async def toggle_media_send_mode(self, event, config_id: int):
+        """切换媒体发送模式"""
+        await self.container.media_controller.toggle_media_send_mode(event, config_id)
+
+    async def delete_push_config(self, event, config_id: int):
+        """删除推送配置"""
+        await self.container.media_controller.delete_push_config(event, config_id)
+
+    async def enter_add_push_channel_state(self, event, rule_id: int):
+        """进入添加推送频道状态"""
+        await self.container.media_controller.enter_add_push_channel_state(event, rule_id)
+
+
+    async def show_other_settings(self, event, rule_id: int):
+        """显示其他设置"""
+        await self.container.rule_controller.show_other_settings(event, rule_id)
+
+    async def handle_ufb_item(self, event, item_type: str):
+        """处理 UFB 绑定项切换"""
+        await self.container.rule_controller.handle_ufb_item(event, item_type)
+
+
+    async def show_session_management(self, event):
+        """显示会话管理中心"""
+        await self.container.admin_controller.show_session_management(event)
+
+    async def show_system_logs(self, event):
+        """查看系统日志"""
+        await self.container.admin_controller.show_system_logs(event)
+
 
 menu_controller = MenuController()

@@ -66,6 +66,8 @@ class Database:
             
             yield session
             
+            # Note: We only commit if we are actually in a transaction
+            # and not in a nested session (though session_factory creates fresh sessions).
             if session.in_transaction():
                 await session.commit()
                 logger.debug(f"[Database] 事务提交成功: {id(session)}")
@@ -79,6 +81,18 @@ class Database:
             if session:
                 await session.close()
                 logger.debug(f"[Database] 会话关闭成功: {id(session)}")
+
+    @asynccontextmanager
+    async def get_session(self, existing_session: Optional[AsyncSession] = None) -> AsyncIterator[AsyncSession]:
+        """
+        获取一个会话。如果提供了现有会话且处于活动状态，则重用它；
+        否则创建一个新的会话上下文。
+        """
+        if existing_session and existing_session.is_active:
+            yield existing_session
+        else:
+            async with self.session() as session:
+                yield session
 
     async def close(self) -> None:
         logger.info(f"[Database] 关闭数据库引擎")

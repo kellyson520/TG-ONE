@@ -30,7 +30,7 @@ async def get_error_logs(
 ):
     """从数据库获取结构化错误日志"""
     try:
-        async with db.session() as session:
+        async with db.get_session() as session:
             # 构建查询
             stmt = select(ErrorLog)
             conditions = []

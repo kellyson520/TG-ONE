@@ -12,15 +12,15 @@ logger = logging.getLogger(__name__)
 async def async_db_session():
     """
     异步数据库会话上下文管理器
-    统一使用 container.db.session()
+    统一使用 container.db.get_session()
     """
     # [CRITICAL] 延迟导入以避免循环依赖
     from core.container import container
     
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             yield session
-            # container.db.session 默认 auto-commit 吗？
+            # container.db.get_session 默认 auto-commit 吗？
             # 通常 SQLAlchemy 的 session maker 配置了 expire_on_commit=False
             # 这里我们显式 commit 以确保逻辑闭环
             await session.commit()

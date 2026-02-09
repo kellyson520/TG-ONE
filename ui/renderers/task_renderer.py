@@ -3,248 +3,124 @@ from telethon.tl.custom import Button
 from .base_renderer import BaseRenderer
 
 class TaskRenderer(BaseRenderer):
-    """任务渲染器"""
+    """任务渲染器 (UIRE-2.0)"""
     
-    def render_history_task_selector(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_history_task_selector(self, data: Dict[str, Any]) -> ViewResult:
         """渲染历史任务规则选择页面"""
-        try:
-            rules = data.get('rules', [])
-            current_selection = data.get('current_selection', {})
-            
-            text = "📝 **选择历史消息任务规则**\n\n"
-            text += "💡 **操作提示**: 选择规则后进入操作页面进行设置\n\n"
-            
-            if not rules:
-                text += "❌ **暂无可用规则**\n"
-                text += "请先创建并启用至少一个转发规则。\n\n"
-                buttons = [
-                    [Button.inline("➕ 创建规则", "new_menu:create_rule")],
-                    [Button.inline("👈 返回转发中心", "new_menu:forward_hub")]
-                ]
-                return {'text': text, 'buttons': buttons}
-            
+        rules = data.get('rules', [])
+        current_selection = data.get('current_selection', {})
+        
+        builder = self.new_builder()
+        builder.set_title("历史消息任务配置", icon="📝")
+        builder.add_breadcrumb(["首页", "补全中心", "规则筛选"])
+        
+        builder.add_section("操作提示", "选择一个已有的转发规则，系统将按其配置批量处理历史消息。", icon="💡")
+        
+        if not rules:
+            builder.add_section("状态", "❌ 暂无可用规则，请先前往规则管理中心创建。", icon=UIStatus.ERROR)
+            builder.add_button("前往创建", "new_menu:create_rule", icon=UIStatus.ADD)
+        else:
             if current_selection.get('has_selection'):
                 rule = current_selection.get('rule', {})
-                def _chat_text(chat: Dict[str, Any]) -> str:
-                    if not isinstance(chat, dict):
-                        return 'Unknown'
-                    return (
-                        str(chat.get('title'))
-                        or str(chat.get('name'))
-                        or str(chat.get('telegram_chat_id') or 'Unknown')
-                    )
-                text += f"✅ **当前选择**: 规则 {current_selection.get('rule_id')}\n"
-                text += f"   📤 {_chat_text(rule.get('source_chat', {}))}\n"
-                text += f"   📥 {_chat_text(rule.get('target_chat', {}))}\n\n"
-            else:
-                text += "⚪ **尚未选择规则**\n\n"
+                builder.add_section("当前选定规则", [
+                    f"ID: `{current_selection.get('rule_id')}`",
+                    f"路径: `{rule.get('source_chat_title')}` ➔ `{rule.get('target_chat_title')}`"
+                ], icon=UIStatus.SUCCESS)
             
-            text += f"📋 **可用规则** ({len(rules)} 个)\n\n"
-            
-            buttons = []
-            for i, rule in enumerate(rules[:8], 1):
-                dedup_icon = "🧹" if rule.get('enable_dedup', False) else ""
-                
-                rule_text = f"{i}. {rule['source_title']} → {rule['target_title']} {dedup_icon}"
-                if len(rule_text) > 25:
-                    rule_text = rule_text[:22] + "..."
-                
-                buttons.append([Button.inline(
-                    rule_text,
+            builder.add_section(f"可用规则库 ({len(rules)})", [], icon="📋")
+            for rule in rules:
+                builder.add_button(
+                    f"{rule['source_title']} ➔ {rule['target_title']}", 
                     f"new_menu:select_history_rule:{rule['id']}"
-                )])
-            
-            if len(rules) > 8:
-                buttons.append([Button.inline(f"📋 查看全部 {len(rules)} 个规则", "new_menu:view_all_rules")])
-            
-            buttons.extend([
-                [Button.inline("👈 返回转发中心", "new_menu:forward_hub")]
-            ])
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("加载失败", "错误", "new_menu:forward_hub")
+                )
+        
+        builder.add_button("返回中心", "new_menu:forward_hub", icon=UIStatus.BACK)
+        return builder.build()
 
-    def render_current_history_task(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_current_history_task(self, data: Dict[str, Any]) -> ViewResult:
         """渲染当前历史任务状态页面"""
-        try:
-            if not data.get('has_task', False):
-                text = "📋 **历史消息任务**\n\n"
-                text += "💤 **当前无运行任务**\n"
-                text += "点击下方按钮开始新的历史消息转发任务。\n"
-                
-                buttons = [
-                    [Button.inline("🚀 开始新任务", "new_menu:history_task_selector")],
-                    [Button.inline("👈 返回转发中心", "new_menu:forward_hub")]
-                ]
-                
-                return {'text': text, 'buttons': buttons}
-            
-            status = data.get('status', 'unknown')
+        builder = self.new_builder()
+        builder.set_title("历史任务执行台", icon="🚀")
+        builder.add_breadcrumb(["首页", "补全中心", "当前状态"])
+        
+        if not data.get('has_task', False):
+            builder.add_section("活跃任务", "💤 当前无正在运行的任务。", icon=UIStatus.INFO)
+            builder.add_button("启动新任务", "new_menu:history_task_selector", icon="🚀")
+        else:
+            status = data.get('status', 'running')
             progress = data.get('progress', {})
+            percent = progress.get('percentage', 0)
             
-            text = "📋 **历史消息任务状态**\n\n"
+            builder.add_section("执行状态", f"当前状态: {'🟢 运行中' if status == 'running' else '✅ 已完成'}")
+            builder.add_progress_bar("总体处理进度", percent)
             
-            status_icons = {
-                'running': '🟢 运行中',
-                'completed': '✅ 已完成',
-                'failed': '❌ 失败',
-                'cancelled': '⏹️ 已取消'
-            }
-            text += f"状态: {status_icons.get(status, f'❓ {status}')}\n\n"
+            builder.add_status_grid({
+                "总计": f"{progress.get('total', 0)} 条",
+                "已处理": f"{progress.get('done', 0)} 条",
+                "已转发": f"{progress.get('forwarded', 0)} 条",
+                "已过滤": f"{progress.get('filtered', 0)} 条"
+            })
             
-            if progress:
-                total = progress.get('total', 0)
-                done = progress.get('done', 0)
-                forwarded = progress.get('forwarded', 0)
-                filtered = progress.get('filtered', 0)
-                failed = progress.get('failed', 0)
-                percentage = progress.get('percentage', 0)
-                
-                text += "📊 **进度统计**\n"
-                text += f"总计: {total} 条\n"
-                text += f"已处理: {done} 条 ({percentage:.1f}%)\n"
-                text += f"已转发: {forwarded} 条\n"
-                text += f"已过滤: {filtered} 条\n"
-                if failed > 0:
-                    text += f"失败: {failed} 条\n"
-                
-                if total > 0:
-                    text += f"\n📈 {self._render_progress_bar(percentage)} **{percentage:.1f}%**\n"
-                
-                estimated = data.get('estimated_remaining')
-                if estimated and status == 'running':
-                    text += f"\n⏱️ 预估剩余: {estimated}\n"
-            
-            buttons = []
             if status == 'running':
-                buttons.extend([
-                    [Button.inline("🔄 刷新状态", "new_menu:current_history_task"),
-                     Button.inline("⏹️ 取消任务", "new_menu:cancel_history_task")]
-                ])
+                builder.add_button("刷新", "new_menu:current_history_task", icon="🔄")
+                builder.add_button("停止任务", "new_menu:cancel_history_task", icon="⏹️")
             else:
-                buttons.extend([
-                    [Button.inline("🚀 开始新任务", "new_menu:history_task_selector"),
-                     Button.inline("📊 查看详情", "new_menu:history_task_details")]
-                ])
-            
-            buttons.append([Button.inline("👈 返回转发中心", "new_menu:forward_hub")])
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("状态加载失败", "错误", "new_menu:forward_hub")
+                builder.add_button("任务详情", "new_menu:history_task_details", icon="📊")
+                
+        builder.add_button("返回", "new_menu:forward_hub", icon=UIStatus.BACK)
+        return builder.build()
 
-    def render_time_range_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_time_range_settings(self, data: Dict[str, Any]) -> ViewResult:
         """渲染时间范围设置页面"""
-        try:
-            is_all_messages = data.get('is_all_messages', True)
-            display_text = data.get('display_text', '全部时间')
-            
-            text = "⏰ **时间范围设置**\n\n"
-            text += f"当前设置: {display_text}\n\n"
-            
-            if is_all_messages:
-                text += "📅 **当前模式**: 获取全部消息\n"
-                text += "这将处理聊天中的所有历史消息，可能需要较长时间。\n\n"
-            else:
-                text += "📅 **当前模式**: 自定义时间范围\n"
-                text += "仅处理指定时间范围内的消息。\n\n"
-            
-            text += "🎯 **快速设置**:"
-            
-            buttons = [
-                [Button.inline("🌟 全部消息", "new_menu:set_time_range_all"),
-                 Button.inline("📅 最近7天", "new_menu:set_time_range_days:7")],
-                [Button.inline("📆 最近30天", "new_menu:set_time_range_days:30"),
-                 Button.inline("📊 最近90天", "new_menu:set_time_range_days:90")],
-                [Button.inline("🕐 自定义开始时间", "new_menu:set_start_time"),
-                 Button.inline("🕕 自定义结束时间", "new_menu:set_end_time")],
-                [Button.inline("✅ 确认设置", "new_menu:confirm_time_range"),
-                 Button.inline("👈 返回任务设置", "new_menu:history_messages")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-             return self.create_error_view("加载失败", "错误", "new_menu:history_task_actions")
+        is_all = data.get('is_all_messages', True)
+        
+        return (self.new_builder()
+            .set_title("扫描时间跨度", icon="⏰")
+            .add_breadcrumb(["首页", "补全中心", "时间设置"])
+            .add_section("当前模式", f"📅 {data.get('display_text', '全部时间')}")
+            .add_section("模式说明", "选择全量扫描或自定义约束时间段，自定义模式可减少系统 API 调用压力。")
+            .add_button("🌟 全部历史", "new_menu:set_time_range_all")
+            .add_button("📅 最近7天", "new_menu:set_time_range_days:7")
+            .add_button("📆 最近30天", "new_menu:set_time_range_days:30")
+            .add_button("📊 最近90天", "new_menu:set_time_range_days:90")
+            .add_button("🕐 自定义开始", "new_menu:set_start_time")
+            .add_button("🕕 自定义结束", "new_menu:set_end_time")
+            .add_button("✅ 确认保存", "new_menu:confirm_time_range", icon=UIStatus.SUCCESS)
+            .add_button("返回", "new_menu:history_messages", icon=UIStatus.BACK)
+            .build())
 
-    def render_history_task_actions(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_history_task_actions(self, data: Dict[str, Any]) -> ViewResult:
         """渲染历史任务的操作子菜单"""
-        try:
-            selected = data.get('selected', {}) or {}
-            has_sel = selected.get('has_selection', False)
-            rid = selected.get('rule_id') if has_sel else None
-            dedup_enabled = data.get('dedup_enabled', False)
-            title = "🧭 **历史任务 - 操作**\n\n"
-            if has_sel:
-                title += f"当前规则: {rid}\n\n"
-            else:
-                title += "未选择规则\n\n"
-            buttons = [
-                [Button.inline("⚙️ 时间范围", "new_menu:history_time_range")],
-                [Button.inline("⏱️ 延迟设置", "new_menu:history_delay_settings")],
-                [Button.inline(f"🧹 历史去重：{'开启' if dedup_enabled else '关闭'}", "new_menu:toggle_history_dedup")],
-                [Button.inline("📊 快速统计(服务端)", "new_menu:history_quick_stats")],
-                [Button.inline("🧪 干跑(不发送)", "new_menu:history_dry_run")],
-                [Button.inline("🗑️ 清理任务状态", "new_menu:cleanup_history_tasks")],
-                [Button.inline("🚀 开始任务", "new_menu:start_history_task")],
-                [Button.inline("👈 返回任务选择", "new_menu:history_messages")]
-            ]
-            return {'text': title, 'buttons': buttons}
-        except Exception:
-            return self.create_error_view("加载失败", "错误", "new_menu:history_task_selector")
+        selected = data.get('selected', {}) or {}
+        rid = selected.get('rule_id')
+        
+        return (self.new_builder()
+            .set_title("任务指令集", icon="🧭")
+            .add_breadcrumb(["首页", "补全中心", "操作指令"])
+            .add_section("目标关联", f"选定规则: `{rid or '尚未选择'}`")
+            .add_button("⚙️ 时间范围", "new_menu:history_time_range")
+            .add_button("⏱️ 注入延迟", "new_menu:history_delay_settings")
+            .add_button(f"🧹 历史去重: {'✅ ON' if data.get('dedup_enabled') else '❌ OFF'}", "new_menu:toggle_history_dedup")
+            .add_button("📊 快速统计", "new_menu:history_quick_stats")
+            .add_button("🧪 模拟运行", "new_menu:history_dry_run")
+            .add_button("🚀 真正开始", "new_menu:start_history_task")
+            .add_button("返回", "new_menu:history_messages", icon=UIStatus.BACK)
+            .build())
 
-    def render_delay_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def render_delay_settings(self, data: Dict[str, Any]) -> ViewResult:
         """渲染延迟设置页面"""
-        try:
-            delay_text = data.get('delay_text', '1秒')
-            
-            text = "⏱️ **转发延迟设置**\n\n"
-            text += f"当前延迟: {delay_text}\n\n"
-            text += "🛡️ **延迟作用**:\n"
-            text += "• 防止触发Telegram频率限制\n"
-            text += "• 避免账号被限制或封禁\n"
-            text += "• 提高转发成功率\n\n"
-            text += "💡 **推荐设置**:\n"
-            text += "• 测试环境: 无延迟或1秒\n"
-            text += "• 正常使用: 1-3秒\n"
-            text += "• 大量转发: 5-10秒\n"
-            text += "• 敏感账号: 10秒以上\n"
-            
-            buttons = [
-                [Button.inline("⚡ 无延迟", "new_menu:set_delay:0"),
-                 Button.inline("🚀 1秒", "new_menu:set_delay:1"),
-                 Button.inline("⭐ 3秒", "new_menu:set_delay:3")],
-                [Button.inline("🛡️ 5秒", "new_menu:set_delay:5"),
-                 Button.inline("🔒 10秒", "new_menu:set_delay:10"),
-                 Button.inline("🐌 30秒", "new_menu:set_delay:30")],
-                [Button.inline("🎛️ 自定义", "new_menu:custom_delay"),
-                 Button.inline("👈 返回任务设置", "new_menu:history_messages")]
-            ]
-            
-            return {'text': text, 'buttons': buttons}
-            
-        except Exception:
-            return self.create_error_view("加载失败", "错误", "new_menu:history_task_actions")
-
-    def _render_progress_bar(self, percentage: float, length: int = 15) -> str:
-        """渲染平滑的Unicode进度条"""
-        blocks = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
-        full_blocks = int(percentage / 100 * length)
-        
-        # Clamp full_blocks
-        if full_blocks < 0: full_blocks = 0
-        if full_blocks > length: full_blocks = length
-        
-        remainder = (percentage / 100 * length) - full_blocks
-        remainder_idx = int(remainder * 8)
-        if remainder_idx < 0: remainder_idx = 0
-        if remainder_idx > 8: remainder_idx = 8
-        
-        bar = "█" * full_blocks
-        if full_blocks < length:
-            bar += blocks[remainder_idx]
-            bar += "░" * (length - full_blocks - 1)
-        return f"`{bar}`"
+        return (self.new_builder()
+            .set_title("智能速率控制", icon="⏱️")
+            .add_section("流控状态", f"当前扫描间隔: `{data.get('delay_text', '1秒')}`")
+            .add_section("调控策略", [
+                "1-3秒: 常规任务平衡速度与安全",
+                "5-10秒: 针对大批量、长周期任务",
+                "30秒+: 极高安全级别，避免封号"
+            ], icon="💡")
+            .add_button("⚡ 无延迟", "new_menu:set_delay:0")
+            .add_button("🚀 1秒", "new_menu:set_delay:1")
+            .add_button("⭐ 3秒", "new_menu:set_delay:3")
+            .add_button("🛡️ 5秒", "new_menu:set_delay:5")
+            .add_button("🔒 10秒", "new_menu:set_delay:10")
+            .add_button("👈 返回", "new_menu:history_messages", icon=UIStatus.BACK)
+            .build())

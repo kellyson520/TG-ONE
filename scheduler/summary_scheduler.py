@@ -101,7 +101,7 @@ class SummaryScheduler:
             await self._execute_summary(rule_id)
             
             # 2. 重新加载规则并安排下一次执行
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 stmt = select(ForwardRule).filter_by(id=rule_id)
                 result = await session.execute(stmt)
                 rule = result.scalar_one_or_none()
@@ -131,7 +131,7 @@ class SummaryScheduler:
             logger.log_operation("开始执行总结任务", entity_id=rule_id, details=f"立即执行: {is_now}")
             
             # 使用注入的数据库会话
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 from sqlalchemy.orm import selectinload
                 stmt = select(ForwardRule).options(
                     selectinload(ForwardRule.source_chat),
@@ -492,7 +492,7 @@ class SummaryScheduler:
         """启动总结调度器：扫描规则并创建定时任务"""
         try:
             # 使用注入的数据库会话
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 # 异步预加载所有关联信息
                 from sqlalchemy.orm import selectinload
                 stmt = select(ForwardRule).options(

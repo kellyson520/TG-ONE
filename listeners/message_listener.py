@@ -86,11 +86,18 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
         "last_update": 0
     }
 
+    # [QoS Enhancement] 注册规则更新事件，实现秒级优先级同步
+    def _handle_rule_update(data=None):
+        logger.info("🔄 [监听器] 检测到规则变更，将刷新优先级缓存")
+        _priority_state["last_update"] = 0
+    
+    container.bus.subscribe("RULE_UPDATED", _handle_rule_update)
+
     async def _get_chat_priority(chat_id: int) -> int:
         """获取聊天优先级 (带缓存)"""
         now = time.time()
-        # Update cache every 60s
-        if now - _priority_state["last_update"] > 60:
+        # Update cache every 15s (Reduce from 60s for better responsiveness)
+        if now - _priority_state["last_update"] > 15:
             try:
                 # Use lazy property to avoid import cycle issues if any
                 _priority_state["map"] = await container.rule_repo.get_priority_map()

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 async def callback_switch(event, rule_id, session, message, data):
     """处理切换源聊天的回调"""
-    async def _do(s):
+    async with container.db.get_session(session) as s:
         current_chat = await event.get_chat()
         
         # 使用 selectinload 预加载关联以避免 lazy load 错误
@@ -54,19 +54,14 @@ async def callback_switch(event, rule_id, session, message, data):
 
         source_chat = find_chat_by_telegram_id_variants(s, rule_id)
         await event.answer(f'已切换到: {source_chat.name if source_chat else "未知聊天"}')
-
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
+    return
 
 async def callback_page(event, rule_id, session, message, data):
     """处理翻页的回调"""
     logger.info(f"翻页回调数据: action=page, rule_id={rule_id}")
 
-    async def _do(s):
-        try:
+    try:
+        async with container.db.get_session(session) as s:
             page_number, command = rule_id.split(":")
             page = int(page_number)
 
@@ -81,13 +76,13 @@ async def callback_page(event, rule_id, session, message, data):
                 return
 
             source_chat = find_chat_by_telegram_id_variants(s, current_chat_db.current_add_id)
-            rule = await s.execute(
-                select(ForwardRule).where(
-                    ForwardRule.source_chat_id == source_chat.id,
-                    ForwardRule.target_chat_id == current_chat_db.id
-                )
+            rule = await s.get(ForwardRule, 0) # Placeholder for type hint or if needed
+            rule_stmt = select(ForwardRule).where(
+                ForwardRule.source_chat_id == source_chat.id,
+                ForwardRule.target_chat_id == current_chat_db.id
             )
-            rule = rule.scalar()
+            res = await s.execute(rule_stmt)
+            rule = res.scalar()
 
             if command == "keyword":
                 from models.models import Keyword
@@ -104,20 +99,15 @@ async def callback_page(event, rule_id, session, message, data):
                 replace_rules = replace_rules.scalars().all()
                 await show_list(event, "replace", replace_rules, lambda i, rr: f'{i}. 匹配: {rr.pattern} -> {"删除" if not rr.content else f"替换为: {rr.content}"}', f"替换规则列表\n规则: 来自 {source_chat.name}", page)
             await event.answer()
-        except Exception as e:
-            logger.error(f"处理翻页时出错: {str(e)}")
-            await event.answer("处理翻页时出错，请检查日志")
-
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
+    except Exception as e:
+        logger.error(f"处理翻页时出错: {str(e)}")
+        await event.answer("处理翻页时出错，请检查日志")
+    return
 
 async def callback_toggle_current(event, rule_id, session, message, data):
     """处理切换当前规则的回调"""
     from sqlalchemy.orm import selectinload
-    async def _do(s):
+    async with container.db.get_session(session) as s:
         # 使用 selectinload 预加载 source_chat 和 target_chat
         stmt = (
             select(ForwardRule)
@@ -154,19 +144,14 @@ async def callback_toggle_current(event, rule_id, session, message, data):
             if "message was not modified" not in str(e).lower():
                 raise
         await event.answer(f"已切换到: {source_chat.name}")
-
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
+    return
 
 async def callback_page_rule(event, page_str, session, message, data):
     """处理规则列表分页的回调"""
     try:
         page = int(page_str)
 
-        async def _do(s):
+        async with container.db.get_session(session) as s:
             from sqlalchemy import func
             total_result = await s.execute(select(func.count()).select_from(ForwardRule))
             total_rules = total_result.scalar()
@@ -176,19 +161,6 @@ async def callback_page_rule(event, page_str, session, message, data):
             per_page = 30
             total_pages = (total_rules + per_page - 1) // per_page
             offset = (page - 1) * per_page
-            # Using core SQL for limit/offset or ORM
-            stmt = select(ForwardRule).order_by(ForwardRule.id).offset(offset).limit(per_page)
-            # Preload if needed? description usually doesn't need preloads but let's see. 
-            # The original code used text SQL: "SELECT * FROM forward_rule ..." which loads columns.
-            # But the display accesses `rule.source_chat.name`. This will trigger lazy load and fail if async session matches original code pattern without greenlet.
-            # Original code: rules = await s.execute("SELECT * FROM forward_rule ...").scalars().all()
-            # Then loop: rule.source_chat.name. This would fail in async unless lazy loading is enabled or eager loaded.
-            # Wait, the original code used text SQL `SELECT * FROM forward_rule`. It returns ORM objects? No, text query returns rows unless mapped.
-            # Original: `rules = rules.scalars().all()` implies it returned ORM objects (if used select(ForwardRule).from_statement(...)?)
-            # Actually `await s.execute("SELECT * ...")` returns Result. 
-            # If Model is not involved, it returns Row objects. `rule.source_chat.name` would fail on Row object.
-            # So the original code must have had valid ORM loading or it was broken?
-            # Or maybe `listeners/message_listener` sets `expire_on_commit=False`?
             
             # Let's use proper ORM with eager load to be safe.
             from sqlalchemy.orm import selectinload
@@ -201,7 +173,7 @@ async def callback_page_rule(event, page_str, session, message, data):
             
             message_parts = [f"📋 转发规则列表 (第{page}/{total_pages}页)：\n"]
             for rule in rules:
-                rule_desc = f"<b>ID: {rule.id}</b>\n<blockquote>来源: {rule.source_chat.name}\n目标: {rule.target_chat.name}</blockquote>"
+                rule_desc = f"<b>ID: {rule.id}</b>\n<blockquote>来源: {rule.source_chat.name if rule.source_chat else '未知'}\n目标: {rule.target_chat.name if rule.target_chat else '未知'}</blockquote>"
                 message_parts.append(rule_desc)
             
             buttons = []
@@ -211,12 +183,7 @@ async def callback_page_rule(event, page_str, session, message, data):
             nav_row.append(Button.inline("下一页 ➡️" if page < total_pages else "➡️", f"page_rule:{page+1}" if page < total_pages else "noop"))
             buttons.append(nav_row)
             await message.edit("\n".join(message_parts), buttons=buttons, parse_mode="html")
-        
-        if session is None:
-            async with container.db.session() as s:
-                await _do(s)
-        else:
-            await _do(session)
     except Exception as e:
         logger.error(f"处理规则列表分页出错: {e}")
+        logger.error(f"错误详情: {traceback.format_exc()}")
     return

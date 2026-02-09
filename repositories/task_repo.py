@@ -24,7 +24,7 @@ class TaskRepository:
         if chat_id and message_id:
             unique_key = f"{task_type}:{chat_id}:{message_id}"
 
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # [Scheme 7 Optimization] 使用原子化 INSERT OR IGNORE 替代先查后增
             # 彻底解决多并发场景下的重复推送问题
             stmt = insert(TaskQueue).values(
@@ -89,7 +89,7 @@ class TaskRepository:
         if not values_list:
             return
 
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
              # 使用 Core Insert + OR IGNORE (SQLite) 实现高性能批量去重写入
              try:
                  stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
@@ -107,7 +107,7 @@ class TaskRepository:
         如果任务属于媒体组，则原子化锁定该组内所有 'pending' 任务，
         彻底根除多 Worker 并发下的竞态条件。
         """
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             now = datetime.utcnow()
             
             # 1. 定位最老、优先级最高的待处理任务 ID
@@ -161,7 +161,7 @@ class TaskRepository:
             return []
 
     async def complete(self, task_id: int):
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 先获取当前状态进行验证
             result = await session.execute(
                 select(TaskQueue.status).where(TaskQueue.id == task_id)
@@ -183,7 +183,7 @@ class TaskRepository:
                 logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> completed")
 
     async def fail(self, task_id: int, error: str):
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 先获取当前状态进行验证
             result = await session.execute(
                 select(TaskQueue.status).where(TaskQueue.id == task_id)
@@ -212,7 +212,7 @@ class TaskRepository:
             
     async def fail_or_retry(self, task_id: int, error: str, max_retries: int = settings.MAX_RETRIES):
         """核心修复：失败重试机制"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             stmt = select(TaskQueue).where(TaskQueue.id == task_id)
             result = await session.execute(stmt)
             task = result.scalar_one_or_none()
@@ -239,7 +239,7 @@ class TaskRepository:
             
     async def rescue_stuck_tasks(self, timeout_minutes: int = 10):
         """僵尸任务救援 - 将处于 'running' 状态超过指定时间的任务重置为 'pending'"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             cutoff_time = datetime.utcnow() - timedelta(minutes=timeout_minutes)
             now = datetime.utcnow()
             
@@ -264,7 +264,7 @@ class TaskRepository:
             
     async def reschedule(self, task_id: int, next_run_time: datetime):
         """重新调度任务，设置下次执行时间"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 先获取当前状态进行验证
             result = await session.execute(
                 select(TaskQueue.status).where(TaskQueue.id == task_id)
@@ -297,7 +297,7 @@ class TaskRepository:
         Returns:
             List[TaskQueue]: 相关任务列表
         """
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             now = datetime.utcnow()
             
             # 1. 查找同组的其他 pending 任务
@@ -336,7 +336,7 @@ class TaskRepository:
 
     async def get_queue_status(self):
         """获取队列状态统计"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 获取各状态任务数量
             pending_count = await session.execute(
                 select(func.count()).where(TaskQueue.status == 'pending')
@@ -371,7 +371,7 @@ class TaskRepository:
 
     async def get_rule_stats(self):
         """获取规则统计信息"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 获取总规则数和活跃规则数
             total_rules = await session.execute(
                 select(func.count(ForwardRule.id))
@@ -391,7 +391,7 @@ class TaskRepository:
 
     async def get_tasks(self, page: int = 1, limit: int = 50, status: str = None):
         """分页获取任务列表"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 构建查询
             stmt = select(TaskQueue)
             if status:

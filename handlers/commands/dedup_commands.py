@@ -5,7 +5,7 @@ from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
 async def handle_dedup_enable_command(event, parts):
     """开启/关闭去重 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")

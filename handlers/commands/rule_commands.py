@@ -123,7 +123,7 @@ async def handle_switch_command(event):
 
     # 2. 获取当前聊天记录以确定选中的规则
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         from models.models import Chat
         stmt = select(Chat).where(Chat.telegram_chat_id == str(current_chat_id))
         result = await session.execute(stmt)
@@ -185,7 +185,7 @@ async def _add_keywords_to_rule(keywords, command, event):
 
     from core.helpers.auto_delete import reply_and_delete
 
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -257,7 +257,7 @@ async def handle_replace_command(event, parts):
         return
 
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -285,7 +285,7 @@ async def handle_replace_command(event, parts):
 async def handle_list_keyword_command(event):
     """处理 list_keyword 命令 - 使用统一 Service 获取规则"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -313,7 +313,7 @@ async def handle_list_keyword_command(event):
 async def handle_list_replace_command(event):
     """处理 list_replace 命令 - 使用统一 Service 获取规则"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -363,7 +363,7 @@ async def handle_remove_command(event, command, parts):
 
     # 2. 获取规则上下文
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -417,7 +417,7 @@ async def handle_clear_all_command(event):
 async def handle_export_keyword_command(event, command):
     """处理 export_keyword 命令 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             return
@@ -431,7 +431,7 @@ async def handle_export_keyword_command(event, command):
         return
     
     # 获取所有关键字并按类型分类
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         from models.models import Keyword
         keywords = (await session.execute(
             select(Keyword).filter_by(rule_id=rule.id)
@@ -470,7 +470,7 @@ async def handle_export_keyword_command(event, command):
 async def handle_export_replace_command(event, client):
     """处理 export_replace 命令 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             return
@@ -501,7 +501,7 @@ async def handle_import_command(event, command):
         return
 
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             return
@@ -571,7 +571,7 @@ async def handle_import_excel_command(event):
 async def handle_ufb_bind_command(event, command):
     """处理 ufb_bind 命令 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -612,7 +612,7 @@ async def handle_ufb_bind_command(event, command):
 async def handle_ufb_unbind_command(event, command):
     """处理 ufb_unbind 命令 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 未找到管理上下文，请先 /switch 切换到目标聊天")
@@ -639,7 +639,7 @@ async def handle_ufb_item_change_command(event, command):
 
     from core.container import container
     # 从container获取数据库会话
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             rule_info = await _get_current_rule_for_chat(session, event)
             if not rule_info:
@@ -678,7 +678,7 @@ async def handle_ufb_item_change_command(event, command):
 async def handle_clear_all_keywords_command(event, command):
     """处理 clear_all_keywords 命令 - 使用 RuleManagementService"""
     from core.container import container
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 当前频道未绑定任何规则。")
@@ -697,7 +697,7 @@ async def handle_clear_all_keywords_command(event, command):
 
 async def handle_clear_all_keywords_regex_command(event, command):
     """处理 clear_all_keywords_regex 命令 - 使用 RuleManagementService"""
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 当前频道未绑定任何规则。")
@@ -716,7 +716,7 @@ async def handle_clear_all_keywords_regex_command(event, command):
 
 async def handle_clear_all_replace_command(event, command):
     """处理 clear_all_replace 命令 - 使用 RuleManagementService"""
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 当前频道未绑定任何规则。")
@@ -753,7 +753,7 @@ async def handle_copy_keywords_command(event, command):
     from models.models import ForwardRule
     
     # 从container获取数据库会话
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             # 1. 获取目标规则 (含 keywords)
             rule_info = await _get_current_rule_for_chat(session, event)
@@ -852,7 +852,7 @@ async def handle_copy_replace_command(event, command):
     from models.models import ForwardRule
     
     # 从container获取数据库会话
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             # 1. 获取目标规则 (含 replace_rules)
             rule_info = await _get_current_rule_for_chat(session, event)
@@ -1003,7 +1003,7 @@ async def handle_add_all_command(event, command, parts):
         return
 
     # 获取当前规则以确定 AddMode (黑/白名单)
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         rule_info = await RuleQueryService.get_current_rule_for_chat(event, session)
         if not rule_info:
             await reply_and_delete(event, "❌ 当前频道未绑定任何规则，无法确定添加模式。")
@@ -1203,7 +1203,7 @@ async def handle_delete_rss_user_command(event, command, parts):
     from sqlalchemy import select
     
     # 从container获取数据库会话
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         try:
             specified_username = parts[1].strip() if len(parts) > 1 else None
 

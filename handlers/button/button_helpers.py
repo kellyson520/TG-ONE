@@ -147,41 +147,44 @@ async def create_media_settings_buttons(rule=None, rule_id=None):
     return buttons
 
 
-async def create_other_settings_buttons(rule=None, rule_id=None):
+async def create_other_settings_buttons(rule=None, rule_id=None, session=None):
     """创建其他设置按钮"""
     buttons = []
 
-    if rule_id is None:
-        rule_id = rule.id
-    else:
-        async with container.db.session() as session:
-            rule = await session.get(ForwardRule, int(rule_id))
-
-    current_row = []
-    for field, config in OTHER_SETTINGS.items():
-        if field in ["reverse_blacklist", "reverse_whitelist"]:
-            is_enabled = getattr(rule, f"enable_{field}", False)
-            display_value = f"{'✅ ' if is_enabled else ''}{config['display_name']}"
-            callback_data = f"{config['toggle_action']}:{rule_id}"
-
-            current_row.append(Button.inline(display_value, callback_data))
-
-            if field == "reverse_whitelist":
-                buttons.append(current_row)
-                current_row = []
+    async with container.db.get_session(session) as s:
+        if rule_id is None:
+            rule_id = rule.id
         else:
-            # 其他按钮单独一行
-            display_value = f"{config['display_name']}"
-            callback_data = f"{config['toggle_action']}:{rule_id}"
-            buttons.append([Button.inline(display_value, callback_data)])
+            rule = await s.get(ForwardRule, int(rule_id))
 
-    # 添加返回按钮
-    buttons.append(
-        [
-            Button.inline("👈 返回", f"rule_settings:{rule_id}"),
-            Button.inline("❌ 关闭", "close_settings"),
-        ]
-    )
+        if not rule:
+            return [[Button.inline("❌ 规则不存在", "noop")]]
+
+        current_row = []
+        for field, config in OTHER_SETTINGS.items():
+            if field in ["reverse_blacklist", "reverse_whitelist"]:
+                is_enabled = getattr(rule, f"enable_{field}", False)
+                display_value = f"{'✅ ' if is_enabled else ''}{config['display_name']}"
+                callback_data = f"{config['toggle_action']}:{rule_id}"
+
+                current_row.append(Button.inline(display_value, callback_data))
+
+                if field == "reverse_whitelist":
+                    buttons.append(current_row)
+                    current_row = []
+            else:
+                # 其他按钮单独一行
+                display_value = f"{config['display_name']}"
+                callback_data = f"{config['toggle_action']}:{rule_id}"
+                buttons.append([Button.inline(display_value, callback_data)])
+
+        # 添加返回按钮
+        buttons.append(
+            [
+                Button.inline("👈 返回", f"rule_settings:{rule_id}"),
+                Button.inline("❌ 关闭", "close_settings"),
+            ]
+        )
 
     return buttons
 
@@ -469,12 +472,13 @@ async def create_media_types_buttons(rule_id, media_types):
     return buttons
 
 
-async def create_media_extensions_buttons(rule_id, page=0):
+async def create_media_extensions_buttons(rule_id, page=0, session=None):
     """创建媒体扩展名选择按钮
 
     Args:
         rule_id: 规则ID
         page: 当前页码
+        session: 数据库会话
 
     Returns:
         按钮列表
@@ -493,9 +497,9 @@ async def create_media_extensions_buttons(rule_id, page=0):
     # 获取当前规则已选择的扩展名
     db_ops = await get_db_ops()
     selected_extensions = []
-    async with container.db.session() as session:
+    async with container.db.get_session(session) as s:
         # 使用db_ops.get_media_extensions方法获取已选择的扩展名
-        selected_extensions = await db_ops.get_media_extensions(session, rule_id)
+        selected_extensions = await db_ops.get_media_extensions(s, rule_id)
         selected_extension_list = [ext.extension for ext in selected_extensions]
 
         # 创建扩展名按钮
@@ -558,12 +562,13 @@ async def create_media_extensions_buttons(rule_id, page=0):
     return buttons
 
 
-async def create_sync_rule_buttons(rule_id, page=0):
+async def create_sync_rule_buttons(rule_id, page=0, session=None):
     """创建同步规则选择按钮
 
     Args:
         rule_id: 当前规则ID
         page: 当前页码
+        session: 数据库会话
 
     Returns:
         按钮列表
@@ -571,9 +576,9 @@ async def create_sync_rule_buttons(rule_id, page=0):
     # 设置分页参数
 
     buttons = []
-    async with container.db.session() as session:
+    async with container.db.get_session(session) as s:
         # 获取当前规则
-        current_rule = await session.get(ForwardRule, rule_id)
+        current_rule = await s.get(ForwardRule, rule_id)
         if not current_rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
@@ -581,7 +586,7 @@ async def create_sync_rule_buttons(rule_id, page=0):
 
         # 获取所有规则（除了当前规则）
         stmt = select(ForwardRule).filter(ForwardRule.id != rule_id)
-        result = await session.execute(stmt)
+        result = await s.execute(stmt)
         all_rules = result.scalars().all()
 
         # 计算分页
@@ -605,7 +610,7 @@ async def create_sync_rule_buttons(rule_id, page=0):
 
         # 获取当前规则的同步目标
         db_ops = await get_db_ops()
-        sync_targets = await db_ops.get_rule_syncs(session, rule_id)
+        sync_targets = await db_ops.get_rule_syncs(s, rule_id)
         synced_rule_ids = [sync.sync_rule_id for sync in sync_targets]
 
         # 创建规则按钮
@@ -618,7 +623,7 @@ async def create_sync_rule_buttons(rule_id, page=0):
             is_synced = rule.id in synced_rule_ids
 
             # 创建按钮文本
-            button_text = f"{'✅ ' if is_synced else ''}{rule.id} {source_chat.name}->{target_chat.name}"
+            button_text = f"{'✅ ' if is_synced else ''}{rule.id} {source_chat.name if source_chat else '未知'}->{target_chat.name if target_chat else '未知'}"
 
             # 创建回调数据：toggle_rule_sync:当前规则ID:目标规则ID:当前页码
             callback_data = f"toggle_rule_sync:{rule_id}:{rule.id}:{page}"
@@ -662,12 +667,13 @@ async def create_sync_rule_buttons(rule_id, page=0):
     return buttons
 
 
-async def create_push_settings_buttons(rule_id, page=0):
+async def create_push_settings_buttons(rule_id, page=0, session=None):
     """创建推送设置按钮菜单，支持分页
 
     Args:
         rule_id: 规则ID
         page: 页码（从0开始）
+        session: 数据库会话
 
     Returns:
         按钮列表
@@ -677,9 +683,9 @@ async def create_push_settings_buttons(rule_id, page=0):
 
     # 从数据库获取规则对象和推送配置
     db_ops = await get_db_ops()
-    async with container.db.session() as session:
+    async with container.db.get_session(session) as s:
         # 获取规则对象
-        rule = await session.get(ForwardRule, rule_id)
+        rule = await s.get(ForwardRule, rule_id)
         if not rule:
             buttons.append([Button.inline("❌ 规则不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])
@@ -716,7 +722,7 @@ async def create_push_settings_buttons(rule_id, page=0):
         )
 
         # 获取当前规则的所有推送配置
-        push_configs = await db_ops.get_push_configs(session, rule_id)
+        push_configs = await db_ops.get_push_configs(s, rule_id)
 
         # 计算总页数
         total_configs = len(push_configs)
@@ -729,8 +735,10 @@ async def create_push_settings_buttons(rule_id, page=0):
         # 为每个推送配置创建按钮（仅当前页）
         for config in push_configs[start_idx:end_idx]:
             # 取前20个字符
-            display_name = config.push_channel[:25] + (
-                "..." if len(config.push_channel) > 25 else ""
+            display_name = (
+                config.push_channel[:25] + ("..." if len(config.push_channel) > 25 else "")
+                if config.push_channel
+                else "未命名"
             )
             button_text = display_name
             # 创建按钮
@@ -770,11 +778,12 @@ async def create_push_settings_buttons(rule_id, page=0):
     return buttons
 
 
-async def create_push_config_details_buttons(config_id):
+async def create_push_config_details_buttons(config_id, session=None):
     """创建推送配置详情按钮
 
     Args:
         config_id: 推送配置ID
+        session: 数据库会话
 
     Returns:
         按钮列表
@@ -782,11 +791,11 @@ async def create_push_config_details_buttons(config_id):
     buttons = []
 
     # 从数据库获取推送配置
-    async with container.db.session() as session:
+    async with container.db.get_session(session) as s:
         from models.models import PushConfig
 
         # 获取推送配置
-        config = await session.get(PushConfig, config_id)
+        config = await s.get(PushConfig, config_id)
         if not config:
             buttons.append([Button.inline("❌ 推送配置不存在", "noop")])
             buttons.append([Button.inline("关闭", "close_settings")])

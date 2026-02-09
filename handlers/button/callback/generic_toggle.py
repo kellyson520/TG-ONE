@@ -18,7 +18,7 @@ from handlers.button.settings_manager import (
 logger = logging.getLogger(__name__)
 
 
-async def handle_generic_toggle(event, rest=None, **kwargs):
+async def handle_generic_toggle(event, session=None, rest=None, **kwargs):
     """
     处理通用的 toggle 回调
     
@@ -28,6 +28,7 @@ async def handle_generic_toggle(event, rest=None, **kwargs):
     
     Args:
         event: 回调事件对象
+        session: 数据库会话
         rest: 路由器提取的剩余路径参数（未使用，仅用于兼容路由器）
         **kwargs: 其他关键字参数
     
@@ -88,7 +89,7 @@ async def handle_generic_toggle(event, rest=None, **kwargs):
         # 调用通用更新函数
         message = await event.get_message()
         await update_rule_setting(
-            event, rule_id, message, field_name, config, setting_type
+            event, rule_id, message, field_name, config, setting_type, session=session
         )
         
     except Exception as e:

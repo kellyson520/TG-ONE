@@ -70,7 +70,7 @@ async def compress_existing_data():
     
     # Compress RSSConfig descriptions
     logger.info("\n1. Compressing RSSConfig descriptions...")
-    async with db.session() as session:
+    async with db.get_session() as session:
         stmt = select(RSSConfig).where(
             RSSConfig.is_description_compressed == False,
             RSSConfig.rule_description.isnot(None)
@@ -94,7 +94,7 @@ async def compress_existing_data():
     
     # Compress RSSConfig prompts
     logger.info("\n2. Compressing RSSConfig prompts...")
-    async with db.session() as session:
+    async with db.get_session() as session:
         stmt = select(RSSConfig).where(
             RSSConfig.is_prompt_compressed == False,
             RSSConfig.ai_extract_prompt.isnot(None)
@@ -118,7 +118,7 @@ async def compress_existing_data():
     
     # Compress RuleLog results (only recent large ones)
     logger.info("\n3. Compressing RuleLog results (last 1000 entries)...")
-    async with db.session() as session:
+    async with db.get_session() as session:
         stmt = select(RuleLog).where(
             RuleLog.is_result_compressed == False,
             RuleLog.result.isnot(None)
@@ -143,7 +143,7 @@ async def compress_existing_data():
     
     # Compress ErrorLog tracebacks (only recent ones)
     logger.info("\n4. Compressing ErrorLog tracebacks (last 500 entries)...")
-    async with db.session() as session:
+    async with db.get_session() as session:
         stmt = select(ErrorLog).where(
             ErrorLog.is_traceback_compressed == False,
             ErrorLog.traceback.isnot(None)

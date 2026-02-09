@@ -57,7 +57,7 @@ class StatsRepository:
             return
 
         try:
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 await session.execute(insert(RuleLog), logs_to_insert)
                 await session.commit()
                 logger.debug(f"Flushed {len(logs_to_insert)} logs to DB")
@@ -88,7 +88,7 @@ class StatsRepository:
     async def increment_stats(self, chat_id: int, saved_bytes: int = 0):
         """[Scheme 7 Standard] 原子级聊天统计更新"""
         today = date.today().isoformat()
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 尝试直接原子递增
             stmt = (
                 update(ChatStatistics)
@@ -140,7 +140,7 @@ class StatsRepository:
         if "total_triggered" not in insert_values:
             insert_values["total_triggered"] = 1
 
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             stmt = (
                 update(RuleStatistics)
                 .where(
@@ -167,7 +167,7 @@ class StatsRepository:
 
     async def get_error_logs(self, page: int = 1, size: int = 20, level: str = None):
         """获取系统错误日志，支持分页和级别筛选"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 构建查询
             query = select(ErrorLog)
             
@@ -190,7 +190,7 @@ class StatsRepository:
             
     async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50):
         """获取规则转发日志"""
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             query = select(RuleLog)
             if rule_id:
                 query = query.filter(RuleLog.rule_id == rule_id)
@@ -214,7 +214,7 @@ class StatsRepository:
         from datetime import datetime, timedelta
         cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 使用 SQLite 的 strftime 来按小时分组 (YYYY-MM-DDTHH)
             # 兼容 ISO 格式: 2026-01-11T12:34:56.789
             stmt = (
@@ -236,7 +236,7 @@ class StatsRepository:
         if not rule_ids:
             return {}
             
-        async with self.db.session() as session:
+        async with self.db.get_session() as session:
             # 聚合查询: sum(processed), sum(forwarded), sum(error) group by rule_id
             stmt = (
                 select(

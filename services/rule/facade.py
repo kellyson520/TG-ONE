@@ -133,4 +133,24 @@ class RuleManagementService:
     async def import_rule_config(self, rule_id: int, content: str, format: str = "json") -> Dict[str, Any]:
         return await self.logic.import_rule_config(rule_id, content, format)
 
+    @audit_log(action="TOGGLE_MEDIA_TYPE", resource_type="RULE")
+    async def toggle_media_type(self, rule_id: int, media_type: str) -> Dict[str, Any]:
+        return await self.logic.toggle_media_type(rule_id, media_type)
+
+    @audit_log(action="TOGGLE_MEDIA_EXTENSION", resource_type="RULE")
+    async def toggle_media_extension(self, rule_id: int, extension: str) -> Dict[str, Any]:
+        return await self.logic.toggle_media_extension(rule_id, extension)
+
+    @audit_log(action="TOGGLE_PUSH_CONFIG", resource_type="RULE")
+    async def toggle_push_config_setting(self, config_id: int, field: str) -> Dict[str, Any]:
+        return await self.logic.toggle_push_config_setting(config_id, field)
+
+    @audit_log(action="TOGGLE_MEDIA_SEND_MODE", resource_type="RULE")
+    async def toggle_media_send_mode(self, config_id: int) -> Dict[str, Any]:
+        return await self.logic.toggle_media_send_mode(config_id)
+
+    @audit_log(action="TOGGLE_RULE_SETTING", resource_type="RULE")
+    async def toggle_rule_setting(self, rule_id: int, field: str, value: Optional[Any] = None) -> Dict[str, Any]:
+        return await self.logic.toggle_rule_setting(rule_id, field, value)
+
 rule_management_service = RuleManagementService()

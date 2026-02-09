@@ -76,7 +76,7 @@ class ForwardManager:
         """切换规则启用状态"""
         from core.container import container
         from models.models import ForwardRule
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             try:
                 # 获取规则
                 rule = await session.get(ForwardRule, rule_id)

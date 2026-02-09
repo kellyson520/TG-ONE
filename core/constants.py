@@ -55,37 +55,7 @@ PROCESSED_GROUP_MAX = settings.PROCESSED_GROUP_MAX
 VERBOSE_LOG = settings.VERBOSE_LOG
 DUP_SCAN_PAGE_SIZE = settings.DUP_SCAN_PAGE_SIZE
 
-# 菜单标题
-AI_SETTINGS_TEXT = """
-当前AI提示词：
-
-`{ai_prompt}`
-
-当前总结提示词：
-
-`{summary_prompt}`
-"""
-
-# 媒体设置文本
-MEDIA_SETTINGS_TEXT = """
-媒体设置：
-
-- 纯转发：开启去重后，将对媒体组进行组内预去重并批量转发原消息ID（不下载不上传）。
-- 非纯转发：在过滤链中对媒体组筛选与去重后重新组合为相册一次发送（多文件），单文件退化为单发。
-- 去重优先使用文件ID，缺失时使用签名兜底，保持原始顺序。
-"""
-PUSH_SETTINGS_TEXT = """
-推送设置：
-请前往 https://github.com/caronc/apprise/wiki 查看添加推送配置格式说明
-如 `ntfy://ntfy.sh/你的主题名`
-"""
-
-# 去重设置文本与参数
-DUP_SETTINGS_TEXT = """
-去重设置：
- - 开启去重：在目标会话内跳过已存在的相同媒体
- - 扫描会话：手动扫描会话内重复媒体并生成报告
- """
+# 目录与清理 (不再包含 UI 模板)
 
 # 为每个规则生成特定的路径
 def get_rule_media_dir(rule_id: Union[int, str]) -> str:

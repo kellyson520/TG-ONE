@@ -22,51 +22,27 @@ from core.helpers.common import is_admin
 logger = logging.getLogger(__name__)
 
 
-async def handle_admin_callback(event):
-    """管理面板回调分发器"""
+async def handle_admin_callback(event, **kwargs):
+    """管理面板回调分发器 - Refactored to use Strategy Registry"""
+    try:
+        data = event.data.decode("utf-8")
+        parts = data.split(":")
+        action = parts[0]
 
-    data = event.data.decode("utf-8")
+        # 权限检查 handled by Strategy match/handle or ideally here? 
+        # Strategy 'AdminMenuStrategy' has a check inside handle().
+        
+        from handlers.button.strategies import MenuHandlerRegistry
 
-    parts = data.split(":")
-    action = parts[0]
+        if await MenuHandlerRegistry.dispatch(event, action, data=data, **kwargs):
+            return
 
-    # 权限检查
-    if not await is_admin(event):
-        await event.answer("只有管理员可以访问管理面板", alert=True)
-        return
+        logger.warning(f"由于找不到处理器，管理面板回调未处理: {action}")
+        await event.answer("⚠️ 未知指令", alert=True)
 
-    # 解析 rule_id (管理员回调通常不需要 rule_id，但为了兼容性保留)
-    rule_id = parts[1] if len(parts) > 1 else None
-
-    # 使用 AsyncSessionManager 获取会话
-    async with container.db.session() as session:
-        message = await event.get_message()
-        # 获取对应的处理器
-        handler = {
-            "admin_db_info": callback_admin_db_info,
-            "admin_db_health": callback_admin_db_health,
-            "admin_db_backup": callback_admin_db_backup,
-            "admin_db_optimize": callback_admin_db_optimize,
-            "admin_system_status": callback_admin_system_status,
-            "admin_logs": callback_admin_logs,
-            "admin_cleanup_menu": callback_admin_cleanup_menu,
-            "admin_cleanup": callback_admin_cleanup,
-            "admin_cleanup_temp": callback_admin_cleanup_temp,
-            "admin_vacuum_db": callback_admin_db_optimize,
-            "admin_analyze_db": callback_admin_db_optimize,
-            "admin_full_optimize": callback_admin_db_optimize,
-            "admin_stats": callback_admin_stats,
-            "admin_config": callback_admin_config,
-            "admin_restart": callback_admin_restart,
-            "admin_restart_confirm": callback_admin_restart_confirm,
-            "admin_panel": callback_admin_panel,
-            "close_admin_panel": callback_close_admin_panel,
-        }.get(action)
-
-        if handler:
-            await handler(event, rule_id, session, message, data)
-        else:
-            logger.warning(f"由于找不到处理器，管理面板回调未处理: {action}")
+    except Exception as e:
+        logger.error(f"处理管理回调失败: {e}", exc_info=True)
+        await event.answer("⚠️ 系统繁忙", alert=True)
 
 
 
@@ -126,19 +102,20 @@ async def callback_admin_logs(event, rule_id, session, message, data):
         from models.models import ErrorLog
         from sqlalchemy import select
 
-        # 获取最近的错误日志
-        stmt = select(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(10)
-        result = await session.execute(stmt)
-        recent_logs = result.scalars().all()
+        async with container.db.get_session(session) as s:
+            # 获取最近的错误日志
+            stmt = select(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(10)
+            result = await s.execute(stmt)
+            recent_logs = result.scalars().all()
 
-        if not recent_logs:
-            response = "📋 **运行日志**\n\n✅ 暂无错误日志"
-        else:
-            response = "📋 **最近10条错误日志**\n\n"
-            for log in recent_logs:
-                response += f"🔸 {log.level} | {log.created_at}\n"
-                response += f"   模块: {log.module or 'Unknown'}\n"
-                response += f"   消息: {log.message[:100]}...\n\n"
+            if not recent_logs:
+                response = "📋 **运行日志**\n\n✅ 暂无错误日志"
+            else:
+                response = "📋 **最近10条错误日志**\n\n"
+                for log in recent_logs:
+                    response += f"🔸 {log.level} | {log.created_at}\n"
+                    response += f"   模块: {log.module or 'Unknown'}\n"
+                    response += f"   消息: {log.message[:100]}...\n\n"
 
         # 创建返回按钮
         buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]
@@ -186,12 +163,12 @@ async def callback_admin_cleanup(event, rule_id, session, message, data):
         _, days = callback_data.split(":")
         days = int(days)
 
-        from models.models import cleanup_old_logs
+        from models.models import async_cleanup_old_logs
 
         # 显示进度
         progress_msg = await event.edit(f"🗑️ 正在清理 {days} 天前的日志...")
 
-        deleted_count = cleanup_old_logs(days)
+        deleted_count = await async_cleanup_old_logs(days)
 
         response = (
             f"✅ **日志清理完成**\n\n"
@@ -266,79 +243,84 @@ async def callback_admin_stats(event, rule_id, session, message, data):
 
         api_optimizer = get_api_optimizer()
 
-        try:
-            # 使用优化的规则管理服务替代数据库查询
-            from services.rule_management_service import rule_management_service
+        async with container.db.get_session(session) as s:
+            try:
+                # 使用优化的规则管理服务替代数据库查询
+                from services.rule_management_service import rule_management_service
 
-            # 获取优化的统计数据
-            stats_result = await rule_management_service.get_rule_statistics()
-            if stats_result["success"]:
-                stats_data = stats_result["statistics"]
-                rule_count = stats_data["total_rules"]
-                active_rules = stats_data["enabled_rules"]
+                # 获取优化的统计数据
+                stats_result = await rule_management_service.get_rule_statistics()
+                if stats_result["success"]:
+                    stats_data = stats_result["statistics"]
+                    rule_count = stats_data["total_rules"]
+                    active_rules = stats_data["enabled_rules"]
 
-                # 使用缓存命中标识
-                cache_info = " (缓存)" if stats_result.get("cache_hit") else " (实时)"
-            else:
-                # 降级到基础统计
-                from models.models import ForwardRule
+                    # 使用缓存命中标识
+                    cache_info = " (缓存)" if stats_result.get("cache_hit") else " (实时)"
+                else:
+                    # 降级到基础统计
+                    from models.models import ForwardRule
 
-                rule_count = session.query(ForwardRule).count()
-                active_rules = (
-                    session.query(ForwardRule)
-                    .filter(ForwardRule.enable_rule.is_(True))
-                    .count()
+                    stmt_count = select(func.count()).select_from(ForwardRule)
+                    rule_count = (await s.execute(stmt_count)).scalar()
+                    
+                    stmt_active = select(func.count()).select_from(ForwardRule).where(ForwardRule.enable_rule.is_(True))
+                    active_rules = (await s.execute(stmt_active)).scalar()
+                    
+                    cache_info = " (降级)"
+
+                # 并发执行统计查询
+                async def get_chat_count():
+                    from models.models import Chat
+                    stmt = select(func.count()).select_from(Chat)
+                    return (await s.execute(stmt)).scalar()
+
+                async def get_media_count():
+                    from models.models import MediaSignature
+                    stmt = select(func.count()).select_from(MediaSignature)
+                    return (await s.execute(stmt)).scalar()
+
+                async def get_error_count():
+                    from models.models import ErrorLog
+                    stmt = select(func.count()).select_from(ErrorLog)
+                    return (await s.execute(stmt)).scalar()
+
+                async def get_total_processed():
+                    from models.models import ForwardRule
+                    stmt = select(func.sum(ForwardRule.message_count)).select_from(ForwardRule)
+                    return (await s.execute(stmt)).scalar() or 0
+
+                # 并发执行统计查询
+                chat_count, media_count, error_count, total_processed = (
+                    await asyncio.gather(
+                        get_chat_count(),
+                        get_media_count(),
+                        get_error_count(),
+                        get_total_processed(),
+                        return_exceptions=True,
+                    )
                 )
-                cache_info = " (降级)"
 
-            # 并发执行统计查询
-            async def get_chat_count():
+                # 处理异常结果
+                if isinstance(chat_count, Exception):
+                    chat_count = 0
+                if isinstance(media_count, Exception):
+                    media_count = 0
+                if isinstance(error_count, Exception):
+                    error_count = 0
+                if isinstance(total_processed, Exception):
+                    total_processed = 0
+
+                # 获取活跃聊天的ID列表进行实时统计
                 from models.models import Chat
-                stmt = select(func.count()).select_from(Chat)
-                return (await session.execute(stmt)).scalar()
-
-            async def get_media_count():
-                from models.models import MediaSignature
-                stmt = select(func.count()).select_from(MediaSignature)
-                return (await session.execute(stmt)).scalar()
-
-            async def get_error_count():
-                from models.models import ErrorLog
-                stmt = select(func.count()).select_from(ErrorLog)
-                return (await session.execute(stmt)).scalar()
-
-            async def get_total_processed():
-                from models.models import ForwardRule
-                stmt = select(func.sum(ForwardRule.message_count)).select_from(ForwardRule)
-                return (await session.execute(stmt)).scalar() or 0
-
-            # 并发执行统计查询
-            chat_count, media_count, error_count, total_processed = (
-                await asyncio.gather(
-                    get_chat_count(),
-                    get_media_count(),
-                    get_error_count(),
-                    get_total_processed(),
-                    return_exceptions=True,
-                )
-            )
-
-            # 处理异常结果
-            if isinstance(chat_count, Exception):
-                chat_count = 0
-            if isinstance(media_count, Exception):
-                media_count = 0
-            if isinstance(error_count, Exception):
-                error_count = 0
-            if isinstance(total_processed, Exception):
-                total_processed = 0
-
-            # 获取活跃聊天的ID列表进行实时统计
-            from models.models import Chat
-            stmt = select(Chat.telegram_chat_id).where(Chat.is_active == True).limit(10)
-            result = await session.execute(stmt)
-            active_chats = result.all()
-            chat_ids = [chat[0] for chat in active_chats if chat[0]]
+                stmt = select(Chat.telegram_chat_id).where(Chat.is_active == True).limit(10)
+                result = await s.execute(stmt)
+                active_chats = result.all()
+                chat_ids = [chat[0] for chat in active_chats if chat[0]]
+            except Exception as e:
+                logger.error(f"统计数据采集子阶段出错: {e}")
+                chat_count = media_count = error_count = total_processed = 0
+                chat_ids = []
 
             # 使用官方API获取实时聊天统计
             realtime_stats = {}
@@ -429,8 +411,6 @@ async def callback_admin_stats(event, rule_id, session, message, data):
             ]
 
             await event.edit(response, buttons=buttons)
-        finally:
-            session.close()
 
         await event.answer()
     except Exception as e:
@@ -444,17 +424,18 @@ async def callback_admin_config(event, rule_id, session, message, data):
         from models.models import SystemConfiguration
         from sqlalchemy import select
 
-        # 获取系统配置
-        stmt = select(SystemConfiguration).limit(10)
-        result = await session.execute(stmt)
-        configs = result.scalars().all()
+        async with container.db.get_session(session) as s:
+            # 获取系统配置
+            stmt = select(SystemConfiguration).limit(10)
+            result = await s.execute(stmt)
+            configs = result.scalars().all()
 
-        if not configs:
-            response = "⚙️ **系统配置**\n\n暂无配置项"
-        else:
-            response = "⚙️ **系统配置**\n\n"
-            for config in configs:
-                response += f"🔸 {config.key}: {config.value}\n"
+            if not configs:
+                response = "⚙️ **系统配置**\n\n暂无配置项"
+            else:
+                response = "⚙️ **系统配置**\n\n"
+                for config in configs:
+                    response += f"🔸 {config.key}: {config.value}\n"
 
         # 创建返回按钮
         buttons = [[Button.inline("🔙 返回管理面板", "admin_panel")]]

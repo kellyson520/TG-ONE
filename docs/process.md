@@ -13,6 +13,7 @@
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
 | 20260208_FixSenderFilterMetadata | 修复 SenderFilter MessageContext 缺失 metadata 属性错误 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Bugfix/20260208_FixSenderFilterMetadata/report.md) |
+| 20260208_Project_Health_Audit | 项目健康度审计与风险评估 (Risk Assessment) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Project_Health_Audit_And_Risk_Assessment/Assessment_Report.md) |
 | 20260208_Implement_Priority_Queue | 实现多级优先级队列 (解决积压延迟) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Implement_Priority_Queue/report.md) |
 | 20260208_Investigate_Forward_Delay | 调查消息转发延迟 (积压导致) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Investigate_Forward_Delay/report.md) |
 | 20260207_Integration_Test_Mixed_Media | 混合媒体集成测试 (Listen-Filter-Forward) | 2026-02-07 | 2026-02-07 | 100% | [[report.md]](./Workstream_Testing/Task_Integration_Mixed_Media/report.md) |
@@ -114,6 +115,7 @@
 | 20260115_Web_Refactor | Web 界面简捷性能优化重构 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_UI_UX/20260115_Web_Interface_Refactor/) |
 | 20260202_Fix_Log_Duplication | 修复日志与任务重复生成问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Log_Duplication/todo.md) |
 | 20260203_Fix_NewMenuSystem_Error | 修复 NewMenuSystem AttributeError | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./Workstream_Maintenance/20260203_Fix_NewMenuSystem_AttributeError/todo.md) |
+| 20260208_Refactor_Menu_System | 菜单系统策略模式重构与净化 (Strategy Pattern) | 2026-02-08 | 进行中 | 0% | [[todo.md]](./Workstream_Core_Engineering/20260208_Refactor_Menu_System_And_Handler_Purity/todo.md) |
 | 20260203_Fix_Update_Comparison | 优化更新比对逻辑 (解决误报更新) | 2026-02-03 | 2026-02-03 | 100% | [📂 查看](./Workstream_Maintenance/20260203_Fix_Update_Comparison/todo.md) |
 | 20260202_Menu_Structural_Fix | 菜单系统架构重构与方法补全 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Menu_Structural_Fix/todo.md) |
 | 20260202_Fix_JSON_Serialization_Error | 修复 JSON 序列化失败 (Object of type function) | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_JSON_Serialization_Error/todo.md) |
@@ -157,6 +159,8 @@
 | 20260206_Verify_Archive_Tests | 归档系统单元测试与集成测试验证 | 2026-02-06 | 进行中 | 10% | [[todo.md]](./Workstream_Maintenance/20260206_Verify_Archive_Tests/todo.md) |
 | 20260208_LogAnalysis_P1 | 20260208 日志深度分析与异常诊断 | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260208_LogAnalysis_P1/todo.md) |
 | 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
+| 20260209_Controller_and_View_Modularization | 控制器与视图模块化重构 (CVM) | 2026-02-09 | 已完成 | 100% | [[todo.md]](./Workstream_Core_Engineering/20260209_Controller_and_View_Modularization/todo.md) |
+| 20260208_Unified_Command_Menu_UI | 统一命令与菜单系统 UI (视觉与交互对齐) | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_UI/20260208_Unified_Command_Menu_System/todo.md) |
 
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 

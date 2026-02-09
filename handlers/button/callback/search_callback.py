@@ -354,6 +354,20 @@ def get_search_callback_handler() -> SearchCallbackHandler:
 
 
 async def handle_search_callback(event, **kwargs):
-    """处理搜索回调的包装函数，供外部调用"""
-    handler = get_search_callback_handler()
-    return await handler.handle_search_callback(event)
+    """处理搜索回调的包装函数，供外部调用 - Refactored to use Strategy Registry"""
+    try:
+        data = event.data.decode("utf-8")
+        parts = data.split(":")
+        action = parts[0]
+
+        from handlers.button.strategies import MenuHandlerRegistry
+
+        if await MenuHandlerRegistry.dispatch(event, action, data=data, **kwargs):
+            return
+
+        logger.warning(f"SearchCallbackWrapper: No strategy found for action {action}")
+        await event.answer("⚠️ 未知搜索指令", alert=True)
+
+    except Exception as e:
+        logger.error(f"处理搜索回调失败: {e}", exc_info=True)
+        await event.answer("⚠️ 系统繁忙", alert=True)

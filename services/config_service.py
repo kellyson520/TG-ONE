@@ -17,7 +17,7 @@ class _AsyncDbProvider:
     """异步数据库配置提供者"""
     async def get(self, key: str) -> Optional[Any]:
         from core.container import container
-        async with container.db.session() as s:
+        async with container.db.get_session() as s:
             stmt = select(SystemConfiguration).filter(SystemConfiguration.key == key)
             result = await s.execute(stmt)
             cfg = result.scalar_one_or_none()
@@ -53,7 +53,7 @@ class _AsyncDbProvider:
             v = str(value)
             
         from core.container import container
-        async with container.db.session() as s:
+        async with container.db.get_session() as s:
             stmt = select(SystemConfiguration).filter(SystemConfiguration.key == key)
             result = await s.execute(stmt)
             cfg = result.scalar_one_or_none()
@@ -70,7 +70,7 @@ class _AsyncDbProvider:
     async def get_all(self) -> Dict[str, Any]:
         result = {}
         from core.container import container
-        async with container.db.session() as s:
+        async with container.db.get_session() as s:
             stmt = select(SystemConfiguration)
             rows = (await s.execute(stmt)).scalars().all()
             for cfg in rows:

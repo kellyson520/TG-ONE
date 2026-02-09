@@ -21,7 +21,7 @@ def retry_on_db_lock(
     Usage:
         @retry_on_db_lock(retries=3)
         async def save_data(data):
-            async with db.session() as session:
+            async with db.get_session() as session:
                 ...
     """
     def decorator(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., Coroutine[Any, Any, T]]:

@@ -382,11 +382,11 @@ class SmartDeduplicator:
             
             # 6. 内存 L1 滚动淘汰 (防止 OOM)
             max_sig_size = config.get("max_signature_cache_size", 5000)
-            if len(self.time_window_cache[cid]) > max_sig_size:
+            if cid in self.time_window_cache and len(self.time_window_cache[cid]) > max_sig_size:
                 self.time_window_cache[cid].popitem(last=False)
                 
             max_hash_size = config.get("max_content_hash_cache_size", 2000)
-            if len(self.content_hash_cache[cid]) > max_hash_size:
+            if cid in self.content_hash_cache and len(self.content_hash_cache[cid]) > max_hash_size:
                 self.content_hash_cache[cid].popitem(last=False)
 
             # 确保后台刷写任务启动

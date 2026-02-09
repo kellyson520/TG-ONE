@@ -38,7 +38,7 @@ async def handle_message_link(client, event):
         return
 
     # 查找匹配的规则
-    async with container.db.session() as session:
+    async with container.db.get_session() as session:
         # 查找是否存在对应的 Chat 记录
         if isinstance(source_chat_id, int):
             stmt = select(Chat).where(Chat.telegram_chat_id == str(source_chat_id))

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 async def callback_settings(event, rule_id, session, message, data):
     """处理显示设置的回调"""
-    async def _do(s):
+    async with container.db.get_session(session) as s:
         current_chat = await event.get_chat()
         
         stmt = select(Chat).where(Chat.telegram_chat_id == str(current_chat.id))
@@ -45,15 +45,9 @@ async def callback_settings(event, rule_id, session, message, data):
 
         await message.edit("请选择要管理的转发规则:", buttons=buttons)
 
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
-
 async def callback_rule_settings(event, rule_id, session, message, data):
     """处理规则设置的回调"""
-    async def _do(s):
+    async with container.db.get_session(session) as s:
         # 使用 selectinload 预加载 source_chat 和 target_chat，防止 MissingGreenlet
         stmt = (
             select(ForwardRule)
@@ -77,12 +71,6 @@ async def callback_rule_settings(event, rule_id, session, message, data):
             return
         await message.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
 
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
-
 async def callback_set_delay_time(event, rule_id, session, message, data):
     await event.edit(
         "请选择延迟时间：", buttons=await create_delay_time_buttons(rule_id, page=0)
@@ -103,7 +91,7 @@ async def callback_select_delay_time(event, rule_id, session, message, data):
         _, rule_id, time = parts
         logger.info(f"设置规则 {rule_id} 的延迟时间为: {time}")
         try:
-            async def _do(s):
+            async with container.db.get_session(session) as s:
                 # 使用 selectinload 预加载关联
                 stmt = (
                     select(ForwardRule)
@@ -127,28 +115,24 @@ async def callback_select_delay_time(event, rule_id, session, message, data):
                     await s.commit()
                     msg_obj = await event.get_message()
                     await msg_obj.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
-            if session is None:
-                async with container.db.session() as s: await _do(s)
-            else:
-                await _do(session)
         except Exception as e:
             logger.error(f"设置延迟时间时出错: {str(e)}")
     return
 
 async def update_rule_setting(
-    event, rule_id, message, field_name, config, setting_type
+    event, rule_id, message, field_name, config, setting_type, session=None
 ):
     """通用的规则设置更新函数"""
     logger.info(f"找到匹配的设置项: {field_name}")
 
-    async with container.db.session() as session:
+    async with container.db.get_session(session) as s:
         # 1. 加载主规则 (仅预加载必要的同步信息)
         stmt = (
             select(ForwardRule)
             .options(selectinload(ForwardRule.rule_syncs))
             .where(ForwardRule.id == int(rule_id))
         )
-        result = await session.execute(stmt)
+        result = await s.execute(stmt)
         rule = result.scalar_one_or_none()
         
         if not rule:
@@ -174,13 +158,12 @@ async def update_rule_setting(
                         .where(ForwardRule.id.in_(target_ids))
                         .values({field_name: new_value})
                     )
-                    await session.execute(sync_stmt)
+                    await s.execute(sync_stmt)
 
-            await session.commit()
+            await s.commit()
             logger.info(f"已更新规则 {rule_id} 及其同步规则: {field_name}={new_value}")
 
         except Exception as e:
-            await session.rollback()
             logger.error(f"更新规则设置失败: {e}")
             await event.answer("更新失败")
             return False
@@ -189,10 +172,10 @@ async def update_rule_setting(
         # 性能优化：按需加载关联，而不是 selectinload(*)
         if setting_type == "rule":
              # 规则设置界面需要加载 source/target_chat
-             await session.refresh(rule, ["source_chat", "target_chat"])
+             await s.refresh(rule, ["source_chat", "target_chat"])
              await message.edit(await create_settings_text(rule), buttons=await create_buttons(rule))
         elif setting_type == "media":
-             await session.refresh(rule, ["media_types", "media_extensions"])
+             await s.refresh(rule, ["media_types", "media_extensions"])
              await event.edit("媒体设置：", buttons=await create_media_settings_buttons(rule))
         elif setting_type == "ai":
              await message.edit(await get_ai_settings_text(rule), buttons=await create_ai_settings_buttons(rule))
@@ -200,8 +183,8 @@ async def update_rule_setting(
              # 其他设置通常不需要预加载复杂关联
              await event.edit("其他设置：", buttons=await create_other_settings_buttons(rule))
         elif setting_type == "push":
-             await session.refresh(rule, ["push_config"])
-             await event.edit(PUSH_SETTINGS_TEXT, buttons=await create_push_settings_buttons(rule), link_preview=False)
+             await s.refresh(rule, ["push_config"])
+             await event.edit(PUSH_SETTINGS_TEXT, buttons=await create_push_settings_buttons(rule, session=s), link_preview=False)
 
         await event.answer(f"已更新 {config.get('display_name', field_name)}")
         return True

@@ -134,7 +134,7 @@ class SystemService:
                 # Standard 模式：执行 PRAGMA optimize
                 from core.container import container
                 from sqlalchemy import text
-                async with container.db.session() as session:
+                async with container.db.get_session() as session:
                     await session.execute(text("PRAGMA optimize;"))
                     await session.commit()
             

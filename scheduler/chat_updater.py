@@ -80,7 +80,7 @@ class ChatUpdater:
         """异步更新所有聊天信息"""
         logger.info("开始更新所有聊天信息...")
         
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             try:
                 # 分批/限量获取聊天，避免一次性大量请求触发 FloodWait
                 update_limit = settings.CHAT_UPDATE_LIMIT

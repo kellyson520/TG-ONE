@@ -74,7 +74,7 @@ class ChatInfoService:
             from core.helpers.id_utils import build_candidate_telegram_ids
             candidates = list(build_candidate_telegram_ids(chat_id))
             
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 stmt = select(Chat).where(Chat.telegram_chat_id.in_(candidates))
                 chat = (await session.execute(stmt)).scalars().first()
                 if chat and chat.name:
@@ -92,7 +92,7 @@ class ChatInfoService:
             from core.helpers.id_utils import normalize_chat_id
             norm_id = normalize_chat_id(chat_id)
             
-            async with self.db.session() as session:
+            async with self.db.get_session() as session:
                 stmt = select(Chat).filter_by(telegram_chat_id=norm_id)
                 chat = (await session.execute(stmt)).scalars().first()
                 

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 async def callback_delete(event, rule_id, session, message, data):
     """处理删除规则的回调"""
-    async def _do(s):
+    async with container.db.get_session(session) as s:
         if not rule_id:
             await event.answer("无效的规则ID", alert=True)
             return
@@ -42,18 +42,14 @@ async def callback_delete(event, rule_id, session, message, data):
                 logger.warning(f"删除RSS数据遇到错误 (由于规则已删除，可忽略): {e}")
 
         except Exception as e:
-            await s.rollback()
+            # Note: commit/rollback handled by get_session if transaction started, 
+            # but we can explicitly rollback here for clarity.
             logger.error(f"删除规则时出错: {str(e)}")
             await event.answer("删除规则失败")
             return
 
-        await check_and_clean_chats(rule_obj)
+        await check_and_clean_chats(s, rule_obj)
         await message.delete()
         await respond_and_delete(event, ("✅ 已删除规则"))
         await event.answer("已删除规则")
-
-    if session is None:
-        async with container.db.session() as s:
-            await _do(s)
-    else:
-        await _do(session)
+    return

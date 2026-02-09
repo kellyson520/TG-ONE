@@ -53,7 +53,7 @@ class ForwardSettingsService:
             "HISTORY_MESSAGE_LIMIT": 0,
         }
 
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             try:
                 result = await session.execute(
                     select(SystemConfiguration).filter(
@@ -79,7 +79,7 @@ class ForwardSettingsService:
         if self._global_settings is None:
             return
 
-        async with container.db.session() as session:
+        async with container.db.get_session() as session:
             try:
                 result = await session.execute(
                     select(SystemConfiguration).filter(

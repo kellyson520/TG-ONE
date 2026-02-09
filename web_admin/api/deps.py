@@ -59,4 +59,4 @@ def get_exception_handler():
 
 def get_db():
     return container.db 
-    # This is container.db instance, to get session use async with container.db.session()
+    # This is container.db instance, to get session use async with container.db.get_session()

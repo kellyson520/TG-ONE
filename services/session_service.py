@@ -659,7 +659,7 @@ class SessionService:
             from sqlalchemy.orm import selectinload
             from sqlalchemy import select
             
-            async with container.db.session() as session:
+            async with container.db.get_session() as session:
                 # 预加载关联的聊天和关键字
                 stmt = select(ForwardRule).options(
                     selectinload(ForwardRule.source_chat),

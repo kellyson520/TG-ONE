@@ -164,7 +164,7 @@ class AnalyticsService:
             db_status = "running"
             from core.container import container
             try:
-                async with container.db.session() as session:
+                async with container.db.get_session() as session:
                     from sqlalchemy import select, func
                     from models.models import ForwardRule, RuleLog
                     
@@ -292,7 +292,7 @@ class AnalyticsService:
             from sqlalchemy import select, func
             from models.models import RuleLog, ChatStatistics
 
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 # 1. 统计总转发数和错误数 (从 RuleLog)
                 stats_stmt = (
                     select(
@@ -351,7 +351,7 @@ class AnalyticsService:
             from sqlalchemy import select
             
             top_rules = []
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 stmt = (
                     select(RuleStatistics, ForwardRule)
                     .join(ForwardRule, RuleStatistics.rule_id == ForwardRule.id)
@@ -464,7 +464,7 @@ class AnalyticsService:
             from sqlalchemy import select, func
             from models.models import RuleLog, MediaSignature
             
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 log_count = (await session.execute(select(func.count(RuleLog.id)))).scalar() or 0
                 sig_count = (await session.execute(select(func.count(MediaSignature.id)))).scalar() or 0
                 
@@ -495,7 +495,7 @@ class AnalyticsService:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
             
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 # 1. 按日期统计转发数
                 daily_stats = []
                 for i in range(days):
@@ -571,7 +571,7 @@ class AnalyticsService:
             from sqlalchemy import select, or_
             from models.models import RuleLog
             
-            async with self.container.db.session() as session:
+            async with self.container.db.get_session() as session:
                 # 搜索规则日志
                 stmt = select(RuleLog).filter(
                     or_(
