@@ -67,10 +67,10 @@ tests_output.txt
 !requirements.txt
 !requirements-dev.txt
 
-# Debug scripts
-debug_*.py
-check_*.py
-fix_*.py
-repair_*.py
-test_*.py
-!tests/
+# Debug scripts (only at root)
+/debug_*.py
+/check_*.py
+/fix_*.py
+/repair_*.py
+/test_*.py
+!/tests/
