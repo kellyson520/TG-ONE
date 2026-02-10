@@ -117,11 +117,17 @@ async def main():
         logger.critical("🚨 [FATAL] 优雅关闭严重超时 (40s)，强行终止进程！")
         import os
         os._exit(lifecycle.exit_code or 10)
-    except Exception as e:
-        logger.error(f"关闭过程中发生错误: {e}")
-    
     # 6. 返回退出码
-    return lifecycle.exit_code
+    exit_code = lifecycle.exit_code
+    logger.info(f"主程序退出, 退出码: {exit_code}")
+    
+    # 如果是更新，强行调用 os._exit 以确保守护进程能即时捕获，防止 asyncio.run 清理挂起
+    if exit_code == 10:
+        logger.warning("🚀 正在通过 os._exit(10) 强制退出以触发系统更新...")
+        import os
+        os._exit(10)
+        
+    return exit_code
 
 if __name__ == '__main__':
     try:

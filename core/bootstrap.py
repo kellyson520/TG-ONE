@@ -257,11 +257,17 @@ class Bootstrap:
             try:
                 if not ResourceGate.check_memory_safe():
                     logger.critical("⚠️ Memory limit exceeded! System stability at risk.")
-                    # Future: trigger self.coordinator.shutdown() if strict mode enabled
+                # 使用 wait_for 或 sleep 并捕获取消
                 await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                logger.info("资源监控器已停止 (取消)")
+                break
             except Exception as e:
-                logger.error(f"Resource monitor error: {e}")
-                await asyncio.sleep(60)
+                logger.error(f"资源监控器异常: {e}")
+                try:
+                    await asyncio.sleep(10)
+                except asyncio.CancelledError:
+                    break
     def _register_shutdown_hooks(self) -> None:
         # Priority 0: Stop accepting requests
         async def _stop_accepting_requests() -> None:
