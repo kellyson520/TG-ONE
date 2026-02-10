@@ -50,7 +50,7 @@ class SleepManager:
         logger.info("SleepManager: Monitor started.")
         while True:
             try:
-                await asyncio.sleep(60)
+                await asyncio.sleep(5)
                 if self._is_sleeping:
                     continue
                 if time.time() - self._last_activity > self.SLEEP_TIMEOUT:

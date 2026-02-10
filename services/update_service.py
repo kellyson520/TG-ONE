@@ -276,7 +276,8 @@ class UpdateService:
         await self.verify_update_health()
 
         # 1. 始终启动: 外部信号监听
-        t1 = asyncio.create_task(self._watch_external_signals(), name="update_signal_watcher")
+        from services.exception_handler import exception_handler
+        t1 = exception_handler.create_task(self._watch_external_signals(), name="update_signal_watcher")
         self._tasksList.append(t1)
 
         # 2. 条件启动: 自动更新检查
@@ -286,7 +287,7 @@ class UpdateService:
 
         logger.info(f"自动更新已开启，检查间隔: {settings.UPDATE_CHECK_INTERVAL} 秒")
         # 启动周期性检查循环
-        t2 = asyncio.create_task(self._run_periodic_update_check(), name="periodic_update_check")
+        t2 = exception_handler.create_task(self._run_periodic_update_check(), name="periodic_update_check")
         self._tasksList.append(t2)
 
     async def _watch_external_signals(self):

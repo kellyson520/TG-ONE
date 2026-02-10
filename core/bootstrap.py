@@ -1,5 +1,6 @@
 
 import asyncio
+from datetime import datetime
 from telethon import TelegramClient
 
 from core.config import settings
@@ -273,6 +274,14 @@ class Bootstrap:
         async def _stop_accepting_requests() -> None:
             set_ready(False)
             logger.info("系统已标记为非就绪状态")
+            
+            # 发送预关闭广播，允许各组件执行最后的异步持久化项
+            try:
+                from core.container import container
+                if container.event_bus:
+                    await container.event_bus.emit("SYSTEM_SHUTDOWN_STARTING", {"time": str(datetime.utcnow())})
+            except Exception as e:
+                logger.error(f"发送预关闭广播失败: {e}")
         
         self.coordinator.register_cleanup(_stop_accepting_requests, priority=0, timeout=2.0)
         
@@ -304,10 +313,21 @@ class Bootstrap:
         
         # Priority 3: Disconnect Clients
         async def _disconnect_clients() -> None:
-            if self.user_client and self.user_client.is_connected():
-                await self.user_client.disconnect()
-            if self.bot_client and self.bot_client.is_connected():
-                await self.bot_client.disconnect()
+            async def _safe_dc(client, name):
+                if client and client.is_connected():
+                    try:
+                        logger.info(f"正在断开 {name} 客户端...")
+                        await asyncio.wait_for(client.disconnect(), timeout=4.0)
+                        logger.info(f"{name} 客户端已安全断开")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"{name} 客户端断开超时 (4s)，强制跳过")
+                    except Exception as e:
+                        logger.error(f"断开 {name} 时发生错误: {e}")
+
+            await asyncio.gather(
+                _safe_dc(self.user_client, "User"),
+                _safe_dc(self.bot_client, "Bot")
+            )
         
         self.coordinator.register_cleanup(_disconnect_clients, priority=3, timeout=5.0, name="telegram_clients")
 

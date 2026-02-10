@@ -130,16 +130,70 @@ async def main():
     return exit_code
 
 if __name__ == '__main__':
+    # 1. 创建并设置事件循环
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # 设置自定义异常处理器以减少退出时的噪音
+    def _loop_exception_handler(loop, context):
+        msg = context.get("message")
+        # 忽略退出阶段常见的“任务被取消”或“Socket 已关闭”的次要错误
+        if any(x in msg for x in ["Task was destroyed", "Event loop is closed", "CancelledError"]):
+            return
+        logger.error(f"事件循环未处理异常: {context}")
+        
+    loop.set_exception_handler(_loop_exception_handler)
+    
+    exit_code = 0
     try:
-        # 获取由 main() 返回的退出码
-        exit_code = asyncio.run(main())
-        sys.exit(exit_code or 0)
+        # 2. 运行主函数
+        exit_code = loop.run_until_complete(main())
     except KeyboardInterrupt:
-        # 捕获最外层的 KeyboardInterrupt (如 Windows 下的 Ctrl+C)
-        sys.exit(0)
+        logger.info("主程序捕获到键盘中断")
     except SystemExit as e:
-        # 如果 main() 或其调用的函数直接调用了 sys.exit
-        sys.exit(e.code)
+        exit_code = e.code
     except Exception as e:
-        logger.critical(f"Fatal startup error: {e}", exc_info=True)
-        sys.exit(1)
+        logger.critical(f"系统遭遇致命错误: {e}", exc_info=True)
+        exit_code = 1
+    finally:
+        # 3. 完美退出序列 (Perfect Teardown)
+        start_time = asyncio.get_event_loop().time()
+        logger.info("开始执行完美退出序列 (Perfect Teardown Sequence)...")
+        
+        try:
+            # Step A: 取消所有未完成的任务 (Task Registry)
+            logger.info("[Shutdown 1/4] 正在清理后台任务注册表...")
+            from services.exception_handler import exception_handler
+            loop.run_until_complete(exception_handler.cancel_all_managed_tasks(timeout=5.0))
+            
+            # Step B: 销毁异步生成器
+            logger.info("[Shutdown 2/4] 正在清理异步生成器...")
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            
+            # Step C: 关闭默认执行器 (线程池)
+            logger.info("[Shutdown 3/4] 正在关闭系统执行器线程池...")
+            loop.shutdown_default_executor()
+            
+            # Step D: 关闭循环
+            logger.info("[Shutdown 4/4] 正在释放事件循环资源...")
+            loop.close()
+            
+        except Exception as e:
+            print(f"退出序列中发生异常 (已忽略): {e}")
+            
+        end_time = time.time() if 'time' in sys.modules else asyncio.get_event_loop().time() # fallback
+        try:
+            import time
+            duration = time.time() - start_time # Simple approximation
+            logger.info(f"✨ 完美退出序列执行完毕, 耗时: {duration:.2f}s")
+        except:
+            logger.info("✨ 完美退出序列执行完毕")
+            
+        if os.getenv("DEBUG_SHUTDOWN_HANG") == "1":
+            logger.warning("🛠️ [DEBUG] 检测到 DEBUG_SHUTDOWN_HANG=1，系统将进入挂起等待以便人工调试...")
+            import time
+            while True:
+                time.sleep(1)
+                
+        logger.info(f"进程即将退出, 退出码: {exit_code}")
+        sys.exit(exit_code or 0)

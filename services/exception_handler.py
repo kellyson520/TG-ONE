@@ -15,8 +15,9 @@ import logging
 import traceback
 import hashlib
 from datetime import datetime, timedelta
-from typing import Callable, Dict, Optional, Any, List
+from typing import Callable, Dict, Optional, Any, List, Set, Union
 from functools import wraps
+import weakref
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +67,14 @@ class GlobalExceptionHandler:
         self._lock = asyncio.Lock()
         self._running = False
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._active_tasks: Set[asyncio.Task] = weakref.WeakSet()
     
     def start(self):
         """启动异常处理器 (启动清理任务)"""
         if self._running:
             return
         self._running = True
-        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        self._cleanup_task = self.create_task(self._cleanup_loop(), name="exception_handler_cleanup")
         logger.info("GlobalExceptionHandler started")
     
     def stop(self):
@@ -228,7 +230,8 @@ class GlobalExceptionHandler:
         coro,
         *,
         name: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
+        critical: bool = False
     ) -> asyncio.Task:
         """
         创建带异常捕捉的异步任务
@@ -239,6 +242,7 @@ class GlobalExceptionHandler:
             coro: 协程对象
             name: 任务名称
             context: 上下文信息
+            critical: 是否为关键任务 (将在退出测试中获得更高优先级或更详细日志)
             
         Returns:
             asyncio.Task 对象
@@ -252,7 +256,70 @@ class GlobalExceptionHandler:
                 await self.handle_exception(e, context, name)
                 raise  # 重新抛出以便调用者处理
         
-        return asyncio.create_task(wrapped(), name=name)
+        task = asyncio.create_task(wrapped(), name=name)
+        # 记录关键属性
+        setattr(task, '_tg_is_critical', critical)
+        setattr(task, '_tg_created_at', datetime.utcnow())
+        
+        self._active_tasks.add(task)
+        return task
+
+    async def cancel_all_managed_tasks(self, timeout: float = 5.0) -> None:
+        """
+        优雅取消并等待所有由处理器管理的任务
+        
+        Args:
+            timeout: 等待每个任务取消的超时时间
+        """
+        active = [t for t in self._active_tasks if not t.done()]
+        if not active:
+            return
+
+        logger.info(f"正在取消 {len(active)} 个活跃任务...")
+        for task in active:
+            task.cancel()
+
+        # 等待任务结束
+        try:
+            await asyncio.wait(active, timeout=timeout)
+        except asyncio.TimeoutError:
+            self.dump_stubborn_tasks()
+        except Exception as e:
+            logger.error(f"批量取消任务时发生意外错误: {e}")
+
+    def dump_stubborn_tasks(self) -> None:
+        """抓取并记录頑固任务的堆栈信息"""
+        active = [t for t in self._active_tasks if not t.done()]
+        if not active:
+            return
+            
+        logger.critical(f"🚨 检测到 {len(active)} 个顽固任务未能在预定时间内退出，正在提取堆栈信息...")
+        
+        for i, task in enumerate(active):
+            name = task.get_name() or f"Task-{id(task)}"
+            is_critical = getattr(task, '_tg_is_critical', False)
+            stack = task.get_stack()
+            
+            logger.error(f"--- 顽固任务 #{i+1} ---")
+            logger.error(f"Name: {name} (Critical: {is_critical})")
+            if stack:
+                formatted_stack = "".join(traceback.format_stack(stack[-1])) # 取最后一帧
+                logger.error(f"Last Stack Frame:\n{formatted_stack}")
+            else:
+                logger.error("No stack information available.")
+
+    def get_active_tasks_inventory(self) -> List[Dict[str, Any]]:
+        """获取当前活跃任务的清单"""
+        inventory = []
+        for task in self._active_tasks:
+            if not task.done():
+                inventory.append({
+                    "name": task.get_name(),
+                    "critical": getattr(task, '_tg_is_critical', False),
+                    "stack_depth": len(task.get_stack()) if hasattr(task, 'get_stack') else 0,
+                    "age_seconds": (datetime.utcnow() - getattr(task, '_tg_created_at', datetime.utcnow())).total_seconds()
+                })
+        return inventory
     
     def task_wrapper(self, name: Optional[str] = None):
         """
