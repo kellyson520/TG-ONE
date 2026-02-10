@@ -24,8 +24,8 @@ def migrate_db(engine):
     """数据库迁移函数，确保新字段的添加"""
     inspector = inspect(engine)
     
-    # 获取当前数据库中所有表
-    existing_tables = inspector.get_table_names()
+    # 获取当前数据库中所有表 (结果转为小写以兼容 case-insensitive 检查)
+    existing_tables = {t.lower() for t in inspector.get_table_names()}
     
     # 连接数据库
     try:
@@ -43,44 +43,44 @@ def migrate_db(engine):
             # 如果chats表不存在，创建表
             if 'chats' not in existing_tables:
                 logger.info("创建chats表...")
-                Chat.__table__.create(engine)
+                Chat.__table__.create(engine, checkfirst=True)
 
             # 如果forward_rules表不存在，创建表
             if 'forward_rules' not in existing_tables:
                 logger.info("创建forward_rules表...")
-                ForwardRule.__table__.create(engine)
+                ForwardRule.__table__.create(engine, checkfirst=True)
 
             # 如果keywords表不存在，创建表
             if 'keywords' not in existing_tables:
                 logger.info("创建keywords表...")
-                Keyword.__table__.create(engine)
+                Keyword.__table__.create(engine, checkfirst=True)
             
             # 如果replace_rules表不存在，创建表
             if 'replace_rules' not in existing_tables:
                 logger.info("创建replace_rules表...")
-                ReplaceRule.__table__.create(engine)
+                ReplaceRule.__table__.create(engine, checkfirst=True)
 
             # 如果rule_syncs表不存在，创建表
             if 'rule_syncs' not in existing_tables:
                 logger.info("创建rule_syncs表...")
-                RuleSync.__table__.create(engine)
+                RuleSync.__table__.create(engine, checkfirst=True)
 
 
             # 如果users表不存在，创建表
             if 'users' not in existing_tables:
                 logger.info("创建users表...")
-                User.__table__.create(engine)
+                User.__table__.create(engine, checkfirst=True)
 
             # 如果rss_configs表不存在，创建表
             if 'rss_configs' not in existing_tables:
                 logger.info("创建rss_configs表...")
-                RSSConfig.__table__.create(engine)
+                RSSConfig.__table__.create(engine, checkfirst=True)
                 
 
             # 如果rss_patterns表不存在，创建表
             if 'rss_patterns' not in existing_tables:
                 logger.info("创建rss_patterns表...")
-                RSSPattern.__table__.create(engine)
+                RSSPattern.__table__.create(engine, checkfirst=True)
 
             if 'audit_logs' not in existing_tables:
                 logger.info("创建audit_logs表...")
@@ -88,16 +88,16 @@ def migrate_db(engine):
 
             if 'active_sessions' not in existing_tables:
                 logger.info("创建active_sessions表...")
-                ActiveSession.__table__.create(engine)
+                ActiveSession.__table__.create(engine, checkfirst=True)
 
             # 如果push_configs表不存在，创建表
             if 'push_configs' not in existing_tables:
                 logger.info("创建push_configs表...")
-                PushConfig.__table__.create(engine)
+                PushConfig.__table__.create(engine, checkfirst=True)
             # 如果media_signatures表不存在，创建表
             if 'media_signatures' not in existing_tables:
                 logger.info("创建media_signatures表...")
-                MediaSignature.__table__.create(engine)
+                MediaSignature.__table__.create(engine, checkfirst=True)
                 
             # 创建新的统计和管理表
             new_tables = {
@@ -116,17 +116,17 @@ def migrate_db(engine):
             # 如果forward_mappings表不存在，创建表
             if 'forward_mappings' not in existing_tables:
                 logger.info("创建forward_mappings表...")
-                ForwardMapping.__table__.create(engine)
+                ForwardMapping.__table__.create(engine, checkfirst=True)
 
             # 如果rss_subscriptions表不存在，创建表
             if 'rss_subscriptions' not in existing_tables:
                 logger.info("创建rss_subscriptions表...")
-                RSSSubscription.__table__.create(engine)
+                RSSSubscription.__table__.create(engine, checkfirst=True)
 
             # 创建ACL表
             if 'access_control_list' not in existing_tables:
                 logger.info("创建access_control_list表...")
-                AccessControlList.__table__.create(engine)
+                AccessControlList.__table__.create(engine, checkfirst=True)
             
             # 补充现有表的新字段
             try:

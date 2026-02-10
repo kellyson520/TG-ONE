@@ -7,7 +7,7 @@ from core.container import container
 from core.helpers.id_utils import find_chat_by_telegram_id_variants
 from handlers.button.settings_manager import create_buttons, create_settings_text, get_ai_settings_text, create_ai_settings_buttons
 from handlers.button.button_helpers import create_delay_time_buttons, create_other_settings_buttons, create_media_settings_buttons, create_push_settings_buttons
-from core.constants import PUSH_SETTINGS_TEXT
+from ui.constants import PUSH_SETTINGS_TEXT
 
 logger = logging.getLogger(__name__)
 

@@ -109,10 +109,12 @@ class SmartDeduplicator:
         if chat_id not in self.lsh_forests:
             try:
                 from core.algorithms.lsh_forest import LSHForest
-                self.lsh_forests[chat_id] = LSHForest(num_trees=4, prefix_length=64)
+                # 在分配前先创建，防止中途被清空导致的 KeyError
+                forest = LSHForest(num_trees=4, prefix_length=64)
+                self.lsh_forests[chat_id] = forest
             except Exception:
                 return None
-        return self.lsh_forests[chat_id]
+        return self.lsh_forests.get(chat_id)
 
     @property
     def repo(self):
@@ -294,10 +296,11 @@ class SmartDeduplicator:
         )
 
     async def record_message(self, message_obj, chat_id: int, signature: str = None, content_hash: str = None):
-        """兼容性接口: 记录消息指纹"""
-        ctx = self._create_context(message_obj, chat_id)
-        # 如果传入了特定的指纹，强制使用
-        await self._record_message(ctx, signature, content_hash)
+        """兼容性接口: 记录消息指纹 (包含锁定支持)"""
+        async with await self._get_chat_lock(chat_id):
+            ctx = self._create_context(message_obj, chat_id)
+            # 如果传入了特定的指纹，强制使用
+            await self._record_message(ctx, signature, content_hash)
 
     # 别名兼容
     _record_message_legacy = record_message

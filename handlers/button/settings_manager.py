@@ -168,11 +168,11 @@ RULE_SETTINGS = {
 }
 
 async def get_media_settings_text():
-    from core.constants import MEDIA_SETTINGS_TEXT
+    from ui.constants import MEDIA_SETTINGS_TEXT
     return MEDIA_SETTINGS_TEXT
 
 async def get_ai_settings_text(rule):
-    from core.constants import AI_SETTINGS_TEXT
+    from ui.constants import AI_SETTINGS_TEXT
     ai_prompt = rule.ai_prompt or settings.DEFAULT_AI_PROMPT
     summary_prompt = rule.summary_prompt or settings.DEFAULT_SUMMARY_PROMPT
     return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt)

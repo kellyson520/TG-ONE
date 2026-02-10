@@ -10,7 +10,6 @@ async def init_db_tables(db_url: str) -> None:
     异步创建所有数据库表
     """
     logger.info("Initializing database tables...")
-    logger.info("Initializing database tables...")
     
     # [Pre-flight] 执行数据库健康检查与修复
     try:
@@ -27,9 +26,13 @@ async def init_db_tables(db_url: str) -> None:
         
         # 构造同步 URL 用于迁移
         sync_db_url = db_url.replace('+aiosqlite', '').replace('+asyncpg', '')
-        if 'sqlite' in sync_db_url and 'check_same_thread' not in sync_db_url:
-            # 简单的 sqlite url 不需要额外参数，create_engine 会处理
-            pass
+        if 'sqlite' in sync_db_url:
+            # 确保使用绝对路径，避免由于 CWD 不同导致操作不同数据库文件
+            from pathlib import Path
+            from core.config import settings
+            db_path = settings.DB_DIR / "forward.db"
+            sync_db_url = f"sqlite:///{db_path.as_posix()}"
+            logger.info(f"[Fix] 使用绝对路径同步引擎: {sync_db_url}")
             
         logger.info(f"Running schema migration with sync engine: {sync_db_url}")
         sync_engine = create_engine(sync_db_url)
@@ -45,7 +48,8 @@ async def init_db_tables(db_url: str) -> None:
         db = Database(db_url)
         async with db.engine.begin() as conn:
             # run_sync 允许在异步上下文中执行同步的 DDL 操作
-            await conn.run_sync(Base.metadata.create_all)
+            # 显式指定 checkfirst=True (默认其实就是 True)
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         await db.close()
         logger.info("Database tables verified/created successfully.")
     except Exception as e:
@@ -54,6 +58,7 @@ async def init_db_tables(db_url: str) -> None:
 
 if __name__ == "__main__":
     import asyncio
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # 从配置读取 URL
     # 从配置读取 URL
     from core.config import settings

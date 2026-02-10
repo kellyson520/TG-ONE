@@ -278,8 +278,9 @@ class Bootstrap:
             # 发送预关闭广播，允许各组件执行最后的异步持久化项
             try:
                 from core.container import container
-                if container.event_bus:
-                    await container.event_bus.emit("SYSTEM_SHUTDOWN_STARTING", {"time": str(datetime.utcnow())})
+                bus = getattr(container, 'bus', None)
+                if bus:
+                    await bus.emit("SYSTEM_SHUTDOWN_STARTING", {"time": str(datetime.utcnow())})
             except Exception as e:
                 logger.error(f"发送预关闭广播失败: {e}")
         

@@ -1,5 +1,6 @@
 import logging
 import traceback
+from telethon import events
 from .base import BaseMenuHandler
 from .registry import MenuHandlerRegistry
 from core.container import container

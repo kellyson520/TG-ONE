@@ -15,7 +15,7 @@ from models.models import (
 from core.helpers.common import (
     is_admin,
 )
-from core.constants import PUSH_SETTINGS_TEXT
+from ui.constants import PUSH_SETTINGS_TEXT
 from handlers.button.button_helpers import (
     create_push_config_details_buttons,
     create_push_settings_buttons,
