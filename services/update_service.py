@@ -211,7 +211,8 @@ class UpdateService:
 
             logger.info("⚙️ [更新] 正在应用数据库迁移...")
             alembic_ini = settings.BASE_DIR / "alembic.ini"
-            if alembic_ini.exists():
+            alembic_dir = settings.BASE_DIR / "alembic"
+            if alembic_ini.exists() and alembic_dir.exists():
                 try:
                     process = await asyncio.create_subprocess_exec(
                         "alembic", "upgrade", "head",

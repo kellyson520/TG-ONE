@@ -4,6 +4,7 @@ TG ONE Refactored Entry Point
 """
 import asyncio
 import os
+import time
 import platform
 import signal
 import sys
@@ -108,14 +109,12 @@ async def main():
         logger.info("KeyboardInterrupt in loop")
         handle_signal()
             
-    # 5. 优雅关闭
-    logger.info("正在执行主程序退出流程...")
+    # 给优雅关闭一个总的硬超时 (40秒)，防止底层库死锁
     try:
         # 给优雅关闭一个总的硬超时 (40秒)，防止底层库死锁
         await asyncio.wait_for(lifecycle.stop(), timeout=40.0)
     except asyncio.TimeoutError:
         logger.critical("🚨 [FATAL] 优雅关闭严重超时 (40s)，强行终止进程！")
-        import os
         os._exit(lifecycle.exit_code or 10)
     # 6. 返回退出码
     exit_code = lifecycle.exit_code
@@ -124,7 +123,6 @@ async def main():
     # 如果是更新，强行调用 os._exit 以确保守护进程能即时捕获，防止 asyncio.run 清理挂起
     if exit_code == 10:
         logger.warning("🚀 正在通过 os._exit(10) 强制退出以触发系统更新...")
-        import os
         os._exit(10)
         
     return exit_code
@@ -138,7 +136,7 @@ if __name__ == '__main__':
     def _loop_exception_handler(loop, context):
         msg = context.get("message")
         # 忽略退出阶段常见的“任务被取消”或“Socket 已关闭”的次要错误
-        if any(x in msg for x in ["Task was destroyed", "Event loop is closed", "CancelledError"]):
+        if msg and any(x in msg for x in ["Task was destroyed", "Event loop is closed", "CancelledError"]):
             return
         logger.error(f"事件循环未处理异常: {context}")
         
@@ -172,7 +170,7 @@ if __name__ == '__main__':
             
             # Step C: 关闭默认执行器 (线程池)
             logger.info("[Shutdown 3/4] 正在关闭系统执行器线程池...")
-            loop.shutdown_default_executor()
+            loop.run_until_complete(loop.shutdown_default_executor())
             
             # Step D: 关闭循环
             logger.info("[Shutdown 4/4] 正在释放事件循环资源...")
@@ -181,13 +179,9 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"退出序列中发生异常 (已忽略): {e}")
             
-        end_time = time.time() if 'time' in sys.modules else asyncio.get_event_loop().time() # fallback
-        try:
-            import time
-            duration = time.time() - start_time # Simple approximation
-            logger.info(f"✨ 完美退出序列执行完毕, 耗时: {duration:.2f}s")
-        except:
-            logger.info("✨ 完美退出序列执行完毕")
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.info(f"✨ 完美退出序列执行完毕, 耗时: {duration:.2f}s")
             
         if os.getenv("DEBUG_SHUTDOWN_HANG") == "1":
             logger.warning("🛠️ [DEBUG] 检测到 DEBUG_SHUTDOWN_HANG=1，系统将进入挂起等待以便人工调试...")

@@ -48,5 +48,8 @@
 - [x] 验证顽固任务的诊断输出逻辑。
 - [x] 跨平台逻辑审计 (已确保在 Win/Linux 下一致性)。
 - [x] 重构 `os._exit` 逻辑作为 T+40s 的终极物理熔断器。
+- [x] 修复 `main.py` 中的 `UnboundLocalError (os)`, `NameError (time)`, `RuntimeWarning (executor)`。
+- [x] 修复 `_loop_exception_handler` 在 `msg is None` 时的崩溃。
+- [x] 增强 `UpdateService` 对 `Alembic` 目录的校验，防止在目录缺失时报错。
 - [x] 审计各组件对 `CancelledError` 的处理。
 - [x] 执行更新模拟测试，验证退出并触发更新的流畅度。

@@ -15,7 +15,7 @@ description: 强制执行项目工作空间整洁规范，防止临时测试文�
 
 ## 1. 严格白名单 (Root Whitelist)
 只有以下目录/文件允许存在于根目录：
-- **目录**: `src/`, `docs/`, `tests/`, `.agent/`, `models/`, `services/`, `utils/`, `handlers/`, `core/`, `web_admin/`, `db/`, `migrations/`, `logs/`, `config/`, `enums/`, `schemas/`, `repositories/`, `listeners/`, `filters/`, `scheduler/`, `middlewares/`, `ai/`, `api/`, `controllers/`, `rss/`, `ui/`, `zhuanfaji/`, `data/`, `managers/`, `scripts/`, `ufb/`.
+- **目录**: `src/`, `docs/`, `tests/`, `.agent/`, `models/`, `services/`, `utils/`, `handlers/`, `core/`, `web_admin/`, `db/`, `migrations/`, `alembic/`, `logs/`, `config/`, `enums/`, `schemas/`, `repositories/`, `listeners/`, `filters/`, `scheduler/`, `middlewares/`, `ai/`, `api/`, `controllers/`, `rss/`, `ui/`, `zhuanfaji/`, `data/`, `managers/`, `scripts/`, `ufb/`.
 - **核心配置文件**: `.gitignore`, `.dockerignore`, `.secret_key`, `requirements.txt`, `AGENTS.md`, `README.md`, `version.py`, `main.py`, `pytest.ini`, `alembic.ini`, `docker-compose.yml`, `Dockerfile`.
 
 ## 2. 禁令 (Forbidden)
