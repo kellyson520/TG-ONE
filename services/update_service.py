@@ -57,7 +57,7 @@ class UpdateService:
         return shutil.which("git") is not None
 
     async def get_current_version(self) -> str:
-        """获取当前系统版本 (Git SHA 或 状态文件记录)"""
+        """获取当前系统版本 (Git SHA -> VERSION 文件 -> 状态文件)"""
         if self._is_git_repo:
             try:
                 process = await asyncio.create_subprocess_exec(
@@ -68,13 +68,14 @@ class UpdateService:
                 )
                 out, _ = await process.communicate()
                 if process.returncode == 0:
-                    return out.decode().strip()
+                    sha = out.decode().strip()
+                    if sha: return sha
             except Exception:
                 pass
         
-        # Fallback to state
+        # 2. 从状态文件读取 (Non-Git Fallback)
         state = self._get_state()
-        return state.get("current_version", "")[:8]
+        return state.get("current_version", "unknown")[:8]
 
     def _get_state(self) -> Dict:
         """从状态文件读取更新历史"""
@@ -130,7 +131,15 @@ class UpdateService:
                 # 旋转备份
                 self._rotate_backups(db_backup_path.parent, "bot.db.*.bak", settings.UPDATE_BACKUP_LIMIT)
 
-            # 2. 写入状态锁
+            # 2. 如果非 Git 环境，先行通过 Python 下载代码
+            if not self._git_available or not self._is_git_repo:
+                logger.warning("⚠️ [更新] 检测到非 Git 环境，将先行执行 HTTP 代码同步...")
+                success, msg = await self.perform_update(target_version)
+                if not success:
+                    raise RuntimeError(f"HTTP 更新同步失败: {msg}")
+                logger.info("✅ [更新] HTTP 代码同步完成。")
+
+            # 3. 写入状态锁 (供 entrypoint.sh 识别)
             state = {
                 "status": "processing",
                 "start_time": datetime.now().isoformat(),
@@ -148,8 +157,7 @@ class UpdateService:
             # 发送启动通知
             await self._emit_event("SYSTEM_ALERT", {"message": f"🚀 系统更新/回滚已触发 (目标: {target_version})，正在准备环境并重启..."})
             
-            # 3. 退出进程，移交控制权给 entrypoint.sh
-            # 此时 Web Server 会停止，Socket 断开
+            # 4. 退出进程，移交控制权给 entrypoint.sh (执行备份与重启)
             if container.lifecycle:
                 container.lifecycle.shutdown(EXIT_CODE_UPDATE)
             else:
@@ -212,7 +220,7 @@ class UpdateService:
             logger.info("⚙️ [更新] 正在应用数据库迁移...")
             alembic_ini = settings.BASE_DIR / "alembic.ini"
             alembic_dir = settings.BASE_DIR / "alembic"
-            if alembic_ini.exists() and alembic_dir.exists():
+            if alembic_ini.exists():
                 try:
                     process = await asyncio.create_subprocess_exec(
                         "alembic", "upgrade", "head",
@@ -442,6 +450,16 @@ class UpdateService:
     async def get_update_history(self, limit: int = 10) -> list[dict]:
         """获取更新历史 (Git commits)"""
         if not self._is_git_repo:
+            current_ver = await self.get_current_version()
+            if current_ver != "unknown":
+                state = self._get_state()
+                return [{
+                    "sha": current_ver,
+                    "short_sha": current_ver[:8],
+                    "author": "System",
+                    "timestamp": state.get("timestamp", datetime.now().isoformat()),
+                    "message": "Current version (Standard Mode)"
+                }]
             return []
         
         try:
@@ -553,28 +571,32 @@ class UpdateService:
         
         return val <= settings.UPDATE_CANARY_PROBABILITY
 
-    async def _cross_verify_sha(self, sha_short: str) -> bool:
+    async def _cross_verify_sha(self, sha_short: str, version_ref: Optional[str] = None) -> bool:
         """
         交叉验证: 这里的逻辑是绝对信任'硬编码'的 OFFICIAL_REPO。
-        通过独立的 HTTP 通道访问官方 API，确认 sha_short 是否真实存在于官方 main 分支的头部。
+        通过独立的 HTTP 通道访问官方 API，确认 sha_short 是否真实存在于官方仓库中。
         """
         try:
             import httpx
-            # 始终访问代码里写死的 OFFICIAL_REPO，无视配置文件的 URL
-            api_url = f"https://api.github.com/repos/{OFFICIAL_REPO}/commits/{settings.UPDATE_BRANCH}"
+            # 如果提供了具体的引用 (SHA/Tag)，则校验该引用；否则校验默认分支
+            ref = version_ref or settings.UPDATE_BRANCH
+            api_url = f"https://api.github.com/repos/{OFFICIAL_REPO}/commits/{ref}"
             
             async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
                 resp = await client.get(api_url)
                 if resp.status_code == 200:
                     official_sha = resp.json().get("sha", "")
-                    # 比对前 8 位
-                    sha_s = sha_short.strip()
-                    official_s = official_sha[:len(sha_s)].strip()
+                    # 比对前 N 位
+                    sha_s = sha_short.strip().lower()
+                    official_s = official_sha[:len(sha_s)].strip().lower()
                     if official_s and sha_s == official_s:
                         return True
-                    logger.warning(f"交叉验证不一致: Git获取={sha_s}, 官方API={official_s}")
-                    # 如果网络不通，为了防止死锁，可以选择放行或严格阻断。
-                    # 考虑到高可靠性，如果版本极其不匹配，可能需要阻断
+                    
+                    # 如果 ref 本身就是 SHA，且与返回的 SHA 一致，也判定成功
+                    if ref.lower().startswith(sha_s):
+                        return True
+
+                    logger.warning(f"交叉验证不一致: 待校验={sha_s}, 官方API结果={official_s} (Ref: {ref})")
                     return False
                 else:
                     logger.warning(f"交叉验证跳过: 无法连接官方 API ({resp.status_code})")
@@ -676,11 +698,11 @@ class UpdateService:
                 resp = await client.get(api_url)
                 if resp.status_code == 200:
                     remote_sha = resp.json().get("sha", "")
-                    # 对比本地存储的版本 (在无 Git 环境下，我们依赖 state 文件记录当前 SHA)
-                    state = self._get_state()
-                    local_sha = state.get("current_version", "未知")
+                    # 对比本地存储的版本
+                    local_sha = await self.get_current_version()
                     
-                    if remote_sha and remote_sha != local_sha:
+                    # 统一对比长度 (8位)
+                    if remote_sha and remote_sha[:8].lower() != local_sha[:8].lower():
                         return True, remote_sha[:8]
                     return False, local_sha[:8]
                 else:
@@ -688,7 +710,7 @@ class UpdateService:
         except Exception as e:
             return False, f"HTTP 检查异常: {e}"
 
-    async def perform_update(self) -> Tuple[bool, str]:
+    async def perform_update(self, target_version: Optional[str] = None) -> Tuple[bool, str]:
         """执行生产级原子更新流程"""
         if self._is_updating:
             return False, "并发锁: 更新已在进行中"
@@ -698,7 +720,7 @@ class UpdateService:
             if self._git_available and self._is_git_repo:
                 return await self._perform_git_update()
             else:
-                return await self._perform_http_update()
+                return await self._perform_http_update(target_version)
         finally:
             self._is_updating = False
 
@@ -749,17 +771,18 @@ class UpdateService:
             state.update({
                 "status": "restarting",
                 "prev_version": prev_version,
-                "current_version": current_id, # 记录真实的 SHA 用于后续比对
+                "current_version": current_id,
                 "timestamp": datetime.now().isoformat(),
                 "fail_count": 0
             })
+            
             self._save_state(state)
             
             return True, "Git 代码原子同步完成"
         except Exception as e:
             return False, f"Git 更新执行异常: {e}"
 
-    async def _perform_http_update(self) -> Tuple[bool, str]:
+    async def _perform_http_update(self, target_version: Optional[str] = None) -> Tuple[bool, str]:
         """通过下载压缩包执行 HTTP 更新 (无 Git 环境 fallback)"""
         try:
             import httpx
@@ -767,9 +790,25 @@ class UpdateService:
             import shutil
             import io
 
+            # 规范化版本号
+            version = target_version or settings.UPDATE_BRANCH
+            if version.startswith("origin/"):
+                version = version.replace("origin/", "", 1)
+
             repo_path = settings.UPDATE_REMOTE_URL.replace("https://github.com/", "").replace(".git", "")
-            zip_url = f"https://github.com/{repo_path}/archive/refs/heads/{settings.UPDATE_BRANCH}.zip"
             
+            # GitHub 支持 Branch/Tag 和 SHA 两种 Zip 路径
+            if len(version) >= 7 and all(c in "0123456789abcdef" for c in version.lower()):
+                # 判定为 Commit SHA
+                zip_url = f"https://github.com/{repo_path}/archive/{version}.zip"
+            else:
+                # 判定为 Branch 或 Tag
+                zip_url = f"https://github.com/{repo_path}/archive/refs/heads/{version}.zip"
+            
+            # [安全] 预下载指纹校验
+            if not await self._cross_verify_sha(version[:8], version):
+                 return False, f"安全校验失败: 版本 {version[:8]} 未在官方仓库验证通过"
+
             logger.info(f"正在从 HTTP 下载更新包: {zip_url}")
             # [安全] 限制最大下载大小 (防止炸弹包)
             async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
@@ -835,20 +874,32 @@ class UpdateService:
                                 raise
                             await asyncio.sleep(0.5)
             
-            # 获取最新的 SHA 用于下次对比
-            _, remote_sha = await self._check_via_http()
+            # 持久化版本信息
+            # 尝试解析真实 SHA (如果 version 是分支名)
+            final_version = version
+            try:
+                repo_path = settings.UPDATE_REMOTE_URL.replace("https://github.com/", "").replace(".git", "")
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    r = await client.get(f"https://api.github.com/repos/{repo_path}/commits/{version}")
+                    if r.status_code == 200:
+                        final_version = r.json().get("sha", version)
+            except Exception:
+                pass
+
+            try:
+                state.update({
+                    "status": "restarting",
+                    "prev_version": prev_version,
+                    "backup_file": str(backup_path) if backup_path else None,
+                    "current_version": final_version,
+                    "timestamp": datetime.now().isoformat(),
+                    "fail_count": 0
+                })
+                self._save_state(state)
+            except Exception as e:
+                logger.error(f"保存更新状态失败: {e}")
             
-            state.update({
-                "status": "restarting",
-                "prev_version": prev_version,
-                "backup_file": str(backup_path) if backup_path else None,
-                "current_version": remote_sha,
-                "timestamp": datetime.now().isoformat(),
-                "fail_count": 0
-            })
-            self._save_state(state)
-            
-            return True, "HTTP 增量更新同步完成"
+            return True, f"HTTP 增量更新同步完成 (Version: {final_version[:8]})"
         except Exception as e:
             return False, f"HTTP 更新异常: {e}"
         finally:

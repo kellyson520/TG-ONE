@@ -7,7 +7,7 @@ The `alembic` migration folder was moved to `tests/temp/alembic` (likely by the 
 `workspace-hygiene` skill does not include `alembic/` in its root directory whitelist.
 
 ## Plan
-1. [ ] Move `tests/temp/alembic` back to the root directory.
-2. [ ] Update `.agent/skills/workspace-hygiene/SKILL.md` to include `alembic/` in the whitelist.
-3. [ ] Verify that `alembic` commands work again.
-4. [ ] Verify `UpdateService` bootstrap process.
+1. [x] Move `tests/temp/alembic` back to the root directory.
+2. [x] Update `.agent/skills/workspace-hygiene/SKILL.md` to include `alembic/` in the whitelist.
+3. [x] Verify that `alembic` commands work again.
+4. [x] Verify `UpdateService` bootstrap process.

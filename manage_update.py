@@ -24,18 +24,19 @@ async def show_status():
     print(f"\n--- 系统版本信息 ---")
     if history:
         current = history[0]
-        print(f"当前版本 (HEAD): {current['short_sha']} ({current['timestamp']})")
+        status_label = "HEAD" if update_service._is_git_repo else "Standard"
+        print(f"当前版本 ({status_label}): {current['short_sha']} ({current['timestamp']})")
         print(f"描述: {current['message']}")
         print(f"作者: {current['author']}")
     else:
-        print("当前版本: 未知 (非 Git 仓库)")
+        print("当前版本: 未知")
         
     print(f"\n--- 更新检查 ---")
     if has_update:
         print(f"🆕 发现新版本: {remote_ver}")
         print(f"执行建议: 使用 `python manage_update.py upgrade` 进行更新")
     else:
-        print("✅ 当前已是最新版本 (或者无法通过 Git 连接远程仓库)")
+        print("✅ 当前已是最新版本 (或者无法连接远程获取更新状态)")
         
     # 查看是否有锁文件
     lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
@@ -69,7 +70,7 @@ async def rollback():
     """手动触发回退"""
     print(f"⏪ [Update Manager] 准备执行系统回滚...")
     
-    confirm = input("警告：回滚将尝试执行 `git reset --hard` 到上一个记录的版本，或者还原物理备份。确定继续？(y/N): ")
+    confirm = input("警告：回退将尝试执行 `git reset --hard` (Git 模式) 或还原物理备份 (非 Git 模式)。确定继续？(y/N): ")
     if confirm.lower() != 'y':
         print("已取消。")
         return

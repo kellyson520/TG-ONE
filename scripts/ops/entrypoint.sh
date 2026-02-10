@@ -114,7 +114,7 @@ perform_rollback() {
     if [ -f "$VERIFY_LOCK" ]; then current_lock="$VERIFY_LOCK"; fi
 
     # 优先尝试从 git 回滚（如果记录了前一个 SHA）
-    if [ -n "$current_lock" ]; then
+    if [ -n "$current_lock" ] && command -v git >/dev/null 2>&1; then
         PREV_SHA=$(python3 -c "import json; print(json.load(open('$current_lock')).get('prev_version', ''))" 2>/dev/null)
         if [ -n "$PREV_SHA" ]; then
             echo "⏪ [守护进程] 正在执行 Git 分支回滚至: $PREV_SHA"
@@ -171,8 +171,11 @@ perform_update() {
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     BACKUP_PATH="$BACKUP_DIR/code_backup_$TIMESTAMP.tar.gz"
     
-    # 记录前一个版本 SHA 用于回滚
-    PREV_SHA=$(git rev-parse HEAD 2>/dev/null)
+    # 记录前一个版本 SHA 用于回滚 (如果支持 git)
+    PREV_SHA=""
+    if command -v git >/dev/null 2>&1 && [ -d ".git" ]; then
+        PREV_SHA=$(git rev-parse HEAD 2>/dev/null)
+    fi
     
     echo "📦 [守护进程] 创建当前版本快照: $BACKUP_PATH"
     tar --exclude='./data' --exclude='./.git' --exclude='./__pycache__' --exclude='./logs' --exclude='./temp' --exclude='./sessions' -czf "$BACKUP_PATH" . 2>/dev/null
@@ -182,16 +185,24 @@ perform_update() {
     if [ -f "$LOCK_FILE" ]; then
         TARGET_VERSION=$(python3 -c "import json; print(json.load(open('$LOCK_FILE')).get('version', 'origin/main'))" 2>/dev/null || echo "origin/main")
         # 将 PREV_SHA 注入锁文件
-        python3 -c "import json; d=json.load(open('$LOCK_FILE')); d['prev_version']='${PREV_SHA}'; json.dump(d, open('$LOCK_FILE', 'w'))" 2>/dev/null
+        if [ -n "$PREV_SHA" ]; then
+            python3 -c "import json; d=json.load(open('$LOCK_FILE')); d['prev_version']='${PREV_SHA}'; json.dump(d, open('$LOCK_FILE', 'w'))" 2>/dev/null
+        fi
     fi
     
-    echo "⬇️ [守护进程] 同步代码至分支/提交: $TARGET_VERSION"
-    git fetch origin && git reset --hard "$TARGET_VERSION"
-    
-    if [ $? -ne 0 ]; then
-        echo "❌ [守护进程] Git 拉取失败，系统未受损，取消本次更新。"
-        rm -f "$LOCK_FILE"
-        return
+    if command -v git >/dev/null 2>&1 && [ -d ".git" ]; then
+        echo "⬇️ [守护进程] 同步代码至分支/提交: $TARGET_VERSION"
+        git fetch origin && git reset --hard "$TARGET_VERSION"
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ [守护进程] Git 拉取失败，系统未受损，取消本次更新。"
+            rm -f "$LOCK_FILE"
+            return
+        fi
+    else
+        echo "⚠️ [守护进程] 未检测到 Git 环境或非 Git 仓库，跳过 Git 同步。将直接尝试使用新版本启动..."
+        # 这种场景下，通常程序已经在 Python 层面通过 HTTP 下载好了代码，或者只需要重启
+        echo "💡 [守护进程] 若此后启动失败，请检查 Docker Compose 或部署包是否完整。"
     fi
     
     echo "✅ [守护进程] 代码更新完成。"

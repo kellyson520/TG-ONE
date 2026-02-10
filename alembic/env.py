@@ -28,8 +28,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 覆盖 alembic.ini 中的 sqlalchemy.url
-# 确保使用 settings 中的数据库 URL
+# 确保使用 settings 中的数据库 URL，并自动修正 SQLite 驱动
 db_url = str(settings.DATABASE_URL)
+if db_url.startswith('sqlite://') and 'aiosqlite' not in db_url:
+    db_url = db_url.replace('sqlite://', 'sqlite+aiosqlite://')
+    
 config.set_main_option("sqlalchemy.url", db_url)
 
 # add your model's MetaData object here

@@ -34,6 +34,8 @@ class TestIndustrialUpdateSystem:
         service = UpdateService()
         # 确保状态文件目录存在
         service._state_file.parent.mkdir(parents=True, exist_ok=True)
+        # 模拟 perform_update 防止触发真实的 HTTP/Git 更新
+        service.perform_update = AsyncMock(return_value=(True, "Mocked update success"))
         return service
     
     # ==================== Phase 1: trigger_update 测试 ====================
