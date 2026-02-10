@@ -14,9 +14,10 @@
 - **异步诊断增强**: Alembic 现在采用异步进程执行，能够 100% 记录迁移错误细节。
 
 ## 4. 验证情况
-- 已通过静态代码检查。
-- 代码结构已对齐成熟的工业级高可用方案。
-- 下一次执行 `/update` 时，即便优雅关闭卡死，系统也将在 40s 内强制重启并应用新代码。
+- **单元测试**: `test_update_service_industrial.py` 与 `test_sleep_manager.py` 全部通过，证实了异步任务取消逻辑的有效性。
+- **集成测试**: 编写并执行了 `test_full_update_flow.py`，模拟了从 `/update` 命令触发、生成 `UPDATE_LOCK.json`、设置退出码 10，到重启后自动执行 `post_update_bootstrap` 的全链路流程。
+- **鲁棒性验证**: 模拟了数据库迁移失败场景，证实系统能正确从 `auto_update` 备份中执行原子回滚。
+- **挂机防护**: 已注入 40s 强制退出门禁，彻底解决“停在 Shutdown Complete 但进程不退出”的顽疾。
 
 ---
 **交付 ID**: 20260210_Fix_Update_Failure_Deep

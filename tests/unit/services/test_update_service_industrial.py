@@ -141,18 +141,17 @@ class TestIndustrialUpdateSystem:
         alembic_ini = tmp_path / "alembic.ini"
         alembic_ini.write_text("[alembic]\nscript_location = alembic")
         
-        # 模拟 subprocess.run
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Alembic migration successful"
-        mock_result.stderr = ""
+        # 模拟 asyncio.create_subprocess_exec
+        mock_process = AsyncMock()
+        mock_process.returncode = 0
+        mock_process.communicate.return_value = (b"Alembic migration successful", b"")
         
-        with patch('subprocess.run', return_value=mock_result) as mock_run:
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process) as mock_exec:
             await update_service.post_update_bootstrap()
             
             # 验证 Alembic 被调用
-            mock_run.assert_called_once()
-            args = mock_run.call_args[0][0]
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
             assert args[0] == "alembic"
             assert args[1] == "upgrade"
             assert args[2] == "head"
@@ -184,12 +183,11 @@ class TestIndustrialUpdateSystem:
         alembic_ini.write_text("[alembic]\nscript_location = alembic")
         
         # 模拟 Alembic 迁移失败
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "Migration failed: table already exists"
+        mock_process = AsyncMock()
+        mock_process.returncode = 1
+        mock_process.communicate.return_value = (b"", b"Migration failed: table already exists")
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
             await update_service.post_update_bootstrap()
         
         # 验证数据库已回滚
@@ -218,11 +216,11 @@ class TestIndustrialUpdateSystem:
         if alembic_ini.exists():
             alembic_ini.unlink()
         
-        with patch('subprocess.run') as mock_run:
+        with patch('asyncio.create_subprocess_exec') as mock_exec:
             await update_service.post_update_bootstrap()
             
-            # 验证 subprocess.run 未被调用
-            mock_run.assert_not_called()
+            # 验证 asyncio.create_subprocess_exec 未被调用
+            mock_exec.assert_not_called()
         
         # 验证锁文件已删除
         assert not lock_file.exists(), "锁文件应该被删除"
@@ -244,8 +242,8 @@ class TestIndustrialUpdateSystem:
         alembic_ini = tmp_path / "alembic.ini"
         alembic_ini.write_text("[alembic]\nscript_location = alembic")
         
-        # 模拟 subprocess.run 抛出异常
-        with patch('subprocess.run', side_effect=Exception("Unexpected error")):
+        # 模拟 asyncio.create_subprocess_exec 抛出异常
+        with patch('asyncio.create_subprocess_exec', side_effect=Exception("Unexpected error")):
             await update_service.post_update_bootstrap()
         
         # 验证锁文件仍被删除
@@ -316,12 +314,11 @@ class TestIndustrialUpdateSystem:
         # Step 2: 模拟 Shell 更新代码和依赖（这里跳过）
         
         # Step 3: 启动引导
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Migration successful"
-        mock_result.stderr = ""
+        mock_process = AsyncMock()
+        mock_process.returncode = 0
+        mock_process.communicate.return_value = (b"Migration successful", b"")
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
             await update_service.post_update_bootstrap()
         
         # 验证锁文件已删除
@@ -353,11 +350,11 @@ class TestIndustrialUpdateSystem:
         assert lock_file.exists()
         
         # Step 2: 模拟迁移失败
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Migration failed"
+        mock_process = AsyncMock()
+        mock_process.returncode = 1
+        mock_process.communicate.return_value = (b"", b"Migration failed")
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
             await update_service.post_update_bootstrap()
         
         # 验证数据库已回滚

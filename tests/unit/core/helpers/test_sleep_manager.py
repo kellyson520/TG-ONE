@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from core.helpers.sleep_manager import SleepManager
 
 class TestSleepManager:
@@ -56,3 +56,16 @@ class TestSleepManager:
         await manager._go_to_sleep()
         sleep_cb.assert_not_called()
         
+    @pytest.mark.asyncio
+    async def test_monitor_cancellation(self):
+        manager = SleepManager()
+        # Mocking asyncio.sleep to avoid waiting
+        with patch('asyncio.sleep', side_effect=asyncio.CancelledError):
+            # This should log "SleepManager: Monitor stopping (cancelled)." and return
+            await manager.start_monitor()
+        # If it returns without exception, it handled CancelledError correctly
+        
+    def test_stop_interface(self):
+        manager = SleepManager()
+        # Should exist and be callable
+        manager.stop()
