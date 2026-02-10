@@ -13,6 +13,7 @@
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
 | 20260208_FixSenderFilterMetadata | 修复 SenderFilter MessageContext 缺失 metadata 属性错误 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Bugfix/20260208_FixSenderFilterMetadata/report.md) |
+| 20260210_Fix_Update_Failure | 修复更新信号接收但不更新的问题 | 2026-02-10 | 2026-02-10 | 100% | [[report.md]](./Workstream_Bugfix/20260210_Fix_Update_Failure/report.md) |
 | 20260208_Project_Health_Audit | 项目健康度审计与风险评估 (Risk Assessment) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Project_Health_Audit_And_Risk_Assessment/Assessment_Report.md) |
 | 20260208_Implement_Priority_Queue | 实现多级优先级队列 (解决积压延迟) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Core_Engineering/20260208_Implement_Priority_Queue/report.md) |
 | 20260208_Investigate_Forward_Delay | 调查消息转发延迟 (积压导致) | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Maintenance/20260208_Investigate_Forward_Delay/report.md) |

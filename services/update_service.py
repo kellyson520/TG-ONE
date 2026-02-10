@@ -319,24 +319,23 @@ class UpdateService:
                     status = content.get("status")
                     
                     if status in ["processing", "rollback_requested"]:
-                        logger.warning(f"📡 [UpdateService] 检测到外部更新信号 (Status: {status})，正在执行受控重启...")
+                        logger.warning(f"📡 [UpdateService] 检测到外部更新信号 (Status: {status})，正在进行受控重启...")
                         
-                        await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
-                        
-                        # Wait briefly for logs but respect stop event
-                        try:
-                            await asyncio.wait_for(self._stop_event.wait(), timeout=1.0)
-                            # Shutdown initiated
-                        except asyncio.TimeoutError:
-                             pass
+                        # 如果系统已经在关闭流程中，我们只尝试更新退出码，不再发送事件（防止 EventBus 关闭导致的挂起）
+                        is_closing = False
+                        if container.lifecycle and container.lifecycle.stop_event.is_set():
+                            is_closing = True
+                            
+                        if not is_closing:
+                            await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
                         
                         if container.lifecycle:
                             container.lifecycle.shutdown(EXIT_CODE_UPDATE)
                         else:
                             sys.exit(EXIT_CODE_UPDATE)
                        
-                        # Break to stop watcher
-                        break # Not reached if shutdown calls exit?
+                        # 立即退出监听循环
+                        break
                         
                 except json.JSONDecodeError:
                     pass

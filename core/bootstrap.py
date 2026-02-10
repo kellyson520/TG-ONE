@@ -253,7 +253,7 @@ class Bootstrap:
     async def _resource_monitor_loop(self) -> None:
         """周期性资源监控"""
         logger.info("资源监控器已启动 (Limit: 2GB)")
-        while not self.coordinator.is_shutting_down:
+        while not self.coordinator.is_shutting_down():
             try:
                 if not ResourceGate.check_memory_safe():
                     logger.critical("⚠️ Memory limit exceeded! System stability at risk.")
@@ -273,8 +273,10 @@ class Bootstrap:
         async def _stop_auxiliary() -> None:
             from scheduler.cron_service import cron_service
             from services.system_service import guard_service
+            from services.update_service import update_service
             await cron_service.stop()
             guard_service.stop_guards()
+            update_service.stop()
             await asyncio.sleep(0.1)
             
         self.coordinator.register_cleanup(_stop_auxiliary, priority=1, timeout=5.0, name="stop_auxiliary")
