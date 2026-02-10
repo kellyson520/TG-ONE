@@ -11,6 +11,7 @@ from datetime import datetime
 
 from core.config import settings
 from services.system_service import guard_service
+from core.container import container
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,10 @@ class UpdateService:
             
             # 3. 退出进程，移交控制权给 entrypoint.sh
             # 此时 Web Server 会停止，Socket 断开
-            sys.exit(EXIT_CODE_UPDATE)
+            if container.lifecycle:
+                container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+            else:
+                sys.exit(EXIT_CODE_UPDATE)
 
         except SystemExit:
             raise
@@ -181,7 +185,10 @@ class UpdateService:
                 json.dump(state, f, indent=2)
                 
             await self._emit_event("SYSTEM_ALERT", {"message": "🚑 系统紧急回滚已触发，正在重启恢复..."})
-            sys.exit(EXIT_CODE_UPDATE)
+            if container.lifecycle:
+                container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+            else:
+                sys.exit(EXIT_CODE_UPDATE)
         except SystemExit:
             raise
         except Exception as e:
@@ -298,8 +305,12 @@ class UpdateService:
         
         while not self._stop_event.is_set():
             try:
-                await asyncio.sleep(5)  # 高频检查 (5s)
-                
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=5.0)
+                    break 
+                except asyncio.TimeoutError:
+                    pass
+
                 if not lock_file.exists():
                     continue
 
@@ -307,34 +318,54 @@ class UpdateService:
                     content = json.loads(lock_file.read_text(encoding='utf-8'))
                     status = content.get("status")
                     
-                    # 如果发现 "processing" 或 "rollback_requested" 状态，说明有外部工具(如 manage_update.py)
-                    # 请求了更新，但因为它是独立进程，无法直接重启主进程。
-                    # 所以我们需要在这里主动自杀，交由 entrypoint.sh 接管。
                     if status in ["processing", "rollback_requested"]:
                         logger.warning(f"📡 [UpdateService] 检测到外部更新信号 (Status: {status})，正在执行受控重启...")
                         
-                        # 确保发出通知
                         await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
                         
-                        # 给最后一条日志一点时间输出
-                        await asyncio.sleep(1)
-                        sys.exit(EXIT_CODE_UPDATE)
+                        # Wait briefly for logs but respect stop event
+                        try:
+                            await asyncio.wait_for(self._stop_event.wait(), timeout=1.0)
+                            # Shutdown initiated
+                        except asyncio.TimeoutError:
+                             pass
+                        
+                        if container.lifecycle:
+                            container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+                        else:
+                            sys.exit(EXIT_CODE_UPDATE)
+                       
+                        # Break to stop watcher
+                        break # Not reached if shutdown calls exit?
                         
                 except json.JSONDecodeError:
-                    pass # 正在写入中?
+                    pass
+                except SystemExit:
+                    raise
                 except Exception:
                     pass
 
+            except SystemExit:
+                raise
             except Exception as e:
-                logger.error(f"信号监听异常: {e}")
-                await asyncio.sleep(10)
+                logger.error(f"信号监听异常: {type(e).__name__}: {e}")
+                # Backoff with interruptibility
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=10.0)
+                    break
+                except asyncio.TimeoutError:
+                    pass
 
     async def _run_periodic_update_check(self):
         """执行周期性自动更新检查"""
         while not self._stop_event.is_set():
             try:
-                await asyncio.sleep(settings.UPDATE_CHECK_INTERVAL)
-                
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=settings.UPDATE_CHECK_INTERVAL)
+                    break  # Stop signaled
+                except asyncio.TimeoutError:
+                    pass   # Timeout, continue check
+
                 # 网络检查，不通则跳过本次循环
                 if not await self._check_network():
                     logger.debug("网络连接异常，跳过本次更新检查。")
@@ -353,7 +384,11 @@ class UpdateService:
                         logger.error(f"❌ [更新] 核心流程失败: {msg}")
             except Exception as e:
                 logger.error(f"更新监控运行出错: {e}")
-                await asyncio.sleep(3600)  # 出错后每小时重试
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=3600)
+                    break
+                except asyncio.TimeoutError:
+                    pass
 
     async def verify_update_health(self):
         """

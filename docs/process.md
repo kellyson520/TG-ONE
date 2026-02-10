@@ -163,6 +163,7 @@
 | 20260208_Unified_Command_Menu_UI | 统一命令与菜单系统 UI (视觉与交互对齐) | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_UI/20260208_Unified_Command_Menu_System/todo.md) |
 
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
+| 20260209_Fix_Shutdown_Hang | 修复系统关闭卡死问题 | 2026-02-09 | 2026-02-10 | 100% | [[report.md]](./docs/Workstream_Bugfix/20260209_Fix_Shutdown_Hang/report.md) |
 
 
 
