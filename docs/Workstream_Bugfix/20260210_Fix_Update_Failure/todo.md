@@ -1,31 +1,25 @@
-# 修复更新信号接收但不更新的问题 (Fix Update Failure)
+# 任务清单: 修复更新流中断与系统挂件 (Todo List)
 
-## 背景 (Context)
-系统检测到外部更新信号 (Status: processing)，但随后执行了受控重启，用户反馈并没有进行实际的更新逻辑。
+## 状态总览
+- [x] 问题诊断: 确认异步任务残留导致的挂起 🚀
+- [x] 核心修复-1: 补齐 `UpdateService` 的任务清理逻辑 (Task Lists)
+- [x] 核心修复-2: 补齐 `SleepManager` 停止钩子
+- [x] 核心修复-3: `main.py` 增加 40s 硬退出 fallback
+- [x] 核心修复-4: 增强 Alembic 迁移的错误捕获能力
+- [ ] 系统验证: 观察下一次更新请求的闭环情况
 
-## 核心技术路径 (Strategy)
-1. 分析 `update_service.py` 中处理 "processing" 状态的逻辑。
-2. 检查 `UpdateService` 的 `processing` 循环和更新触发机制。
-3. 验证重启脚本 (`entrypoint.sh` 或类似物) 是否包含必要的更新操作。
-4. 修复逻辑断点，确保信号触发后能执行 `git pull` 和依赖同步。
+## 详细步骤
 
-## 待办清单 (Checklist)
+### Phase 1: 故障诊断 (Done)
+- [x] 分析日志 `telegram-forwarder-opt-20260210120106.log`
+- [x] 确认 `LifecycleManager: System shutdown complete.` 之后进程未消失
 
-### Phase 1: 问题诊断 (Diagnosis)
-- [x] 分析 `update_service.py` 源码，定位 "processing" 状态处理代码。
-- [x] 检查 `LifecycleManager` 在重启前的动作。
-- [x] 搜索全局日志或尝试复现更新流程。
+### Phase 2: 实施深度修复 (Done)
+- [x] 更新 `services/update_service.py` 的任务管理与 Alembic 逻辑
+- [x] 更新 `core/helpers/sleep_manager.py` 的 `stop` 逻辑
+- [x] 更新 `core/bootstrap.py` 注册所有清理钩子
+- [x] 更新 `main.py` 实施硬超时强制退出
 
-### Phase 2: 方案设计 (Design)
-- [x] 确定更新逻辑的挂载点（Service内 或 外部脚本）。
-- [x] 编写修复方案 (`spec.md`)。
-
-### Phase 3: 核心实现 (Implementation)
-- [x] 修正 `UpdateService` 的重启逻辑，确保在退出前标记或触发更新。
-- [x] 修复 `Bootstrap.py` 中 `_resource_monitor_loop` 的判断错误。
-- [x] 注册 `UpdateService` 的关闭钩子以防止退出时挂起。
-
-### Phase 4: 验证与验收 (Verification)
-- [ ] 模拟外部更新信号。
-- [ ] 验证系统是否执行更新并成功重启。
-- [ ] 提交 `report.md`。
+### Phase 3: 归档与汇报 (Pending)
+- [ ] 更新 `report.md` 中的最终故障成因分析
+- [ ] 提交代码并推送

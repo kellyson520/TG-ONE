@@ -274,9 +274,13 @@ class Bootstrap:
             from scheduler.cron_service import cron_service
             from services.system_service import guard_service
             from services.update_service import update_service
+            from core.helpers.sleep_manager import sleep_manager
+            
+            logger.info("Stopping auxiliary services (Cron, Guards, Updates, SleepManager)...")
             await cron_service.stop()
             guard_service.stop_guards()
             update_service.stop()
+            sleep_manager.stop()
             await asyncio.sleep(0.1)
             
         self.coordinator.register_cleanup(_stop_auxiliary, priority=1, timeout=5.0, name="stop_auxiliary")

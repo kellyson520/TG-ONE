@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-08 09:26
+> Updated: 2026-02-10 12:00
 
 ---
 
@@ -32,7 +32,6 @@ TG ONE/
 ├── 📁 middlewares          # Middleware Layer
 ├── 📁 migrations           # Directory
 ├── 📁 models               # Data Models
-├── 📄 output.txt           # File
 ├── 📄 pytest.ini           # File
 ├── 📁 repositories         # Data Access Layer
 ├── 📄 requirements-dev.txt # File
@@ -41,12 +40,8 @@ TG ONE/
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
-├── 📄 telegram-forwarder-opt-20260207214438.log # File
 ├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
-├── 📄 test_final.txt       # File
-├── 📄 test_log.txt         # File
-├── 📄 test_result.log      # File
 ├── 📁 tests                # Test Suite
 ├── 📁 ui                   # Bot UI Renderer
 ├── 📄 version.py           # Version Info
@@ -199,6 +194,11 @@ TG ONE/
 │   ├── report_phase7_cleanup.md
 │   ├── report_phase9_security.md
 │   └── todo.md
+├── Workstream_Bugfix
+│   └── 20260210_Fix_Update_Failure
+│       ├── report.md
+│       ├── spec.md
+│       └── todo.md
 ├── Workstream_Core
 │   ├── 20260204_Dedup_Engine_Unit_Tests
 │   │   ├── report.md

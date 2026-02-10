@@ -49,10 +49,21 @@ class SleepManager:
     async def start_monitor(self):
         logger.info("SleepManager: Monitor started.")
         while True:
-            await asyncio.sleep(60)
-            if not self._is_sleeping:
+            try:
+                await asyncio.sleep(60)
+                if self._is_sleeping:
+                    continue
                 if time.time() - self._last_activity > self.SLEEP_TIMEOUT:
                     await self._go_to_sleep()
+            except asyncio.CancelledError:
+                logger.info("SleepManager: Monitor stopping (cancelled).")
+                break
+            except Exception as e:
+                logger.error(f"SleepManager error: {e}")
+
+    def stop(self):
+        """No-op for now as it relies on task cancellation, but provides interface parity."""
+        pass
 
     def register_on_sleep(self, callback: Callable):
         self._on_sleep_callbacks.append(callback)

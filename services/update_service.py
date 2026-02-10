@@ -34,6 +34,7 @@ class UpdateService:
         self._is_updating = False
         self._state_file = settings.BASE_DIR / "data" / "update_state.json"
         self._bus = None
+        self._tasksList = []  # 管理本服务启动的任务
         
         # 确保数据目录存在
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -198,69 +199,57 @@ class UpdateService:
     async def post_update_bootstrap(self):
         """
         [阶段2] 启动引导：检查锁 -> DB迁移 -> 清理锁
-        这是工业级双层状态机的第二阶段，在 Python 重启后执行
         """
         lock_file = settings.BASE_DIR / "data" / "UPDATE_LOCK.json"
         if not lock_file.exists():
             return
 
         logger.info("🔧 [更新] 检测到未完成的更新。正在执行后置更新任务...")
-        
         try:
-            # 读取状态
             with open(lock_file, "r", encoding="utf-8") as f:
                 state = json.load(f)
 
-            # 1. 执行数据库迁移 (Alembic)
-            # 此时代码已是最新，需要同步数据库结构
             logger.info("⚙️ [更新] 正在应用数据库迁移...")
-            
-            # 检查是否存在 alembic.ini
             alembic_ini = settings.BASE_DIR / "alembic.ini"
             if alembic_ini.exists():
-                result = subprocess.run(
-                    ["alembic", "upgrade", "head"], 
-                    capture_output=True, 
-                    text=True,
-                    check=False,
-                    cwd=str(settings.BASE_DIR)
-                )
-
-                if result.returncode != 0:
-                    logger.error(f"🔥 [更新] 数据库迁移失败:\n{result.stderr}")
-                    await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"数据库迁移失败: {result.stderr[:200]}"})
-                    # 严重错误：回滚数据库
+                try:
+                    process = await asyncio.create_subprocess_exec(
+                        "alembic", "upgrade", "head",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(settings.BASE_DIR)
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    if process.returncode != 0:
+                        err_msg = (stderr or stdout).decode(encoding='utf-8', errors='ignore')
+                        logger.error(f"🔥 [更新] 数据库迁移失败 (Code: {process.returncode}):\n{err_msg}")
+                        if state.get("db_backup"):
+                            self._rollback_db(state["db_backup"])
+                    else:
+                        logger.info("✅ [更新] 数据库迁移成功。")
+                        
+                        health_ok, health_msg = await self._run_system_health_check()
+                        if not health_ok:
+                            logger.error(f"🚑 [更新] 健康检查失败: {health_msg}")
+                        else:
+                            logger.info("✅ [更新] 更新后的健康检查已通过。")
+                except Exception as e:
+                    logger.error(f"🔥 [更新] 执行 Alembic 迁移时发生异常: {e}")
                     if state.get("db_backup"):
                         self._rollback_db(state["db_backup"])
-                else:
-                    logger.info("✅ [更新] 数据库迁移成功。")
-                    await self._emit_event("SYSTEM_ALERT", {"message": "✅ 数据库迁移成功，正在加载新版业务逻辑..."})
-                    
-                    # 进行更新后健康检查
-                    health_ok, health_msg = await self._run_system_health_check()
-                    if not health_ok:
-                        logger.error(f"🚑 [更新] 健康检查失败: {health_msg}")
-                        await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"更新后健康检查失败: {health_msg}"})
-                    else:
-                        logger.info("✅ [更新] 更新后的健康检查已通过。")
             else:
                 logger.warning("⚠️ [更新] 未发现 alembic.ini，跳过数据库迁移。")
 
         except Exception as e:
             logger.error(f"❌ [更新] 引导任务失败: {e}")
         finally:
-            # 将“硬更新锁”转换为“稳定性观察锁”
-            # 这有两个作用：
-            # 1. Web 维护页面 (MaintenanceMiddleware) 会因为 UPDATE_LOCK.json 消失而恢复正常服务
-            # 2. entrypoint.sh 守护进程仍能通过 UPDATE_VERIFYING.json 识别出系统处于更新后的观察期
             try:
                 verify_lock = settings.BASE_DIR / "data" / "UPDATE_VERIFYING.json"
                 if lock_file.exists():
                     import shutil
                     shutil.move(str(lock_file), str(verify_lock))
                     logger.info("✅ [更新] 数据库后置引导完成，已切换至稳定性观察模式。")
-                else:
-                    logger.debug("未发现更新锁文件，跳过状态切换。")
             except Exception as e:
                 logger.error(f"切换更新锁状态失败: {e}")
                 if lock_file.exists(): lock_file.unlink()
@@ -286,8 +275,9 @@ class UpdateService:
         # 启动时首先验证更新健康度 (处理手动更新后的崩溃自愈)
         await self.verify_update_health()
 
-        # 1. 始终启动: 外部信号监听 (用于响应 manage_update.py 或其他进程发出的更新指令)
-        asyncio.create_task(self._watch_external_signals(), name="update_signal_watcher")
+        # 1. 始终启动: 外部信号监听
+        t1 = asyncio.create_task(self._watch_external_signals(), name="update_signal_watcher")
+        self._tasksList.append(t1)
 
         # 2. 条件启动: 自动更新检查
         if not settings.AUTO_UPDATE_ENABLED:
@@ -296,7 +286,8 @@ class UpdateService:
 
         logger.info(f"自动更新已开启，检查间隔: {settings.UPDATE_CHECK_INTERVAL} 秒")
         # 启动周期性检查循环
-        asyncio.create_task(self._run_periodic_update_check(), name="periodic_update_check")
+        t2 = asyncio.create_task(self._run_periodic_update_check(), name="periodic_update_check")
+        self._tasksList.append(t2)
 
     async def _watch_external_signals(self):
         """监听外部更新信号 (UPDATE_LOCK.json)"""
@@ -1026,8 +1017,14 @@ class UpdateService:
             return success, msg
 
     def stop(self):
-        """停止更新监控"""
+        """停止更新监控并清理任务"""
         self._stop_event.set()
+        # 显式取消任务
+        for t in self._tasksList:
+            if not t.done():
+                t.cancel()
+        self._tasksList.clear()
+        logger.info("UpdateService 任务已清理")
 
 # 全局单例
 update_service = UpdateService()

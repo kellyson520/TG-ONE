@@ -110,7 +110,15 @@ async def main():
             
     # 5. 优雅关闭
     logger.info("正在执行主程序退出流程...")
-    await lifecycle.stop()
+    try:
+        # 给优雅关闭一个总的硬超时 (40秒)，防止底层库死锁
+        await asyncio.wait_for(lifecycle.stop(), timeout=40.0)
+    except asyncio.TimeoutError:
+        logger.critical("🚨 [FATAL] 优雅关闭严重超时 (40s)，强行终止进程！")
+        import os
+        os._exit(lifecycle.exit_code or 10)
+    except Exception as e:
+        logger.error(f"关闭过程中发生错误: {e}")
     
     # 6. 返回退出码
     return lifecycle.exit_code
