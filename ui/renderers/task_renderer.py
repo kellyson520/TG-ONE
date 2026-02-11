@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from telethon.tl.custom import Button
-from .base_renderer import BaseRenderer
+from ui.constants import UIStatus
+from .base_renderer import BaseRenderer, ViewResult
 
 class TaskRenderer(BaseRenderer):
     """任务渲染器 (UIRE-2.0)"""

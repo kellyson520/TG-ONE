@@ -1,7 +1,8 @@
 import logging
 from typing import Dict, Any
 from telethon.tl.custom import Button
-from .base_renderer import BaseRenderer
+from ui.constants import UIStatus
+from .base_renderer import BaseRenderer, ViewResult
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,9 @@ class MainMenuRenderer(BaseRenderer):
     
     def render(self, stats: Dict[str, Any]) -> ViewResult:
         """渲染系统主页 (Phase 4)"""
+        if not stats:
+            return self.render_error("系统数据暂时不可用", detail="无法从统计服务获取实时数据")
+            
         today = stats.get('today', {})
         dedup = stats.get('dedup', {})
         

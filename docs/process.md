@@ -114,6 +114,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
 | 20260210_Fix_AccessControlList_AlreadyExists_Error | 修复 access_control_list 表已存在导致的数据库初始化错误 | 2026-02-10 | 2026-02-10 | 100% | [📂 查看](./Workstream_Database/20260210_Fix_AccessControlList_AlreadyExists_Error/todo.md) |
 | 20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint | 修复 Container RuntimeError 及 Dedup 指纹记录失败 | 2026-02-10 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint/todo.md) |
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |

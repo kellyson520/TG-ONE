@@ -347,7 +347,6 @@ async def start_web_server(host: str, port: int) -> None:
 
 async def stop_web_server() -> None:
     """手动停止 Web 服务器"""
-    global _server_instance
     if _server_instance:
         logger.info("正在停止 Web Server...")
         _server_instance.should_exit = True

@@ -22,6 +22,19 @@ class ViewResult:
         self.show_alert = show_alert
         self.force_new = force_new
         self.metadata = metadata or {}
+        
+    def __getitem__(self, key):
+        """兼容旧版字典访问"""
+        if not isinstance(key, str):
+            raise KeyError(key)
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key)
+
+    def __contains__(self, key):
+        """支持 'in' 操作符"""
+        return hasattr(self, key)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -36,7 +49,7 @@ class ViewResult:
 class BaseRenderer:
     """基础渲染器类"""
     
-    def new_builder(self) -> 'MenuBuilder':
+    def new_builder(self):
         """快速获取 UI 构建器实例"""
         from ui.builder import MenuBuilder
         return MenuBuilder()
@@ -49,10 +62,9 @@ class BaseRenderer:
         builder = self.new_builder()
         builder.set_title("操作失败", icon=UIStatus.ERROR)
         
+        builder.add_section("提示", message)
         if detail:
             builder.add_section("错误详情", detail)
-        else:
-            builder.add_section("提示", message)
             
         builder.add_button("返回", action=back_callback, icon=UIStatus.BACK)
         return builder.build()

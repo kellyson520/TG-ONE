@@ -8,6 +8,7 @@ from telethon import Button
 
 from services.menu_service import menu_service
 from services.session_service import session_service
+from .base import ControllerAbort
 # 避免循环引用，这里不直接导入 forward_manager 等，按需导入或使用 container
 
 logger = logging.getLogger(__name__)

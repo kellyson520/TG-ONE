@@ -2,8 +2,10 @@ import logging
 import asyncio
 from typing import Optional
 from controllers.base import BaseController, ControllerAbort
+
 from services.menu_service import menu_service
 from services.analytics_service import analytics_service
+from services.session_service import session_service
 from ui.constants import UIStatus
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,5 @@
 import logging
+import traceback
 from telethon import Button
 from sqlalchemy import select
 from models.models import Chat, ForwardRule

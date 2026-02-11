@@ -404,7 +404,7 @@ async def handle_callback(event):
                 return
 
             # 4. 提供统一的 Session 环境，确保模块化处理器高效运行
-            async with container.db.get_session(kwargs.get("session")) as session:
+            async with container.db.get_session() as session:
                 message = await event.get_message()
                 # 传入转换后的参数
                 return await handler(event, rule_id, session, message, data)
