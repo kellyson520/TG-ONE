@@ -140,12 +140,16 @@ async def handle_update_command(event, parts=None):
     
     # 获取当前版本信息
     has_update, remote_ver = await update_service.check_for_updates(force=True)
+    from version import get_version
+    current_sha = await update_service.get_current_version()
+    version_str = get_version()
     
     from telethon import Button
     text = (
         f"🚀 **系统更新/重部署确认**\n\n"
         f"目标版本/分支: `{target}`\n"
-        f"状态: {'发现新版本' if has_update else '当前已是最新或强制重新部署'}\n\n"
+        f"状态: {'发现新版本' if has_update else '当前已是最新或强制重新部署'}（{remote_ver}）\n"
+        f"当前版本：{version_str}（{current_sha}）\n\n"
         f"操作影响: \n"
         f"1. 数据库自动备份\n"
         f"2. 守护进程同步代码\n"
