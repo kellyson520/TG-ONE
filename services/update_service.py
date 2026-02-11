@@ -233,8 +233,59 @@ class UpdateService:
                     if process.returncode != 0:
                         err_msg = (stderr or stdout).decode(encoding='utf-8', errors='ignore')
                         logger.error(f"🔥 [更新] 数据库迁移失败 (Code: {process.returncode}):\n{err_msg}")
-                        if state.get("db_backup"):
-                            self._rollback_db(state["db_backup"])
+                        
+                        # 检测是否为"表已存在"错误
+                        if "already exists" in err_msg.lower() or "table" in err_msg.lower():
+                            logger.warning("⚠️ [更新] 检测到表已存在的迁移冲突，尝试自动修复...")
+                            
+                            # 运行修复脚本
+                            fix_script = settings.BASE_DIR / "scripts" / "ops" / "fix_alembic_state.py"
+                            if fix_script.exists():
+                                try:
+                                    fix_process = await asyncio.create_subprocess_exec(
+                                        sys.executable, str(fix_script),
+                                        stdout=asyncio.subprocess.PIPE,
+                                        stderr=asyncio.subprocess.PIPE,
+                                        cwd=str(settings.BASE_DIR)
+                                    )
+                                    fix_stdout, fix_stderr = await fix_process.communicate()
+                                    
+                                    if fix_process.returncode == 0:
+                                        logger.info("✅ [更新] Alembic 状态修复成功，重新执行迁移...")
+                                        
+                                        # 重试迁移
+                                        retry_process = await asyncio.create_subprocess_exec(
+                                            "alembic", "upgrade", "head",
+                                            stdout=asyncio.subprocess.PIPE,
+                                            stderr=asyncio.subprocess.PIPE,
+                                            cwd=str(settings.BASE_DIR)
+                                        )
+                                        retry_stdout, retry_stderr = await retry_process.communicate()
+                                        
+                                        if retry_process.returncode == 0:
+                                            logger.info("✅ [更新] 数据库迁移成功（修复后重试）。")
+                                        else:
+                                            retry_err = (retry_stderr or retry_stdout).decode(encoding='utf-8', errors='ignore')
+                                            logger.error(f"🔥 [更新] 修复后重试仍失败: {retry_err}")
+                                            if state.get("db_backup"):
+                                                self._rollback_db(state["db_backup"])
+                                    else:
+                                        fix_err = (fix_stderr or fix_stdout).decode(encoding='utf-8', errors='ignore')
+                                        logger.error(f"❌ [更新] Alembic 状态修复失败: {fix_err}")
+                                        if state.get("db_backup"):
+                                            self._rollback_db(state["db_backup"])
+                                except Exception as fix_e:
+                                    logger.error(f"❌ [更新] 执行修复脚本时异常: {fix_e}")
+                                    if state.get("db_backup"):
+                                        self._rollback_db(state["db_backup"])
+                            else:
+                                logger.error(f"❌ [更新] 修复脚本不存在: {fix_script}")
+                                if state.get("db_backup"):
+                                    self._rollback_db(state["db_backup"])
+                        else:
+                            # 非"表已存在"错误，直接回滚
+                            if state.get("db_backup"):
+                                self._rollback_db(state["db_backup"])
                     else:
                         logger.info("✅ [更新] 数据库迁移成功。")
                         
@@ -247,6 +298,7 @@ class UpdateService:
                     logger.error(f"🔥 [更新] 执行 Alembic 迁移时发生异常: {e}")
                     if state.get("db_backup"):
                         self._rollback_db(state["db_backup"])
+
             else:
                 logger.warning("⚠️ [更新] 未发现 alembic.ini，跳过数据库迁移。")
 

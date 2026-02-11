@@ -1,5 +1,4 @@
 import traceback
-
 import logging
 from sqlalchemy import select
 
@@ -96,7 +95,7 @@ async def callback_media_settings(event, rule_id, session, message, data):
 
 
 async def callback_set_max_media_size(event, rule_id, session, message, data):
-    async with container.db.get_session(session) as s:
+    async with container.db.get_session(session):
         await event.edit(
             "请选择最大媒体大小(MB)：",
             buttons=await create_media_size_buttons(rule_id, page=0),
@@ -127,7 +126,6 @@ async def callback_select_max_media_size(event, rule_id, session, message, data)
                             f"规则 {rule.id} 启用了同步功能，正在同步媒体大小设置到关联规则"
                         )
                         # 获取需要同步的规则列表
-                        from sqlalchemy import select
                         stmt = select(RuleSync).filter(RuleSync.rule_id == rule.id)
                         result = await s.execute(stmt)
                         sync_rules = result.scalars().all()
@@ -164,8 +162,7 @@ async def callback_select_max_media_size(event, rule_id, session, message, data)
                         await s.commit()
                         logger.info("所有同步媒体大小更改已提交")
 
-                    # 获取消息对象
-                    message = await event.get_message()
+                    # 界面无需额外消息对象
 
                     await event.edit(
                         "媒体设置：", buttons=await create_media_settings_buttons(rule)
@@ -218,7 +215,6 @@ async def callback_toggle_media_type(event, rule_id, session, message, data):
             return
 
         # toggle_media_type:31:voice
-        action = parts[0]
         rule_id = parts[1]
         media_type = parts[2]
         # 检查媒体类型是否有效
@@ -252,10 +248,9 @@ async def callback_toggle_media_type(event, rule_id, session, message, data):
                     s, rule.id
                 )
                 if not success:
-                    logger.warning(f"获取媒体类型设置失败，无法同步")
+                    logger.warning("获取媒体类型设置失败，无法同步")
                 else:
                     # 获取需要同步的规则列表
-                    from sqlalchemy import select
                     from models.models import RuleSync
                     stmt = select(RuleSync).filter(RuleSync.rule_id == rule.id)
                     result = await s.execute(stmt)
@@ -374,7 +369,6 @@ async def callback_toggle_media_extension(event, rule_id, session, message, data
             return
 
         # toggle_media_extension:31:jpg:0
-        action = parts[0]
         rule_id = parts[1]
         extension = parts[2]
 
@@ -421,7 +415,6 @@ async def callback_toggle_media_extension(event, rule_id, session, message, data
                             )
 
                             # 获取需要同步的规则列表
-                            from sqlalchemy import select
                             from models.models import RuleSync
                             stmt = select(RuleSync).filter(RuleSync.rule_id == rule.id)
                             result = await s.execute(stmt)
@@ -499,7 +492,6 @@ async def callback_toggle_media_extension(event, rule_id, session, message, data
                         )
 
                         # 获取需要同步的规则列表
-                        from sqlalchemy import select
                         from models.models import RuleSync
                         result = await s.execute(
                             select(RuleSync).filter(RuleSync.rule_id == rule.id)
@@ -582,7 +574,6 @@ async def callback_toggle_media_allow_text(event, rule_id, session, message, dat
                 )
 
                 # 获取需要同步的规则列表
-                from sqlalchemy import select
                 from models.models import RuleSync
                 result = await s.execute(
                     select(RuleSync).filter(RuleSync.rule_id == rule.id)

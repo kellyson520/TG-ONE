@@ -18,6 +18,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class RuleLogicService:
     @property
     def container(self):
@@ -558,7 +559,8 @@ class RuleLogicService:
         
         async with self.container.db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
-            if not config: return {'success': False, 'error': 'Config not found'}
+            if not config:
+                return {'success': False, 'error': 'Config not found'}
             
             new_mode = "Multiple" if config.media_send_mode == "Single" else "Single"
             config.media_send_mode = new_mode

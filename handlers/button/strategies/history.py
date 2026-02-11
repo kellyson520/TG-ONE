@@ -18,6 +18,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
     """
 
     ACTIONS = {
+        # Time Range Selection
         "time_range_selection", "session_dedup_time_range",
         "open_session_time", "open_session_date",
         "select_start_time", "select_end_time",
@@ -28,7 +29,21 @@ class HistoryMenuStrategy(BaseMenuHandler):
         "set_time_field",
         "open_wheel_picker", "picker_adj", "picker_limit",
         "set_all_time_zero",
-        "save_days", "save_time_range"
+        "save_days", "save_time_range",
+        
+        # History Task Management
+        "history_task_selector", "select_history_rule", 
+        "current_history_task", "cancel_history_task", "history_task_details",
+        "history_time_range", "history_delay_settings",
+        "toggle_history_dedup", "history_quick_stats", "history_dry_run",
+        "start_history_task", "pause_history_task", "resume_history_task",
+        
+        # Time Range Presets
+        "set_time_range_all", "set_time_range_days",
+        "confirm_time_range", "set_start_time", "set_end_time",
+        
+        # Delay Settings
+        "set_delay"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -227,3 +242,88 @@ class HistoryMenuStrategy(BaseMenuHandler):
                  await new_menu_system.show_time_range_selection(event)
              else:
                  await event.answer("❌ 保存失败")
+        
+        # 5. History Task Management
+        elif action == "history_task_selector":
+            await menu_controller.show_history_task_selector(event)
+        
+        elif action == "select_history_rule":
+            rule_id = arg1
+            await event.answer(f"✅ 已选择规则 #{rule_id}")
+            await menu_controller.show_history_task_actions(event)
+        
+        elif action == "current_history_task":
+            await menu_controller.show_current_history_task(event)
+        
+        elif action == "cancel_history_task":
+            await menu_controller.cancel_history_task(event)
+        
+        elif action == "history_task_details":
+            await event.answer("📊 任务详情功能开发中", alert=True)
+        
+        elif action == "history_time_range":
+            await menu_controller.show_history_time_range(event)
+        
+        elif action == "history_delay_settings":
+            await new_menu_system.show_history_delay_settings(event)
+        
+        elif action == "toggle_history_dedup":
+            await menu_controller.toggle_history_dedup(event)
+        
+        elif action == "history_quick_stats":
+            await event.answer("📊 快速统计功能开发中", alert=True)
+        
+        elif action == "history_dry_run":
+            await event.answer("🧪 模拟运行功能开发中", alert=True)
+        
+        elif action == "start_history_task":
+            await menu_controller.start_history_task(event)
+        
+        elif action == "pause_history_task":
+            await menu_controller.pause_history_task(event)
+        
+        elif action == "resume_history_task":
+            await menu_controller.resume_history_task(event)
+        
+        # 6. Time Range Presets
+        elif action == "set_time_range_all":
+            # 设置为全部时间
+            tr = session_manager.get_time_range(event.chat_id)
+            for prefix in ["start_", "end_"]:
+                for k in ["year", "month", "day", "hour", "minute", "second"]:
+                    tr[prefix + k] = 0
+            session_manager.set_time_range(event.chat_id, tr)
+            await event.answer("✅ 已设为全部历史")
+            await menu_controller.show_history_time_range(event)
+        
+        elif action == "set_time_range_days":
+            # 设置最近N天
+            days = arg1
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            start = now - timedelta(days=days)
+            tr = session_manager.get_time_range(event.chat_id)
+            tr["start_year"] = start.year
+            tr["start_month"] = start.month
+            tr["start_day"] = start.day
+            tr["end_year"] = now.year
+            tr["end_month"] = now.month
+            tr["end_day"] = now.day
+            session_manager.set_time_range(event.chat_id, tr)
+            await event.answer(f"✅ 已设为最近{days}天")
+            await menu_controller.show_history_time_range(event)
+        
+        elif action == "confirm_time_range":
+            await event.answer("✅ 时间范围已确认")
+            await menu_controller.show_history_task_actions(event)
+        
+        # 7. Delay Settings
+        elif action == "set_delay":
+            delay = arg1
+            # 保存延迟设置到session
+            user_session = session_manager.user_sessions.get(event.sender_id, {})
+            if event.chat_id not in user_session:
+                user_session[event.chat_id] = {}
+            user_session[event.chat_id]["history_delay"] = delay
+            await event.answer(f"✅ 已设置延迟: {delay}秒")
+            await menu_controller.show_history_task_actions(event)

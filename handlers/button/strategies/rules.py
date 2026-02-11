@@ -25,7 +25,9 @@ class RuleMenuStrategy(BaseMenuHandler):
         "toggle_rule_set",
         "rule_status", "sync_config",
         "forward_management", "rule_management",
-        "multi_source_management", "multi_source_page", "manage_multi_source"
+        "multi_source_management", "multi_source_page", "manage_multi_source",
+        "history_messages", "forward_stats_detailed", "global_forward_settings",
+        "forward_performance"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -132,3 +134,16 @@ class RuleMenuStrategy(BaseMenuHandler):
         elif action == "manage_multi_source":
             rule_id = arg1
             await menu_controller.show_multi_source_detail(event, rule_id)
+        
+        # 6. History Messages \u0026 Extended Features
+        elif action == "history_messages":
+            await menu_controller.show_history_messages(event)
+        
+        elif action == "forward_stats_detailed":
+            await event.answer("📊 详细统计功能开发中", alert=True)
+        
+        elif action == "global_forward_settings":
+            await event.answer("🎛️ 全局筛选功能开发中", alert=True)
+        
+        elif action == "forward_performance":
+            await event.answer("🚀 性能监控功能开发中", alert=True)

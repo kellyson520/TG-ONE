@@ -15,5 +15,6 @@ from . import ai
 from . import search
 from . import admin
 from . import push
+from . import analytics
 
 __all__ = ["BaseMenuHandler", "MenuHandlerRegistry"]

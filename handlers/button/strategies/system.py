@@ -20,7 +20,7 @@ class SystemMenuStrategy(BaseMenuHandler):
     """
 
     ACTIONS = {
-        "main_menu", "main", "main_menu_refresh",
+        "main_menu", "main", "main_menu_refresh", "refresh_main_menu",
         "forward_hub", "refresh_forward_hub",
         "dedup_hub", "analytics_hub", "system_hub",
         "help_guide", "detailed_docs", "faq", "tech_support",
@@ -29,7 +29,9 @@ class SystemMenuStrategy(BaseMenuHandler):
         "view_backups", "backup_page",
         "restore_backup", "do_restore",
         "system_overview",
-        "cache_cleanup", "do_cleanup"
+        "cache_cleanup", "do_cleanup",
+        "log_viewer", "system_status", 
+        "db_archive_once", "session_management"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -97,6 +99,22 @@ class SystemMenuStrategy(BaseMenuHandler):
         
         elif action == "do_cleanup":
             await new_menu_system.do_cache_cleanup(event)
+        
+        elif action == "refresh_main_menu":
+            await menu_controller.show_main_menu(event, force_refresh=True)
+            await event.answer("✅ 主菜单已刷新")
+        
+        elif action == "log_viewer":
+            await menu_controller.show_system_logs(event)
+        
+        elif action == "system_status":
+            await new_menu_system.show_system_status(event)
+        
+        elif action == "db_archive_once":
+            await menu_controller.run_db_archive_once(event)
+        
+        elif action == "session_management":
+            await menu_controller.show_session_management(event)
 
         # 5. Backup & Restore
         elif action == "db_backup":

@@ -37,7 +37,18 @@ class SettingsMenuStrategy(BaseMenuHandler):
         "history_toggle_video", "toggle_video",
         "history_toggle_music", "toggle_music",
         "history_toggle_voice", "toggle_voice",
-        "history_toggle_document", "toggle_document"
+        "history_toggle_document", "toggle_document",
+        
+        # Dedup Time Window Settings
+        "toggle_time_window", "set_time_window",
+        "toggle_similarity", "set_similarity",
+        "toggle_content_hash",
+        
+        # Performance Monitoring
+        "db_performance_refresh", "detailed_performance", "performance_tuning",
+        
+        # Misc
+        "create_rule"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -144,6 +155,53 @@ class SettingsMenuStrategy(BaseMenuHandler):
              await self._handle_toggle_media_type(event, "voice", is_history="history" in action)
         elif "toggle_document" in action:
              await self._handle_toggle_media_type(event, "document", is_history="history" in action)
+        
+        # Dedup Time Window Settings
+        elif action == "toggle_time_window":
+            # toggle_time_window:{true|false}
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.set_time_window_enabled(enabled_bool)
+            await event.answer(f"✅ 去重时间窗口已{'开启' if enabled_bool else '关闭'}")
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_dedup_config(event)
+        
+        elif action == "set_time_window":
+            # set_time_window:{hours}
+            hours = int(extra_data[0]) if extra_data else 24
+            from services.dedup_service import dedup_service
+            await dedup_service.set_time_window_hours(hours)
+            window_text = "永久" if hours == 0 else f"{hours}小时"
+            await event.answer(f"✅ 时间窗口已设为 {window_text}")
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_dedup_config(event)
+        
+        elif action == "toggle_similarity":
+            await event.answer("🚧 相似度去重功能开发中", alert=True)
+        
+        elif action == "set_similarity":
+            await event.answer("🚧 相似度设置功能开发中", alert=True)
+        
+        elif action == "toggle_content_hash":
+            await event.answer("🚧 内容哈希去重功能开发中", alert=True)
+        
+        # Performance Monitoring
+        elif action == "db_performance_refresh":
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_db_performance_monitor(event)
+            await event.answer("✅ 数据库性能面板已刷新")
+        
+        elif action == "detailed_performance":
+            await event.answer("📈 详细性能报告功能开发中", alert=True)
+        
+        elif action == "performance_tuning":
+            await event.answer("⚙️ 性能调控功能开发中", alert=True)
+        
+        # Misc
+        elif action == "create_rule":
+            from controllers.menu_controller import menu_controller
+            await menu_controller.enter_create_rule_state(event)
 
     # --- Internal Handlers (Migrated from new_menu_callback.py) ---
 
