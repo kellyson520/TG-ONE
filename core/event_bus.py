@@ -139,6 +139,12 @@ class EventBus:
             except Exception as e:
                 logger.debug(f"Event broadcast failed: {e}")
 
+    async def emit(self, event_type: str, data: Any = None, wait: bool = False) -> None:
+        """
+        发布事件 (publish 的别名，用于兼容旧版调用)
+        """
+        await self.publish(event_type, data, wait=wait)
+
     def set_broadcaster(self, broadcaster: Callable) -> None:
         """设置广播器的回调"""
         self._broadcaster = broadcaster

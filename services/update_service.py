@@ -333,8 +333,8 @@ class UpdateService:
 
     async def start_periodic_check(self):
         """启动更新检查服务"""
-        # 启动时首先验证更新健康度 (处理手动更新后的崩溃自愈)
-        await self.verify_update_health()
+        # 启动时无需再次验证健康度，main.py 已经执行过一次。
+        # await self.verify_update_health()
 
         # 1. 始终启动: 外部信号监听
         from services.exception_handler import exception_handler
@@ -446,7 +446,12 @@ class UpdateService:
         """
         验证更新后的系统健康状况。
         如果系统启动后在短时间内崩溃，下次启动会检测并处理连续失败。
+        (已增加进程级防抖，确保单词启动回路仅计数一次)
         """
+        if hasattr(self, "_health_checked_in_this_process"):
+            return
+        self._health_checked_in_this_process = True
+
         state = self._get_state()
         status = state.get("status")
         
@@ -479,6 +484,8 @@ class UpdateService:
                     state["fail_count"] = 0
                     self._save_state(state)
                     await self._emit_event("ERROR_SYSTEM", {"module": "Update", "error": f"系统更新后多次启动失败，已触发紧急回滚。"})
+                    
+                    from services.system_service import guard_service
                     guard_service.trigger_restart()
                 return
 

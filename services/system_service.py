@@ -15,12 +15,80 @@ class SystemService:
     def __init__(self):
         self._allow_registration = True # Default
         
+    @property
+    def container(self):
+        from core.container import container
+        return container
+
+    async def is_maintenance_mode(self) -> bool:
+        """检查系统是否处于维护模式"""
+        try:
+            from models.system import SystemConfiguration
+            from sqlalchemy import select
+            
+            async with self.container.db.get_session() as s:
+                result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
+                config = result.scalar_one_or_none()
+                return config and config.value.lower() == "true"
+        except Exception as e:
+            logger.error(f"Failed to check maintenance mode: {e}")
+            return False
+
+    async def set_maintenance_mode(self, enabled: bool) -> bool:
+        """设置系统维护模式"""
+        try:
+            from models.system import SystemConfiguration
+            from sqlalchemy import select
+            
+            async with self.container.db.get_session() as s:
+                result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
+                config = result.scalar_one_or_none()
+                
+                value = "true" if enabled else "false"
+                if config:
+                    config.value = value
+                else:
+                    config = SystemConfiguration(key="maintenance_mode", value=value)
+                    s.add(config)
+                
+                await s.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to set maintenance mode: {e}")
+            return False
+        
     def get_allow_registration(self) -> bool:
         return self._allow_registration
         
     def set_allow_registration(self, value: bool):
         self._allow_registration = value
         logger.info(f"Registration allowed set to: {value}")
+
+    async def get_system_configurations(self, limit: int = 20):
+        """获取系统配置列表"""
+        try:
+            from models.system import SystemConfiguration
+            from sqlalchemy import select
+            async with self.container.db.get_session() as s:
+                result = await s.execute(select(SystemConfiguration).limit(limit))
+                return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Failed to get system configurations: {e}")
+            return []
+
+    async def get_error_logs(self, limit: int = 5):
+        """获取最近的消息错误日志"""
+        try:
+            from models.models import ErrorLog
+            from sqlalchemy import select, desc
+            async with self.container.db.get_session() as s:
+                result = await s.execute(
+                    select(ErrorLog).order_by(desc(ErrorLog.created_at)).limit(limit)
+                )
+                return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Failed to get error logs: {e}")
+            return []
 
     def get_logs(self, lines: int = 50, log_type: str = "app") -> str:
         """读取系统日志最近 N 行 (优化版，防止大文件 OOM)"""
@@ -121,7 +189,6 @@ class SystemService:
         """运行数据库优化 (SQLite PRAGMA optimize/VACUUM)"""
         try:
             from core.db_factory import async_vacuum_database, async_analyze_database
-            from models.models import cleanup_old_logs
             import time
             
             start_time = time.time()
@@ -144,10 +211,8 @@ class SystemService:
             # 清理旧日志 (暂定 30 天)
             deleted_logs = 0
             if deep:
-                from functools import partial
-                import asyncio
-                loop = asyncio.get_running_loop()
-                deleted_logs = await loop.run_in_executor(None, partial(cleanup_old_logs, 30))
+                from models.models import async_cleanup_old_logs
+                deleted_logs = await async_cleanup_old_logs(30)
             
             return {
                 "success": True,
@@ -215,6 +280,54 @@ class SystemService:
             return f"{int(h)}小时 {int(m)}分"
         else:
             return f"{int(m)}分 {int(s)}秒"
+
+    async def get_advanced_stats(self) -> Dict[str, Any]:
+        """获取深度汇总统计信息 (整合官方API和HLL)"""
+        from sqlalchemy import func, select
+        from models.models import ForwardRule, Chat, MediaSignature, ErrorLog
+        from services.network.api_optimization import get_api_optimizer
+        from core.algorithms.hll import GlobalHLL
+        
+        async with self.container.db.get_session() as s:
+            # 1. 基础规则统计
+            stmt_count = select(func.count()).select_from(ForwardRule)
+            rule_count = (await s.execute(stmt_count)).scalar() or 0
+            
+            stmt_active = select(func.count()).select_from(ForwardRule).where(ForwardRule.enable_rule.is_(True))
+            active_rules = (await s.execute(stmt_active)).scalar() or 0
+            
+            # 2. 其他基础计数
+            chat_count = (await s.execute(select(func.count()).select_from(Chat))).scalar() or 0
+            media_count = (await s.execute(select(func.count()).select_from(MediaSignature))).scalar() or 0
+            error_count = (await s.execute(select(func.count()).select_from(ErrorLog))).scalar() or 0
+            total_processed = (await s.execute(select(func.sum(ForwardRule.message_count)).select_from(ForwardRule))).scalar() or 0
+            
+            # 3. HLL 估值
+            unique_today = 0
+            hll = GlobalHLL.get_hll("unique_messages_today")
+            if hll: unique_today = hll.count()
+            
+            # 4. 官方 API 实时统计
+            realtime_data = {}
+            api_optimizer = get_api_optimizer()
+            if api_optimizer:
+                active_chat_ids = (await s.execute(select(Chat.telegram_chat_id).where(Chat.is_active == True).limit(5))).scalars().all()
+                if active_chat_ids:
+                    realtime_data = await api_optimizer.get_multiple_chat_statistics([cid for cid in active_chat_ids if cid])
+            
+            return {
+                "base": {
+                    "total_rules": rule_count,
+                    "active_rules": active_rules,
+                    "chat_count": chat_count,
+                    "media_count": media_count,
+                    "error_count": error_count,
+                    "total_processed": total_processed,
+                },
+                "unique_today": unique_today,
+                "realtime": realtime_data,
+                "api_enabled": api_optimizer is not None
+            }
 
 class GuardService:
     """
@@ -404,9 +517,15 @@ class GuardService:
             try:
                 changed = await asyncio.to_thread(self._check_changes)
                 if changed:
-                    logger.info(f"[guard-watcher] Detected change: {changed}. Triggering hot-restart...")
-                    await asyncio.sleep(1)
-                    await self._restart_process_async()
+                    # [修复] 如果系统当前正处于更新后的“观察期”，则屏蔽热重启，防止造成启动循环导致误判回滚
+                    from services.update_service import update_service
+                    update_state = update_service._get_state()
+                    if update_state.get("status") == "restarting":
+                        logger.warning(f"⚠️ [guard-watcher] 系统处于更新观察期 (Observation Period)，已忽略文件变更以防止启动循环: {changed}")
+                    else:
+                        logger.info(f"[guard-watcher] Detected change: {changed}. Triggering hot-restart...")
+                        await asyncio.sleep(1)
+                        await self._restart_process_async()
                 await asyncio.sleep(5) # 每5秒检查一次
             except Exception as e:
                 logger.error(f"[guard-watcher] Error: {e}")
@@ -476,6 +595,43 @@ class GuardService:
 
     def trigger_restart(self):
         asyncio.create_task(self._restart_process_async())
+
+    async def cleanup_old_logs(self, days: int) -> Dict[str, Any]:
+        """清理旧日志 (Handler Purity 兼容)"""
+        try:
+            from core.db_factory import async_cleanup_old_logs
+            deleted_count = await async_cleanup_old_logs(days)
+            logger.info(f"成功清理 {days} 天前的日志，删除 {deleted_count} 条记录")
+            return {
+                'success': True,
+                'deleted_count': deleted_count
+            }
+        except Exception as e:
+            logger.error(f"清理日志失败: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e),
+                'deleted_count': 0
+            }
+
+    async def get_db_health(self) -> Dict[str, Any]:
+        """获取数据库健康状态 (Handler Purity 兼容)"""
+        try:
+            from sqlalchemy import text
+            async with self.container.db.get_session() as session:
+                # 简单的连接测试
+                await session.execute(text("SELECT 1"))
+                return {
+                    'connected': True,
+                    'status': 'healthy'
+                }
+        except Exception as e:
+            logger.error(f"数据库健康检查失败: {e}")
+            return {
+                'connected': False,
+                'status': 'error',
+                'error': str(e)
+            }
 
 
 system_service = SystemService()

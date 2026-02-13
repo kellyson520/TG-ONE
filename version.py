@@ -1,7 +1,11 @@
-VERSION = "1.2.5.0"
+VERSION = "1.2.5.1"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.5.1: 更新自愈与健康检查稳定性优化
+  - 修复 UpdateService 健康检查重复计数导致的回滚死循环
+  - 引入 UpdateService 的进程级单次验证锁 (Health Check Debounce)
+  - 在系统更新观察期内自动抑制 GuardService 的文件变更热重启
 - v1.2.5.0: UIRE-2.0 渲染引擎与 CVM 架构模块化
   - 核心渲染引擎升级：支持原子行控制、智能流式布局及吸底按钮自动排列
   - 引入 UI 鲁棒性守卫：3800 字符硬截断、智能 ID 缩略及 Markdown 逃逸保护

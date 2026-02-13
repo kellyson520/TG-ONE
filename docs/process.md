@@ -12,6 +12,11 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260213_Fix_Update_Restart_Loop | 修复更新重启循环与误触发回滚 (Duplicate Health Check & Hot-Restart) | 2026-02-13 | 2026-02-13 | 100% | [[report.md]](./Workstream_Bugfix/20260213_Fix_Update_Restart_Loop/report.md) |
+| 20260212_API_Performance_Optimization | API 性能优化与并发控制 (Request Coalescing & Semaphore) | 2026-02-12 | 2026-02-12 | 100% | [[report.md]](./Workstream_Optimization/20260212_API_Performance_Optimization/report.md) |
+| 20260212_Fix_Keyword_Filter_Interceptor | 修复过滤器 Keyword 全部拦截转发的错误 | 2026-02-12 | 2026-02-12 | 100% | [[report.md]](./Workstream_Bugfix/20260212_KeywordFilterFix/report.md) |
+| 20260211_Fix_Unmatched_Button_Actions | 修复 Admin Hub 中未匹配的按钮动作 (system_logs等) | 2026-02-11 | 2026-02-11 | 100% | [[report.md]](./Workstream_Bugfix/20260211_Fix_Unmatched_Button_Actions/report.md) |
+| 20260211_Fix_EventBus_Emit_Error | 修复 EventBus.emit 方法缺失错误 | 2026-02-11 | 2026-02-11 | 100% | [[report.md]](./Workstream_Bugfix/20260211_Fix_EventBus_Emit_Error/report.md) |
 | 20260210_Perfect_Shutdown_Architecture | 完美异步退出与全状态自愈架构重构 | 2026-02-10 | 2026-02-10 | 100% | [[report.md]](./Workstream_Core_Engineering/20260210_Perfect_Shutdown_Architecture/report.md) |
 | 20260208_FixSenderFilterMetadata | 修复 SenderFilter MessageContext 缺失 metadata 属性错误 | 2026-02-08 | 2026-02-08 | 100% | [[report.md]](./Workstream_Bugfix/20260208_FixSenderFilterMetadata/report.md) |
 | 20260210_Fix_Update_Failure | 修复更新失效、退出挂起与数据回滚深度治理 | 2026-02-10 | 2026-02-10 | 100% | [[report.md]](./docs/Workstream_Bugfix/20260210_Fix_Update_Failure/report.md) |
@@ -114,6 +119,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260211_Fix_Menu_Localization_And_System_Errors | 修复菜单面板、汉化转发详情及系统导入错误 | 2026-02-11 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260211_Fix_Menu_Localization_And_System_Errors/todo.md) |
 | 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
 | 20260210_Fix_AccessControlList_AlreadyExists_Error | 修复 access_control_list 表已存在导致的数据库初始化错误 | 2026-02-10 | 2026-02-10 | 100% | [📂 查看](./Workstream_Database/20260210_Fix_AccessControlList_AlreadyExists_Error/todo.md) |
 | 20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint | 修复 Container RuntimeError 及 Dedup 指纹记录失败 | 2026-02-10 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint/todo.md) |
@@ -167,6 +173,7 @@
 | 20260207_Upgrade_Dedup_v4 | 去重引擎 v4 迭代与边界覆盖 (算法/全局/边界) | 2026-02-07 | 进行中 | 5% | [📂 查看](./Workstream_Deduplication/20260207_Upgrade_Deduplication_Engine_v4/todo.md) |
 | 20260209_Controller_and_View_Modularization | 控制器与视图模块化重构 (CVM) | 2026-02-09 | 已完成 | 100% | [[todo.md]](./Workstream_Core_Engineering/20260209_Controller_and_View_Modularization/todo.md) |
 | 20260208_Unified_Command_Menu_UI | 统一命令与菜单系统 UI (视觉与交互对齐) | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_UI/20260208_Unified_Command_Menu_System/todo.md) |
+| 20260211_Menu_Architecture_Deep_Audit | 菜单系统架构深度审计与收尾重构 (Handler Purity + Controller Refactor) | 2026-02-11 | 2026-02-11 | 100% | [[report.md]](./Workstream_Core_Engineering/20260211_Menu_Architecture_Deep_Audit/implementation_report_final.md) |
 
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260209_Fix_Shutdown_Hang | 修复系统关闭卡死问题 | 2026-02-09 | 2026-02-10 | 100% | [[report.md]](./docs/Workstream_Bugfix/20260209_Fix_Shutdown_Hang/report.md) |
