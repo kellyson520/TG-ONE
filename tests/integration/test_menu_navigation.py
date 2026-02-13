@@ -6,7 +6,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from handlers.button.strategies.registry import MenuHandlerRegistry
-from handlers.button.callback.new_menu_callback import callback_new_menu_handler
+from handlers.button.callback.menu_entrypoint import callback_new_menu_handler
 
 
 @pytest.fixture

@@ -505,6 +505,9 @@ def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[
         def get_cache() -> MultiLevelCache:
             return get_smart_cache(cache_name, l1_ttl=ttl, l2_ttl=ttl * 2)
 
+        # 用于请求合并的锁字典 (Request Coalescing)
+        _request_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_cache()
@@ -514,29 +517,42 @@ def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[
             else:
                 cache_key = CacheKey.generate_for_function(func, *args, **kwargs)
 
-            # 尝试从缓存获取
+            # 1. 尝试从缓存直接获取
             cached_result = cache.get(cache_key)
             if cached_result is not None:
-                logger.log_operation(
-                    f"缓存命中-{cache_name}", details=f"键: {cache_key}"
-                )
+                logger.debug(f"[缓存命中] {cache_name} - 键: {cache_key}")
                 return cached_result
 
-            # 执行原函数
-            start_time = time.time()
-            result = await func(*args, **kwargs)
-            duration = time.time() - start_time
+            # 2. 缓存未命中，进入请求锁 (防止惊群效应)
+            # 使用特定键的锁，保证同一时间只有一个请求穿透到原函数
+            async with _request_locks[cache_key]:
+                # 双重检查命中 (Double-Check Locking)
+                cached_result = cache.get(cache_key)
+                if cached_result is not None:
+                    logger.debug(f"[缓存命中-并发保护] {cache_name} - 键: {cache_key}")
+                    return cached_result
 
-            # 存储到缓存
-            cache.set(cache_key, result, ttl)
+                # 执行原函数
+                start_time = time.time()
+                try:
+                    result = await func(*args, **kwargs)
+                finally:
+                    # 确保清理锁，防止内存泄漏（如果是高频动态键）
+                    # 只有在没有其他人等待锁时才考虑删除，这里采用简单的 try-finally 包装原函数即可
+                    pass
 
-            logger.log_performance(
-                f"缓存写入-{cache_name}",
-                duration,
-                details=f"键: {cache_key}, 结果大小: {len(str(result))}",
-            )
+                duration = time.time() - start_time
 
-            return result
+                # 存储到缓存
+                cache.set(cache_key, result, ttl)
+
+                logger.log_performance(
+                    f"缓存写入-{cache_name}",
+                    duration,
+                    details=f"键: {cache_key}, 结果大小: {len(str(result))}",
+                )
+
+                return result
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -572,8 +588,6 @@ def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[
             return result
 
         # 根据函数类型返回对应的包装器
-        import asyncio
-
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         else:

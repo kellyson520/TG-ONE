@@ -263,8 +263,59 @@ async def async_vacuum_database() -> bool:
 
 
 async def async_cleanup_old_logs(days: int) -> int:
-    """Cleanup old logs (dummy for now, but referenced by manage_db.py)"""
-    return 0
+    """清理旧日志 (异步)"""
+    try:
+        from datetime import datetime, timedelta
+        from sqlalchemy import delete
+        from models.models import RuleLog, ErrorLog, AuditLog
+        
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        deleted_count = 0
+        
+        async with get_session() as session:
+            # 1. 清理转发日志
+            stmt1 = delete(RuleLog).where(RuleLog.created_at < cutoff)
+            res1 = await session.execute(stmt1)
+            deleted_count += res1.rowcount
+            
+            # 2. 清理错误日志
+            stmt2 = delete(ErrorLog).where(ErrorLog.created_at < cutoff)
+            res2 = await session.execute(stmt2)
+            deleted_count += res2.rowcount
+            
+            # 3. 清理审计日志
+            stmt3 = delete(AuditLog).where(AuditLog.created_at < cutoff)
+            res3 = await session.execute(stmt3)
+            deleted_count += res3.rowcount
+            
+            await session.commit()
+            logger.info(f"已清理 {days} 天前的旧日志，共删除 {deleted_count} 条记录")
+            return deleted_count
+    except Exception as e:
+        logger.error(f"清理旧日志失败: {e}")
+        return 0
+
+
+def cleanup_old_logs(days: int) -> int:
+    """清理旧日志 (同步)"""
+    try:
+        import asyncio
+        # 创建新的事件循环运行异步函数
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if loop.is_running():
+            # 如果已经在运行，则无法直接 run_until_complete，这种情况在 controller 中可能发生
+            # 但通常同步调用是在独立的脚本或线程中
+            return 0
+            
+        return loop.run_until_complete(async_cleanup_old_logs(days))
+    except Exception as e:
+        logger.error(f"同步清理旧日志失败: {e}")
+        return 0
 
 
 async def async_get_database_info() -> Optional[Dict[str, Any]]:

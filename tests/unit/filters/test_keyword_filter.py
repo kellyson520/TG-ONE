@@ -149,22 +149,17 @@ async def test_keyword_filter_delete_source_single(keyword_filter, mock_context)
         mock_msg.delete.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_keyword_filter_optimized_search_success(keyword_filter, mock_context):
+async def test_keyword_filter_verify_no_history_search(keyword_filter, mock_context):
+    """验证已移除会导致错误的 API 历史搜索逻辑"""
     mock_context.rule.enable_search_optimization = True
     mock_context.rule.keywords = [SimpleNamespace(keyword="test")]
-    mock_context.event.chat_id = 999
     
-    with patch("filters.keyword_filter.get_main_module", new_callable=AsyncMock) as mock_main:
-        mock_main.return_value = SimpleNamespace(user_client=AsyncMock())
+    with patch("services.rule.filter.RuleFilterService.check_keywords", return_value=False) as mock_check:
         with patch("services.network.telegram_api_optimizer.api_optimizer.search_messages_by_keyword", new_callable=AsyncMock) as mock_search:
-            mock_search.return_value = [MagicMock()] # Found something
-            
-            # RuleFilterService.check_keywords returns False to trigger optimized search
-            with patch("services.rule.filter.RuleFilterService.check_keywords", new_callable=AsyncMock) as mock_check:
-                mock_check.return_value = False
-                result = await keyword_filter._process(mock_context)
-                assert result is True
-                mock_search.assert_called_once()
+            result = await keyword_filter._process(mock_context)
+            assert result is False
+            # 确保没有调用 API 搜索
+            mock_search.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_keyword_filter_handle_dedup_deletion(keyword_filter, mock_context):
@@ -194,12 +189,10 @@ async def test_keyword_filter_send_notification(keyword_filter, mock_context):
 
 @pytest.mark.asyncio
 async def test_keyword_filter_enhanced_check_error(keyword_filter, mock_context):
+    """验证当关键词检查发生异常时，应返回 False 以确保安全"""
     with patch("services.rule.filter.RuleFilterService.check_keywords", side_effect=Exception("oops")):
-        # Should fallback to check_keywords again (and fail, or succeed if caught)
-        # The code at line 94 does a fallback
-        with patch("services.rule.filter.RuleFilterService.check_keywords", return_value=True) as mock_check:
-            result = await keyword_filter._enhanced_keyword_check(mock_context.rule, "text", mock_context.event)
-            assert result is True
+        result = await keyword_filter._enhanced_keyword_check(mock_context.rule, "text", mock_context.event)
+        assert result is False
 
 @pytest.mark.asyncio
 async def test_keyword_filter_delete_source_legacy_fallback(keyword_filter, mock_context):
@@ -248,15 +241,6 @@ async def test_keyword_filter_sender_regex_exception(keyword_filter, mock_contex
         result = await keyword_filter._process(mock_context)
         assert result is False
 
-@pytest.mark.asyncio
-async def test_keyword_filter_optimized_search_client_fail(keyword_filter, mock_context):
-    mock_context.rule.enable_search_optimization = True
-    
-    with patch("services.rule.filter.RuleFilterService.check_keywords", return_value=False):
-        with patch("filters.keyword_filter.get_main_module", side_effect=Exception("no client")):
-            # Should catch exception and return basic_result (False)
-            result = await keyword_filter._process(mock_context)
-            assert result is False
 
 @pytest.mark.asyncio
 async def test_keyword_filter_smart_dedup_empty_text(keyword_filter, mock_context):

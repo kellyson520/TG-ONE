@@ -97,6 +97,21 @@ class UserService:
     async def delete_user(self, user_id: int) -> bool:
         """删除用户 (Admin Only)"""
         return await self.container.user_repo.delete_user(user_id)
+    
+    @audit_log(action="DELETE_USER_BY_USERNAME", resource_type="USER")
+    async def delete_user_by_username(self, username: str) -> dict:
+        """根据用户名删除用户 (Admin Only)"""
+        async with self.container.db.get_session() as session:
+            stmt = select(User).filter(User.username == username)
+            user = (await session.execute(stmt)).scalar_one_or_none()
+            
+            if not user:
+                return {'success': False, 'error': f'User {username} not found'}
+            
+            await session.delete(user)
+            await session.commit()
+            
+            return {'success': True, 'username': username}
 
     async def process_user_info(self, event: Any, rule_id: int, message_text: str) -> str:
         """处理用户信息过滤与前缀添加"""

@@ -26,44 +26,50 @@ class KeywordFilter(BaseFilter):
         message_text = context.message_text
         event = context.event
 
+        # 1. 发送者校验 (支持 sender_id 和 sender_name 正则)
+        sender_ok = self._check_sender(rule, context)
+        if not sender_ok:
+            logger.debug(f"发送者校验未通过: RuleID={getattr(rule, 'id', 'N/A')}")
+            return False
 
-        # 支持复合条件：若规则启用了 sender 过滤，则必须同时满足
-        # 约定：rule 可带属性 required_sender_id（字符串或整数），required_sender_regex（名称匹配）
-        sender_ok = True
-        try:
-            required_sender = getattr(rule, 'required_sender_id', None)
-            required_sender_regex = getattr(rule, 'required_sender_regex', None)
-            if required_sender is not None or required_sender_regex:
-                sender_id_val = getattr(context, 'sender_id', None)
-                sender_name_val = getattr(context, 'sender_name', '') or ''
-                if required_sender is not None:
-                    try:
-                        sender_ok = str(sender_id_val) == str(required_sender)
-                    except Exception:
-                        sender_ok = False
-                if sender_ok and required_sender_regex:
-                    import re as _re
-                    try:
-                        sender_ok = bool(_re.search(required_sender_regex, sender_name_val))
-                    except Exception:
-                        sender_ok = False
-        except Exception:
-            sender_ok = True
-
-        # 增强关键词检查：支持API优化搜索
+        # 2. 关键词校验 (增强模式)
         keyword_ok = await self._enhanced_keyword_check(rule, message_text, event)
         
-        # [Optimization] 仅在通过基本过滤（发送者+关键词）后才执行去重检查
-        # ⚠️ 注意: 智能去重已迁移至 DedupMiddleware，为了防止双重锁定导致的误判，这里不再执行去重。
-        # 这里仅保留关键词和发送者的判断逻辑。
-        
-        should_forward = (sender_ok and keyword_ok)
-        
-        return should_forward
+        # ⚠️ 注意: 智能去重已迁移至 DedupMiddleware
+        return keyword_ok
     
+    def _check_sender(self, rule, context) -> bool:
+        """校验发送者是否匹配规则要求"""
+        required_sender = getattr(rule, 'required_sender_id', None)
+        required_sender_regex = getattr(rule, 'required_sender_regex', None)
+        
+        # 如果没有发送者限制，直接通过
+        if required_sender is None and not required_sender_regex:
+            return True
+            
+        sender_id_val = getattr(context, 'sender_id', None)
+        sender_name_val = getattr(context, 'sender_name', '') or ''
+        
+        # 校验 ID
+        if required_sender is not None:
+            if str(sender_id_val) != str(required_sender):
+                return False
+                
+        # 校验名称正则
+        if required_sender_regex:
+            import re
+            try:
+                if not re.search(required_sender_regex, sender_name_val, re.I):
+                    return False
+            except Exception as e:
+                logger.error(f"发送者名称正则匹配出错: {e}")
+                return False # 正则错误视为不匹配
+                
+        return True
+
     async def _enhanced_keyword_check(self, rule, message_text, event):
         """
-        增强的关键词检查，支持API优化搜索
+        增强的关键词检查
         
         Args:
             rule: 转发规则
@@ -75,76 +81,13 @@ class KeywordFilter(BaseFilter):
         """
         from services.rule.filter import RuleFilterService
         try:
-            # 优先使用 Service 进行基本检查
-            basic_result = await RuleFilterService.check_keywords(rule, message_text, event)
-            
-            # 如果启用了搜索优化且有特殊需求，使用API搜索
-            if hasattr(rule, 'enable_search_optimization') and rule.enable_search_optimization:
-                return await self._optimized_keyword_search(rule, message_text, event, basic_result)
-            
-            return basic_result
-            
-        except Exception as e:
-            logger.error(f"增强关键词检查失败: {str(e)}")
-            # 回退到基本检查
+            # 使用 Service 进行关键词检查 (已包含 AC 自动机和正则优化)
+            # 移除了会导致“全部转发”漏洞的 API 历史搜索逻辑
             return await RuleFilterService.check_keywords(rule, message_text, event)
-    
-    async def _optimized_keyword_search(self, rule, message_text, event, basic_result):
-        """
-        使用API优化的关键词搜索
-        
-        Args:
-            rule: 转发规则
-            message_text: 消息文本
-            event: 消息事件
-            basic_result: 基本检查结果
-            
-        Returns:
-            bool: 优化后的检查结果
-        """
-        try:
-            # 如果基本检查已经通过，直接返回
-            if basic_result:
-                return True
-            
-            # 获取用户客户端
-            try:
-                main = await get_main_module()
-                client = main.user_client
-            except Exception:
-                logger.warning("无法获取用户客户端，使用基本结果")
-                return basic_result
-            
-            # 获取规则的关键词
-            keywords = getattr(rule, 'keywords', [])
-            if not keywords:
-                return basic_result
-            
-            # 对于某些特殊场景，使用API搜索验证
-            # 例如：检查相似消息是否在历史中存在
-            chat_id = event.chat_id
-            
-            # 搜索最近的相关消息
-            for keyword_obj in keywords[:3]:  # 限制搜索数量
-                keyword_text = getattr(keyword_obj, 'keyword', '') if hasattr(keyword_obj, 'keyword') else str(keyword_obj)
-                if not keyword_text:
-                    continue
-                
-                # 使用API搜索
-                search_results = await api_optimizer.search_messages_by_keyword(
-                    client, chat_id, keyword_text, limit=10
-                )
-                
-                if search_results:
-                    logger.info(f"API搜索找到 {len(search_results)} 条相关消息，关键词: {keyword_text}")
-                    # 如果找到了相关消息，说明该关键词在上下文中确实存在，通过检查
-                    return True
-            
-            return basic_result
-            
         except Exception as e:
-            logger.error(f"API优化搜索失败: {str(e)}")
-            return basic_result
+            logger.error(f"关键词检查发生异常: {str(e)}")
+            return False
+
     
     @handle_errors(default_return=False)
     async def _check_smart_duplicate(self, context, rule):

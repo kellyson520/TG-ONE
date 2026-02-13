@@ -198,7 +198,7 @@ class RuleCRUDService:
                 self.container.rule_repo.clear_cache(int(target_chat_dto.telegram_chat_id))
                 
                 # [QoS Fix] 发送更新事件
-                self.container.bus.publish("RULE_UPDATED", {"rule_id": new_rule.id, "action": "create"})
+                await self.container.bus.publish("RULE_UPDATED", {"rule_id": new_rule.id, "action": "create"})
                 
                 return {'success': True, 'rule_id': new_rule.id}
 
@@ -238,7 +238,7 @@ class RuleCRUDService:
             if target_id: self.container.rule_repo.clear_cache(target_id)
             
             # [QoS Fix] 发送更新事件，触发监听器刷新优先级映射
-            self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "update"})
+            await self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "update"})
             
             return {'success': True, 'rule_id': rule_id, 'source_chat_id': source_id, 'target_chat_id': target_id}
 
@@ -264,7 +264,7 @@ class RuleCRUDService:
             if target_id: self.container.rule_repo.clear_cache(target_id)
             
             # [QoS Fix] 发送更新事件
-            self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
+            await self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
             
             return {'success': True, 'message': 'Deleted successfully', 'source_chat_id': source_id, 'target_chat_id': target_id}
 

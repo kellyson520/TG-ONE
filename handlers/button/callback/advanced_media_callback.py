@@ -9,7 +9,6 @@ from core.config import settings
 
 from services.session_service import session_manager
 from core.container import container
-from models.models import ForwardRule
 
 logger = logging.getLogger(__name__)
 
@@ -27,247 +26,166 @@ async def handle_advanced_media_callback(event, session=None, **kwargs):
         await event.answer("无效的规则ID", alert=True)
         return
 
-    # 创建异步session
-    async with container.db.get_session(session) as s:
-        if action == "toggle_duration_filter":
-            await callback_toggle_duration_filter(event, rule_id, s, None, data)
-        elif action == "set_duration_range":
-            await callback_set_duration_range(event, rule_id, s, None, data)
-        elif action == "cancel_set_duration_range":
-            await callback_cancel_set_duration_range(event, rule_id, s, None, data)
-        elif action == "toggle_resolution_filter":
-            await callback_toggle_resolution_filter(event, rule_id, s, None, data)
-        elif action == "set_resolution_range":
-            await callback_set_resolution_range(event, rule_id, s, None, data)
-        elif action == "cancel_set_resolution_range":
-            await callback_cancel_set_resolution_range(event, rule_id, s, None, data)
-        elif action == "toggle_file_size_range_filter":
-            await callback_toggle_file_size_range_filter(event, rule_id, s, None, data)
-        elif action == "set_file_size_range":
-            await callback_set_file_size_range(event, rule_id, s, None, data)
-        elif action == "cancel_set_file_size_range":
-            await callback_cancel_set_file_size_range(event, rule_id, s, None, data)
-        # 兼容新菜单的组件调用
-        elif action == "open_duration_picker":
-            # 逻辑可能需要根据实际组件调整，暂留空或实现基础跳转
-            await event.answer("功能开发中...")
+    if action == "toggle_duration_filter":
+        await callback_toggle_duration_filter(event, rule_id, session, None, data)
+    elif action == "set_duration_range":
+        await callback_set_duration_range(event, rule_id, session, None, data)
+    elif action == "cancel_set_duration_range":
+        await callback_cancel_set_duration_range(event, rule_id, session, None, data)
+    elif action == "toggle_resolution_filter":
+        await callback_toggle_resolution_filter(event, rule_id, session, None, data)
+    elif action == "set_resolution_range":
+        await callback_set_resolution_range(event, rule_id, session, None, data)
+    elif action == "cancel_set_resolution_range":
+        await callback_cancel_set_resolution_range(event, rule_id, session, None, data)
+    elif action == "toggle_file_size_range_filter":
+        await callback_toggle_file_size_range_filter(event, rule_id, session, None, data)
+    elif action == "set_file_size_range":
+        await callback_set_file_size_range(event, rule_id, session, None, data)
+    elif action == "cancel_set_file_size_range":
+        await callback_cancel_set_file_size_range(event, rule_id, session, None, data)
+    elif action == "open_duration_picker":
+        await event.answer("功能开发中...")
 
 
 async def callback_toggle_duration_filter(event, rule_id, session, message, data):
+    """切换时长过滤"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if not rule:
-                await event.answer("规则不存在", alert=True)
-                return
-
-            rule.enable_duration_filter = not getattr(rule, "enable_duration_filter", False)
-            await s.commit()
-
-            status = "开启" if rule.enable_duration_filter else "关闭"
-            await event.answer(f"时长过滤已{status}")
-
+        # 使用 Service 层处理切换逻辑
+        res = await container.rule_service.toggle_rule_setting(rule_id, "enable_duration_filter")
+        
+        if res.get('success'):
+            status = "开启" if res.get('new_value') else "关闭"
+            await event.answer(f"✅ 时长过滤已{status}")
             from .media_callback import _show_rule_media_settings
-
-            await _show_rule_media_settings(event, rule_id, session=s)
+            await _show_rule_media_settings(event, rule_id, session=None)
+        else:
+            await event.answer(f"❌ 切换失败: {res.get('error')}", alert=True)
 
     except Exception as e:
         logger.error(f"切换时长过滤失败: {e}")
-        await event.answer("操作失败", alert=True)
+        await event.answer("⚠️ 操作失败", alert=True)
 
 
 async def callback_set_duration_range(event, rule_id, session, message, data):
+    """设置时长范围入口"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if not rule:
-                await event.answer("规则不存在", alert=True)
-                return
+        rule = await container.rule_repo.get_by_id(rule_id)
+        if not rule:
+            await event.answer("❌ 规则不存在", alert=True)
+            return
 
-            chat = await event.get_chat()
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
+        user_id = int(event.sender_id)
+        chat_id = event.chat_id
 
-            # 使用 session_manager 替代 state_manager
-            if user_id not in session_manager.user_sessions:
-                session_manager.user_sessions[user_id] = {}
-            session_manager.user_sessions[user_id][chat_id] = {
-                "state": "waiting_duration_range",
-                "message": {"rule_id": rule_id},
-                "state_type": "advanced_media",
-            }
+        # 设置会话状态
+        session_manager.set_user_session(user_id, chat_id, {
+            "state": "waiting_duration_range",
+            "rule_id": rule_id,
+            "state_type": "advanced_media",
+        })
 
-            current_min = getattr(rule, "min_duration", 0)
-            current_max = getattr(rule, "max_duration", 0)
+        current_min = getattr(rule, "min_duration", 0)
+        current_max = getattr(rule, "max_duration", 0)
 
-            text = (
-                "🎬 **设置时长范围**\n\n"
-                f"当前: {current_min}s - {current_max if current_max > 0 else '∞'}s\n"
-                "请输入: `最小` 或 `最小 最大` (0表示无限)\n例如: `30 300`"
-            )
-            buttons = [[Button.inline("❌ 取消", f"cancel_set_duration_range:{rule_id}")]]
-            await event.edit(text, buttons=buttons, parse_mode="markdown")
+        text = (
+            "🎬 **设置时长范围**\n\n"
+            f"当前: {current_min}s - {current_max if current_max > 0 else '∞'}s\n"
+            "请输入: `最小` 或 `最小 最大` (0表示无限)\n例如: `30 300`"
+        )
+        buttons = [[Button.inline("❌ 取消", f"cancel_set_duration_range:{rule_id}")]]
+        await event.edit(text, buttons=buttons, parse_mode="markdown")
 
     except Exception as e:
-        logger.error(f"设置时长范围失败: {e}")
-        await event.answer("操作失败", alert=True)
+        logger.error(f"设置时长范围发起失败: {e}")
+        await event.answer("⚠️ 操作失败", alert=True)
 
 
 async def callback_cancel_set_duration_range(event, rule_id, session, message, data):
+    """取消设置时长范围"""
     try:
-        chat = await event.get_chat()
-        if isinstance(chat, types.Channel):
-            user_id = settings.USER_ID
-            chat_id = int(f"100{abs(chat.id)}")
-        else:
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
-
-        # 使用 session_manager 替代 state_manager
-        if user_id in session_manager.user_sessions:
-            if chat_id in session_manager.user_sessions[user_id]:
-                session_manager.user_sessions[user_id].pop(chat_id)
-                # 如果用户会话为空，清理掉该用户的会话记录
-                if not session_manager.user_sessions[user_id]:
-                    session_manager.user_sessions.pop(user_id)
-
+        session_manager.clear_user_session(event.sender_id, event.chat_id)
         from .media_callback import _show_rule_media_settings
-
-        await _show_rule_media_settings(event, rule_id, session=session)
-
+        await _show_rule_media_settings(event, rule_id)
     except Exception as e:
         logger.error(f"取消设置失败: {e}")
 
 
 async def callback_toggle_resolution_filter(event, rule_id, session, message, data):
+    """切换分辨率过滤"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if not rule:
-                return
-
-            rule.enable_resolution_filter = not getattr(
-                rule, "enable_resolution_filter", False
-            )
-            await s.commit()
-
-            status = "开启" if rule.enable_resolution_filter else "关闭"
-            await event.answer(f"分辨率过滤已{status}")
-
+        res = await container.rule_service.toggle_rule_setting(rule_id, "enable_resolution_filter")
+        if res.get('success'):
+            status = "开启" if res.get('new_value') else "关闭"
+            await event.answer(f"✅ 分辨率过滤已{status}")
             from .media_callback import _show_rule_media_settings
-
-            await _show_rule_media_settings(event, rule_id, session=s)
+            await _show_rule_media_settings(event, rule_id)
+        else:
+            await event.answer(f"❌ 切换失败: {res.get('error')}")
     except Exception as e:
         logger.error(f"切换分辨率过滤失败: {e}")
 
 
 async def callback_set_resolution_range(event, rule_id, session, message, data):
+    """设置分辨率入口"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if not rule:
-                return
+        session_manager.set_user_session(event.sender_id, event.chat_id, {
+            "state": "waiting_resolution_range",
+            "rule_id": rule_id,
+            "state_type": "advanced_media",
+        })
 
-            chat = await event.get_chat()
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
-
-            # 使用 session_manager 替代 state_manager
-            if user_id not in session_manager.user_sessions:
-                session_manager.user_sessions[user_id] = {}
-            session_manager.user_sessions[user_id][chat_id] = {
-                "state": "waiting_resolution_range",
-                "message": {"rule_id": rule_id},
-                "state_type": "advanced_media",
-            }
-
-            text = "📐 **设置分辨率**\n请输入: `minW minH [maxW maxH]`"
-            buttons = [[Button.inline("❌ 取消", f"cancel_set_resolution_range:{rule_id}")]]
-            await event.edit(text, buttons=buttons, parse_mode="markdown")
+        text = "📐 **设置分辨率**\n请输入: `minW minH [maxW maxH]`"
+        buttons = [[Button.inline("❌ 取消", f"cancel_set_resolution_range:{rule_id}")]]
+        await event.edit(text, buttons=buttons, parse_mode="markdown")
     except Exception:
-        await event.answer("操作失败", alert=True)
+        await event.answer("⚠️ 操作失败", alert=True)
 
 
 async def callback_cancel_set_resolution_range(event, rule_id, session, message, data):
-    # 逻辑同 cancel_set_duration_range
+    """取消设置分辨率"""
     try:
-        chat = await event.get_chat()
-        user_id = int(event.sender_id)
-        chat_id = event.chat_id
-        # 使用 session_manager 替代 state_manager
-        if user_id in session_manager.user_sessions:
-            if chat_id in session_manager.user_sessions[user_id]:
-                session_manager.user_sessions[user_id].pop(chat_id)
-                # 如果用户会话为空，清理掉该用户的会话记录
-                if not session_manager.user_sessions[user_id]:
-                    session_manager.user_sessions.pop(user_id)
+        session_manager.clear_user_session(event.sender_id, event.chat_id)
         from .media_callback import _show_rule_media_settings
-
-        await _show_rule_media_settings(event, rule_id, session=session)
+        await _show_rule_media_settings(event, rule_id)
     except Exception as e:
-        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+        logger.error(f"取消设置分辨率失败: {e}")
 
 
 async def callback_toggle_file_size_range_filter(event, rule_id, session, message, data):
+    """切换文件大小范围过滤"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if rule:
-                rule.enable_file_size_range = not getattr(
-                    rule, "enable_file_size_range", False
-                )
-                await s.commit()
-                await event.answer(
-                    f"大小过滤已{'开启' if rule.enable_file_size_range else '关闭'}"
-                )
-                from .media_callback import _show_rule_media_settings
-
-                await _show_rule_media_settings(event, rule_id, session=s)
+        res = await container.rule_service.toggle_rule_setting(rule_id, "enable_file_size_range")
+        if res.get('success'):
+            await event.answer(f"✅ 大小过滤已{'开启' if res.get('new_value') else '关闭'}")
+            from .media_callback import _show_rule_media_settings
+            await _show_rule_media_settings(event, rule_id)
     except Exception as e:
         logger.error(f"Size filter toggle error: {e}")
 
 
 async def callback_set_file_size_range(event, rule_id, session, message, data):
+    """设置文件大小入口"""
     try:
-        async with container.db.get_session(session) as s:
-            rule = await s.get(ForwardRule, rule_id)
-            if not rule:
-                return
+        session_manager.set_user_session(event.sender_id, event.chat_id, {
+            "state": "waiting_file_size_range",
+            "rule_id": rule_id,
+            "state_type": "advanced_media",
+        })
 
-            chat = await event.get_chat()
-            user_id = int(event.sender_id)
-            chat_id = event.chat_id
-
-            # 使用 session_manager 替代 state_manager
-            if user_id not in session_manager.user_sessions:
-                session_manager.user_sessions[user_id] = {}
-            session_manager.user_sessions[user_id][chat_id] = {
-                "state": "waiting_file_size_range",
-                "message": {"rule_id": rule_id},
-                "state_type": "advanced_media",
-            }
-
-            text = "💾 **设置文件大小**\n请输入: `min [max]` (支持K/M/G)"
-            buttons = [[Button.inline("❌ 取消", f"cancel_set_file_size_range:{rule_id}")]]
-            await event.edit(text, buttons=buttons, parse_mode="markdown")
+        text = "💾 **设置文件大小**\n请输入: `min [max]` (支持K/M/G)"
+        buttons = [[Button.inline("❌ 取消", f"cancel_set_file_size_range:{rule_id}")]]
+        await event.edit(text, buttons=buttons, parse_mode="markdown")
     except Exception as e:
-        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+        logger.error(f"发起文件大小设置失败: {e}")
+        await event.answer("⚠️ 操作失败", alert=True)
 
 
 async def callback_cancel_set_file_size_range(event, rule_id, session, message, data):
+    """取消设置文件大小"""
     try:
-        chat = await event.get_chat()
-        user_id = int(event.sender_id)
-        chat_id = event.chat_id
-        # 使用 session_manager 替代 state_manager
-        if user_id in session_manager.user_sessions:
-            if chat_id in session_manager.user_sessions[user_id]:
-                session_manager.user_sessions[user_id].pop(chat_id)
-                # 如果用户会话为空，清理掉该用户的会话记录
-                if not session_manager.user_sessions[user_id]:
-                    session_manager.user_sessions.pop(user_id)
+        session_manager.clear_user_session(event.sender_id, event.chat_id)
         from .media_callback import _show_rule_media_settings
-
-        await _show_rule_media_settings(event, rule_id, session=session)
+        await _show_rule_media_settings(event, rule_id)
     except Exception as e:
-        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+        logger.error(f"取消大小设置失败: {e}")

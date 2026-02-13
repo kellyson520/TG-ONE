@@ -1,6 +1,6 @@
 import shlex
 from telethon import Button
-from sqlalchemy import select
+# Removed: from sqlalchemy import select (Handler Purity Compliance)
 from core.logging import get_logger, log_performance, log_user_action
 from core.helpers.error_handler import handle_errors
 from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
@@ -12,14 +12,15 @@ from core.constants import TEMP_DIR, RSS_HOST, RSS_PORT
 from core.helpers.media.excel_importer import parse_excel
 from version import VERSION
 from core.helpers.auto_delete import respond_and_delete # Alias if needed, or check usages
-from models.models import ReplaceRule, Keyword # Used in copy replace and copy keywords
+# Removed: from models.models import ReplaceRule, Keyword (Handler Purity Compliance)
 from core.container import container # Used extensively in restored functions
 
 logger = get_logger(__name__)
 
 # Helper to avoid repetitive code in restored functions if they use container directly
-async def _get_current_rule_for_chat(session, event):
-    return await RuleQueryService.get_current_rule_for_chat(event, session)
+async def _get_current_rule_for_chat(event):
+    """获取当前聊天的当前选中规则 (使用 Service 层)"""
+    return await RuleQueryService.get_current_rule_for_chat(event)
 
 
 async def handle_bind_command(event, client, parts):
@@ -121,13 +122,10 @@ async def handle_switch_command(event):
         )
         return
 
-    # 2. 获取当前聊天记录以确定选中的规则
+    # 2. 获取当前聊天记录以确定选中的规则 (使用Repository)
     from core.container import container
-    async with container.db.get_session() as session:
-        from models.models import Chat
-        stmt = select(Chat).where(Chat.telegram_chat_id == str(current_chat_id))
-        result = await session.execute(stmt)
-        current_chat_db = result.scalar_one_or_none()
+    # 使用RuleRepo提供的聊天查询方法
+    current_chat_db = await container.rule_repo.find_chat_by_telegram_id_internal(str(current_chat_id))
 
     # 3. 创建规则选择按钮
     buttons = []
@@ -430,21 +428,18 @@ async def handle_export_keyword_command(event, command):
         await reply_and_delete(event, "当前规则没有任何关键字")
         return
     
-    # 获取所有关键字并按类型分类
-    async with container.db.get_session() as session:
-        from models.models import Keyword
-        keywords = (await session.execute(
-            select(Keyword).filter_by(rule_id=rule.id)
-        )).scalars().all()
-        
-        normal_lines = []
-        regex_lines = []
-        for kw in keywords:
-            line = f"{kw.keyword} {1 if kw.is_blacklist else 0}"
-            if kw.is_regex:
-                regex_lines.append(line)
-            else:
-                normal_lines.append(line)
+    # 获取所有关键字并按类型分类 (使用Service)
+    from services.rule.facade import rule_management_service
+    all_keywords = await rule_management_service.get_keywords(rule.id, is_blacklist=None)
+    
+    normal_lines = []
+    regex_lines = []
+    for kw in all_keywords:
+        line = f"{kw.keyword} {1 if kw.is_blacklist else 0}"
+        if kw.is_regex:
+            regex_lines.append(line)
+        else:
+            normal_lines.append(line)
     
     # 写入并发送
     files_to_send = []
@@ -748,86 +743,41 @@ async def handle_copy_keywords_command(event, command):
         await reply_and_delete(event, "规则ID必须是数字")
         return
 
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-    from models.models import ForwardRule
-    
-    # 从container获取数据库会话
-    async with container.db.get_session() as session:
-        try:
-            # 1. 获取目标规则 (含 keywords)
-            rule_info = await _get_current_rule_for_chat(session, event)
-            if not rule_info:
-                return
-            target_rule_base, _ = rule_info
+    try:
+        # 1. 获取目标规则
+        rule_info = await _get_current_rule_for_chat(event)
+        if not rule_info:
+            await reply_and_delete(event, "⚠️ 当前聊天未绑定规则或未设置正在管理的源频道，请先使用 /switch 或 /bind")
+            return
+        target_rule_dto, _ = rule_info
 
-            # 重新加载目标规则的关键字
-            stmt_target = (
-                select(ForwardRule)
-                .where(ForwardRule.id == target_rule_base.id)
-                .options(selectinload(ForwardRule.keywords))
-            )
-            target_rule = (await session.execute(stmt_target)).scalar_one()
+        # 2. 调用服务层执行复制
+        result = await rule_management_service.copy_keywords_from_rule(
+            source_rule_id=source_rule_id,
+            target_rule_id=target_rule_dto.id,
+            is_regex=is_regex_cmd
+        )
 
-            # 2. 获取源规则 (含 keywords)
-            stmt_source = (
-                select(ForwardRule)
-                .where(ForwardRule.id == source_rule_id)
-                .options(selectinload(ForwardRule.keywords))
-            )
-            source_rule = (await session.execute(stmt_source)).scalar_one_or_none()
+        if not result.get('success'):
+            await reply_and_delete(event, f"❌ 复制失败: {result.get('error')}")
+            return
 
-            if not source_rule:
-                await reply_and_delete(event, f"找不到规则ID: {source_rule_id}")
-                return
+        success_count = result.get('added', 0)
+        skip_count = result.get('skipped', 0)
+        type_str = "正则关键字" if is_regex_cmd else "关键字"
 
-            success_count = 0
-            skip_count = 0
+        await async_delete_user_message(event.client, event.message.chat_id, event.message.id, 0)
+        await reply_and_delete(
+            event,
+            f"✅ 已从规则 `{source_rule_id}` 复制{type_str}到规则 `{target_rule_dto.id}`\n"
+            f"成功: {success_count} 个\n"
+            f"跳过: {skip_count} 个",
+            parse_mode="markdown",
+        )
 
-            # 缓存目标规则已有的关键字
-            # 注意：这里区分正则和普通
-            existing = {
-                (k.keyword, k.is_blacklist)
-                for k in target_rule.keywords
-                if k.is_regex == is_regex_cmd
-            }
-
-            for kw in source_rule.keywords:
-                # 只处理符合当前命令类型的关键字 (正则或非正则)
-                if kw.is_regex == is_regex_cmd:
-                    key = (kw.keyword, kw.is_blacklist)
-                    if key not in existing:
-                        session.add(
-                            Keyword(
-                                rule_id=target_rule.id,
-                                keyword=kw.keyword,
-                                is_regex=is_regex_cmd,
-                                is_blacklist=kw.is_blacklist,
-                            )
-                        )
-                        existing.add(key)
-                        success_count += 1
-                    else:
-                        skip_count += 1
-
-            await session.commit()
-
-            type_str = "正则关键字" if is_regex_cmd else "关键字"
-            await async_delete_user_message(
-                event.client, event.message.chat_id, event.message.id, 0
-            )
-            await reply_and_delete(
-                event,
-                f"✅ 已从规则 `{source_rule_id}` 复制{type_str}到当前规则\n"
-                f"成功: {success_count} 个\n"
-                f"跳过: {skip_count} 个",
-                parse_mode="markdown",
-            )
-
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"复制关键字出错: {str(e)}")
-            await reply_and_delete(event, "复制关键字时出错")
+    except Exception as e:
+        logger.error(f"复制关键字出错: {str(e)}", exc_info=True)
+        await reply_and_delete(event, "⚠️ 复制关键字时出错，请检查日志")
 
 async def handle_copy_keywords_regex_command(event, command):
     """处理复制正则关键字命令 - 调用通用处理函数"""
@@ -846,81 +796,39 @@ async def handle_copy_replace_command(event, command):
         await reply_and_delete(event, "规则ID必须是数字")
         return
 
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
+    try:
+        # 1. 获取目标规则
+        rule_info = await _get_current_rule_for_chat(event)
+        if not rule_info:
+            await reply_and_delete(event, "⚠️ 当前聊天未绑定规则或未设置正在管理的源频道，请先使用 /switch 或 /bind")
+            return
+        target_rule_dto, _ = rule_info
 
-    from models.models import ForwardRule
-    
-    # 从container获取数据库会话
-    async with container.db.get_session() as session:
-        try:
-            # 1. 获取目标规则 (含 replace_rules)
-            rule_info = await _get_current_rule_for_chat(session, event)
-            if not rule_info:
-                return
-            target_rule_base, _ = rule_info
+        # 2. 调用服务层执行复制
+        result = await rule_management_service.copy_replace_rules_from_rule(
+            source_rule_id=source_rule_id,
+            target_rule_id=target_rule_dto.id
+        )
 
-            # 重新加载目标规则的替换规则
-            stmt_target = (
-                select(ForwardRule)
-                .where(ForwardRule.id == target_rule_base.id)
-                .options(selectinload(ForwardRule.replace_rules))
-            )
-            target_rule = (await session.execute(stmt_target)).scalar_one()
+        if not result.get('success'):
+            await reply_and_delete(event, f"❌ 复制失败: {result.get('error')}")
+            return
 
-            # 2. 获取源规则 (含 replace_rules)
-            stmt_source = (
-                select(ForwardRule)
-                .where(ForwardRule.id == source_rule_id)
-                .options(selectinload(ForwardRule.replace_rules))
-            )
-            source_rule = (await session.execute(stmt_source)).scalar_one_or_none()
+        success_count = result.get('added', 0)
+        skip_count = result.get('skipped', 0)
 
-            if not source_rule:
-                await reply_and_delete(event, f"找不到规则ID: {source_rule_id}")
-                return
+        await async_delete_user_message(event.client, event.message.chat_id, event.message.id, 0)
+        await reply_and_delete(
+            event,
+            f"✅ 已从规则 `{source_rule_id}` 复制替换规则到规则 `{target_rule_dto.id}`\n"
+            f"成功复制: {success_count} 个\n"
+            f"跳过重复: {skip_count} 个\n",
+            parse_mode="markdown",
+        )
 
-            # 复制替换规则
-            success_count = 0
-            skip_count = 0
-
-            # 缓存目标规则已有的替换规则
-            existing_replaces = {
-                (r.pattern, r.content) for r in target_rule.replace_rules
-            }
-            for replace_rule in source_rule.replace_rules:
-                key = (replace_rule.pattern, replace_rule.content)
-                if key not in existing_replaces:
-                    new_rule = ReplaceRule(
-                        rule_id=target_rule.id,
-                        pattern=replace_rule.pattern,
-                        content=replace_rule.content,
-                    )
-                    session.add(new_rule)
-                    existing_replaces.add(key)
-                    success_count += 1
-                else:
-                    skip_count += 1
-
-            await session.commit()
-
-            # 确保启用替换模式
-            if success_count > 0:
-                await async_delete_user_message(
-                    event.client, event.message.chat_id, event.message.id, 0
-                )
-            await reply_and_delete(
-                event,
-                f"✅ 已从规则 `{source_rule_id}` 复制替换规则到规则 `{target_rule.id}`\n"
-                f"成功复制: {success_count} 个\n"
-                f"跳过重复: {skip_count} 个\n",
-                parse_mode="markdown",
-            )
-
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"复制替换规则时出错: {str(e)}")
-            await reply_and_delete(event, "复制替换规则时出错，请检查日志")
+    except Exception as e:
+        logger.error(f"复制替换规则时出错: {str(e)}", exc_info=True)
+        await reply_and_delete(event, "⚠️ 复制替换规则时出错，请检查日志")
 
 async def handle_copy_rule_command(event, command):
     """处理复制规则命令 - 异步重构版 (使用 RuleManagementService)"""
@@ -1198,64 +1106,57 @@ async def handle_list_rule_command(event, command, parts):
         await reply_and_delete(event, "获取规则列表时发生错误，请检查日志")
 
 async def handle_delete_rss_user_command(event, command, parts):
-    """处理 delete_rss_user 命令 - 异步重构版"""
-    from models.models import User
-    from sqlalchemy import select
+    """处理 delete_rss_user 命令 - 使用UserService重构版"""
+    from services.user_service import user_service
     
-    # 从container获取数据库会话
-    async with container.db.get_session() as session:
-        try:
-            specified_username = parts[1].strip() if len(parts) > 1 else None
+    try:
+        specified_username = parts[1].strip() if len(parts) > 1 else None
 
-            # 异步查询所有用户
-            stmt = select(User)
-            result = await session.execute(stmt)
-            users = result.scalars().all()
+        # 获取所有用户
+        all_users = await user_service.get_all_users()
 
-            if not users:
-                await reply_and_delete(event, "RSS系统中没有用户账户")
-                return
+        if not all_users:
+            await reply_and_delete(event, "RSS系统中没有用户账户")
+            return
 
-            # 指定用户名删除
-            if specified_username:
-                stmt_user = select(User).filter(User.username == specified_username)
-                user = (await session.execute(stmt_user)).scalar_one_or_none()
+        # 指定用户名删除
+        if specified_username:
+            result = await user_service.delete_user_by_username(specified_username)
 
-                if user:
-                    await session.delete(user)
-                    await session.commit()
-                    await reply_and_delete(
-                        event, f"已删除RSS用户: {specified_username}"
-                    )
-                else:
-                    await reply_and_delete(
-                        event, f"未找到用户名为 '{specified_username}' 的RSS用户"
-                    )
-                return
+            if result.get('success'):
+                await reply_and_delete(
+                    event, f"已删除RSS用户: {specified_username}"
+                )
+            else:
+                await reply_and_delete(
+                    event, f"未找到用户名为 '{specified_username}' 的RSS用户"
+                )
+            return
 
-            # 未指定且只有一个用户
-            if len(users) == 1:
-                user = users[0]
-                username = user.username
-                await session.delete(user)
-                await session.commit()
+        # 未指定且只有一个用户
+        if len(all_users) == 1:
+            username = all_users[0].username
+            result = await user_service.delete_user_by_username(username)
+            if result.get('success'):
                 await reply_and_delete(event, f"已删除RSS用户: {username}")
-                return
+            else:
+                await reply_and_delete(event, f"删除失败: {result.get('error')}")
+            return
 
-            # 多个用户列表展示
-            usernames = [u.username for u in users]
-            user_list = "\n".join(
-                [f"{i+1}. {name}" for i, name in enumerate(usernames)]
-            )
-            await reply_and_delete(
-                event,
-                f"请指定要删除的用户名:\n/delete_rss_user <用户名>\n\n现有用户:\n{user_list}",
-            )
+        # 多个用户列表展示
+        usernames = [u.username for u in all_users]
+        user_list = "\n".join(
+            [f"{i+1}. {name}" for i, name in enumerate(usernames)]
+        )
+        await reply_and_delete(
+            event,
+            f"请指定要删除的用户名:\n/delete_rss_user <用户名>\n\n现有用户:\n{user_list}",
+        )
 
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"删除RSS用户出错: {str(e)}", exc_info=True)
-            await reply_and_delete(event, f"操作失败: {str(e)}")
+    except Exception as e:
+        logger.error(f"删除RSS用户时出错: {str(e)}", exc_info=True)
+        await reply_and_delete(event, "删除RSS用户失败，请查看日志")
+
 
 async def handle_help_command(event, command):
     """处理帮助命令"""

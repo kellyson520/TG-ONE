@@ -36,6 +36,9 @@ class MenuRenderer:
     def render_analytics_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return self.main_renderer.render_analytics_hub(data)
     
+    def render_forward_analytics(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.main_renderer.render_forward_analytics(data)
+    
     def render_system_hub(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return self.main_renderer.render_system_hub(data)
     

@@ -381,7 +381,10 @@ class MediaController(BaseController):
         await callback_add_push_channel(event, rule_id, None, await event.get_message(), None)
 
     async def run_legacy_dedup_cmd(self, event, rule_id: int, cmd_type: str):
-        """运行旧版基于规则的去重命令"""
+        """
+        [DEPRECATED] 运行旧版基于规则的去重命令。
+        请迁移至专门的 Strategy 处理类。
+        """
         from handlers.button.callback.other_callback import (
             callback_dedup_scan_now, callback_delete_duplicates,
             callback_confirm_delete_duplicates, callback_view_source_messages,
@@ -397,5 +400,6 @@ class MediaController(BaseController):
         }
         handler = handlers.get(cmd_type)
         if handler:
-            async with self.container.db.get_session() as s:
-                await handler(event, rule_id, s, await event.get_message(), None)
+            # 移除 Controller 层的 Session 管理 (符合架构规范)
+            # 传递 None 作为 session，让 handler 内部通过 container.db.get_session(None) 自行管理
+            await handler(event, rule_id, None, await event.get_message(), None)

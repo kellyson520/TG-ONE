@@ -157,6 +157,42 @@ class RuleLogicService:
             
         return {'success': True, 'added': added_count}
 
+    @handle_errors(default_return={'success': False, 'error': 'Copying keywords failed'})
+    async def copy_keywords_from_rule(self, source_rule_id: int, target_rule_id: int, is_regex: Optional[bool] = None) -> Dict[str, Any]:
+        """从源规则复制关键字到目标规则"""
+        from models.models import Keyword
+        source_rule = await self.container.rule_repo.get_full_rule_orm(source_rule_id)
+        target_rule = await self.container.rule_repo.get_full_rule_orm(target_rule_id)
+        
+        if not source_rule or not target_rule:
+            return {'success': False, 'error': 'Source or Target rule not found'}
+            
+        existing_kws = {(kw.keyword, kw.is_regex, kw.is_blacklist) for kw in target_rule.keywords}
+        added_count = 0
+        skip_count = 0
+        
+        for kw in source_rule.keywords:
+            if is_regex is not None and kw.is_regex != is_regex:
+                continue
+                
+            key = (kw.keyword, kw.is_regex, kw.is_blacklist)
+            if key not in existing_kws:
+                target_rule.keywords.append(Keyword(
+                    keyword=kw.keyword,
+                    is_regex=kw.is_regex,
+                    is_blacklist=kw.is_blacklist
+                ))
+                added_count += 1
+                existing_kws.add(key)
+            else:
+                skip_count += 1
+                
+        if added_count > 0:
+            await self.container.rule_repo.save_rule(target_rule)
+            self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
+            
+        return {'success': True, 'added': added_count, 'skipped': skip_count}
+
     @handle_errors(default_return={'success': False, 'error': 'Deleting keywords failed'})
     async def delete_keywords(self, rule_id: int, keywords: List[str]) -> Dict[str, Any]:
         """批量删除关键字"""
@@ -173,6 +209,27 @@ class RuleLogicService:
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
+
+    @handle_errors(default_return={'success': False, 'error': 'Deleting keywords by index failed'})
+    async def delete_keywords_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
+        """通过 1-indexed 序号批量删除关键字"""
+        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        if not rule:
+            return {'success': False, 'error': 'Rule not found'}
+            
+        initial_count = len(rule.keywords)
+        valid_indices = sorted(set(i for i in indices if 1 <= i <= initial_count), reverse=True)
+        
+        if not valid_indices:
+            return {'success': True, 'deleted': 0}
+            
+        for idx in valid_indices:
+            del rule.keywords[idx - 1]
+            
+        await self.container.rule_repo.save_rule(rule)
+        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        
+        return {'success': True, 'deleted': len(valid_indices)}
 
     @handle_errors(default_return={'success': False, 'error': 'Clearing keywords failed'})
     async def clear_keywords(self, rule_id: int) -> Dict[str, Any]:
@@ -270,6 +327,38 @@ class RuleLogicService:
             
         return {'success': True, 'added': added_count}
 
+    @handle_errors(default_return={'success': False, 'error': 'Copying replace rules failed'})
+    async def copy_replace_rules_from_rule(self, source_rule_id: int, target_rule_id: int) -> Dict[str, Any]:
+        """从源规则复制替换规则到目标规则"""
+        from models.models import ReplaceRule
+        source_rule = await self.container.rule_repo.get_full_rule_orm(source_rule_id)
+        target_rule = await self.container.rule_repo.get_full_rule_orm(target_rule_id)
+        
+        if not source_rule or not target_rule:
+            return {'success': False, 'error': 'Source or Target rule not found'}
+            
+        existing_replaces = {(r.pattern, r.content) for r in target_rule.replace_rules}
+        added_count = 0
+        skip_count = 0
+        
+        for rr in source_rule.replace_rules:
+            key = (rr.pattern, rr.content)
+            if key not in existing_replaces:
+                target_rule.replace_rules.append(ReplaceRule(
+                    pattern=rr.pattern,
+                    content=rr.content
+                ))
+                added_count += 1
+                existing_replaces.add(key)
+            else:
+                skip_count += 1
+                
+        if added_count > 0:
+            await self.container.rule_repo.save_rule(target_rule)
+            self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
+            
+        return {'success': True, 'added': added_count, 'skipped': skip_count}
+
     @handle_errors(default_return={'success': False, 'error': 'Deleting replace rules failed'})
     async def delete_replace_rules(self, rule_id: int, patterns: List[str]) -> Dict[str, Any]:
         """批量删除替换规则"""
@@ -286,6 +375,82 @@ class RuleLogicService:
             self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
+
+    @handle_errors(default_return={'success': False, 'error': 'Deleting replace rules by index failed'})
+    async def delete_replace_rules_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
+        """通过 1-indexed 序号批量删除替换规则"""
+        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        if not rule:
+            return {'success': False, 'error': 'Rule not found'}
+            
+        initial_count = len(rule.replace_rules)
+        # 转换为集合并过滤非法索引
+        valid_indices = sorted(set(i for i in indices if 1 <= i <= initial_count), reverse=True)
+        
+        if not valid_indices:
+            return {'success': True, 'deleted': 0}
+            
+        for idx in valid_indices:
+            # SQLAlchemy will handle the deletion from list
+            del rule.replace_rules[idx - 1]
+            
+        await self.container.rule_repo.save_rule(rule)
+        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        
+        return {'success': True, 'deleted': len(valid_indices)}
+
+    @handle_errors(default_return={'success': False, 'error': 'Adding push config failed'})
+    async def add_push_config(self, rule_id: int, push_channel: str) -> Dict[str, Any]:
+        """为规则添加推送频道并处理同步"""
+        from models.models import ForwardRule, PushConfig, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            rule = await s.get(ForwardRule, int(rule_id))
+            if not rule:
+                return {'success': False, 'error': 'Rule not found'}
+                
+            # 检查是否已存在
+            stmt = select(PushConfig).filter_by(rule_id=rule.id, push_channel=push_channel)
+            existing = (await s.execute(stmt)).scalar_one_or_none()
+            if existing:
+                 return {'success': True, 'message': 'Push channel already exists'}
+            
+            # 创建新配置
+            is_email = push_channel.startswith(("mailto://", "mailtos://", "email://"))
+            config = PushConfig(
+                rule_id=rule.id,
+                push_channel=push_channel,
+                enable_push_channel=True,
+                media_send_mode="Multiple" if is_email else "Single"
+            )
+            s.add(config)
+            rule.enable_push = True
+            
+            # 同步
+            if rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                sync_results = await s.execute(sync_stmt)
+                for sync_obj in sync_results.scalars().all():
+                     target = await s.get(ForwardRule, sync_obj.sync_rule_id)
+                     if target:
+                         # 检查目标规则是否已有同名频道
+                         t_stmt = select(PushConfig).filter_by(rule_id=target.id, push_channel=push_channel)
+                         t_existing = (await s.execute(t_stmt)).scalar_one_or_none()
+                         if not t_existing:
+                             s.add(PushConfig(
+                                 rule_id=target.id,
+                                 push_channel=push_channel,
+                                 enable_push_channel=True,
+                                 media_send_mode=config.media_send_mode
+                             ))
+                             target.enable_push = True
+            
+            await s.commit()
+            if rule.source_chat:
+                self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+                
+            return {'success': True}
 
     @handle_errors(default_return={'success': False, 'error': 'Clearing replace rules failed'})
     async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
@@ -577,3 +742,246 @@ class RuleLogicService:
             
             await s.commit()
             return {'success': True, 'new_mode': new_mode}
+
+    @handle_errors(default_return={'success': False, 'error': 'Toggle rule sync failed'})
+    async def toggle_rule_sync(self, source_rule_id: int, target_rule_id: int) -> Dict[str, Any]:
+        """建立或撤销两条规则之间的配置同步关系"""
+        from models.models import RuleSync
+        from sqlalchemy import select, delete
+        
+        async with self.container.db.get_session() as s:
+            # 检查是否已存在
+            stmt = select(RuleSync).filter_by(rule_id=source_rule_id, sync_rule_id=target_rule_id)
+            existing = (await s.execute(stmt)).scalar_one_or_none()
+            
+            if existing:
+                # 存在则删除
+                await s.delete(existing)
+                action = "removed"
+            else:
+                # 不存在则创建
+                new_sync = RuleSync(rule_id=source_rule_id, sync_rule_id=target_rule_id)
+                s.add(new_sync)
+                action = "added"
+            
+            await s.commit()
+            return {'success': True, 'action': action}
+
+    @handle_errors(default_return={'success': False, 'error': 'Setting current source chat failed'})
+    async def set_current_source_chat(self, chat_id: int, source_telegram_id: str) -> Dict[str, Any]:
+        """设置当前聊天正在管理的源聊天 ID (用于 UI 切换)"""
+        from models.models import Chat
+        async with self.container.db.get_session() as s:
+            chat = await s.get(Chat, chat_id)
+            if not chat:
+                return {'success': False, 'error': 'Chat not found'}
+            
+            chat.current_add_id = source_telegram_id
+            await s.commit()
+            # 不需要清除缓存，因为这只是 UI 状态，不影响转发逻辑
+            return {'success': True}
+
+    @handle_errors(default_return={'success': False, 'error': 'Updating AI setting failed'})
+    async def update_ai_setting(self, rule_id: int, field: str, value: Any) -> Dict[str, Any]:
+        """更新 AI 相关设置 (模型、时间等)，并处理同步和调度更新"""
+        from models.models import ForwardRule, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            rule = await s.get(ForwardRule, int(rule_id))
+            if not rule:
+                return {'success': False, 'error': 'Rule not found'}
+            
+            old_val = getattr(rule, field)
+            setattr(rule, field, value)
+            
+            # 记录需要重新调度的规则 ID 列表
+            rules_to_reschedule = [rule.id] if rule.is_summary and field == 'summary_time' else []
+            
+            # 同步
+            if rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                sync_results = await s.execute(sync_stmt)
+                for sync_obj in sync_results.scalars().all():
+                    target = await s.get(ForwardRule, sync_obj.sync_rule_id)
+                    if target and hasattr(target, field):
+                        setattr(target, field, value)
+                        if target.is_summary and field == 'summary_time':
+                            rules_to_reschedule.append(target.id)
+            
+            await s.commit()
+            
+            # 触发调度更新 (副作用)
+            if rules_to_reschedule and self.container.scheduler:
+                for rid in rules_to_reschedule:
+                    # 获取最新 DTO 传给调度器 (保持解耦)
+                    latest_rule_dto = await self.container.rule_repo.get_by_id(rid)
+                    if latest_rule_dto:
+                         # 调度器目前可能直接收 DTO 或 ORM，取决于实现
+                         # 这里调用 container.scheduler.schedule_rule
+                         await self.container.scheduler.schedule_rule(latest_rule_dto)
+            
+            return {'success': True, 'old_value': old_val, 'new_value': value}
+
+    @handle_errors(default_return={'success': False, 'error': 'Immediate summary task failed'})
+    async def summary_now(self, rule_id: int) -> Dict[str, Any]:
+        """立即为规则执行 AI 总结"""
+        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        if not rule_dto:
+            return {'success': False, 'error': 'Rule not found'}
+            
+        if not self.container.scheduler:
+            return {'success': False, 'error': 'Scheduler not initialized'}
+            
+        # 启动异步任务
+    @handle_errors(default_return={'success': False, 'error': 'Toggle media type failed'})
+    async def toggle_media_type(self, rule_id: int, media_type: str) -> Dict[str, Any]:
+        """切换媒体类型屏蔽状态 (支持同步)"""
+        from models.models import ForwardRule, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            rule = await s.get(ForwardRule, int(rule_id))
+            if not rule: return {'success': False, 'error': 'Rule not found'}
+            
+            # 使用现有 Repository/DBOps 逻辑切换
+            success, msg = await self.container.rule_repo.toggle_media_type(s, rule.id, media_type)
+            if not success: return {'success': False, 'error': msg}
+            
+            # 获取新状态
+            _, _, media_types_obj = await self.container.rule_repo.get_media_types(s, rule.id)
+            new_status = getattr(media_types_obj, media_type)
+            
+            # 同步
+            if rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                results = await s.execute(sync_stmt)
+                for sync_obj in results.scalars().all():
+                    # 强制设置同步目标的该类型状态与主规则一致
+                    await self.container.rule_repo.set_media_type_status(s, sync_obj.sync_rule_id, media_type, new_status)
+            
+            await s.commit()
+            return {'success': True, 'new_status': new_status}
+
+    @handle_errors(default_return={'success': False, 'error': 'Toggle media extension failed'})
+    async def toggle_media_extension(self, rule_id: int, extension: str) -> Dict[str, Any]:
+        """切换扩展名过滤状态 (支持同步)"""
+        from models.models import ForwardRule, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            rule = await s.get(ForwardRule, int(rule_id))
+            if not rule: return {'success': False, 'error': 'Rule not found'}
+            
+            # 获取当前状态
+            exts = await self.container.rule_repo.get_media_extensions(s, rule.id)
+            is_selected = any(e['extension'] == extension for e in exts)
+            
+            if is_selected:
+                # 移除
+                ext_id = next((e['id'] for e in exts if e['extension'] == extension), None)
+                if ext_id:
+                    success, msg = await self.container.rule_repo.delete_media_extensions(s, rule.id, [ext_id])
+                else:
+                    success, msg = True, "Already removed"
+            else:
+                # 添加
+                success, msg = await self.container.rule_repo.add_media_extensions(s, rule.id, [extension])
+                
+            if not success: return {'success': False, 'error': msg}
+            
+            # 同步
+            if rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                results = await s.execute(sync_stmt)
+                for sync_obj in results.scalars().all():
+                    if is_selected:
+                        await self.container.rule_repo.remove_extension_from_rule(s, sync_obj.sync_rule_id, extension)
+                    else:
+                        await self.container.rule_repo.add_media_extensions(s, sync_obj.sync_rule_id, [extension])
+            
+            await s.commit()
+            return {'success': True}
+
+    @handle_errors(default_return={'success': False, 'error': 'Toggle push config status failed'})
+    async def toggle_push_status_by_config(self, config_id: int) -> Dict[str, Any]:
+        """切换推送配置的启用状态 (支持同步)"""
+        from models.models import ForwardRule, PushConfig, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            config = await s.get(PushConfig, int(config_id))
+            if not config: return {'success': False, 'error': 'PushConfig not found'}
+            
+            config.enable_push_channel = not config.enable_push_channel
+            new_status = config.enable_push_channel
+            push_channel = config.push_channel
+            
+            # 同步
+            rule = await s.get(ForwardRule, config.rule_id)
+            if rule and rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                results = await s.execute(sync_stmt)
+                for sync_obj in results.scalars().all():
+                    target_config_stmt = select(PushConfig).filter_by(rule_id=sync_obj.sync_rule_id, push_channel=push_channel)
+                    target_config = (await s.execute(target_config_stmt)).scalar_one_or_none()
+                    if target_config:
+                        target_config.enable_push_channel = new_status
+            
+            await s.commit()
+            return {'success': True, 'new_value': new_status}
+
+    @handle_errors(default_return={'success': False, 'error': 'Delete push config failed'})
+    async def delete_push_config(self, config_id: int) -> Dict[str, Any]:
+        """删除推送配置 (支持同步)"""
+        from models.models import ForwardRule, PushConfig, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            config = await s.get(PushConfig, int(config_id))
+            if not config: return {'success': False, 'error': 'PushConfig not found'}
+            
+            rule_id = config.rule_id
+            push_channel = config.push_channel
+            
+            # 同步删除
+            rule = await s.get(ForwardRule, rule_id)
+            if rule and rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                results = await s.execute(sync_stmt)
+                for sync_obj in results.scalars().all():
+                    target_config_stmt = select(PushConfig).filter_by(rule_id=sync_obj.sync_rule_id, push_channel=push_channel)
+                    target_config = (await s.execute(target_config_stmt)).scalar_one_or_none()
+                    if target_config:
+                        await s.delete(target_config)
+            
+            await s.delete(config)
+            await s.commit()
+            return {'success': True}
+
+    @handle_errors(default_return={'success': False, 'error': 'Update push config setting failed'})
+    async def update_push_config_setting(self, config_id: int, field: str, value: Any) -> Dict[str, Any]:
+        """更新推送配置属性 (支持同步)"""
+        from models.models import ForwardRule, PushConfig, RuleSync
+        from sqlalchemy import select
+        
+        async with self.container.db.get_session() as s:
+            config = await s.get(PushConfig, int(config_id))
+            if not config: return {'success': False, 'error': 'PushConfig not found'}
+            
+            setattr(config, field, value)
+            push_channel = config.push_channel
+            
+            # 同步
+            rule = await s.get(ForwardRule, config.rule_id)
+            if rule and rule.enable_sync:
+                sync_stmt = select(RuleSync).filter_by(rule_id=rule.id)
+                results = await s.execute(sync_stmt)
+                for sync_obj in results.scalars().all():
+                    target_config_stmt = select(PushConfig).filter_by(rule_id=sync_obj.sync_rule_id, push_channel=push_channel)
+                    target_config = (await s.execute(target_config_stmt)).scalar_one_or_none()
+                    if target_config and hasattr(target_config, field):
+                        setattr(target_config, field, value)
+            
+            await s.commit()
+            return {'success': True}

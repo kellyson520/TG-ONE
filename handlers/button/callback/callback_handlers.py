@@ -51,7 +51,7 @@ from .ai_callback import handle_ai_callback
 
 # 导入媒体设置回调
 from .media_callback import handle_media_callback
-from .new_menu_callback import handle_new_menu_callback
+from .menu_entrypoint import handle_new_menu_callback
 
 # 导入其他通用设置回调
 from .other_callback import (

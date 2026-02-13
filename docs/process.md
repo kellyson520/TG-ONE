@@ -119,6 +119,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260213_Task_Queue_Optimization | 任务队列吞吐量优化与失败治理 (积压 8.8w 处理) | 2026-02-13 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260213_Task_Queue_Throughput_and_Failure_Optimization/todo.md) |
 | 20260211_Fix_Menu_Localization_And_System_Errors | 修复菜单面板、汉化转发详情及系统导入错误 | 2026-02-11 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260211_Fix_Menu_Localization_And_System_Errors/todo.md) |
 | 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
 | 20260210_Fix_AccessControlList_AlreadyExists_Error | 修复 access_control_list 表已存在导致的数据库初始化错误 | 2026-02-10 | 2026-02-10 | 100% | [📂 查看](./Workstream_Database/20260210_Fix_AccessControlList_AlreadyExists_Error/todo.md) |

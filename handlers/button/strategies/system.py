@@ -30,8 +30,14 @@ class SystemMenuStrategy(BaseMenuHandler):
         "restore_backup", "do_restore",
         "system_overview",
         "cache_cleanup", "do_cleanup",
-        "log_viewer", "system_status", 
-        "db_archive_once", "session_management"
+        "log_viewer", "system_status", "system_logs",
+        "db_archive_once", "session_management",
+        "db_optimization_center", "db_performance_monitor",
+        "refresh_db_performance", "db_query_analysis",
+        "db_performance_trends", "db_alert_management",
+        "run_db_optimization_check", "db_reindex",
+        "db_archive_center", "db_optimization_config",
+        "clear_dedup_cache"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -107,14 +113,52 @@ class SystemMenuStrategy(BaseMenuHandler):
         elif action == "log_viewer":
             await menu_controller.show_system_logs(event)
         
+        elif action == "system_logs":
+            await menu_controller.show_system_logs(event)
+        
         elif action == "system_status":
             await new_menu_system.show_system_status(event)
         
         elif action == "db_archive_once":
             await menu_controller.run_db_archive_once(event)
+
+        elif action == "db_archive_center":
+            # 内部暂无专用 Archive Hub，先引导至优化中心或执行一次性归档
+            await menu_controller.show_db_optimization_center(event)
         
         elif action == "session_management":
             await menu_controller.show_session_management(event)
+
+        # 6. Database Optimization & Performance
+        elif action == "db_optimization_center":
+            await menu_controller.show_db_optimization_center(event)
+        
+        elif action == "db_performance_monitor":
+            await menu_controller.show_db_performance_monitor(event)
+        
+        elif action == "refresh_db_performance":
+            await menu_controller.refresh_db_performance(event)
+        
+        elif action == "db_query_analysis":
+            await menu_controller.show_db_query_analysis(event)
+        
+        elif action == "db_performance_trends":
+            await menu_controller.show_db_performance_trends(event)
+        
+        elif action == "db_alert_management":
+            await menu_controller.show_db_alert_management(event)
+        
+        elif action == "run_db_optimization_check":
+            await menu_controller.run_db_optimization_check(event)
+        
+        elif action == "db_reindex":
+            await menu_controller.run_db_reindex(event)
+        
+        elif action == "db_optimization_config":
+            await menu_controller.show_db_optimization_config(event)
+        
+        elif action == "clear_dedup_cache":
+            await menu_controller.clear_dedup_cache(event)
 
         # 5. Backup & Restore
         elif action == "db_backup":

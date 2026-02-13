@@ -244,8 +244,8 @@ class AdminController(BaseController):
 
     async def show_session_management(self, event):
         """显示会话管理"""
-        from handlers.button.callback.session_callback import callback_session_management
-        await callback_session_management(event, None, None, None, None)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.show_session_management(event)
 
     async def show_stats(self, event):
         """显示统计报告"""
@@ -258,27 +258,16 @@ class AdminController(BaseController):
     async def toggle_maintenance_mode(self, event):
         """切换维护模式"""
         try:
-            from models.models import SystemConfiguration
-            from sqlalchemy import select, update
+            current = await self.container.system_service.is_maintenance_mode()
+            new_val = not current
+            success = await self.container.system_service.set_maintenance_mode(new_val)
             
-            async with self.container.db.get_session() as s:
-                # 获取当前状态
-                result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
-                config = result.scalar_one_or_none()
+            if success:
+                status_text = "开启" if new_val else "关闭"
+                await event.answer(f"✅ 维护模式已{status_text}")
+            else:
+                await event.answer("❌ 切换维护模式失败", alert=True)
                 
-                new_val = "true"
-                if config and config.value.lower() == "true":
-                    new_val = "false"
-                
-                if config:
-                    await s.execute(update(SystemConfiguration).filter_by(key="maintenance_mode").values(value=new_val))
-                else:
-                    s.add(SystemConfiguration(key="maintenance_mode", value=new_val))
-                
-                await s.commit()
-            
-            status_text = "开启" if new_val == "true" else "关闭"
-            await event.answer(f"✅ 维护模式已{status_text}")
             await self.show_admin_panel(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -286,15 +275,7 @@ class AdminController(BaseController):
     async def show_system_logs(self, event):
         """显示系统运行日志 (Refactored to use Renderer)"""
         try:
-            from models.models import ErrorLog
-            from sqlalchemy import select, desc
-            
-            async with self.container.db.get_session() as s:
-                result = await s.execute(
-                    select(ErrorLog).order_by(desc(ErrorLog.created_at)).limit(5)
-                )
-                logs = result.scalars().all()
-            
+            logs = await self.container.system_service.get_error_logs(limit=5)
             view_result = self.container.ui.admin.render_system_logs(logs)
             
             from handlers.button.new_menu_system import new_menu_system
@@ -310,12 +291,8 @@ class AdminController(BaseController):
     async def show_config(self, event):
         """显示系统全局配置"""
         try:
-            from models.models import SystemConfiguration
-            from sqlalchemy import select
-            async with self.container.db.get_session() as s:
-                result = await s.execute(select(SystemConfiguration).limit(20))
-                configs = result.scalars().all()
-                response = "\n".join([f"🔸 {c.key}: {c.value}" for c in configs]) if configs else "暂无配置项"
+            configs = await self.container.system_service.get_system_configurations(limit=20)
+            response = "\n".join([f"🔸 {c.key}: {c.value}" for c in configs]) if configs else "暂无配置项"
 
             from telethon import Button
             buttons = [[Button.inline("🔙 返回管理面板", "new_menu:system_hub")]]
@@ -409,6 +386,26 @@ class AdminController(BaseController):
     async def show_forward_performance(self, event):
         """显示实时监控面板 (别名)"""
         await self.show_realtime_monitor(event)
+
+    async def show_forward_analytics(self, event):
+        """显示转发统计详情"""
+        try:
+            # 获取详细统计数据
+            stats = await analytics_service.get_detailed_stats(days=7)
+            
+            from ui.menu_renderer import menu_renderer
+            render_data = menu_renderer.render_forward_analytics(stats)
+            
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event, 
+                title="📊 **转发详细统计**", 
+                body_lines=[render_data['text']], 
+                buttons=render_data['buttons'],
+                breadcrumb="🏠 > 📊 分析 > 📈 转发"
+            )
+        except Exception as e:
+            return self.handle_exception(e)
 
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""

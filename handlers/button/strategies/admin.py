@@ -19,7 +19,7 @@ class AdminMenuStrategy(BaseMenuHandler):
         "admin_vacuum_db", "admin_analyze_db", "admin_full_optimize",
         "admin_stats", "admin_config",
         "admin_restart", "admin_restart_confirm",
-        "admin_panel", "close_admin_panel"
+        "admin_panel", "close_admin_panel", "close"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -69,7 +69,7 @@ class AdminMenuStrategy(BaseMenuHandler):
         elif action == "admin_restart_confirm":
             await menu_controller.execute_restart(event)
         
-        elif action == "close_admin_panel":
+        elif action in ["close_admin_panel", "close"]:
             await event.delete()
         
         else:

@@ -27,6 +27,8 @@ class TelegramAPIOptimizer:
 
     def __init__(self, client: TelegramClient):
         self.client = client
+        # 全局 API 并发信号量，限制同时进行的官方 API 请求数，防止惊群与触发 Flood Wait
+        self._api_semaphore = asyncio.Semaphore(10)
 
     @cached(cache_name="chat_statistics", ttl=300)  # 缓存5分钟
     @log_performance("获取聊天统计", threshold_seconds=5.0)
@@ -56,8 +58,13 @@ class TelegramAPIOptimizer:
         # ... (checking logic remains)
 
         try:
-            # 获取聊天实体
-            chat_entity = await self.client.get_entity(chat_id)
+            # 获取聊天实体，增加 5 秒超时保护，防止 DNS 或挂起问题
+            chat_entity = await asyncio.wait_for(
+                self.client.get_entity(chat_id), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"获取聊天实体超时: {chat_id}")
+            return {}
         except Exception as e:
             # 分析错误类型
             is_permanent, error_type = entity_validator.analyze_entity_error(
@@ -75,11 +82,13 @@ class TelegramAPIOptimizer:
 
         full_chat = None
         try:
-            # 使用GetFullChannelRequest获取完整信息，增加超时控制
-            # 设置8秒超时，避免长时间阻塞
-            full_chat = await asyncio.wait_for(
-                self.client(GetFullChannelRequest(chat_entity)), timeout=8.0
-            )
+            # 使用信号量控制并发 API 调用
+            async with self._api_semaphore:
+                # 使用GetFullChannelRequest获取完整信息，增加超时控制
+                # 设置8秒超时，避免长时间阻塞
+                full_chat = await asyncio.wait_for(
+                    self.client(GetFullChannelRequest(chat_entity)), timeout=8.0
+                )
         except asyncio.TimeoutError:
             logger.warning(f"获取完整聊天统计超时 {chat_id}，降级为基础信息")
         except Exception as e:
@@ -239,8 +248,11 @@ class TelegramAPIOptimizer:
             logger.debug("批量用户获取：没有有效的用户实体")
             return {}
 
-        # 批量获取用户信息
-        users = await self.client(GetUsersRequest(input_users))
+        # 批量获取用户信息，使用信号量控制
+        async with self._api_semaphore:
+            users = await asyncio.wait_for(
+                self.client(GetUsersRequest(input_users)), timeout=10.0
+            )
 
         # 整理返回数据
         user_info = {}

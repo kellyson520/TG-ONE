@@ -133,6 +133,40 @@ class MediaService:
             logger.error(f"删除媒体组失败: {e}")
             return False
 
+    @handle_telegram_errors(default_return={'deleted': 0, 'errors': 0})
+    async def delete_duplicates_for_chat(self, chat_id: Any, signatures: List[str], limit: int = 1000) -> Dict[str, int]:
+        """扫描并删除聊天中的重复媒体"""
+        if not self.client: return {'deleted': 0, 'errors': 0}
+        
+        try:
+            entity = await self.client.get_entity(chat_id)
+            sig_set = set(signatures)
+            message_map = {}
+            
+            async for msg in self.client.iter_messages(entity, limit=limit):
+                if not msg.media: continue
+                sig, _ = extract_message_signature(msg)
+                if sig and (sig in sig_set or any(sig.startswith(s) for s in sig_set)):
+                    if sig not in message_map: message_map[sig] = []
+                    message_map[sig].append(msg)
+            
+            deleted = 0
+            errors = 0
+            for msgs in message_map.values():
+                if len(msgs) > 1:
+                    msgs.sort(key=lambda x: x.date)
+                    to_delete = [m.id for m in msgs[1:]]
+                    try:
+                        await self.client.delete_messages(entity, to_delete)
+                        deleted += len(to_delete)
+                    except Exception as e:
+                        logger.error(f"Delete batch failed: {e}")
+                        errors += len(to_delete)
+            return {'deleted': deleted, 'errors': errors}
+        except Exception as e:
+            logger.error(f"Scan and delete duplicates failed: {e}")
+            return {'deleted': 0, 'errors': 1}
+
 class MemoryProcessedGroupCache:
     """媒体组去重缓存 (内存版)"""
     def __init__(self):

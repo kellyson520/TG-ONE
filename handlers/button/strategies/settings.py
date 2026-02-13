@@ -203,7 +203,7 @@ class SettingsMenuStrategy(BaseMenuHandler):
             from controllers.menu_controller import menu_controller
             await menu_controller.enter_create_rule_state(event)
 
-    # --- Internal Handlers (Migrated from new_menu_callback.py) ---
+    # --- Internal Handlers (Migrated from menu_entrypoint.py) ---
 
     async def _handle_toggle_setting(self, event, setting_key):
         from services.forward_settings_service import forward_settings_service

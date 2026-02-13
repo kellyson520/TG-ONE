@@ -1,9 +1,6 @@
 import logging
 import re
-from sqlalchemy import select
-
 from core.container import container
-from models.models import Chat, ForwardRule
 
 logger = logging.getLogger(__name__)
 
@@ -38,42 +35,35 @@ async def handle_message_link(client, event):
         return
 
     # 查找匹配的规则
-    async with container.db.get_session() as session:
-        # 查找是否存在对应的 Chat 记录
-        if isinstance(source_chat_id, int):
-            stmt = select(Chat).where(Chat.telegram_chat_id == str(source_chat_id))
-        else:
-            stmt = select(Chat).where(Chat.username == source_chat_id)
+    try:
+        from services.rule.query import RuleQueryService
         
-        result = await session.execute(stmt)
-        source_chat_db = result.scalar_one_or_none()
+        # 查找是否存在对应的 Chat 记录 (通过 RuleRepository 代理，保持 DTO 模式)
+        source_chat_dto = await container.rule_repo.find_chat(source_chat_id)
         
-        if not source_chat_db:
+        if not source_chat_dto:
              await event.reply(f"⚠️ 数据库中未找到来源聊天 {source_chat_id} 的记录，请先使用 /bind 绑定。")
              return
 
         # 查找关联的规则
-        stmt = select(ForwardRule).where(
-            ForwardRule.source_chat_id == source_chat_db.id,
-            ForwardRule.enable_rule == True
-        )
-        result = await session.execute(stmt)
-        rules = result.scalars().all()
+        rules = await RuleQueryService.get_rules_for_source_chat(source_chat_id)
         
-        if not rules:
-            await event.reply(f"⚠️ 未找到来源 {source_chat_db.name} 的已启用的转发规则。")
+        # 过滤已启用的规则 (get_rules_for_source_chat 可能包含缓存的规则)
+        enabled_rules = [r for r in rules if r.enable_rule]
+        
+        if not enabled_rules:
+            await event.reply(f"⚠️ 未找到来源 {source_chat_dto.name} 的已启用的转发规则。")
             return
 
         # 为每个规则生成一个转发任务
-        for rule in rules:
+        for rule in enabled_rules:
             payload = {
                 "chat_id": source_chat_id if isinstance(source_chat_id, int) else source_chat_id,
                 "message_id": message_id,
                 "rule_id": rule.id,
                 "is_manual": True
             }
-            # 推送任务到 TaskQueue 类型为 process_message (对应 WorkerService 的处理逻辑)
-            # 使用高优先级 (priority=10) 确保手动触发的任务优先执行
+            # 推送任务到 TaskQueue 类型为 process_message
             await container.task_repo.push(
                 task_type="process_message", 
                 payload=payload,
@@ -81,4 +71,7 @@ async def handle_message_link(client, event):
             )
             logger.info(f"Manual link forward task pushed: source={source_chat_id}, msg={message_id}, rule={rule.id}")
 
-        await event.reply(f"✅ 已成功为 {len(rules)} 条规则添加手动转发任务到队列。")
+        await event.reply(f"✅ 已成功为 {len(enabled_rules)} 条规则添加手动转发任务到队列。")
+    except Exception as e:
+        logger.error(f"处理链接转发时出错: {e}", exc_info=True)
+        await event.reply(f"❌ 转发请求处理失败: {str(e)}")

@@ -55,6 +55,10 @@ class RuleManagementService:
     async def delete_keywords(self, rule_id: int, keywords: List[str]) -> Dict[str, Any]:
         return await self.logic.delete_keywords(rule_id, keywords)
 
+    @audit_log(action="DELETE_KEYWORDS_BY_INDEX", resource_type="RULE")
+    async def delete_keywords_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
+        return await self.logic.delete_keywords_by_indices(rule_id, indices)
+
     @audit_log(action="CLEAR_KEYWORDS", resource_type="RULE")
     async def clear_keywords(self, rule_id: int) -> Dict[str, Any]:
         return await self.logic.clear_keywords(rule_id)
@@ -125,6 +129,14 @@ class RuleManagementService:
     async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
         return await self.logic.clear_replace_rules(rule_id)
 
+    @audit_log(action="DELETE_REPLACE_RULES_BY_INDEX", resource_type="RULE")
+    async def delete_replace_rules_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
+        return await self.logic.delete_replace_rules_by_indices(rule_id, indices)
+
+    @audit_log(action="ADD_PUSH_CONFIG", resource_type="RULE")
+    async def add_push_config(self, rule_id: int, push_channel: str) -> Dict[str, Any]:
+        return await self.logic.add_push_config(rule_id, push_channel)
+
     @audit_log(action="EXPORT_RULE_CONFIG", resource_type="RULE")
     async def export_rule_config(self, rule_id: int, format: str = "json") -> Dict[str, Any]:
         return await self.logic.export_rule_config(rule_id, format)
@@ -152,5 +164,41 @@ class RuleManagementService:
     @audit_log(action="TOGGLE_RULE_SETTING", resource_type="RULE")
     async def toggle_rule_setting(self, rule_id: int, field: str, value: Optional[Any] = None) -> Dict[str, Any]:
         return await self.logic.toggle_rule_setting(rule_id, field, value)
+
+    @audit_log(action="TOGGLE_RULE_SYNC", resource_type="RULE")
+    async def toggle_rule_sync(self, source_rule_id: int, target_rule_id: int) -> Dict[str, Any]:
+        return await self.logic.toggle_rule_sync(source_rule_id, target_rule_id)
+
+    @audit_log(action="SET_CURRENT_SOURCE", resource_type="CHAT")
+    async def set_current_source_chat(self, chat_id: int, source_telegram_id: str) -> Dict[str, Any]:
+        return await self.logic.set_current_source_chat(chat_id, source_telegram_id)
+
+    @audit_log(action="UPDATE_AI_SETTING", resource_type="RULE")
+    async def update_ai_setting(self, rule_id: int, field: str, value: Any) -> Dict[str, Any]:
+        return await self.logic.update_ai_setting(rule_id, field, value)
+
+    @audit_log(action="SUMMARY_NOW", resource_type="RULE")
+    async def summary_now(self, rule_id: int) -> Dict[str, Any]:
+        return await self.logic.summary_now(rule_id)
+
+    @audit_log(action="TOGGLE_MEDIA_TYPE", resource_type="RULE")
+    async def toggle_media_type(self, rule_id: int, media_type: str) -> Dict[str, Any]:
+        return await self.logic.toggle_media_type(rule_id, media_type)
+
+    @audit_log(action="TOGGLE_MEDIA_EXTENSION", resource_type="RULE")
+    async def toggle_media_extension(self, rule_id: int, extension: str) -> Dict[str, Any]:
+        return await self.logic.toggle_media_extension(rule_id, extension)
+
+    @audit_log(action="TOGGLE_PUSH_STATUS_BY_CONFIG", resource_type="PUSH_CONFIG")
+    async def toggle_push_status_by_config(self, config_id: int) -> Dict[str, Any]:
+        return await self.logic.toggle_push_status_by_config(config_id)
+
+    @audit_log(action="DELETE_PUSH_CONFIG", resource_type="PUSH_CONFIG")
+    async def delete_push_config(self, config_id: int) -> Dict[str, Any]:
+        return await self.logic.delete_push_config(config_id)
+
+    @audit_log(action="UPDATE_PUSH_CONFIG_SETTING", resource_type="PUSH_CONFIG")
+    async def update_push_config_setting(self, config_id: int, field: str, value: Any) -> Dict[str, Any]:
+        return await self.logic.update_push_config_setting(config_id, field, value)
 
 rule_management_service = RuleManagementService()

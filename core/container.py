@@ -243,6 +243,13 @@ class Container:
         return self._rule_filter_service
 
     @property
+    def system_service(self) -> Any:
+        if not hasattr(self, '_system_service'):
+            from services.system_service import SystemService
+            self._system_service = SystemService()
+        return self._system_service
+
+    @property
     def lifecycle(self) -> Any:
         return self._lifecycle
 

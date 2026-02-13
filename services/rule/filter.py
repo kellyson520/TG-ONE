@@ -150,7 +150,7 @@ class RuleFilterService:
                 
         for k in regex_kws:
             try:
-                if re.search(k.keyword, message_text, re.I):
+                if k.keyword and re.search(k.keyword, message_text, re.I):
                     return True
             except Exception as e:
                 logger.error(f"正则匹配出错: {k.keyword}, {e}")

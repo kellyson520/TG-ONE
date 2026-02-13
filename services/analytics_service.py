@@ -381,11 +381,11 @@ class AnalyticsService:
                     }
                 ],
                 "type_distribution": [
-                    {"name": "Text", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
-                    {"name": "Media", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
+                    {"name": "文本", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
+                    {"name": "媒体", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
                 ],
                 "top_chats": [
-                    {"chat_id": cid, "count": count} 
+                    {"chat_id": cid, "name": await self._resolve_chat_name(cid), "count": count} 
                     for cid, count in list(today_summary.get("chats", {}).items())[:5]
                 ],
                 "top_rules": top_rules,
@@ -396,7 +396,28 @@ class AnalyticsService:
             }
         except Exception as e:
             logger.error(f"get_detailed_stats 失败: {e}\n{traceback.format_exc()}")
-            return {"daily_trends": [], "type_distribution": []}
+            return {"daily_trends": [], "type_distribution": [], "top_chats": [], "top_rules": []}
+
+    async def _resolve_chat_name(self, chat_id: Any) -> str:
+        """解析聊天名称"""
+        try:
+            # 尝试从数据库获取
+            from models.models import Chat
+            from sqlalchemy import select
+            async with self.container.db.get_session() as session:
+                stmt = select(Chat).where(Chat.telegram_chat_id == str(chat_id))
+                res = await session.execute(stmt)
+                chat = res.scalar_one_or_none()
+                if chat and chat.name:
+                    return chat.name
+            
+            # 尝试从 session_service 获取
+            name = await session_service.get_chat_name(int(chat_id))
+            if name:
+                return name
+        except Exception:
+            pass
+        return str(chat_id)[:12]
 
     async def detect_anomalies(self) -> Dict[str, Any]:
         """系统异常检测 (基于实时指标)"""

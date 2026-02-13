@@ -65,6 +65,7 @@ class MainMenuRenderer(BaseRenderer):
         builder.add_button("🚀 性能监控", "new_menu:forward_performance")
         builder.add_button("刷新", "new_menu:refresh_forward_hub", icon="🔄")
         builder.add_button("返回首页", "new_menu:main_menu", icon=UIStatus.BACK)
+        builder.add_button("关闭菜单", "new_menu:close", icon="❌")
         return builder.build()
 
     def render_dedup_hub(self, data: Dict[str, Any]) -> ViewResult:
@@ -94,6 +95,7 @@ class MainMenuRenderer(BaseRenderer):
             .add_button("⚙️ 高级功能", "new_menu:dedup_advanced")
             .add_button("🗑️ 垃圾清理", "new_menu:dedup_cache_management")
             .add_button("返回主页", "new_menu:main_menu", icon=UIStatus.BACK)
+            .add_button("关闭菜单", "new_menu:close", icon="❌")
             .build())
 
     def render_analytics_hub(self, data: Dict[str, Any]) -> ViewResult:
@@ -108,8 +110,8 @@ class MainMenuRenderer(BaseRenderer):
             builder.add_section("转发趋势", f"今日: {overview.get('today_total', 0)} 条 | 昨日: {overview.get('yesterday_total', 0)} 条")
             builder.add_status_grid({
                 "数据量": f"{overview.get('data_size_mb', 0):.1f} MB",
-                "最热类型": data.get('top_type', {}).get('name', 'N/A'),
-                "活跃会话": str(data.get('top_chat', {}).get('chat_id', 'N/A'))[:10]
+                "最热类型": data.get('top_type', {}).get('name', '暂无'),
+                "活跃会话": data.get('top_chat', {}).get('name', 'N/A')
             })
         
         builder.add_button("📊 转发统计", "new_menu:forward_analytics")
@@ -121,6 +123,50 @@ class MainMenuRenderer(BaseRenderer):
         builder.add_button("📋 详细报告", "new_menu:detailed_analytics")
         builder.add_button("📤 导出 CSV", "new_menu:export_csv")
         builder.add_button("返回首页", "new_menu:main_menu", icon=UIStatus.BACK)
+        builder.add_button("关闭中心", "new_menu:close", icon="❌")
+        return builder.build()
+
+    def render_forward_analytics(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染转发详细统计页面"""
+        builder = self.new_builder()
+        builder.set_title("转发详细统计", icon="📈")
+        builder.add_breadcrumb(["首页", "分析中心", "转发统计"])
+        
+        # 1. 周期信息
+        period = data.get('period', {})
+        summary = data.get('summary', {})
+        builder.add_section("统计概览", 
+            f"📅 周期: {period.get('start_date', '?')} 至 {period.get('end_date', '?')}\n"
+            f"✅ 总计转发: {summary.get('total_forwards', 0)} 条\n"
+            f"❌ 失败次数: {summary.get('total_errors', 0)} 次\n"
+            f"📊 日均转发: {summary.get('avg_daily_forwards', 0):.1f} 条"
+        )
+        
+        # 2. 每日趋势 (简易列表)
+        daily_stats = data.get('daily_stats', [])
+        if daily_stats:
+            trend_lines = []
+            for d in daily_stats[-7:]: # 只显示最近 7 天
+                date_label = d.get('date', '').split('-')[-1] # 只取日期部分
+                total = d.get('total_forwards', 0)
+                errors = d.get('error_count', 0)
+                icon = "🔥" if total > 50 else "📈"
+                trend_lines.append(f"{icon} {date_label}日: {total} 条 (失败 {errors})")
+            builder.add_section("最近 7 日趋势", "\n".join(trend_lines))
+        
+        # 3. 热门规则
+        top_rules = data.get('top_rules', [])
+        if top_rules:
+            rule_lines = []
+            for r in top_rules[:5]:
+                rule_lines.append(f"• ID {r.get('rule_id')}: {r.get('success_count', 0)} 条")
+            builder.add_section("热门转发规则", "\n".join(rule_lines))
+
+        builder.add_button("🔄 刷新数据", "new_menu:forward_analytics")
+        builder.add_button("👈 返回分析中心", "new_menu:analytics_hub")
+        builder.add_button("🏠 返回主菜单", "new_menu:main_menu")
+        builder.add_button("❌ 关闭统计", "new_menu:close")
+        
         return builder.build()
 
     def render_system_hub(self, data: Dict[str, Any]) -> ViewResult:
@@ -153,6 +199,7 @@ class MainMenuRenderer(BaseRenderer):
             .add_button("🔄 重启引擎", "new_menu:system_status")
             .add_button("🏢 归档一次", "new_menu:db_archive_once")
             .add_button("🔙 返回主菜单", "new_menu:main_menu")
+            .add_button("❌ 关闭设置", "new_menu:close")
             .build())
 
     def render_help_guide(self) -> ViewResult:

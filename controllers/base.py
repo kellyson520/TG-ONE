@@ -31,13 +31,9 @@ class BaseController:
             if await is_admin(event):
                 return False # 管理员不受限
             
-            from models.models import SystemConfiguration
-            from sqlalchemy import select
-            async with self.container.db.get_session() as s:
-                result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
-                config = result.scalar_one_or_none()
-                if config and config.value.lower() == "true":
-                    raise ControllerAbort("🚧 **系统维护中**\n\n当前系统正在进行维护升级，请稍后再试。", "main_menu")
+            # 通过 SystemService 检查维护模式 (符合架构规范)
+            if await self.container.system_service.is_maintenance_mode():
+                raise ControllerAbort("🚧 **系统维护中**\n\n当前系统正在进行维护升级，请稍后再试。", "main_menu")
             return False
         except ControllerAbort:
             raise

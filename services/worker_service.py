@@ -76,9 +76,8 @@ class WorkerService:
             try:
                 await asyncio.sleep(10) # 每10秒检查一次
                 
-                status = await self.repo.get_queue_status()
-                # 'pending' 可能是总的任务数，'active_queues' 是活跃队列数
-                pending_count = status.get('pending', 0)
+                # [Fix P0] 修正键名：仓库返回的是 'active_queues' 而非 'pending'
+                pending_count = status.get('active_queues', 0)
                 current_workers = len(self.workers)
                 
                 if pending_count > 0:
@@ -110,43 +109,52 @@ class WorkerService:
                 await asyncio.sleep(5)
 
     async def _worker_loop(self, worker_id: str):
-        """单个 Worker 的工作循环"""
+        """单个 Worker 的工作循环 (支持批量任务处理)"""
         logger.debug(f"[{worker_id}] Loop Started")
         
         while self.running:
-            task = None
             try:
-                # 获取任务
-                # 注意：Worker cancel 时，这里可能会抛出 CancelledError
+                # [Fix P1] 批量拉取任务以减少数据库锁竞争
                 try:
-                      tasks = await self.repo.fetch_next()
+                      # 默认拉取 10 个作为批次
+                      tasks = await self.repo.fetch_next(limit=10)
                 except asyncio.CancelledError:
                      logger.debug(f"[{worker_id}] Cancelled during fetch")
                      raise
 
                 if not tasks:
                     # 没任务时，增加休眠
-                    if int(time.time()) % 60 == 0: # 约每分钟记录一次心跳
+                    if int(time.time()) % 60 == 0: 
                         logger.debug(f"[{worker_id}] Heartbeat: Waiting for tasks... (Queue is empty)")
                     await self._adaptive_sleep() 
                     continue
                 
-                # 第一个是主任务
-                task = tasks[0]
-                group_tasks = tasks[1:] if len(tasks) > 1 else []
-                
                 self._reset_sleep() # 有任务，重置休眠
                 
-                # ----------------- Worker Logic Copied & Adapted -----------------
-                # 确保连接正常，防止 Telethon 断连导致处理失败
-                await self._ensure_connected()
-                
-                # [关键] 绑定上下文：此后该循环内的所有日志都会自动带上 task_id
-                log = logger.bind(worker_id=worker_id, task_id=task.id, task_type=task.task_type)
-                
-                # Worker Logic (Simplified for integration)
-                await self._process_task_safely(task, log, group_tasks=group_tasks)
-                # -----------------------------------------------------------------
+                # 按照 grouped_id 对拉取到的任务进行分组 (媒体组聚合)
+                # 如果没有 grouped_id，则视为独立任务
+                task_groups = {}
+                for t in tasks:
+                    gid = t.grouped_id or f"single-{t.id}"
+                    if gid not in task_groups:
+                        task_groups[gid] = []
+                    task_groups[gid].append(t)
+
+                # 依次处理每个任务组
+                for gid, group in task_groups.items():
+                    # 确保连接正常
+                    await self._ensure_connected()
+                    
+                    main_task = group[0]
+                    sub_tasks = group[1:] if len(group) > 1 else []
+                    
+                    # [关键] 绑定上下文
+                    log = logger.bind(worker_id=worker_id, task_id=main_task.id, task_type=main_task.task_type)
+                    
+                    try:
+                        await self._process_task_safely(main_task, log, group_tasks=sub_tasks)
+                    except Exception as e:
+                        log.error(f"group_processing_failed", error=str(e), gid=gid)
 
             except asyncio.CancelledError:
                 logger.debug(f"[{worker_id}] Cancelled")

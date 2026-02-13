@@ -81,6 +81,10 @@ class MenuController:
         """显示数据分析中心"""
         await self.container.admin_controller.show_analytics_hub(event)
 
+    async def show_forward_analytics(self, event):
+        """显示转发统计详情"""
+        await self.container.admin_controller.show_forward_analytics(event)
+
     async def show_system_hub(self, event):
         """显示系统设置中心"""
         await self.container.admin_controller.show_system_hub(event)
@@ -138,15 +142,6 @@ class MenuController:
         """管理规则替换规则"""
         await self.container.rule_controller.show_replaces(event, rule_id)
 
-    async def show_session_management(self, event):
-        """显示会话管理中心"""
-        text = "💬 **会话管理中心**\n提供针对当前/指定会话的消息清理、重复项扫描等高级功能。"
-        buttons = [
-            [Button.inline("🔍 会话内去重", "new_menu:session_dedup")],
-            [Button.inline("🗑️ 批量删除消息", "new_menu:delete_session_messages")],
-            [Button.inline("👈 返回系统中心", "new_menu:system_hub")]
-        ]
-        await self._send_menu(event, "💬 **会话管理**", [text], buttons, breadcrumb="🏠 > 📋 会话")
 
     async def show_history_messages(self, event):
         """显示历史消息处理页"""
@@ -503,7 +498,10 @@ class MenuController:
         await self.container.media_controller.reset_rule_dedup(event, rule_id)
 
     async def run_legacy_dedup_cmd(self, event, rule_id: int, cmd_type: str):
-        """运行旧版基于规则的去重命令"""
+        """
+        [DEPRECATED] 运行旧版基于规则的去重命令。
+        通过 MediaController 转发。
+        """
         await self.container.media_controller.run_legacy_dedup_cmd(event, rule_id, cmd_type)
 
     async def run_admin_db_cmd(self, event, cmd_type: str):

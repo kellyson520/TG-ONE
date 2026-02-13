@@ -91,6 +91,12 @@ async def async_cleanup_old_logs(days: int):
     from core.db_factory import async_cleanup_old_logs
     return await async_cleanup_old_logs(days)
 
+
+def cleanup_old_logs(days: int):
+    """Cleanup old logs (synchronous lazy wrapper)"""
+    from core.db_factory import cleanup_old_logs
+    return cleanup_old_logs(days)
+
 async def async_get_database_info():
     """Get database info (async lazy wrapper)"""
     from core.db_factory import async_get_database_info
@@ -130,7 +136,7 @@ __all__ = [
     'get_db_health', 'async_get_db_health',
     'analyze_database', 'async_analyze_database',
     'vacuum_database', 'async_vacuum_database',
-    'async_cleanup_old_logs', 'async_get_database_info',
+    'async_cleanup_old_logs', 'cleanup_old_logs', 'async_get_database_info',
     'backup_database'
 ]
 

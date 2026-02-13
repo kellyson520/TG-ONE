@@ -12,27 +12,26 @@ class RulesMenu(BaseMenu):
     """规则管理菜单"""
 
     async def show_rule_list(self, event, page=1):
-        """显示规则列表 (异步分页)"""
-        from sqlalchemy import func, select
-        from sqlalchemy.orm import selectinload
-        from models.models import ForwardRule
+        """显示规则列表 (异步分页) - 使用 Repository 层"""
         from core.container import container
+        
         page = int(page)
         per_page = 5
-        async with container.db.get_session() as session:
-            total = (await session.execute(select(func.count(ForwardRule.id)))).scalar() or 0
-            total_pages = (total + per_page - 1) // per_page
-            if page > total_pages and total_pages > 0: page = total_pages
-            offset = (page - 1) * per_page
+        
+        # 使用 Repository 层获取所有规则
+        all_rules = await container.rule_repo.get_all_rules_with_chats()
+        total = len(all_rules)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+            
+        # 内存分页
+        start = (page - 1) * per_page
+        end = start + per_page
+        rules = all_rules[start:end]
 
-            stmt = select(ForwardRule).options(
-                selectinload(ForwardRule.source_chat),
-                selectinload(ForwardRule.target_chat),
-            ).order_by(ForwardRule.id).offset(offset).limit(per_page)
-            result = await session.execute(stmt)
-            rules = result.scalars().all()
-
-        text = f"📂 **规则列表** ({page}/{total_pages})\n请点击规则进行管理："
+        text = f"📂 **规则列表** ({page}/{total_pages})\\n请点击规则进行管理："
         buttons = []
         for rule in rules:
             s_name = rule.source_chat.name if rule.source_chat else "Unknown"

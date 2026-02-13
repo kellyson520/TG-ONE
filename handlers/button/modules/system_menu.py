@@ -304,18 +304,18 @@ class SystemMenu(BaseMenu):
             await self._render_from_text(event, f"❌ **缓存清理失败**\n\n{e}", buttons)
 
     async def show_system_status(self, event):
-        """显示系统状态"""
+        """显示系统状态 - 使用 Service 层"""
         try:
-            from models.models import get_db_health
-            db = get_db_health()
+            from services.system_service import system_service
+            db = await system_service.get_db_health()
             import psutil
             cpu = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory().percent
             text = (
-                "🩺 **系统状态监控**\n\n"
-                f"🗄️ 数据库: {'✅ 正常' if db.get('connected') else '❌ 异常'}\n"
-                f"💻 CPU 使用率: {cpu:.1f}%\n"
-                f"🧠 内存 使用率: {mem:.1f}%\n"
+                "🩺 **系统状态监控**\\n\\n"
+                f"🗄️ 数据库: {'✅ 正常' if db.get('connected') else '❌ 异常'}\\n"
+                f"💻 CPU 使用率: {cpu:.1f}%\\n"
+                f"🧠 内存 使用率: {mem:.1f}%\\n"
                 f"🕒 系统运行正常"
             )
             buttons = [[Button.inline("🔄 刷新", "new_menu:system_status")], [Button.inline("👈 返回上一级", "new_menu:system_hub")]]

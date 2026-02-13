@@ -103,8 +103,8 @@ class TaskRepository:
                  # Fallback: 如果批量失败（罕见），可以考虑逐条重试，或者直接抛出
                  raise
 
-    async def fetch_next(self):
-        """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合)
+    async def fetch_next(self, limit: int = 1):
+        """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合与批量拉取)
         使用 UPDATE ... RETURNING 确保取出任务的同时锁定状态。
         如果任务属于媒体组，则原子化锁定该组内所有 'pending' 任务，
         彻底根除多 Worker 并发下的竞态条件。
@@ -118,10 +118,8 @@ class TaskRepository:
             lease_duration = timedelta(minutes=15)
             lease_until = now + lease_duration
             
-            # 1. 定位目标任务 ID (Scheme: 成熟方案中的可见性超时)
-            # 支持拉取：1. status='pending' 且到达调度时间的任务
-            #        2. status='running' 且 locked_until 已过期的任务 (僵尸打捞)
-            target_id_sub = (
+            # 1. 定位候选任务 ID 列表 (取 limit 个)
+            candidate_ids_sub = (
                 select(TaskQueue.id)
                 .where(
                     (TaskQueue.status == 'pending') |
@@ -134,29 +132,30 @@ class TaskRepository:
                 .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
                 .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
                 .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
-                .limit(1)
+                .limit(limit)
                 .scalar_subquery()
             )
 
-            # 2. 获取该任务的 grouped_id
-            target_group_sub = (
+            # 2. 获取这些任务关联的全部 grouped_id
+            target_groups_sub = (
                 select(TaskQueue.grouped_id)
-                .where(TaskQueue.id == target_id_sub)
+                .where(TaskQueue.id.in_(candidate_ids_sub))
+                .where(TaskQueue.grouped_id != None)
                 .scalar_subquery()
             )
 
-            # 3. 原子执行：锁定任务并设置租约
+            # 3. 原子执行：锁定选中的任务及其所属的媒体组任务
             stmt = (
                 update(TaskQueue)
                 .where(
-                    (TaskQueue.id == target_id_sub) |
+                    (TaskQueue.id.in_(candidate_ids_sub)) |
                     (
                         (
                             (TaskQueue.status == 'pending') |
                             ((TaskQueue.status == 'running') & (TaskQueue.locked_until <= now))
                         ) &
                         (TaskQueue.grouped_id != None) &
-                        (TaskQueue.grouped_id == target_group_sub)
+                        (TaskQueue.grouped_id.in_(target_groups_sub))
                     )
                 )
                 .values(
@@ -174,9 +173,9 @@ class TaskRepository:
             
             if tasks:
                 # AsyncSessionManager will commit automatically on __aexit__
-                # 排序：确保最早的任务或 target_id 放在首位 (Worker 以此作为主 Task)
+                # 排序：确保最早的任务放在前列
                 tasks.sort(key=lambda x: x.created_at)
-                logger.debug(f"🔒 原子锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
+                logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
                 return tasks
             
             return []
