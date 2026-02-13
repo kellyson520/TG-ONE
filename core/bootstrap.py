@@ -177,8 +177,15 @@ class Bootstrap:
              update_heartbeat("running", source="init")
 
     async def _init_and_start_container(self) -> None:
-        # 初始化容器
+        # 1. 初始化容器
         container.init_with_client(self.user_client, self.bot_client)
+        
+        # 2. [关键交接] 串联内存队列与数据库持久化
+        # 监听器发出的任务先进入 MessageQueueService (QoS 4.0)，
+        # 然后由以下回调批量写入数据库 task_queue 表。
+        if hasattr(container, 'queue_service') and hasattr(container, 'task_repo'):
+            container.queue_service.set_processor(container.task_repo.push_batch)
+            logger.info("✅ 已接通内存队列与数据库持久化链路 (QoS 4.0 -> DB)")
         
         # Wire up EventBus broadcaster
         try:
@@ -280,7 +287,7 @@ class Bootstrap:
                 from core.container import container
                 bus = getattr(container, 'bus', None)
                 if bus:
-                    await bus.emit("SYSTEM_SHUTDOWN_STARTING", {"time": str(datetime.utcnow())})
+                    await bus.publish("SYSTEM_SHUTDOWN_STARTING", {"time": str(datetime.utcnow())})
             except Exception as e:
                 logger.error(f"发送预关闭广播失败: {e}")
         

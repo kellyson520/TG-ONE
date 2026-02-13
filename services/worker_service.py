@@ -1,7 +1,7 @@
 import asyncio
 import json
 import random
-import math
+import time
 from datetime import datetime, timedelta
 from core.pipeline import MessageContext
 from services.queue_service import FloodWaitException
@@ -70,28 +70,40 @@ class WorkerService:
         logger.debug(f"Scaling down: Cancelled worker {worker_id}")
 
     async def _monitor_scaling(self):
-        """Monitor queue depth and scale workers"""
+        """动态伸缩监控已启动"""
+        logger.info("🚀 [WorkerService] 动态伸缩监控已启动")
         while self.running:
             try:
                 await asyncio.sleep(10) # 每10秒检查一次
                 
                 status = await self.repo.get_queue_status()
-                pending = status.get('active_queues', 0)
+                # 'pending' 可能是总的任务数，'active_queues' 是活跃队列数
+                pending_count = status.get('pending', 0)
                 current_workers = len(self.workers)
                 
-                # Scaling Logic
-                # 如果 pending > current_workers * 2，扩容
-                # 如果 pending == 0，缩容
+                if pending_count > 0:
+                     logger.info(f"📊 [WorkerService] 队列积压检测: {pending_count} 个任务待处理, 当前 Worker 数: {current_workers}")
                 
-                if pending > current_workers * 2 and current_workers < settings.WORKER_MAX_CONCURRENCY:
-                    scale_up = min(settings.WORKER_MAX_CONCURRENCY - current_workers, math.ceil(pending / 2))
-                    logger.info(f"Scaling UP: Pending={pending}, Workers={current_workers} -> +{scale_up}")
-                    for _ in range(scale_up):
+                # 策略：每 50 个积压任务增加一个 Worker，最高不超过 MAX_CONCURRENCY
+                target_count = max(
+                    settings.WORKER_MIN_CONCURRENCY,
+                    min(
+                        settings.WORKER_MAX_CONCURRENCY,
+                        (pending_count // 50) + 1
+                    )
+                )
+                
+                # 弹性调整
+                if current_workers < target_count:
+                    diff = target_count - current_workers
+                    logger.info(f"📈 [WorkerService] 队列积压，正在扩容: +{diff} workers (目标: {target_count})")
+                    for _ in range(diff):
                         self._spawn_worker()
-                        
-                elif pending == 0 and current_workers > settings.WORKER_MIN_CONCURRENCY:
-                    logger.info(f"Scaling DOWN: Pending=0, Workers={current_workers} -> -1")
-                    await self._kill_worker()
+                elif current_workers > target_count:
+                    diff = current_workers - target_count
+                    logger.info(f"📉 [WorkerService] 队列空闲，正在缩容: -{diff} workers (目标: {target_count})")
+                    for _ in range(diff):
+                        await self._kill_worker()
                     
             except Exception as e:
                 logger.error(f"Scaling monitor error: {e}")
@@ -114,6 +126,8 @@ class WorkerService:
 
                 if not tasks:
                     # 没任务时，增加休眠
+                    if int(time.time()) % 60 == 0: # 约每分钟记录一次心跳
+                        logger.debug(f"[{worker_id}] Heartbeat: Waiting for tasks... (Queue is empty)")
                     await self._adaptive_sleep() 
                     continue
                 

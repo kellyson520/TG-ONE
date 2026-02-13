@@ -268,6 +268,7 @@ def migrate_db(engine):
                     'unique_key': 'ALTER TABLE task_queue ADD COLUMN unique_key VARCHAR',
                     'grouped_id': 'ALTER TABLE task_queue ADD COLUMN grouped_id VARCHAR',
                     'next_retry_at': 'ALTER TABLE task_queue ADD COLUMN next_retry_at TIMESTAMP',
+                    'locked_until': 'ALTER TABLE task_queue ADD COLUMN locked_until TIMESTAMP',
                     'error_log': 'ALTER TABLE task_queue ADD COLUMN error_log TEXT'
                 }
                 for col, sql in taskqueue_columns_map.items():
@@ -303,7 +304,10 @@ def migrate_db(engine):
                     'CREATE INDEX IF NOT EXISTS idx_chat_statistics_date ON chat_statistics(date)',
                     'CREATE INDEX IF NOT EXISTS idx_error_logs_level_created ON error_logs(level, created_at)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_status_priority ON task_queue(status, priority DESC)',
+                    # [Optimization] 增加复合索引：状态+调度时间+优先级+创建时间，彻底覆盖 fetch_next 查询路径
+                    'CREATE INDEX IF NOT EXISTS idx_task_queue_fetch_bundle ON task_queue(status, scheduled_at, priority DESC, created_at)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_scheduled ON task_queue(scheduled_at)',
+                    'CREATE INDEX IF NOT EXISTS idx_task_queue_locked_until ON task_queue(locked_until)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_type_status ON task_queue(task_type, status)',
                     'CREATE INDEX IF NOT EXISTS idx_task_queue_type_id_desc ON task_queue(task_type, id DESC)',
                     'CREATE UNIQUE INDEX IF NOT EXISTS idx_system_config_key ON system_configurations(key)',

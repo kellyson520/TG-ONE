@@ -108,7 +108,7 @@ class CronService:
         """定期清理临时文件"""
         while True:
             try:
-                # 每小时执行一次
+                # 1. 清理临时文件 (每小时)
                 await asyncio.sleep(3600)
                 logger.info("开始定时清理临时目录...")
                 count = await self._clear_temp_dir_async()
@@ -117,7 +117,39 @@ class CronService:
                 break
             except Exception as e:
                 logger.error(f"定时清理临时目录失败: {e}")
-                await asyncio.sleep(60) # 出错后等待一分钟
+                await asyncio.sleep(60)
+
+    async def _rescue_tasks_cron(self):
+        """定期打捞僵尸任务 (每5分钟)"""
+        while True:
+            try:
+                await asyncio.sleep(300)
+                from core.container import container
+                if hasattr(container, 'task_repo'):
+                    count = await container.task_repo.rescue_stuck_tasks()
+                    if count > 0:
+                        logger.info(f"🛡️ [调度器] 自动打捞了 {count} 个僵尸任务")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"打捞僵尸任务失败: {e}")
+                await asyncio.sleep(60)
+
+    def start(self):
+        self._tasks.append(asyncio.create_task(self._archive_cron(), name="archive_cron"))
+        self._tasks.append(asyncio.create_task(self._compact_cron(), name="compact_cron"))
+        self._tasks.append(asyncio.create_task(self._cleanup_temp_cron(), name="cleanup_temp_cron"))
+        self._tasks.append(asyncio.create_task(self._rescue_tasks_cron(), name="rescue_tasks_cron"))
+        logger.info("✅ CronService started (Integrated Task Rescuer)")
+
+    async def stop(self):
+        for task in self._tasks:
+            task.cancel()
+        
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+            
+        self._tasks.clear()
 
     async def _clear_temp_dir_async(self):
         """异步版本的临时目录清理"""

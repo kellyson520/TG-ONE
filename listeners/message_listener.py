@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import asyncio
 import time
-from datetime import datetime, timezone
 from typing import Any
 
 from telethon import events
@@ -200,7 +199,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
             rule_priority = await _get_chat_priority(event.chat_id)
             final_priority = base_priority + rule_priority
             
-            # 写入背压消息队列 (With Calculated Priority)
+            # 写入背压消息队列 (由 MessageQueueService QoS 4.0 自动分流和处理背压)
             await container.queue_service.enqueue(
                 ("process_message", payload, final_priority)
             )

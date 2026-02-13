@@ -24,7 +24,8 @@ class TaskRepository:
         if chat_id and message_id:
             unique_key = f"{task_type}:{chat_id}:{message_id}"
 
-        async with self.db.get_session() as session:
+        from core.db_factory import AsyncSessionManager
+        async with AsyncSessionManager() as session:
             # [Scheme 7 Optimization] 使用原子化 INSERT OR IGNORE 替代先查后增
             # 彻底解决多并发场景下的重复推送问题
             stmt = insert(TaskQueue).values(
@@ -89,12 +90,13 @@ class TaskRepository:
         if not values_list:
             return
 
-        async with self.db.get_session() as session:
+        from core.db_factory import AsyncSessionManager
+        async with AsyncSessionManager() as session:
              # 使用 Core Insert + OR IGNORE (SQLite) 实现高性能批量去重写入
              try:
                  stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
                  await session.execute(stmt)
-                 await session.commit()
+                 # AsyncSessionManager handles commit automatically
                  logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
              except Exception as e:
                  logger.error(f"批量写入失败: {e}")
@@ -107,15 +109,30 @@ class TaskRepository:
         如果任务属于媒体组，则原子化锁定该组内所有 'pending' 任务，
         彻底根除多 Worker 并发下的竞态条件。
         """
-        async with self.db.get_session() as session:
+        from core.db_factory import AsyncSessionManager
+        async with AsyncSessionManager() as session:
+            # [Optimization] 增加 30s 时间冗余
             now = datetime.utcnow()
+            buffer_now = now + timedelta(seconds=30)
+            # 定义租约有效期（Visibility Timeout）：15 分钟
+            lease_duration = timedelta(minutes=15)
+            lease_until = now + lease_duration
             
-            # 1. 定位最老、优先级最高的待处理任务 ID
+            # 1. 定位目标任务 ID (Scheme: 成熟方案中的可见性超时)
+            # 支持拉取：1. status='pending' 且到达调度时间的任务
+            #        2. status='running' 且 locked_until 已过期的任务 (僵尸打捞)
             target_id_sub = (
                 select(TaskQueue.id)
-                .where(TaskQueue.status == 'pending')
-                .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= now))
-                .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= now))
+                .where(
+                    (TaskQueue.status == 'pending') |
+                    (
+                        (TaskQueue.status == 'running') & 
+                        (TaskQueue.locked_until != None) & 
+                        (TaskQueue.locked_until <= now)
+                    )
+                )
+                .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
+                .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
                 .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
                 .limit(1)
                 .scalar_subquery()
@@ -128,13 +145,16 @@ class TaskRepository:
                 .scalar_subquery()
             )
 
-            # 3. 原子执行：锁定该任务及其关联的媒体组任务
+            # 3. 原子执行：锁定任务并设置租约
             stmt = (
                 update(TaskQueue)
                 .where(
                     (TaskQueue.id == target_id_sub) |
                     (
-                        (TaskQueue.status == 'pending') &
+                        (
+                            (TaskQueue.status == 'pending') |
+                            ((TaskQueue.status == 'running') & (TaskQueue.locked_until <= now))
+                        ) &
                         (TaskQueue.grouped_id != None) &
                         (TaskQueue.grouped_id == target_group_sub)
                     )
@@ -142,6 +162,7 @@ class TaskRepository:
                 .values(
                     status='running',
                     started_at=now,
+                    locked_until=lease_until, # 设置租约，防止僵尸化
                     updated_at=now
                 )
                 .execution_options(synchronize_session=False)
@@ -152,7 +173,7 @@ class TaskRepository:
             tasks = result.scalars().all()
             
             if tasks:
-                await session.commit()
+                # AsyncSessionManager will commit automatically on __aexit__
                 # 排序：确保最早的任务或 target_id 放在首位 (Worker 以此作为主 Task)
                 tasks.sort(key=lambda x: x.created_at)
                 logger.debug(f"🔒 原子锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
@@ -239,7 +260,8 @@ class TaskRepository:
             
     async def rescue_stuck_tasks(self, timeout_minutes: int = 10):
         """僵尸任务救援 - 将处于 'running' 状态超过指定时间的任务重置为 'pending'"""
-        async with self.db.get_session() as session:
+        from core.db_factory import AsyncSessionManager
+        async with AsyncSessionManager() as session:
             cutoff_time = datetime.utcnow() - timedelta(minutes=timeout_minutes)
             now = datetime.utcnow()
             
@@ -297,8 +319,10 @@ class TaskRepository:
         Returns:
             List[TaskQueue]: 相关任务列表
         """
-        async with self.db.get_session() as session:
-            now = datetime.utcnow()
+        from core.db_factory import AsyncSessionManager
+        async with AsyncSessionManager() as session:
+            # [Optimization] 增加 30s 时间冗余，彻底根除时钟偏差导致的任务"不可见"问题
+            now = datetime.utcnow() + timedelta(seconds=30)
             
             # 1. 查找同组的其他 pending 任务
             stmt = (

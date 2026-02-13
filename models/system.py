@@ -41,6 +41,7 @@ class TaskQueue(Base):
     scheduled_at = Column(DateTime, nullable=True)
     next_retry_at = Column(DateTime, nullable=True)
     started_at = Column(DateTime, nullable=True)
+    locked_until = Column(DateTime, nullable=True, index=True) # 用于"可见性超时"模式
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
