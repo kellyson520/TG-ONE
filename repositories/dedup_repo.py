@@ -161,8 +161,14 @@ class DedupRepository:
                         index_elements=['chat_id', 'signature'],
                         set_={
                             'count': MediaSignature.count + stmt.excluded.count,
-                            'last_seen': stmt.excluded.last_seen,
-                            'updated_at': stmt.excluded.updated_at,
+                            'last_seen': case(
+                                (stmt.excluded.last_seen != None, stmt.excluded.last_seen),
+                                else_=MediaSignature.last_seen
+                            ),
+                            'updated_at': case(
+                                (stmt.excluded.updated_at != None, stmt.excluded.updated_at),
+                                else_=MediaSignature.updated_at
+                            ),
                             # 同时也尝试补全可能缺失的其他元数据 (如 content_hash)
                             'content_hash': case(
                                 (
