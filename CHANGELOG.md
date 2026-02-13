@@ -6,6 +6,9 @@
 - **UpdateService 故障自愈修复**:
     - **逻辑冗余消除**: 移除了 `UpdateService.start_periodic_check` 中对 `verify_update_health` 的二次调用，确保仅在应用启动初期 (`main.py`) 执行单次自检。这解决了在更新后“观察期”内每一轮进程启动双倍增加失败计数器的 Bug。
     - **进程级防抖 (Health Check Debounce)**: 引入了 `_health_checked_in_this_process` 状态锁。利用 Python 对象的进程生命周期，有效防止因逻辑重入导致的 `fail_count` 误报累加，提升了回滚判定的精确度。
+- **系统关闭稳定性 (Shutdown Stability)**:
+    - **EventBus 兼容性补丁**: 为 `EventBus` 显式增加了 `emit` 方法作为 `publish` 的别名。这解决了在系统更新或关闭时，部分旧进程或动态调用因接口不一致导致的 `'EventBus' object has no attribute 'emit'` 报错，确保优雅关闭流程 100% 成功。
+    - **Bootstrap 路径优化**: 再次核实并锁定了 `core/bootstrap.py` 中的事件发布语义，确保其符合最新的 `EventBus` 协议。
 - **热重启冲突抑制 (Guard Guard)**:
     - **冲突治理**: 修复了由于 `.env` 等关键文件更新触发 `GuardService` 重启，进而干扰 `UpdateService` 健康观察期的死循环。
     - **观察期保护**: 在系统启动后的 60 秒稳定性验证期内，`GuardService` 自动抑制任何文件变更引发的热重启操作，保障了系统更新后的平稳过渡与数据库迁移任务的原子性。

@@ -16,16 +16,17 @@
 ## 待办清单 (Checklist)
 
 ### Phase 1: 现状诊断与伸缩修复
-- [ ] **扩容状态审计**:
-    - [ ] 编写脚本检查 `WorkerService` 内存中 `self.workers` 的实际长度。
+- [x] **扩容状态审计**:
+    - [x] 确认代码中键名不匹配 (`pending` vs `active_queues`) 导致扩容失效。
     - [ ] 打印 `_monitor_scaling` 循环的日志，检查是否在中途由于数据库连接超时而抛出异常。
 - [ ] **性能基准测试**:
     - [ ] 测试 `task_repo.get_queue_status()` 在 8.8w 行数据下的响应时间。
     - [ ] 测试 `task_repo.fetch_next()` 的 SQL 执行计划，确认是否命中索引。
-- [ ] **逻辑修复**:
-    - [ ] 在 `worker_service.py` 中增加对监控协程的异常捕获与自动重启。
-    - [ ] 调整 `target_count` 的计算逻辑，改为更激进的扩容系数，并强制在积压 > 1000 时保持 `MAX_CONCURRENCY`。
-- [ ] **手动干预**: 尝试通过日志确认是否需要重启进程以强制重置 Worker 状态。
+- [x] **逻辑修复**:
+    - [x] 在 `worker_service.py` 中增加对监控协程的异常捕获与自动重启。
+    - [x] 修复 `WorkerService` 键名统计逻辑，恢复正常动态扩容。
+    - [x] **[NEW] 智能化算法升级**: 增加 CPU/内存感知机制，支持最高 20 并发。
+
 
 ### Phase 2: 失败负载抑制 (治理 "SourceNotFound")
 - [ ] **数据清洗**:
@@ -39,8 +40,8 @@
 ### Phase 3: 并发与吞吐优化
 - [ ] **DB 索引优化**: 
     - [ ] 执行 `CREATE INDEX IF NOT EXISTS idx_task_queue_fetch ON task_queue (status, scheduled_at, priority, created_at);`
-- [ ] **批量 Fetch 增强**:
-    - [ ] 修改 `fetch_next` 的 `limit(1)` 为动态 `limit(batch_size)`，允许一个事务锁定多个任务。
+- [x] **批量 Fetch 增强**:
+    - [x] 修改 `fetch_next` 支持原子化批量拉取锁定任务，降低锁竞争。
 - [ ] **流量窗口调优**: 
     - [ ] 将 `FORWARD_MAX_CONCURRENCY_GLOBAL` 从 3 调整为 5-8，观察 Telegram 是否报错。
     - [ ] 减小 Worker 的休眠步进 (`sleep_increment`)，使其在有任务时更快速响应。

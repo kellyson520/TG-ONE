@@ -608,7 +608,7 @@ class Settings(BaseSettings):
         description="Worker 最小并发数"
     )
     WORKER_MAX_CONCURRENCY: int = Field(
-        default=10,
+        default=20,
         description="Worker 最大并发数"
     )
 

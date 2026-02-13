@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 import time
+import psutil
 from datetime import datetime, timedelta
 from core.pipeline import MessageContext
 from services.queue_service import FloodWaitException
@@ -70,42 +71,83 @@ class WorkerService:
         logger.debug(f"Scaling down: Cancelled worker {worker_id}")
 
     async def _monitor_scaling(self):
-        """动态伸缩监控已启动"""
-        logger.info("🚀 [WorkerService] 动态伸缩监控已启动")
+        """
+        智能化动态伸缩监控 (Resource-Aware & Load-Adaptive)
+        策略：
+        1. [分级扩容] 根据积压量级决定扩容速度
+        2. [系统负载保护] 监控 CPU/内存，高负载时抑制扩容
+        3. [平滑缩容] 采用延迟缩容，防止震荡
+        """
+        logger.info(f"🚀 [WorkerService] 智能化动态伸缩监控已启动 (Max: {settings.WORKER_MAX_CONCURRENCY})")
+        
+        idle_cycles = 0 # 连续空闲周期计数
+        
         while self.running:
             try:
                 await asyncio.sleep(10) # 每10秒检查一次
                 
-                # [Fix P0] 修正键名：仓库返回的是 'active_queues' 而非 'pending'
+                status = await self.repo.get_queue_status()
+                # 修复 P0: 使用正确键名 active_queues
                 pending_count = status.get('active_queues', 0)
                 current_workers = len(self.workers)
                 
-                if pending_count > 0:
-                     logger.info(f"📊 [WorkerService] 队列积压检测: {pending_count} 个任务待处理, 当前 Worker 数: {current_workers}")
-                
-                # 策略：每 50 个积压任务增加一个 Worker，最高不超过 MAX_CONCURRENCY
-                target_count = max(
-                    settings.WORKER_MIN_CONCURRENCY,
-                    min(
-                        settings.WORKER_MAX_CONCURRENCY,
-                        (pending_count // 50) + 1
+                # --- 第一步：资源守卫 (Resource Guard) ---
+                try:
+                    cpu_usage = psutil.cpu_percent(interval=None)
+                    process = psutil.Process()
+                    memory_mb = process.memory_info().rss / 1024 / 1024
+                except Exception:
+                    cpu_usage = 0
+                    memory_mb = 0
+
+                # --- 第二步：计算目标 Worker 数 (Target Logic) ---
+                if pending_count > 5000:
+                    # [炸弹模式] 积压超过5000，立即拉满
+                    target_count = settings.WORKER_MAX_CONCURRENCY
+                elif pending_count > 0:
+                    # [常规模式] 更激进的扩容：每 100 条积压增加一个 worker + 基础值
+                    target_count = max(
+                        settings.WORKER_MIN_CONCURRENCY,
+                        min(
+                            settings.WORKER_MAX_CONCURRENCY,
+                            (pending_count // 100) + 2
+                        )
                     )
-                )
-                
-                # 弹性调整
+                else:
+                    target_count = settings.WORKER_MIN_CONCURRENCY
+
+                # --- 第三步：执行调整 (Execution) ---
                 if current_workers < target_count:
-                    diff = target_count - current_workers
-                    logger.info(f"📈 [WorkerService] 队列积压，正在扩容: +{diff} workers (目标: {target_count})")
-                    for _ in range(diff):
-                        self._spawn_worker()
+                    # 扩容前检查系统负载 (容器感知)
+                    if cpu_usage > 85:
+                        if idle_cycles % 6 == 0: # 减少日志频率
+                            logger.warning(f"⚠️ [WorkerService] 系统 CPU 高负载 ({cpu_usage}%)，暂停扩容")
+                    elif memory_mb > 1800: # 接近系统强制重启的 2GB 限制
+                        if idle_cycles % 6 == 0:
+                            logger.warning(f"⚠️ [WorkerService] 内存接近上限 ({memory_mb:.1f}MB)，暂停扩容")
+                    else:
+                        diff = target_count - current_workers
+                        # 批量扩容步长：一次最多增加 5 个
+                        step = min(diff, 5) 
+                        logger.info(f"📈 [WorkerService] 检测到积压 {pending_count}，正在扩容: +{step} workers (当前: {current_workers})")
+                        for _ in range(step):
+                            self._spawn_worker()
+                    idle_cycles = 0 # 重置空闲计数
+                
                 elif current_workers > target_count:
-                    diff = current_workers - target_count
-                    logger.info(f"📉 [WorkerService] 队列空闲，正在缩容: -{diff} workers (目标: {target_count})")
-                    for _ in range(diff):
-                        await self._kill_worker()
-                    
+                    # 缩容策略：连续 3 个周期 (30s) 为空闲才真实收缩，防止抖动
+                    idle_cycles += 1
+                    if idle_cycles >= 3:
+                        diff = current_workers - target_count
+                        logger.info(f"📉 [WorkerService] 队列空闲，正在缩容: -{diff} workers")
+                        for _ in range(diff):
+                            await self._kill_worker()
+                        idle_cycles = 0
+                else:
+                    idle_cycles = 0
+
             except Exception as e:
-                logger.error(f"Scaling monitor error: {e}")
+                logger.error(f"Scaling monitor error: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
     async def _worker_loop(self, worker_id: str):

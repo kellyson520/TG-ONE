@@ -12,9 +12,15 @@
 
 ## 2. 技术方案 (Technical Solutions)
 
-### 2.1 Worker 调度增强
+### 2.1 Worker 调度增强 (智能化升级)
 *   **自愈机制**: 在 `WorkerService` 中增加心跳监控。如果 `_monitor_scaling` 停止，由 `Bootstrap` 重新启动。
-*   **显式扩容**: 将扩容阈值从 50 修改为更敏感的值，或在启动时直接初始化更多 Worker。
+*   **资源感知 (Container-Aware)**:
+    *   **CPU 阈值**: 当系统 CPU > 85% 时自动熔断，停止新增 Worker，防止容器崩溃。
+    *   **内存阈值**: 监控进程 RSS 内存，当 > 1800MB 时（接近 2GB 系统上限）停止扩容。
+*   **分级扩容 (Tiered Scaling)**:
+    *   **Panic Mode**: 积压 > 5000 时，无视步长直接拉满至 20 个 Worker。
+    *   **Aggressive Mode**: 积压在 100-5000 之间时，步长为 5，快速爬升。
+*   **抗抖动缩容**: 连续 3 个周期 (30s) 为空闲才执行缩容，防止任务波动导致频繁创建/销毁线程。
 
 ### 2.2 消息预检 (Message Pre-filtering)
 *   **死信清理指令**: 
