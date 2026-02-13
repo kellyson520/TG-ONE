@@ -86,9 +86,10 @@ class WorkerService:
             try:
                 await asyncio.sleep(10) # 每10秒检查一次
                 
-                status = await self.repo.get_queue_status()
+                # 获取队列状态
+                queue_status = await self.repo.get_queue_status()
                 # 修复 P0: 使用正确键名 active_queues
-                pending_count = status.get('active_queues', 0)
+                pending_count = queue_status.get('active_queues', 0)
                 current_workers = len(self.workers)
                 
                 # --- 第一步：资源守卫 (Resource Guard) ---
