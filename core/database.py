@@ -38,17 +38,53 @@ class Database:
             # 关键修复: 显式启用 WAL 模式
             if 'sqlite' in db_url:
                 from sqlalchemy import event
+                import os
                 
+                # 尝试解析并记录绝对路径
+                try:
+                    # 简单去除协议头
+                    db_path = db_url.replace('sqlite+aiosqlite:///', '').replace('sqlite:///', '')
+                    # 处理相对路径
+                    if not os.path.isabs(db_path):
+                        db_path = os.path.abspath(db_path)
+                    logger.info(f"[Database] SQLite数据库文件路径: {db_path}")
+                    
+                    # 检查目录是否存在，不存在则提醒（虽然SQLAlchemy通常会创建文件，但目录必须存在）
+                    db_dir = os.path.dirname(db_path)
+                    if db_dir and not os.path.exists(db_dir):
+                         logger.warning(f"[Database] 警告: 数据库目录不存在: {db_dir}")
+                except Exception as e:
+                    logger.warning(f"[Database] 无法解析数据库路径: {e}")
+
                 def set_sqlite_pragma(dbapi_connection, connection_record):
                     cursor = dbapi_connection.cursor()
-                    cursor.execute("PRAGMA journal_mode=WAL")
-                    cursor.execute("PRAGMA synchronous=NORMAL")
-                    cursor.close()
+                    try:
+                        cursor.execute("PRAGMA journal_mode=WAL")
+                        cursor.execute("PRAGMA synchronous=NORMAL")
+                        # 增加缓存以减少磁盘I/O
+                        cursor.execute("PRAGMA cache_size=-64000") # 64MB
+                        cursor.execute("PRAGMA busy_timeout=5000") # 5秒等待
+                        
+                        # 验证
+                        cursor.execute("PRAGMA journal_mode")
+                        mode = cursor.fetchone()[0]
+                        if mode.upper() != 'WAL':
+                            logger.warning(f"[Database] ⚠️ 警告: 无法启用 WAL 模式! 当前模式: {mode}")
+                        else:
+                            # 仅在第一次连接时记录，避免刷屏
+                            # logger.info(f"[Database] ✅ WAL 模式已启用")
+                            pass
+                            
+                    except Exception as e:
+                        logger.error(f"[Database] 设置 SQLite PRAGMA 失败: {e}")
+                    finally:
+                        cursor.close()
 
                 # 监听连接事件，确保每次连接都启用 WAL
+                # 对于 AsyncEngine，我们需要监听 sync_engine
                 event.listen(self.engine.sync_engine, "connect", set_sqlite_pragma)
 
-            logger.info(f"[Database] 创建新引擎: {db_url} (已启用 WAL)")
+            logger.info(f"[Database] 创建新引擎: {db_url} (已配置 WAL & 性能参数)")
         else:
             raise ValueError("Must provide either db_url or engine")
         

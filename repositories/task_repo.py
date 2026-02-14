@@ -93,21 +93,34 @@ class TaskRepository:
         from core.db_factory import AsyncSessionManager
         async with AsyncSessionManager() as session:
              # 使用 Core Insert + OR IGNORE (SQLite) 实现高性能批量去重写入
-             try:
-                 stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
-                 await session.execute(stmt)
-                 # AsyncSessionManager handles commit automatically
-                 logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
-             except Exception as e:
-                 logger.error(f"批量写入失败: {e}")
-                 # Fallback: 如果批量失败（罕见），可以考虑逐条重试，或者直接抛出
-                 raise
+             import asyncio
+             from sqlalchemy.exc import OperationalError
+             
+             max_retries = 3
+             for attempt in range(max_retries):
+                 try:
+                     stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
+                     await session.execute(stmt)
+                     # AsyncSessionManager handles commit automatically
+                     logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
+                     break # Success
+                 except OperationalError as e:
+                     if "disk I/O error" in str(e) or "database is locked" in str(e):
+                         if attempt < max_retries - 1:
+                             sleep_time = 0.2 * (attempt + 1)
+                             logger.warning(f"批量写入遭遇 SQLite 锁定/IO 错误，正在重试 ({attempt+1}/{max_retries}): {e}. 等待 {sleep_time}s")
+                             await asyncio.sleep(sleep_time)
+                             continue
+                     logger.error(f"批量写入失败 (OperationalError): {e}")
+                     raise
+                 except Exception as e:
+                     logger.error(f"批量写入失败: {e}")
+                     # Fallback: 如果批量失败（罕见），可以考虑逐条重试，或者直接抛出
+                     raise
 
     async def fetch_next(self, limit: int = 1):
         """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合与批量拉取)
-        使用 UPDATE ... RETURNING 确保取出任务的同时锁定状态。
-        如果任务属于媒体组，则原子化锁定该组内所有 'pending' 任务，
-        彻底根除多 Worker 并发下的竞态条件。
+        Optimized: Split complex UPDATE with subqueries into SELECT + UPDATE by ID to avoid SQLite Disk I/O errors.
         """
         from core.db_factory import AsyncSessionManager
         async with AsyncSessionManager() as session:
@@ -118,67 +131,110 @@ class TaskRepository:
             lease_duration = timedelta(minutes=15)
             lease_until = now + lease_duration
             
-            # 1. 定位候选任务 ID 列表 (取 limit 个)
-            candidate_ids_sub = (
-                select(TaskQueue.id)
-                .where(
-                    (TaskQueue.status == 'pending') |
-                    (
-                        (TaskQueue.status == 'running') & 
-                        (TaskQueue.locked_until != None) & 
-                        (TaskQueue.locked_until <= now)
-                    )
-                )
-                .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
-                .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
-                .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
-                .limit(limit)
-                .scalar_subquery()
-            )
-
-            # 2. 获取这些任务关联的全部 grouped_id
-            target_groups_sub = (
-                select(TaskQueue.grouped_id)
-                .where(TaskQueue.id.in_(candidate_ids_sub))
-                .where(TaskQueue.grouped_id != None)
-                .scalar_subquery()
-            )
-
-            # 3. 原子执行：锁定选中的任务及其所属的媒体组任务
-            stmt = (
-                update(TaskQueue)
-                .where(
-                    (TaskQueue.id.in_(candidate_ids_sub)) |
-                    (
-                        (
+            import asyncio
+            from sqlalchemy.exc import OperationalError
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # 1. 第一步：获取候选任务 ID (Read Phase)
+                    # 优先获取高优先级、早创建的任务
+                    stmt_candidates = (
+                        select(TaskQueue.id, TaskQueue.grouped_id)
+                        .where(
                             (TaskQueue.status == 'pending') |
-                            ((TaskQueue.status == 'running') & (TaskQueue.locked_until <= now))
-                        ) &
-                        (TaskQueue.grouped_id != None) &
-                        (TaskQueue.grouped_id.in_(target_groups_sub))
+                            (
+                                (TaskQueue.status == 'running') & 
+                                (TaskQueue.locked_until != None) & 
+                                (TaskQueue.locked_until <= now)
+                            )
+                        )
+                        .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
+                        .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
+                        .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
+                        .limit(limit)
                     )
-                )
-                .values(
-                    status='running',
-                    started_at=now,
-                    locked_until=lease_until, # 设置租约，防止僵尸化
-                    updated_at=now
-                )
-                .execution_options(synchronize_session=False)
-                .returning(TaskQueue)
-            )
+                    
+                    result = await session.execute(stmt_candidates)
+                    candidates = result.all() # List of Row(id, grouped_id)
+                    
+                    if not candidates:
+                        return []
+                        
+                    # 收集 ID 和 Group ID
+                    candidate_ids = [row.id for row in candidates]
+                    group_ids = [row.grouped_id for row in candidates if row.grouped_id]
+                    
+                    final_task_ids = set(candidate_ids)
+                    
+                    # 2. 第二步：若存在 grouped_id，扩展获取同组任务
+                    if group_ids:
+                        stmt_groups = (
+                            select(TaskQueue.id)
+                            .where(TaskQueue.grouped_id.in_(group_ids))
+                            .where(
+                                (TaskQueue.status == 'pending') |
+                                (
+                                    (TaskQueue.status == 'running') & 
+                                    (TaskQueue.locked_until <= now)
+                                )
+                            )
+                            .where(TaskQueue.id.not_in(candidate_ids)) # 避免重复
+                        )
+                        group_result = await session.execute(stmt_groups)
+                        group_task_ids = group_result.scalars().all()
+                        final_task_ids.update(group_task_ids)
+                    
+                    if not final_task_ids:
+                        return []
 
-            result = await session.execute(stmt)
-            tasks = result.scalars().all()
-            
-            if tasks:
-                # AsyncSessionManager will commit automatically on __aexit__
-                # 排序：确保最早的任务放在前列
-                tasks.sort(key=lambda x: x.created_at)
-                logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
-                return tasks
-            
-            return []
+                    # 3. 第三步：原子更新 (Write Phase)
+                    # 使用 ID 列表更新，大幅降低 SQLite 锁竞争和 I/O 压力
+                    stmt = (
+                        update(TaskQueue)
+                        .where(TaskQueue.id.in_(final_task_ids))
+                        .where(
+                            (TaskQueue.status == 'pending') |
+                            (
+                                (TaskQueue.status == 'running') & 
+                                (TaskQueue.locked_until <= now)
+                            )
+                        )
+                        .values(
+                            status='running',
+                            started_at=now,
+                            locked_until=lease_until, # 设置租约
+                            updated_at=now
+                        )
+                        .execution_options(synchronize_session=False)
+                        .returning(TaskQueue)
+                    )
+
+                    result = await session.execute(stmt)
+                    tasks = result.scalars().all()
+                    
+                    if tasks:
+                        # AsyncSessionManager will commit automatically
+                        tasks.sort(key=lambda x: x.created_at)
+                        logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
+                        return tasks
+                    
+                    return []
+
+                except OperationalError as e:
+                    if "disk I/O error" in str(e) or "database is locked" in str(e):
+                        if attempt < max_retries - 1:
+                            # IMPORTANT: Rollback session on error to clear failed transaction state
+                            await session.rollback()
+                            sleep_time = 0.2 * (attempt + 1)
+                            logger.warning(f"fetch_next 遭遇 SQLite 锁定/IO 错误，正在重试 ({attempt+1}/{max_retries}): {e}. 等待 {sleep_time}s")
+                            await asyncio.sleep(sleep_time)
+                            continue
+                    logger.error(f"fetch_next 失败 (OperationalError): {e}")
+                    raise
+                except Exception as e:
+                    logger.error(f"fetch_next 失败: {e}")
+                    raise
 
     async def complete(self, task_id: int):
         async with self.db.get_session() as session:

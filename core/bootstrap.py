@@ -90,6 +90,45 @@ class Bootstrap:
         try:
             from scripts.ops.database_health_check import DatabaseHealthChecker
             health_checker = DatabaseHealthChecker()
+            
+            # [Auto-Fix] 针对 VPS 云端大数据库的自动救援逻辑
+            # 如果 task_queue 包含大量完成/失败任务，启动前强制清理并释放空间
+            try:
+                from core.db_factory import get_session
+                from sqlalchemy import text
+                import time
+                
+                async with get_session() as session:
+                    # 检查是否需要清理 (例如超过 10000 条非 pending 任务)
+                    result = await session.execute(
+                        text("SELECT COUNT(*) FROM task_queue WHERE status IN ('completed', 'failed')")
+                    )
+                    count = result.scalar() or 0
+                    
+                    if count > 10000:
+                        logger.warning(f"⚠️ 检测到数据库积压 {count} 条历史任务，正在执行紧急清理...")
+                        start_time = time.time()
+                        
+                        # 1. 批量删除
+                        await session.execute(
+                            text("DELETE FROM task_queue WHERE status IN ('completed', 'failed')")
+                        )
+                        await session.commit()
+                        
+                        # 2. 执行 VACUUM (释放空间)
+                        # 注意：VACUUM 不能在事务块中运行，需要独立连接或特殊处理
+                        # 在 SQLAlchemy/aiosqlite 中，session 通常处于隐式事务中
+                        # 因此我们这里仅做 DELETE，VACUUM 留给 db_maintenance_service 或下次重启
+                        logger.info("已完成数据清理，建议稍后执行 VACUUM")
+                        
+                        # 3. 更新统计信息
+                        await session.execute(text("ANALYZE"))
+                        
+                        duration = time.time() - start_time
+                        logger.info(f"✅ 数据库紧急清理完成，耗时 {duration:.2f}s")
+            except Exception as cleanup_err:
+                logger.error(f"启动时数据库自动清理失败: {cleanup_err}")
+
             if not await asyncio.to_thread(health_checker.auto_fix_if_needed):
                 logger.error("数据库健康检查失败，程序启动中止")
                 exit(1)

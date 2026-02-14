@@ -66,7 +66,7 @@ class DbFactory:
                 conn.execute(text("PRAGMA journal_mode=WAL"))
                 conn.execute(text("PRAGMA synchronous=NORMAL"))
                 conn.execute(text("PRAGMA cache_size=-64000"))
-                conn.execute(text("PRAGMA mmap_size=268435456"))
+                conn.execute(text("PRAGMA mmap_size=0"))
                 conn.commit()
         return _engine
 
@@ -287,6 +287,15 @@ async def async_cleanup_old_logs(days: int) -> int:
             stmt3 = delete(AuditLog).where(AuditLog.created_at < cutoff)
             res3 = await session.execute(stmt3)
             deleted_count += res3.rowcount
+
+            # 4. 清理已完成/失败的任务队列
+            from models.models import TaskQueue
+            stmt4 = delete(TaskQueue).where(
+                TaskQueue.status.in_(['completed', 'failed']),
+                TaskQueue.updated_at < cutoff
+            )
+            res4 = await session.execute(stmt4)
+            deleted_count += res4.rowcount
             
             await session.commit()
             logger.info(f"已清理 {days} 天前的旧日志，共删除 {deleted_count} 条记录")
@@ -347,7 +356,7 @@ def set_sqlite_pragma(dbapi_connection: Any, _connection_record: Any) -> None:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA cache_size=-64000")
-        cursor.execute("PRAGMA mmap_size=268435456")
+        cursor.execute("PRAGMA mmap_size=0")
         cursor.close()
     except Exception as e:
         logger.warning(f"Failed to set PRAGMA for async connection: {e}")
