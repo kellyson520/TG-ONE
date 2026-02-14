@@ -2,6 +2,7 @@
 import logging
 import os
 from telethon import events
+from telethon.errors import FloodWaitError
 from version import WELCOME_TEXT
 
 from core.constants import TEMP_DIR
@@ -255,10 +256,16 @@ async def handle_command(client, event):
         else:
             logger.warning(f"❓ [Bot命令] 未知命令: TraceID={trace_id}, 命令={command}")
             await event.respond("未知命令，请使用 /help 查看帮助")
+    except FloodWaitError as e:
+        logger.error(f"❌ [Bot命令] 触发Telegram速率限制 (FloodWait): TraceID={trace_id}, 需要等待={e.seconds}秒. 暂时停止响应.")
+        # 此时不能发送任何消息，否则会延长等待时间
     except Exception as e:
         logger.error(f"❌ [Bot命令] 处理命令失败: TraceID={trace_id}, 命令={message.text if message else '未知'}, 错误={str(e)}", exc_info=True)
         # 向用户发送错误信息
-        await event.respond(f"处理命令时出错: {str(e)}")
+        try:
+            await event.respond(f"处理命令时出错: {str(e)}")
+        except Exception as send_e:
+            logger.warning(f"⚠️ [Bot命令] 无法发送错误提示 (可能触发了FloodWait或网络问题): {send_e}")
     finally:
         trace_id_var.reset(token)
         logger.debug(f"🔚 [Bot命令] 请求处理结束: TraceID={trace_id}")
