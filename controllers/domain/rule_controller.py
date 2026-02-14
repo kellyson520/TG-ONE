@@ -56,7 +56,7 @@ class RuleController(BaseController):
             data = await rule_management_service.get_rule_detail(rule_id)
             new_status = not data.get('enabled', False)
             await rule_management_service.toggle_rule_status(rule_id, new_status)
-            await event.answer(f"✅ 规则 {rule_id} 已{'开启' if new_status else '关闭'}")
+            await self.notify(event, f"✅ 规则 {rule_id} 已{'开启' if new_status else '关闭'}")
             await self.show_detail(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
@@ -65,7 +65,7 @@ class RuleController(BaseController):
         """通用布尔设置切换"""
         try:
             await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
-            await event.answer("✅ 设置已更新")
+            await self.notify(event, "✅ 设置已更新")
             
             # 返回对应的设置子页面
             basic_keys = ['use_bot', 'forward_mode', 'handle_mode', 'is_delete_original']
@@ -121,7 +121,7 @@ class RuleController(BaseController):
         """执行删除"""
         try:
             await rule_management_service.delete_rule(rule_id)
-            await event.answer("✅ 规则已删除")
+            await self.notify(event, "✅ 规则已删除")
             await self.list_rules(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -156,10 +156,10 @@ class RuleController(BaseController):
     async def perform_copy(self, event, source_id: int, target_id: int):
         """执行规则复制"""
         try:
-            await event.answer("⏳ 正在复制规则...")
+            await self.notify(event, "⏳ 正在复制规则...")
             result = await rule_management_service.copy_rule(source_id, target_id)
             if result.get('success'):
-                await event.answer("✅ 规则复制成功")
+                await self.notify(event, "✅ 规则复制成功")
                 await self.show_copy_selection(event, source_id)
             else:
                 raise ControllerAbort(result.get('error', '复制失败'))
@@ -226,7 +226,7 @@ class RuleController(BaseController):
         """执行清空关键词"""
         try:
             await rule_management_service.clear_keywords(rule_id)
-            await event.answer("✅ 关键词已全部清空")
+            await self.notify(event, "✅ 关键词已全部清空")
             await self.show_keywords(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
@@ -235,7 +235,7 @@ class RuleController(BaseController):
         """执行清空替换规则"""
         try:
             await rule_management_service.clear_replace_rules(rule_id)
-            await event.answer("✅ 替换规则已清空")
+            await self.notify(event, "✅ 替换规则已清空")
             await self.show_replaces(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
@@ -345,7 +345,7 @@ class RuleController(BaseController):
         """切换同步关系"""
         try:
             await rule_management_service.toggle_rule_sync(rule_id, target_id)
-            await event.answer("✅ 同步状态已更新")
+            await self.notify(event, "✅ 同步状态已更新")
             await self.show_sync_rule_picker(event, rule_id, page)
         except Exception as e:
             return self.handle_exception(e)

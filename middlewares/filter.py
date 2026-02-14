@@ -58,11 +58,14 @@ class FilterMiddleware(Middleware):
             else:
                 logger.info(f"🚫 [过滤器] 规则 {rule.id} 被链条拦截")
                 # 发布过滤事件，用于统计上报
-                await self.filter_factory.container.bus.publish("FORWARD_FILTERED", {
-                    "rule_id": rule.id,
-                    "msg_id": ctx.message_id,
-                    "reason": str(filter_context.errors[0]) if filter_context.errors else "Unknown"
-                })
+                if getattr(self.filter_factory, 'container', None):
+                    await self.filter_factory.container.bus.publish("FORWARD_FILTERED", {
+                        "rule_id": rule.id,
+                        "msg_id": ctx.message_id,
+                        "reason": str(filter_context.errors[0]) if filter_context.errors else "Unknown"
+                    })
+                else:
+                    logger.warning(f"由于 filter_factory.container 未设置，跳过 FORWARD_FILTERED 事件发布 (Rule={rule.id})")
                 # 记录失败原因到 ctx (可选)
                 if not hasattr(ctx, 'failed_rules'):
                     ctx.failed_rules = []

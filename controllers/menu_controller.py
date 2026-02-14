@@ -4,7 +4,8 @@
 """
 import asyncio
 import logging
-from telethon import Button
+from telethon import Button, events
+from telethon.errors import FloodWaitError
 
 from services.menu_service import menu_service
 from services.session_service import session_service
@@ -38,7 +39,15 @@ class MenuController:
 
     async def _send_error(self, event, text: str):
         """统一错误提示"""
-        await event.answer(text, alert=True)
+        try:
+            # 如果是回调查询（点击按钮触发），可以使用 answer (弹窗通知)
+            if hasattr(event, 'answer'):
+                await event.answer(text, alert=True)
+            else:
+                # 如果是普通消息（命令触发），使用 respond 回复
+                await event.respond(f"❌ {text}")
+        except Exception as e:
+            logger.warning(f"发送错误提示失败: {e}")
 
     async def show_main_menu(self, event, force_refresh: bool = False):
         """显示主菜单"""
@@ -51,6 +60,8 @@ class MenuController:
             stats = await self.service.get_main_menu_data(force_refresh=force_refresh)
             render_data = self.renderer.render_main_menu(stats)
             await self._send_menu(event, "🏠 **主菜单**", [render_data['text']], render_data['buttons'])
+        except FloodWaitError as e:
+            logger.error(f"显示主菜单触发流控: 需要等待 {e.seconds} 秒")
         except Exception as e:
             if isinstance(e, ControllerAbort):
                  return await self.container.ui.render_error(e.message, e.back_target)

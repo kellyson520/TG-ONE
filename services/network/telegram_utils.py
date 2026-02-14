@@ -83,9 +83,10 @@ async def safe_edit(
                     # 明确的非可恢复情形：直接忽略且不再重试
                     if "not modified" in error_msg:
                         try:
-                            await event.answer("已更新")
+                            if hasattr(event, 'answer'):
+                                await event.answer("已更新")
                         except Exception as e:
-                            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                            logger.warning(f'已忽略预期内的异常: {e}')
                         logger.debug("safe_edit: 内容未修改，忽略")
                         return False
                     if (

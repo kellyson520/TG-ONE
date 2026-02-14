@@ -180,6 +180,7 @@
 
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260209_Fix_Shutdown_Hang | 修复系统关闭卡死问题 | 2026-02-09 | 2026-02-10 | 100% | [[report.md]](./docs/Workstream_Bugfix/20260209_Fix_Shutdown_Hang/report.md) |
+| 20260214_Real_Data_Integration | Web UI 真实数据接入 (移除 Mock) | 2026-02-14 | 进行中 | 0% | [📂 查看](./docs/Workstream_Web_UI/20260214_Real_Data_Integration/todo.md) |
 
 
 

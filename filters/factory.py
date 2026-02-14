@@ -21,6 +21,11 @@ class FilterChainFactory:
         self._registry = get_filter_registry()
         self._global_disabled_filters: set = set()
         self._global_config_cache: Dict[str, Any] = {}
+        self.container = None
+    
+    def set_container(self, container: Any) -> None:
+        """设置全局容器实例"""
+        self.container = container
     
     def set_global_disabled_filters(self, disabled_filters: List[str]) -> None:
         """

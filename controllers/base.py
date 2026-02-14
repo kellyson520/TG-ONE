@@ -41,8 +41,24 @@ class BaseController:
             logger.error(f"Maintenance check failed: {e}")
             return False
 
+    async def notify(self, event, text: str, alert: bool = False):
+        """统一通知接口：如果是按钮回调则弹窗，如果是消息则回复"""
+        try:
+            if hasattr(event, 'answer'):
+                await event.answer(text, alert=alert)
+            else:
+                await event.respond(f"{'⚠️' if alert else '✅'} {text}")
+        except Exception as e:
+            logger.warning(f"Notification failed: {e}")
+
     def handle_exception(self, e: Exception, back_target: str = "main_menu"):
         """统一异常处理逻辑"""
+        # 如果是 FloodWaitError，仅记录日志，不尝试发送消息以免加重流控
+        from telethon.errors import FloodWaitError
+        if isinstance(e, FloodWaitError):
+            logger.error(f"Controller triggered FloodWait: wait {e.seconds}s")
+            return
+
         if isinstance(e, ControllerAbort):
             return self.container.ui.render_error(e.message, e.back_target)
         

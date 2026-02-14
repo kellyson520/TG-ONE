@@ -46,8 +46,8 @@ def install_websocket_log_handler():
             return
             
     handler = WebSocketLogHandler()
-    # 使用简单的格式，因为前端会解析
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # 只发送消息内容，前端负责组装时间戳、级别等
+    formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)
     
     root_logger.addHandler(handler)

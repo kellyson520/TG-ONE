@@ -305,6 +305,10 @@ class Container:
         from middlewares.sender import SenderMiddleware
         from middlewares.filter import FilterMiddleware
         
+        # [Filter Chain Factory Injection]
+        from filters.factory import get_filter_chain_factory
+        get_filter_chain_factory().set_container(self)
+        
         pipeline.add(RuleLoaderMiddleware(self.rule_repo))  # 1. 加载规则
         pipeline.add(DedupMiddleware())                     # 2. 去重检查
         pipeline.add(FilterMiddleware())                    # 3. 过滤 & 内容修改

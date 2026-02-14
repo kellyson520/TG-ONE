@@ -35,7 +35,10 @@ class AdminController(BaseController):
         try:
             from core.helpers.common import is_admin
             if not await is_admin(event):
-                 return await event.answer("⚠️ 权限不足", alert=True)
+                 if hasattr(event, 'answer'):
+                     return await event.answer("⚠️ 权限不足", alert=True)
+                 else:
+                     return await event.respond("⚠️ 权限不足")
                  
             from telethon import Button
             buttons = [
@@ -61,9 +64,10 @@ class AdminController(BaseController):
         """执行日志清理"""
         try:
             from models.models import async_cleanup_old_logs
-            await event.answer(f"🗑️ 正在清理 {days} 天前的日志...")
-            deleted_count = await async_cleanup_old_logs(days)
-            await event.answer(f"✅ 清理完成，删除 {deleted_count} 条记录")
+            if hasattr(event, 'answer'):
+                await event.answer(f"✅ 清理完成，删除 {deleted_count} 条记录")
+            else:
+                await event.respond(f"✅ 清理完成，删除 {deleted_count} 条记录")
             await self.show_admin_cleanup_menu(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -155,13 +159,13 @@ class AdminController(BaseController):
     async def run_optimization_check(self, event):
         """执行优化检查"""
         try:
-            await event.answer("🔍 正在运行优化检查...")
+            await self.notify(event, "🔍 正在运行优化检查...")
             from services.system_service import system_service
             result = await system_service.run_db_optimization()
             if result.get('success'):
-                await event.answer(f"✅ {result.get('message')}")
+                await self.notify(event, f"✅ {result.get('message')}")
             else:
-                await event.answer(f"❌ 优化失败: {result.get('error')}", alert=True)
+                await self.notify(event, f"❌ 优化失败: {result.get('error')}", alert=True)
             await self.show_optimization_center(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -172,7 +176,7 @@ class AdminController(BaseController):
             from services.dedup.engine import smart_deduplicator
             smart_deduplicator.time_window_cache.clear()
             smart_deduplicator.content_hash_cache.clear()
-            await event.answer("✅ 内存缓存已清除")
+            await self.notify(event, "✅ 内存缓存已清除")
             await self.show_cache_cleanup(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -180,53 +184,53 @@ class AdminController(BaseController):
     async def do_backup(self, event):
         """执行备份"""
         try:
-             await event.answer("⌛ 备份正在生成中...")
-             # 实际调用备份服务
-             await asyncio.sleep(1) 
-             await event.answer("✅ 备份成功", alert=True)
-             await self.show_backup_management(event)
+            await self.notify(event, "⌛ 备份正在生成中...")
+            # 实际调用备份服务
+            await asyncio.sleep(1) 
+            await self.notify(event, "✅ 备份成功", alert=True)
+            await self.show_backup_management(event)
         except Exception as e:
              return self.handle_exception(e)
 
     async def run_reindex(self, event):
         """全面重建索引 (VACUUM)"""
         try:
-            await event.answer("🛠️ 正在执行全库整理...")
+            await self.notify(event, "🛠️ 正在执行全库整理...")
             from services.db_maintenance_service import db_maintenance_service
             await db_maintenance_service.optimize_database()
-            await event.answer("✅ 优化完成")
+            await self.notify(event, "✅ 优化完成")
         except Exception as e:
             return self.handle_exception(e)
 
     async def clear_alerts(self, event):
         """清除系统告警"""
-        await event.answer("ℹ️ 告警基于实时状态，解决问题后自动消失", alert=True)
+        await self.notify(event, "ℹ️ 告警基于实时状态，解决问题后自动消失", alert=True)
 
     async def run_archive_once(self, event):
         """启动自动归档"""
         try:
-            await event.answer("📦 正在启动补全归档...")
+            await self.notify(event, "📦 正在启动补全归档...")
              # ... Logic ...
-            await event.answer("✅ 归档任务已完成")
+            await self.notify(event, "✅ 归档任务已完成")
         except Exception as e:
             return self.handle_exception(e)
 
     async def run_archive_force(self, event):
         """启动强制全量归档"""
         try:
-            await event.answer("🚨 正在执行强制全量归档...")
+            await self.notify(event, "🚨 正在执行强制全量归档...")
              # ... Logic ...
-            await event.answer("✅ 归档完成")
+            await self.notify(event, "✅ 归档完成")
         except Exception as e:
             return self.handle_exception(e)
 
     async def rebuild_bloom_index(self, event):
         """重建 Bloom 索引"""
         try:
-            await event.answer("🌸 正在尝试重建 Bloom 索引...")
+            await self.notify(event, "🌸 正在尝试重建 Bloom 索引...")
             from repositories.archive_repair import repair_bloom_index
             await asyncio.to_thread(repair_bloom_index)
-            await event.answer("✅ Bloom 索引重建完成")
+            await self.notify(event, "✅ Bloom 索引重建完成")
         except Exception as e:
              return self.handle_exception(e)
 
@@ -264,9 +268,9 @@ class AdminController(BaseController):
             
             if success:
                 status_text = "开启" if new_val else "关闭"
-                await event.answer(f"✅ 维护模式已{status_text}")
+                await self.notify(event, f"✅ 维护模式已{status_text}")
             else:
-                await event.answer("❌ 切换维护模式失败", alert=True)
+                await self.notify(event, "❌ 切换维护模式失败", alert=True)
                 
             await self.show_admin_panel(event)
         except Exception as e:
@@ -332,7 +336,7 @@ class AdminController(BaseController):
 
     async def execute_restart(self, event):
         """执行系统重启"""
-        await event.answer("🔄 重启指令已发出...")
+        await self.notify(event, "🔄 重启指令已发出...")
         # 模拟重启
         await asyncio.sleep(1)
         await event.edit("✅ 重启指令已发送，请稍候恢复...")
@@ -356,7 +360,7 @@ class AdminController(BaseController):
                             shutil.rmtree(file_path)
                             deleted_count += 1
                     except: continue
-            await event.answer(f"✅ 清理完成: {deleted_count}个文件, {deleted_size/1024/1024:.2f}MB")
+            await self.notify(event, f"✅ 清理完成: {deleted_count}个文件, {deleted_size/1024/1024:.2f}MB")
             await self.show_cache_cleanup(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -379,7 +383,7 @@ class AdminController(BaseController):
             handler = handlers.get(cmd_type)
             if handler:
                 await handler(event)
-                await event.answer()
+                await self.notify(event, "操作完成")
         except Exception as e:
             return self.handle_exception(e)
 

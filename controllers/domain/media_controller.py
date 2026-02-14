@@ -53,10 +53,10 @@ class MediaController(BaseController):
         try:
             res = await session_service.start_history_task(event.sender_id)
             if res.get('success'):
-                await event.answer("🚀 任务已启动", alert=True)
+                await self.notify(event, "🚀 任务已启动", alert=True)
                 await self.show_task_actions(event)
             else:
-                await event.answer(f"❌ 启动失败: {res.get('message')}", alert=True)
+                await self.notify(event, f"❌ 启动失败: {res.get('message')}", alert=True)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -64,7 +64,7 @@ class MediaController(BaseController):
         """取消任务"""
         try:
             ok = await session_service.stop_history_task(event.sender_id)
-            await event.answer("⏹️ 已停止" if ok else "❌ 停止失败")
+            await self.notify(event, "⏹️ 已停止" if ok else "❌ 停止失败")
             await self.show_task_actions(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -73,7 +73,7 @@ class MediaController(BaseController):
         """暂停任务"""
         try:
             ok = await session_service.stop_history_task(event.sender_id)
-            await event.answer("⏸️ 已暂停" if ok else "❌ 暂停失败")
+            await self.notify(event, "⏸️ 已暂停" if ok else "❌ 暂停失败")
             await self.show_task_actions(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -82,7 +82,7 @@ class MediaController(BaseController):
         """切换历史去重"""
         try:
             # 实现切换逻辑...
-            await event.answer("🔄 已切换去重状态")
+            await self.notify(event, "🔄 已切换去重状态")
             await self.show_task_actions(event)
         except Exception as e:
             return self.handle_exception(e)
@@ -141,13 +141,13 @@ class MediaController(BaseController):
         """设置 AI 总结时间"""
         try:
             from services.rule.facade import rule_management_service
-            await event.answer(f"⏳ 正在设置总结时间: {time}...")
+            await self.notify(event, f"⏳ 正在设置总结时间: {time}...")
             result = await rule_management_service.logic.update_summary_time(rule_id, time)
             if result.get('success'):
-                await event.answer(f"✅ 总结时间已设置为: {time}")
+                await self.notify(event, f"✅ 总结时间已设置为: {time}")
                 await self.show_summary_time_selection(event, rule_id)
             else:
-                await event.answer(f"❌ 设置失败: {result.get('error')}")
+                await self.notify(event, f"❌ 设置失败: {result.get('error')}")
         except Exception as e:
             return self.handle_exception(e)
 
@@ -180,13 +180,13 @@ class MediaController(BaseController):
         """设置 AI 模型"""
         try:
             from services.rule.facade import rule_management_service
-            await event.answer(f"⏳ 正在切换至模型: {model}...")
+            await self.notify(event, f"⏳ 正在切换至模型: {model}...")
             result = await rule_management_service.logic.update_ai_model(rule_id, model)
             if result.get('success'):
-                await event.answer(f"✅ 已切换至模型: {model}")
+                await self.notify(event, f"✅ 已切换至模型: {model}")
                 await self.show_ai_settings(event, rule_id)
             else:
-                 await event.answer(f"❌ 切换失败: {result.get('error')}")
+                 await self.notify(event, f"❌ 切换失败: {result.get('error')}")
         except Exception as e:
             return self.handle_exception(e)
 
@@ -198,13 +198,13 @@ class MediaController(BaseController):
             
             rule_data = await rule_management_service.get_rule_detail(rule_id)
             if not rule_data.get('success'):
-                return await event.answer("❌ 规则不存在", alert=True)
+                return await self.notify(event, "❌ 规则不存在", alert=True)
             
-            await event.answer("🚀 正在生成 AI 总结，请稍候...")
+            await self.notify(event, "🚀 正在生成 AI 总结，请稍候...")
             # 这里的调用逻辑取决于 SummaryScheduler 的具体实现
             # 假设有一个一次性触发的方法
             # await SummaryScheduler.trigger_once(rule_id) 
-            await event.answer("✅ 总结任务已加入队列", alert=True)
+            await self.notify(event, "✅ 总结任务已加入队列", alert=True)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -239,7 +239,7 @@ class MediaController(BaseController):
             user_id = event.sender_id
             chat_id = event.chat_id
             await session_service.update_user_state(user_id, chat_id, None, None)
-            await event.answer("✅ 已取消设置")
+            await self.notify(event, "✅ 已取消设置")
             await self.show_ai_settings(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
@@ -269,7 +269,7 @@ class MediaController(BaseController):
         try:
             from services.rule.facade import rule_management_service
             await rule_management_service.logic.toggle_rule_setting(rule_id, "max_media_size", size)
-            await event.answer(f"✅ 最大媒体大小已设为 {size}MB")
+            await self.notify(event, f"✅ 最大媒体大小已设为 {size}MB")
             await self.show_settings(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
@@ -280,7 +280,7 @@ class MediaController(BaseController):
             from services.rule.facade import rule_management_service
             result = await rule_management_service.toggle_rule_setting(rule_id, field)
             status = "开启" if result.get("new_value") else "关闭"
-            await event.answer(f"✅ 已{status}")
+            await self.notify(event, f"✅ 已{status}")
             await self.show_settings(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
