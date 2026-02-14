@@ -272,7 +272,7 @@ async def async_cleanup_old_logs(days: int) -> int:
         cutoff = datetime.utcnow() - timedelta(days=days)
         deleted_count = 0
         
-        async with get_session() as session:
+        async with AsyncSessionManager() as session:
             # 1. 清理转发日志
             stmt1 = delete(RuleLog).where(RuleLog.created_at < cutoff)
             res1 = await session.execute(stmt1)

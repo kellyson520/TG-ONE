@@ -94,11 +94,11 @@ class Bootstrap:
             # [Auto-Fix] 针对 VPS 云端大数据库的自动救援逻辑
             # 如果 task_queue 包含大量完成/失败任务，启动前强制清理并释放空间
             try:
-                from core.db_factory import get_session
+                from core.db_factory import AsyncSessionManager
                 from sqlalchemy import text
                 import time
                 
-                async with get_session() as session:
+                async with AsyncSessionManager() as session:
                     # 检查是否需要清理 (例如超过 10000 条非 pending 任务)
                     result = await session.execute(
                         text("SELECT COUNT(*) FROM task_queue WHERE status IN ('completed', 'failed')")
