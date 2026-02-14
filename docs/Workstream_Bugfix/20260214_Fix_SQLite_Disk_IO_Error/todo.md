@@ -6,3 +6,5 @@
 - [x] Optimize `fetch_next` to split complex UPDATE into SELECT+UPDATE
 - [x] Verify fix with tests (Extended concurrency & edge case tests)
 - [x] Implement automatic cleanup mechanism for Cloud VPS (`bootstrap.py`)
+- [x] Implement `StatsManager` for persistent task statistics (`data/stats/lifetime_stats.json`)
+- [x] Integrate stats counting into `async_cleanup_old_logs` before deletion

@@ -290,12 +290,35 @@ async def async_cleanup_old_logs(days: int) -> int:
 
             # 4. 清理已完成/失败的任务队列
             from models.models import TaskQueue
+            from sqlalchemy import select, func
+            
+            # [Stats] 在删除前统计数量，用于持久化归档
+            count_stmt = select(func.count()).where(
+                TaskQueue.status.in_(['completed', 'failed']),
+                TaskQueue.updated_at < cutoff
+            )
+            tasks_to_remove = (await session.execute(count_stmt)).scalar() or 0
+            
             stmt4 = delete(TaskQueue).where(
                 TaskQueue.status.in_(['completed', 'failed']),
                 TaskQueue.updated_at < cutoff
             )
             res4 = await session.execute(stmt4)
             deleted_count += res4.rowcount
+            
+            # [Stats] 持久化统计数据
+            if tasks_to_remove > 0 or (res1.rowcount + res2.rowcount + res3.rowcount) > 0:
+                try:
+                    from core.stats_manager import stats_manager
+                    logs_removed = res1.rowcount + res2.rowcount + res3.rowcount
+                    await stats_manager.async_record_cleanup(
+                        tasks_removed=tasks_to_remove,
+                        logs_removed=logs_removed
+                    )
+                except ImportError:
+                    pass
+                except Exception as stats_err:
+                    logger.warning(f"Failed to persist cleanup stats: {stats_err}")
             
             await session.commit()
             logger.info(f"已清理 {days} 天前的旧日志，共删除 {deleted_count} 条记录")
