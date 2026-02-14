@@ -96,6 +96,8 @@ coverage/
 .env.test.local
 .env.production.local
 
-# Web Admin Frontend (ignored per request)
-web_admin/frontend/
-web_admin/frontend_legacy/
+# Web Admin Frontend (Keep only compiled products)
+web_admin/frontend/*
+!web_admin/frontend/dist/
+web_admin/frontend_legacy/*
+!web_admin/frontend_legacy/dist/
