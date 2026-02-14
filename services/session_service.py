@@ -63,11 +63,15 @@ class SessionService:
                 task_info.pop('cancel_event', None)
                 task_info.pop('future', None)
                 s['history_task'] = task_info
-            serializable_sessions[uid] = s
+            # ✅ Fix: 强制使用字符串作为 Key，兼容 orjson
+            serializable_sessions[str(uid)] = s
             
+        # ✅ Fix: current_scan_results 也需要转换 key
+        scan_results = {str(k): v for k, v in self.current_scan_results.items()}
+
         return {
             "user_sessions": serializable_sessions,
-            "current_scan_results": self.current_scan_results,
+            "current_scan_results": scan_results,
         }
 
     def _restore_state_dump(self, dump):
@@ -75,17 +79,28 @@ class SessionService:
             raw_sessions = dump.get("user_sessions", {})
             self.user_sessions = {}
             for uid_str, user_content in raw_sessions.items():
-                uid = int(uid_str)
-                processed_content = {}
-                for k, v in user_content.items():
-                    # 如果 key 是数字字符串且不是保留字段名，则转换为 int (chat_id)
-                    if k.isdigit() or (k.startswith('-') and k[1:].isdigit()):
-                        processed_content[int(k)] = v
-                    else:
-                        processed_content[k] = v
-                self.user_sessions[uid] = processed_content
+                try:
+                    uid = int(uid_str)
+                    processed_content = {}
+                    for k, v in user_content.items():
+                        # 如果 key 是数字字符串且不是保留字段名，则转换为 int (chat_id)
+                        if k.isdigit() or (k.startswith('-') and k[1:].isdigit()):
+                            processed_content[int(k)] = v
+                        else:
+                            processed_content[k] = v
+                    self.user_sessions[uid] = processed_content
+                except ValueError:
+                    logger.warning(f"跳过无效的用户ID key: {uid_str}")
                 
-            self.current_scan_results = dump.get("current_scan_results", {})
+            # ✅ Fix: 恢复时将 Key 转回 int
+            raw_scan_results = dump.get("current_scan_results", {})
+            self.current_scan_results = {}
+            for k, v in raw_scan_results.items():
+                if k.isdigit() or (k.startswith('-') and k[1:].isdigit()):
+                    self.current_scan_results[int(k)] = v
+                else:
+                    self.current_scan_results[k] = v
+
             logger.info(
                 f"🔥 SessionService 恢复了 {len(self.user_sessions)} 个用户会话"
             )

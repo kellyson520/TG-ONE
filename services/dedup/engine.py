@@ -133,10 +133,15 @@ class SmartDeduplicator:
 
     def _hibernate_state(self):
         """[Tombstone] 冻结逻辑: 导出内存索引层"""
+        # Fix: Convert int keys in text_fp_cache to str for orjson compatibility
+        text_fp_cache_str = {}
+        for cid, cache in self.text_fp_cache.items():
+            text_fp_cache_str[cid] = {str(k): v for k, v in cache.items()}
+
         state = {
             "time_window_cache": self.time_window_cache,
             "content_hash_cache": self.content_hash_cache,
-            "text_fp_cache": self.text_fp_cache,
+            "text_fp_cache": text_fp_cache_str,
             "lsh_forests": {
                 cid: {"trees": forest.trees, "num_trees": forest.num_trees, "k": forest.prefix_length}
                 for cid, forest in self.lsh_forests.items()
@@ -152,9 +157,25 @@ class SmartDeduplicator:
     def _wakeup_state(self, state):
         """[Tombstone] 复苏逻辑: 恢复内存索引层"""
         if not state: return
-        self.time_window_cache = state.get("time_window_cache", {})
-        self.content_hash_cache = state.get("content_hash_cache", {})
-        self.text_fp_cache = state.get("text_fp_cache", {})
+        
+        # Reload as OrderedDict to support popitem(last=False)
+        self.time_window_cache = {
+            k: OrderedDict(v) for k, v in state.get("time_window_cache", {}).items()
+        }
+        self.content_hash_cache = {
+            k: OrderedDict(v) for k, v in state.get("content_hash_cache", {}).items()
+        }
+        
+        # Restore text_fp_cache keys to int and wrap in OrderedDict
+        raw_text_fp = state.get("text_fp_cache", {})
+        self.text_fp_cache = {}
+        for cid, cache in raw_text_fp.items():
+            self.text_fp_cache[cid] = OrderedDict()
+            for k, v in cache.items():
+                try:
+                    self.text_fp_cache[cid][int(k)] = v
+                except ValueError:
+                    self.text_fp_cache[cid][k] = v
         
         # 恢复 LSH 索引
         forest_data = state.get("lsh_forests", {})

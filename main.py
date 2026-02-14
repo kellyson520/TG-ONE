@@ -9,7 +9,8 @@ import platform
 import signal
 import sys
 
-# 1. 设置事件循环策略 (必须在最前面)
+
+
 if platform.system() == 'Windows':
     # Windows 下使用 SelectorEventLoopPolicy 以避免 ProactorEventLoop 的某些问题
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

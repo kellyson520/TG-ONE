@@ -36,23 +36,18 @@ uv pip install flask flask-cors
 
 ### 2. 启动Web管理系统
 
-```bash
-# 方法1: 直接运行启动脚本
-python web_admin/run.py
+系统已集成在主进程中，随 `python main.py` 自动启动。若需单独配置，请在 `.env` 中修改 `WEB_PORT`。
 
-# 方法2: 使用Flask命令
-cd web_admin
-flask run --host=0.0.0.0 --port=8080
-```
+默认配置下：
+- **监听端口**: 9000 (容器内)
+- **Host映射**: 9810 (配套 docker-compose.yml)
 
 ### 3. 访问管理界面
 
 打开浏览器访问以下地址：
 
-- **主页**: http://localhost:8080
-- **系统仪表板**: http://localhost:8080/dashboard  
-- **规则管理**: http://localhost:8080/rules
-- **可视化图**: http://localhost:8080/visualization
+- **主页 (本地)**: http://localhost:9000
+- **主页 (Docker 映射)**: http://localhost:9810
 
 ## 📖 使用指南
 

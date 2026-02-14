@@ -511,7 +511,7 @@ class Settings(BaseSettings):
         description="Web服务监听地址"
     )
     WEB_PORT: int = Field(
-        default=8080,
+        default=9000,
         description="Web服务监听端口"
     )
     

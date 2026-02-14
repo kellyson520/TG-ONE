@@ -40,6 +40,9 @@ version: 1.1
 - **Targeted Execution Only**: 
     - **严禁** 执行全量测试 (如 `pytest` 或 `pytest tests/`)。
     - **必须** 精确指定测试文件路径 (如 `pytest tests/unit/test_specific.py`)。
+- **No Local Main Execution**:
+    - **严禁** 在本地开发环境直接运行 `python main.py`。
+    - 理由: 防止在重构或开发阶段产生生产数据污染、会话冲突或资源竞争。如需调试，应使用单元测试或 Mock 环境。
 
 ## 4. 可观测性与防御性编程 (Observability)
 - **No Silent Failures**: 严禁在 `except` 块中仅使用 `pass`。
