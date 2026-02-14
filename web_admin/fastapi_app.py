@@ -48,7 +48,6 @@ from web_admin.routers.security_router import router as security_router
 from web_admin.routers.simulator_router import router as simulator_router
 from core.helpers.realtime_stats import realtime_stats_cache
 
-from web_admin.core.templates import STATIC_DIR
 from web_admin.routers.spa_router import router as spa_router
 from web_admin.rss.routes.rss import router as rss_page_router
 from web_admin.rss.api.endpoints.feed import router as rss_feed_router
@@ -115,7 +114,6 @@ app.include_router(business_stats_router)
 app.include_router(websocket_router)
 app.include_router(security_router)
 app.include_router(simulator_router)
-# app.include_router(page_router)
 app.include_router(settings_router)
 app.include_router(spa_router) # Catch-all for SPA
 
@@ -188,13 +186,9 @@ app.add_middleware(IPGuardMiddleware)
 # 必须在所有中间件之后添加，确保最先执行
 app.add_middleware(MaintenanceMiddleware)
 
-# 挂载静态文件
-# 挂载静态文件
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
 # Mount React assets
-FRONTEND_ASSETS = os.path.join(os.path.dirname(STATIC_DIR), "frontend", "dist", "assets")
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+FRONTEND_ASSETS = os.path.join(FRONTEND_DIST, "assets")
 if os.path.exists(FRONTEND_ASSETS):
     app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS), name="assets")
 
