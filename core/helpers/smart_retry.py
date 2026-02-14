@@ -82,13 +82,14 @@ class SmartRetryManager:
                 # 特殊处理 FloodWait
                 if isinstance(e, FloodWaitError):
                     wait_time = e.seconds + 1
-                    if wait_time > 60:
-                        # 如果需要等待太久，这被视为"不可重试"的任务（交给 Worker 队列稍后处理更合适）
-                        # 但在这里为了简单起见，如果 < 60秒就等
-                        logger.warning(f"FloodWait encountered: waiting {wait_time}s")
+                    if wait_time <= 60:
+                        # 如果需要等待的时间较短，则在此等待并重试
+                        logger.warning(f"FloodWait encountered: waiting {wait_time}s before retry")
                         delay = wait_time
                     else:
-                        raise e # 太久了，抛出让上层 Queue 处理
+                        # 等待时间太长，抛出异常让上层处理（如放入持久化队列或通知用户）
+                        logger.error(f"FloodWait too long ({wait_time}s), giving up retry")
+                        raise e
 
                 logger.warning(f"SmartRetry: Attempt {attempt}/{self.max_retries} failed ({type(e).__name__}). Retrying in {delay:.2f}s...")
                 await asyncio.sleep(delay)

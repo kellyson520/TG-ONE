@@ -257,8 +257,21 @@ async def handle_command(client, event):
             logger.warning(f"❓ [Bot命令] 未知命令: TraceID={trace_id}, 命令={command}")
             await event.respond("未知命令，请使用 /help 查看帮助")
     except FloodWaitError as e:
-        logger.error(f"❌ [Bot命令] 触发Telegram速率限制 (FloodWait): TraceID={trace_id}, 需要等待={e.seconds}秒. 暂时停止响应.")
-        # 此时不能发送任何消息，否则会延长等待时间
+        # 下调日志级别为 warning，并提供更详细的建议
+        logger.warning(
+            f"⚠️ [Bot命令] 检测到速率限制 (FloodWait): TraceID={trace_id}, "
+            f"需要等待={e.seconds}秒. "
+            f"{'这通常源于账号受限或代理问题' if e.seconds > 300 else '建议稍后重试'}."
+        )
+        # 尝试通过 respond 告知用户（虽然可能依然失败，但比直接沉默好）
+        try:
+            if e.seconds < 30: # 只有短时间等待才尝试 sleep
+                await asyncio.sleep(e.seconds)
+                await event.respond("⚠️ 刚才响应太快被限制了，现在已恢复。")
+            else:
+                # 长时间限制，仅记录不强行 sleep
+                pass
+        except Exception: pass
     except Exception as e:
         logger.error(f"❌ [Bot命令] 处理命令失败: TraceID={trace_id}, 命令={message.text if message else '未知'}, 错误={str(e)}", exc_info=True)
         # 向用户发送错误信息

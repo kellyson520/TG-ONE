@@ -87,6 +87,9 @@ def handle_telegram_errors(default_return: Any = None, max_retries: int = 3) -> 
                 try:
                     return await func(*args, **kwargs)
                 except FloodWaitError as e:
+                    if e.seconds > 60:
+                        logger.error(f"FloodWait too long ({e.seconds}s), giving up.")
+                        raise e
                     logger.warning(f"触发FloodWaitError，需要等待 {e.seconds} 秒")
                     await asyncio.sleep(e.seconds)
                     retries += 1

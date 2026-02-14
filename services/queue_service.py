@@ -311,7 +311,14 @@ class TelegramQueueService:
                 async with self._get_pair_sem(pair_key):
                     if handle_flood_wait_sleep:
                         until = self._flood_wait_until.get(target_key, 0)
-                        if time.time() < until: await asyncio.sleep(until - time.time())
+                        now = time.time()
+                        if now < until:
+                            wait_seconds = until - now
+                            if wait_seconds > 60:
+                                # 等待时间过长，不建议在工作线程中直接 sleep，否则会挂起整个 Worker
+                                logger.warning(f"Target {target_key} is in long FloodWait ({wait_seconds:.1f}s). Skipping sleep and raising.")
+                                raise FloodWaitException(int(wait_seconds))
+                            await asyncio.sleep(wait_seconds)
                     return await self._telegram_breaker.call(_run_with_retry)
 
     def _update_next_at(self, target_key, pair_key):
