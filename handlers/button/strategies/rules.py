@@ -17,13 +17,14 @@ class RuleMenuStrategy(BaseMenuHandler):
     """
 
     ACTIONS = {
-        "list_rules", "rule_detail", "toggle_rule",
+        "list_rules", "rule_list_page", "rule_detail", "edit_rule", "toggle_rule",
         "delete_rule_confirm", "delete_rule_do",
-        "keywords", "add_keyword", "clear_keywords_confirm", "clear_keywords_do",
-        "replaces", "add_replace", "clear_replaces_confirm", "clear_replaces_do",
+        "keywords", "add_keyword", "kw_add", "clear_keywords_confirm", "clear_keywords_do",
+        "replaces", "add_replace", "rr_add", "clear_replaces_confirm", "clear_replaces_do",
         "rule_basic_settings", "rule_display_settings", "rule_advanced_settings",
-        "toggle_rule_set",
-        "rule_status", "sync_config",
+        "toggle_rule_set", "set_rule_val", "media_settings", "ai_settings",
+        "rule_status", "sync_config", "rule_sync_push", "sync_rule_page", "toggle_rule_sync",
+        "create_rule", "rule_statistics", "search_rules",
         "forward_management", "rule_management",
         "multi_source_management", "multi_source_page", "manage_multi_source",
         "history_messages", "forward_stats_detailed", "global_forward_settings",
@@ -43,17 +44,26 @@ class RuleMenuStrategy(BaseMenuHandler):
         arg1 = int(extra_data[0]) if extra_data and extra_data[0] else 0
 
         # 1. Rule Listing & Navigation
-        if action == "list_rules":
+        if action in ["list_rules", "rule_list_page"]:
             page = arg1
             await menu_controller.show_rule_list(event, page=page)
         
         elif action in ["forward_management", "rule_management"]:
             await new_menu_system.show_rule_management(event)
 
-        elif action == "rule_detail":
+        elif action in ["rule_detail", "edit_rule"]:
             rule_id = arg1
             await menu_controller.show_rule_detail(event, rule_id)
         
+        elif action == "create_rule":
+            await event.answer("➕ 请使用 /bind 或网页端创建规则", alert=True)
+
+        elif action == "rule_statistics":
+            await menu_controller.show_rule_statistics(event)
+
+        elif action == "search_rules":
+            await event.answer("🔍 搜索规则功能已集成在列表页", alert=True)
+
         elif action == "rule_status":
              rule_id = arg1
              await menu_controller.show_rule_status(event, rule_id)
@@ -76,7 +86,7 @@ class RuleMenuStrategy(BaseMenuHandler):
             rule_id = arg1
             await menu_controller.show_manage_keywords(event, rule_id)
         
-        elif action == "add_keyword":
+        elif action in ["add_keyword", "kw_add"]:
             rule_id = arg1
             await menu_controller.enter_add_keyword_state(event, rule_id)
         
@@ -92,7 +102,7 @@ class RuleMenuStrategy(BaseMenuHandler):
             rule_id = arg1
             await menu_controller.show_manage_replace_rules(event, rule_id)
         
-        elif action == "add_replace":
+        elif action in ["add_replace", "rr_add"]:
             rule_id = arg1
             await menu_controller.enter_add_replace_state(event, rule_id)
         
@@ -117,14 +127,38 @@ class RuleMenuStrategy(BaseMenuHandler):
             rule_id = arg1
             await menu_controller.show_rule_advanced_settings(event, rule_id)
         
+        elif action == "media_settings":
+            rule_id = arg1
+            await menu_controller.show_media_settings(event, rule_id)
+
+        elif action == "ai_settings":
+            rule_id = arg1
+            await menu_controller.show_ai_settings(event, rule_id)
+
         elif action == "toggle_rule_set":
             rule_id = arg1
             key = extra_data[1] if len(extra_data) > 1 else ""
-            await menu_controller.toggle_rule_setting_new(event, rule_id, key)
+            await menu_controller.toggle_setting(event, rule_id, key)
 
-        elif action == "sync_config":
+        elif action == "set_rule_val":
+            rule_id = arg1
+            key = extra_data[1] if len(extra_data) > 1 else ""
+            await menu_controller.enter_set_value_state(event, rule_id, key)
+
+        elif action in ["sync_config", "rule_sync_push"]:
             rule_id = arg1
             await menu_controller.show_sync_config(event, rule_id)
+
+        elif action == "sync_rule_page":
+            rule_id = arg1
+            page = int(extra_data[1]) if len(extra_data) > 1 else 0
+            await menu_controller.show_sync_rule_picker(event, rule_id, page)
+
+        elif action == "toggle_rule_sync":
+            rule_id = arg1
+            target_id = int(extra_data[1]) if len(extra_data) > 1 else 0
+            page = int(extra_data[2]) if len(extra_data) > 2 else 0
+            await menu_controller.toggle_rule_sync(event, rule_id, target_id, page)
 
         # 5. Multi-Source
         elif action in ["multi_source_management", "multi_source_page"]:

@@ -124,12 +124,82 @@ class RulesMenu(BaseMenu):
         await self._render_from_text(event, f"🔗 **多源管理详情** (ID: {rule_id})\n\n请选择操作：", buttons)
 
     async def show_rule_status(self, event, rule_id):
-        """显示规则运行状态"""
-        # 暂时显示简单概览
-        await self._render_from_text(event, f"📊 **规则 {rule_id} 运行状态**\n\n[开发中] 此处将显示该规则的详细转发统计、成功受限次数、实时延迟频率等。", [[Button.inline("👈 返回详情", f"new_menu:manage_multi_source:{rule_id}")]])
+        """显示规则运行状态 - 使用真实数据"""
+        from core.container import container
+        from datetime import datetime
+        from sqlalchemy import select
+        
+        rule_id = int(rule_id)
+        # 1. 获取规则详情
+        rule = await container.rule_repo.get_one(rule_id)
+        if not rule:
+            await event.answer("❌ 规则不存在", alert=True)
+            return
+
+        # 2. 获取今日统计
+        today = datetime.now().strftime('%Y-%m-%d')
+        async with container.db.get_session() as session:
+            from models.models import RuleStatistics
+            stmt = select(RuleStatistics).where(RuleStatistics.rule_id == rule_id, RuleStatistics.date == today)
+            res = await session.execute(stmt)
+            stat_obj = res.scalar_one_or_none()
+            stats = {
+                'success_count': stat_obj.success_count if stat_obj else 0,
+                'error_count': stat_obj.error_count if stat_obj else 0,
+                'filtered_count': stat_obj.filtered_count if stat_obj else 0
+            }
+
+        # 3. 获取最近日志
+        items, _ = await container.stats_repo.get_rule_logs(rule_id, page=1, size=5)
+        logs = []
+        for item in items:
+            logs.append({
+                'action': item.action,
+                'message_type': item.message_type,
+                'processing_time': item.processing_time,
+                'created_at': item.created_at
+            })
+
+        # 4. 渲染
+        data = {
+            'rule': {'id': rule.id, 'enabled': rule.enable_rule},
+            'stats': stats,
+            'logs': logs
+        }
+        
+        view_result = container.ui.rule.render_single_rule_status(data)
+        await self._render_page(
+            event, 
+            title=view_result.title,
+            body_lines=[view_result.text],
+            buttons=view_result.buttons,
+            breadcrumb=view_result.breadcrumb
+        )
 
     async def show_sync_config(self, event, rule_id):
         """显示同步配置"""
-        await self._render_from_text(event, f"🔗 **规则 {rule_id} 同步配置**\n\n[开发中] 此处将显示该规则关联的频道同步关系、来源目标映射及状态同步开关。", [[Button.inline("👈 返回详情", f"new_menu:manage_multi_source:{rule_id}")]])
+        from core.container import container
+        rule_id = int(rule_id)
+        
+        # 获取当前规则的同步目标
+        async with container.db.get_session() as session:
+            from core.helpers.common import get_db_ops
+            db_ops = await get_db_ops()
+            sync_targets = await db_ops.get_rule_syncs(session, rule_id)
+            target_ids = [s.sync_rule_id for s in sync_targets]
+            
+        text = f"🔗 **规则 {rule_id} 同步状态**\n\n"
+        if not target_ids:
+            text += "📭 当前规则未关联任何同步目标。\n启用同步后，转发成功的状态将同步至目标规则。"
+        else:
+            text += f"当前已关联 {len(target_ids)} 个同步目标规则：\n"
+            for tid in target_ids:
+                text += f"• 规则 ID: `{tid}`\n"
+        
+        buttons = [
+            [Button.inline("⚙️ 详细管理同步", f"new_menu:sync_rule_page:{rule_id}:0")],
+            [Button.inline("👈 返回详情", f"new_menu:manage_multi_source:{rule_id}")]
+        ]
+        await self._render_from_text(event, text, buttons, breadcrumb=f"🏠 > 📝 {rule_id} > 🔗")
 
 rules_menu = RulesMenu()

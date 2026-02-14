@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-10 12:35
+> Updated: 2026-02-14 15:38
 
 ---
 
@@ -14,11 +14,12 @@ TG ONE/
 ├── 📄 AGENTS.md            # AI Skills Context
 ├── 📄 CHANGELOG.md         # File
 ├── 📄 Dockerfile           # Docker Build
-├── 📁 MagicMock            # Directory
 ├── 📄 README.md            # File
 ├── 📁 ai                   # AI Provider Integration
+├── 📁 alembic              # Directory
 ├── 📄 alembic.ini          # File
 ├── 📁 api                  # Directory
+├── 📄 app.log              # File
 ├── 📁 controllers          # Directory
 ├── 📁 core                 # Core Business Logic
 ├── 📁 data                 # Directory
@@ -28,6 +29,7 @@ TG ONE/
 ├── 📁 filters              # Message Filters
 ├── 📁 handlers             # Command & Event Handlers
 ├── 📁 listeners            # Event Listeners
+├── 📁 logs                 # Directory
 ├── 📄 main.py              # Application Entry
 ├── 📁 middlewares          # Middleware Layer
 ├── 📁 migrations           # Directory
@@ -40,12 +42,12 @@ TG ONE/
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
-├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
 ├── 📁 tests                # Test Suite
 ├── 📁 ui                   # Bot UI Renderer
 ├── 📄 version.py           # Version Info
 ├── 📁 web_admin            # FastAPI Admin Backend
+├── 📁 zhuanfaji            # Directory
 ```
 
 ---
@@ -134,6 +136,7 @@ TG ONE/
 │   ├── message_utils.py
 │   ├── metrics.py
 │   ├── patch.py
+│   ├── priority_utils.py
 │   ├── realtime_stats.py
 │   ├── resource_gate.py
 │   ├── rule_utils.py
@@ -154,7 +157,8 @@ TG ONE/
 ├── pipeline.py
 ├── session_wizard.py
 ├── shutdown.py
-└── states.py
+├── states.py
+└── stats_manager.py
 ```
 
 ### 📁 `docs/`
@@ -195,10 +199,25 @@ TG ONE/
 │   ├── report_phase9_security.md
 │   └── todo.md
 ├── Workstream_Bugfix
-│   └── 20260210_Fix_Update_Failure
-│       ├── report.md
-│       ├── spec.md
-│       └── todo.md
+│   ├── 20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint
+│   │   └── todo.md
+│   ├── 20260211_Fix_Alembic_Migration
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260211_Fix_EventBus_Emit_Error
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260211_Fix_Menu_Localization_And_System_Errors
+│   │   └── todo.md
+│   ├── 20260213_Fix_TaskExecution_Stall
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260213_Fix_Update_Restart_Loop
+│   │   ├── debug_scripts
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260213_Fix_WorkerService_Scaling_Monitor_Error
+│   └── Menu_Quality_Improvements_Report.md
 ├── Workstream_Core
 │   ├── 20260204_Dedup_Engine_Unit_Tests
 │   │   ├── report.md
@@ -257,6 +276,39 @@ TG ONE/
 │   ├── 20260130_Fix_CI_Timeout_And_Tests
 │   │   ├── report.md
 │   │   └── todo.md
+│   ├── 20260208_Project_Health_Audit_And_Risk_Assessment
+│   │   ├── Assessment_Report.md
+│   │   └── todo.md
+│   ├── 20260208_Refactor_Menu_System_And_Handler_Purity
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260209_Controller_and_View_Modularization
+│   │   ├── Proposal.md
+│   │   ├── UI_GUIDE.md
+│   │   ├── spec.md
+│   │   ├── todo.md
+│   │   ├── ui_upgrade_proposal.md
+│   │   └── ui_upgrade_todo.md
+│   ├── 20260210_Fix_Alembic_Migration
+│   │   └── todo.md
+│   ├── 20260210_Perfect_Shutdown_Architecture
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260211_Menu_Architecture_Deep_Audit
+│   │   ├── audit_report.md
+│   │   ├── handler_purity_deep_check_final.md
+│   │   ├── handler_purity_fix_complete.md
+│   │   ├── handler_purity_fix_patch.md
+│   │   ├── handler_purity_fix_summary.md
+│   │   ├── handler_session_usage_audit.md
+│   │   ├── implementation_report.md
+│   │   ├── implementation_report_final.md
+│   │   ├── missing_logic_fix_report.md
+│   │   ├── missing_logic_fix_report_round2.md
+│   │   ├── phase1.1_report.md
+│   │   ├── phase1.2_report.md
+│   │   └── todo.md
 │   ├── Phase_3_1_WebSocket_Infrastructure.md
 │   ├── Phase_3_2_Task_Queue_Realtime.md
 │   ├── Phase_3_3_Log_Streaming.md
@@ -269,6 +321,9 @@ TG ONE/
 │   ├── test_fix_progress.md
 │   ├── test_summary.txt
 │   └── todo.md
+├── Workstream_Database
+│   └── 20260210_Fix_AccessControlList_AlreadyExists_Error
+│       └── todo.md
 ├── Workstream_Deduplication
 │   └── 20260207_Upgrade_Deduplication_Engine_v4
 │       ├── report.md
@@ -328,7 +383,25 @@ TG ONE/
 │   ├── 20260206_Architecture_Upgrade_Report.md
 │   ├── 20260206_Fix_Sqlite_Lock_Error
 │   │   └── todo.md
-│   └── 20260206_Verify_Archive_Tests
+│   ├── 20260206_Verify_Archive_Tests
+│   │   └── todo.md
+│   ├── 20260208_Fix_Import_Error_Startup
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260208_Investigate_Forward_Delay
+│   │   ├── report.md
+│   │   └── todo.md
+│   └── 20260208_LogAnalysis_P1
+│       └── todo.md
+├── Workstream_Ops
+│   ├── 20260210_Upgrade_Update_Service_NonGit
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   └── Fix_Non_Git_Update
+├── Workstream_Optimization
+│   └── 20260213_Task_Queue_Throughput_and_Failure_Optimization
+│       ├── spec.md
 │       └── todo.md
 ├── Workstream_Refactor
 │   └── Callback_Split_Plan
@@ -342,8 +415,11 @@ TG ONE/
 │       ├── spec.md
 │       └── todo.md
 ├── Workstream_UI
-│   └── 20260207_FixBackNavigation
-│       ├── report.md
+│   ├── 20260207_FixBackNavigation
+│   │   ├── report.md
+│   │   └── todo.md
+│   └── 20260208_Unified_Command_Menu_System
+│       ├── spec.md
 │       └── todo.md
 ├── Workstream_UI_UX
 │   └── 20260115_Web_Interface_Refactor
@@ -361,7 +437,7 @@ TG ONE/
 │   ├── report.md
 │   ├── spec.md
 │   └── todo.md
-├── architecture_diagram.mermaid
+├── architecture_diagram_v2.svg
 ├── archive
 │   ├── Workstream_Architecture_Refactor
 │   │   ├── 20260126_Phase5_Stability_Async_Governance
@@ -386,6 +462,39 @@ TG ONE/
 │   │   │   └── todo.md
 │   │   └── 20260131_Type_Hinting_Coverage
 │   │       ├── mypy_report.txt
+│   │       ├── report.md
+│   │       └── todo.md
+│   ├── Workstream_Bugfix
+│   │   ├── 20260208_FixSenderFilterMetadata
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Fix_Encoding_BotCommands
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260209_Fix_Shutdown_Hang
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260210_Fix_Update_Failure
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260211_Fix_SessionCallback_ImportError
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260211_Fix_Unmatched_Button_Actions
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260211_Fix_ViewResult_NameError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260212_KeywordFilterFix
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   └── 20260214_Fix_SQLite_Disk_IO_Error
+│   │       ├── auto_fix_readme.md
+│   │       ├── check_integrity.py
+│   │       ├── proposal_statistics_persistence.md
 │   │       ├── report.md
 │   │       └── todo.md
 │   ├── Workstream_Core
@@ -416,8 +525,22 @@ TG ONE/
 │   │   ├── 20260130_CI_Recursion_Fix
 │   │   │   ├── report.md
 │   │   │   └── todo.md
-│   │   └── 20260202_Fix_Callback_And_Web_Tests
+│   │   ├── 20260202_Fix_Callback_And_Web_Tests
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Implement_Priority_Queue
+│   │   │   ├── checklist_qos_v3.md
+│   │   │   ├── checklist_qos_v4.md
+│   │   │   ├── performance_analysis_v4.md
+│   │   │   ├── proposal_v2_dynamic_qos.md
+│   │   │   ├── proposal_v3_fair_qos.md
+│   │   │   ├── proposal_v4_lane_routing.md
+│   │   │   ├── proposal_v5_autonomous.md
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   └── 20260209_Fix_Async_SystemExit_Error
 │   │       ├── report.md
+│   │       ├── spec.md
 │   │       └── todo.md
 │   ├── Workstream_Deduplication
 │   │   ├── 20260207_Fix_Dedup_Repository_AttributeError
@@ -432,7 +555,22 @@ TG ONE/
 │   │       ├── spec.md
 │   │       └── todo.md
 │   ├── Workstream_Infrastructure
-│   │   └── 20260127_Local_CI_Workflow
+│   │   ├── 20260127_Local_CI_Workflow
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Advanced_Update_Interface
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Beautify_Docker_Build_UX
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Enhance_Priority_Display
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260208_Enhance_Update_Service
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   └── 20260208_Update_Build_System_to_uv
 │   │       ├── report.md
 │   │       └── todo.md
 │   ├── Workstream_Maintenance
@@ -557,6 +695,11 @@ TG ONE/
 │   │       ├── report.md
 │   │       ├── spec.md
 │   │       └── todo.md
+│   ├── Workstream_Optimization
+│   │   └── 20260212_API_Performance_Optimization
+│   │       ├── report.md
+│   │       ├── spec.md
+│   │       └── todo.md
 │   └── Workstream_UI_UX
 │       └── 20260205_Upgrade_Date_Picker
 │           ├── report.md
@@ -569,6 +712,7 @@ TG ONE/
 │   ├── SUMMARY_dedup_fix.md
 │   └── dedup_critical_fix_20260205.md
 ├── process.md
+├── setup_guide.md
 └── tree.md
 ```
 
@@ -591,6 +735,7 @@ TG ONE/
 │   │   ├── callback_handlers.py
 │   │   ├── generic_toggle.py
 │   │   ├── media_callback.py
+│   │   ├── menu_entrypoint.py
 │   │   ├── modules
 │   │   │   ├── __init__.py
 │   │   │   ├── changelog_callback.py
@@ -600,7 +745,6 @@ TG ONE/
 │   │   │   ├── rule_nav.py
 │   │   │   ├── rule_settings.py
 │   │   │   └── sync_settings.py
-│   │   ├── new_menu_callback.py
 │   │   ├── other_callback.py
 │   │   ├── push_callback.py
 │   │   └── search_callback.py
@@ -616,18 +760,38 @@ TG ONE/
 │   │   ├── smart_dedup_menu.py
 │   │   └── system_menu.py
 │   ├── new_menu_system.py
-│   └── settings_manager.py
+│   ├── settings_manager.py
+│   └── strategies
+│       ├── __init__.py
+│       ├── admin.py
+│       ├── ai.py
+│       ├── analytics.py
+│       ├── base.py
+│       ├── copy.py
+│       ├── dedup.py
+│       ├── entry_point.py
+│       ├── history.py
+│       ├── media.py
+│       ├── push.py
+│       ├── registry.py
+│       ├── rules.py
+│       ├── search.py
+│       ├── settings.py
+│       ├── system.py
+│       └── ufb.py
 ├── command_handlers.py
 ├── commands
 │   ├── admin_commands.py
 │   ├── cancel_command.py
 │   ├── dedup_commands.py
 │   ├── media_commands.py
+│   ├── menu_diagnostics.py
 │   ├── rule_commands.py
 │   ├── stats_commands.py
 │   └── system_commands.py
 ├── link_handlers.py
 ├── list_handlers.py
+├── priority_handler.py
 ├── prompt_handlers.py
 ├── search_ui_manager.py
 └── user_handler.py
@@ -723,12 +887,16 @@ TG ONE/
 ### 📁 `ui/`
 
 ```
+├── builder.py
 ├── builders
 │   └── time_picker.py
+├── constants.py
 ├── menu_renderer.py
 └── renderers
+    ├── admin_renderer.py
     ├── base_renderer.py
     ├── main_menu_renderer.py
+    ├── media_renderer.py
     ├── rule_renderer.py
     ├── settings_renderer.py
     └── task_renderer.py

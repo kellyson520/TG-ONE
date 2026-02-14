@@ -71,6 +71,7 @@ class Container:
         # 这里暂时保留核心的内部监听，外部服务的监听移至 dedicated setup 方法或 lazy property
         self.bus.subscribe("FORWARD_SUCCESS", self._on_stats_update)
         self.bus.subscribe("FORWARD_FAILED", self._on_forward_failed)
+        self.bus.subscribe("FORWARD_FILTERED", self._on_forward_filtered)
         
         # [Scheme 7 Standard] Dedup 监听在访问 dedup_service 时自动注册? 
         # 为了避免循环依赖和过度 Eager，我们可以在 dedup_service 的 property 中注册
@@ -460,7 +461,12 @@ class Container:
         """处理转发成功事件，并发写入日志和统计表"""
         try:
             await asyncio.gather(
-                self.stats_repo.log_action(data['rule_id'], data['msg_id'], "success"),
+                self.stats_repo.log_action(
+                    data['rule_id'], data['msg_id'], "success", 
+                    msg_text=data.get('msg_text'),
+                    msg_type=data.get('msg_type'),
+                    processing_time=data.get('duration')
+                ),
                 self.stats_repo.increment_stats(data['target_id']),
                 self.stats_repo.increment_rule_stats(data['rule_id'], "success")
             )
@@ -476,12 +482,34 @@ class Container:
                 return
             
             await asyncio.gather(
-                self.stats_repo.log_action(rule_id, 0, "error", result=data.get('error')),
+                self.stats_repo.log_action(
+                    rule_id, 0, "error", 
+                    result=data.get('error'),
+                    processing_time=data.get('duration')
+                ),
                 self.stats_repo.increment_rule_stats(rule_id, "error")
             )
             logger.debug(f"Error logged for rule {rule_id}: {data.get('error')}")
         except Exception as e:
             logger.error(f"Failed to log error: {str(e)}")
+
+    async def _on_forward_filtered(self, data: Dict[str, Any]) -> None:
+        """处理过滤拦截事件"""
+        try:
+            rule_id = data.get('rule_id')
+            if not rule_id:
+                return
+            
+            await asyncio.gather(
+                self.stats_repo.log_action(
+                    rule_id, data.get('msg_id', 0), "filtered", 
+                    result=data.get('reason', 'Filtered by rules')
+                ),
+                self.stats_repo.increment_rule_stats(rule_id, "filtered")
+            )
+            logger.debug(f"Filter recorded for rule {rule_id}")
+        except Exception as e:
+            logger.error(f"Failed to log filter event: {str(e)}")
 
     async def _process_ingestion_queue(self, items: List[Any]) -> None:
         """

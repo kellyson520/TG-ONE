@@ -46,6 +46,9 @@ class RuleLog(Base):
     rule_id = Column(Integer, ForeignKey('forward_rules.id'), nullable=False, index=True)
     action = Column(String, nullable=False) # forwarded, filtered, error
     message_id = Column(Integer, nullable=True)
+    message_text = Column(String, nullable=True) # 用于详情展示与搜索
+    message_type = Column(String, nullable=True) # text, photo, video, etc.
+    processing_time = Column(Integer, nullable=True) # 处理耗时 (ms)
     details = Column(String, nullable=True)
     is_result_compressed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

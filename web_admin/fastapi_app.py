@@ -49,7 +49,7 @@ from web_admin.routers.simulator_router import router as simulator_router
 from core.helpers.realtime_stats import realtime_stats_cache
 
 from web_admin.core.templates import STATIC_DIR
-from web_admin.routers.page_router import router as page_router
+from web_admin.routers.spa_router import router as spa_router
 from web_admin.rss.routes.rss import router as rss_page_router
 from web_admin.rss.api.endpoints.feed import router as rss_feed_router
 from web_admin.rss.api.endpoints.subscription import router as rss_sub_router
@@ -115,8 +115,9 @@ app.include_router(business_stats_router)
 app.include_router(websocket_router)
 app.include_router(security_router)
 app.include_router(simulator_router)
-app.include_router(page_router)
+# app.include_router(page_router)
 app.include_router(settings_router)
+app.include_router(spa_router) # Catch-all for SPA
 
 # RSS 模块路由 (仅在启用时挂载)
 if settings.RSS_ENABLED:
@@ -191,8 +192,11 @@ app.add_middleware(MaintenanceMiddleware)
 # 挂载静态文件
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-else:
-    logger.warning(f"静态文件目录不存在: {STATIC_DIR}")
+
+# Mount React assets
+FRONTEND_ASSETS = os.path.join(os.path.dirname(STATIC_DIR), "frontend", "dist", "assets")
+if os.path.exists(FRONTEND_ASSETS):
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS), name="assets")
 
 # 模板引擎配置已迁移至 web_admin.core.templates
 

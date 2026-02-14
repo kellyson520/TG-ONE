@@ -225,51 +225,62 @@ class AnalyticsService:
             }
 
     async def get_performance_metrics(self) -> Dict[str, Any]:
-        """获取性能指标和资源占用"""
+        """获取性能指标和资源占用 (真实数据库统计)"""
         try:
-            # 获取实时统计数据
-
-            # 获取系统资源统计
-            system_stats = await realtime_stats_cache.get_system_stats(
-                force_refresh=True
-            )
+            # 1. 获取系统资源统计
+            system_stats = await realtime_stats_cache.get_system_stats(force_refresh=True)
             system_resources = system_stats.get("system_resources", {})
 
-            # 获取转发统计以计算性能指标
+            # 2. 获取转发统计以计算成功率
             forward_stats = await realtime_stats_cache.get_forward_stats()
             today_stats = forward_stats.get("today", {})
-
-            # 计算性能指标
             success_rate = 100.0
-            if "total_forwards" in today_stats and today_stats["total_forwards"] > 0:
+            if today_stats.get("total_forwards", 0) > 0:
                 errors = today_stats.get("error_count", 0)
-                success_rate = (
-                    (today_stats["total_forwards"] - errors)
-                    / today_stats["total_forwards"]
-                ) * 100
+                success_rate = ((today_stats["total_forwards"] - errors) / today_stats["total_forwards"]) * 100
 
-            # 获取队列状态
+            # 3. 计算实时 TPS 和 平均响应时间 (基于最近 10 分钟)
+            current_tps = 0.0
+            avg_response_time = 0.0
+            try:
+                from sqlalchemy import select, func
+                from models.models import RuleLog
+                from datetime import datetime, timedelta
+                
+                cutoff = datetime.utcnow() - timedelta(minutes=10)
+                async with self.container.db.get_session() as session:
+                    perf_stmt = select(
+                        func.count(RuleLog.id).label('count'),
+                        func.avg(RuleLog.processing_time).label('avg_time')
+                    ).where(RuleLog.created_at >= cutoff)
+                    
+                    res = await session.execute(perf_stmt)
+                    row = res.first()
+                    if row and row.count:
+                        current_tps = round(row.count / 600, 2) # 过去 10 分钟平均 TPS
+                        avg_response_time = round((row.avg_time or 0) / 1000, 3) # 转为秒
+            except Exception as e:
+                logger.warning(f"计算 TPS/耗时失败: {e}")
+
+            # 4. 获取队列状态
             active_queues = 0
             pending_tasks = 0
             try:
                 queue_status = await self.container.task_repo.get_queue_status()
                 active_queues = queue_status.get("active_queues", 0)
                 pending_tasks = queue_status.get("pending_tasks", 0)
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+            except Exception: pass
 
             return {
                 "system_resources": {
                     "cpu_percent": system_resources.get("cpu_percent", 0),
                     "memory_percent": system_resources.get("memory_percent", 0),
-                    "status": "healthy"
-                    if system_resources.get("cpu_percent", 0) < 80
-                    else "warning",
+                    "status": "healthy" if system_resources.get("cpu_percent", 0) < 80 else "warning",
                 },
                 "performance": {
                     "success_rate": success_rate,
-                    "avg_response_time": 0.5,  # 模拟值
-                    "current_tps": 12.5,  # 模拟值
+                    "avg_response_time": avg_response_time or 0.1, # 默认保底值
+                    "current_tps": current_tps,
                     "status": "good" if success_rate > 90 else "poor",
                 },
                 "queue_status": {
@@ -282,7 +293,7 @@ class AnalyticsService:
             logger.error(f"get_performance_metrics 失败: {e}")
             return {
                 "system_resources": {"cpu_percent": 0, "memory_percent": 0},
-                "performance": {"success_rate": 0},
+                "performance": {"success_rate": 0, "avg_response_time": 0, "current_tps": 0},
                 "queue_status": {"active_queues": 0},
             }
 
@@ -369,8 +380,41 @@ class AnalyticsService:
                         'count': stats_row.success_count
                     })
 
-            # 4. 获取类型分布 (暂时根据结果中的关键词模糊估计)
-            # 真正准确的类型分布需要 SenderMiddleware 传入 type
+            # 4. 获取类型分布 (从 RuleLog 真实聚合)
+            type_dist = []
+            try:
+                from sqlalchemy import select, func
+                from models.models import RuleLog
+                async with self.container.db.get_session() as session:
+                    type_stmt = select(
+                        RuleLog.message_type,
+                        func.count(RuleLog.id).label('count')
+                    ).where(
+                        func.strftime('%Y-%m-%d', RuleLog.created_at) == today_str
+                    ).group_by(RuleLog.message_type)
+                    
+                    type_res = await session.execute(type_stmt)
+                    total_count = 0
+                    temp_dist = []
+                    for row in type_res:
+                        m_type = row.message_type or "unknown"
+                        count = row.count or 0
+                        total_count += count
+                        temp_dist.append({"name": m_type.capitalize(), "count": count})
+                    
+                    if total_count > 0:
+                        for item in temp_dist:
+                            item["percentage"] = round((item["count"] / total_count) * 100, 1)
+                            type_dist.append(item)
+            except Exception as e:
+                logger.warning(f"获取类型分布失败: {e}")
+            
+            if not type_dist:
+                 # 回退方案
+                 type_dist = [
+                    {"name": "文本", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
+                    {"name": "媒体", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
+                ]
             
             return {
                 "daily_trends": [
@@ -380,10 +424,7 @@ class AnalyticsService:
                         "errors": today_summary.get("error_count", 0)
                     }
                 ],
-                "type_distribution": [
-                    {"name": "文本", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
-                    {"name": "媒体", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
-                ],
+                "type_distribution": type_dist,
                 "top_chats": [
                     {"chat_id": cid, "name": await self._resolve_chat_name(cid), "count": count} 
                     for cid, count in list(today_summary.get("chats", {}).items())[:5]

@@ -6,7 +6,7 @@ from pathlib import Path
 WHITELIST_DIRS = {
     'src', 'docs', 'tests', '.agent', '.github', '.vscode', '.git',
     'models', 'services', 'utils', 'handlers', 'core', 'web_admin',
-    'db', 'migrations', 'logs', 'config', 'enums', 'schemas',
+    'db', 'migrations', 'alembic', 'logs', 'config', 'enums', 'schemas',
     'repositories', 'listeners', 'filters', 'scheduler', 'middlewares',
     'templates', 'static', 'sessions', 'temp_files',
     'ai', 'api', 'controllers', 'rss', 'ui', 'zhuanfaji', 'data',

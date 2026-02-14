@@ -28,8 +28,11 @@ class MessageContext:
     group_messages: List[Any] = field(default_factory=list)
     related_tasks: List[Any] = field(default_factory=list)
     
+    # Time tracking
+    start_time: float = field(default_factory=lambda: 0.0)
+
     # 模拟模式
-    is_sim: bool = False
+    is_sim: bool = field(default_factory=bool)
     trace: List[Dict[str, Any]] = field(default_factory=list)
 
     def log_trace(self, step: str, status: str, details: Optional[Dict[str, Any]] = None) -> None:
@@ -58,6 +61,10 @@ class Pipeline:
         # 生成唯一标识符 (Trace ID)
         trace_id = uuid.uuid4().hex[:8]
         token = trace_id_var.set(trace_id)
+        
+        # 记录起始时间
+        import time
+        ctx.start_time = time.time()
         
         # 注入到 metadata 以便后续使用
         ctx.metadata["trace_id"] = trace_id

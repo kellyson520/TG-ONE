@@ -203,6 +203,66 @@ async def handle_prompt_setting(
         except Exception as e:
             logger.error(f"删除替换规则失败: {e}")
             return True
+    elif current_state.startswith("set_val:"):
+        # 通用设置项更新: set_val:rule_id:key
+        parts = current_state.split(":")
+        rule_id = int(parts[1])
+        key = parts[2]
+        new_val = (event.message.text or "").strip()
+        
+        if new_val == "取消":
+            # 清除状态
+            if sender_id in session_manager.user_sessions:
+                if chat_id in session_manager.user_sessions[sender_id]:
+                    del session_manager.user_sessions[sender_id][chat_id]
+            await message.delete()
+            # 返回详情页
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_rule_detail(event, rule_id)
+            return True
+            
+        try:
+            # 数据类型转换与校验
+            final_val = new_val
+            if key in ['max_media_size', 'delay_seconds']:
+                final_val = int(new_val)
+                
+            # 使用 Service 层统一更新
+            from core.container import container
+            res = await container.rule_service.toggle_rule_setting(rule_id, key, final_val)
+            
+            if not res.get('success'):
+                await event.reply(f"❌ 更新失败: {res.get('error', '未知错误')}")
+                return True
+                
+            # 清除状态
+            if sender_id in session_manager.user_sessions:
+                if chat_id in session_manager.user_sessions[sender_id]:
+                    del session_manager.user_sessions[sender_id][chat_id]
+            
+            await message.delete()
+            await send_message_and_delete(await get_bot_client(), chat_id, f"✅ 已成功更新 `{key}` 为 `{new_val}`")
+            
+            # 智能回位：根据 key 返回对应的设置页面
+            from controllers.menu_controller import menu_controller
+            media_keys = ['max_media_size', 'enable_duration_filter', 'enable_resolution_filter', 'enable_file_size_range']
+            ai_keys = ['ai_model', 'ai_prompt', 'is_ai', 'is_summary', 'summary_time', 'summary_prompt']
+            
+            if key in media_keys:
+                await menu_controller.show_media_settings(event, rule_id)
+            elif key in ai_keys:
+                await menu_controller.show_ai_settings(event, rule_id)
+            else:
+                await menu_controller.show_rule_detail(event, rule_id)
+                
+            return True
+        except ValueError:
+            await event.reply("❌ 输入格式错误，请输入有效的数值。")
+            return True
+        except Exception as e:
+            logger.error(f"通用更新失败: {e}")
+            await event.reply(f"❌ 系统错误: {str(e)}")
+            return True
     else:
         logger.info(f"未知的状态类型:{current_state}")
         return False

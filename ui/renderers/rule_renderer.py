@@ -93,8 +93,8 @@ class RuleRenderer(BaseRenderer):
         builder.add_button("基础设置", f"new_menu:rule_basic_settings:{rid}", icon=UIStatus.SETTINGS)
         builder.add_button("显示设置", f"new_menu:rule_display_settings:{rid}", icon=UIStatus.EDIT)
         builder.add_button("高级功能", f"new_menu:rule_advanced_settings:{rid}", icon=UIStatus.STAR)
-        builder.add_button("媒体过滤", f"media_settings:{rid}", icon=UIStatus.FILTER)
-        builder.add_button("AI 增强", f"ai_settings:{rid}", icon=UIStatus.DOT)
+        builder.add_button("媒体过滤", f"new_menu:media_settings:{rid}", icon=UIStatus.FILTER)
+        builder.add_button("AI 增强", f"new_menu:ai_settings:{rid}", icon=UIStatus.DOT)
         builder.add_button("同步/推送", f"new_menu:rule_sync_push:{rid}", icon=UIStatus.SYNC)
         builder.add_button("关键词管理", f"new_menu:keywords:{rid}", icon=UIStatus.SEARCH)
         builder.add_button("替换规则管理", f"new_menu:replaces:{rid}", icon=UIStatus.SYNC)
@@ -220,4 +220,108 @@ class RuleRenderer(BaseRenderer):
         builder.add_button("新增替换项", f"new_menu:rr_add:{rule_id}", icon=UIStatus.ADD)
         builder.add_button("清空规则", f"new_menu:clear_replaces_confirm:{rule_id}", icon=UIStatus.TRASH)
         builder.add_button("返回详情", f"new_menu:rule_detail:{rule_id}", icon=UIStatus.BACK)
+        return builder.build()
+
+    def render_media_settings(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染媒体过滤高级设置页"""
+        rule = data.get('rule', {})
+        rid = rule.get('id')
+        
+        builder = self.new_builder()
+        builder.set_title(f"媒体过滤 - {rid}", icon=UIStatus.FILTER)
+        builder.add_breadcrumb(["首页", "规则库", rid, "媒体过滤"])
+        
+        builder.add_section("媒体类型控制", [
+            f"图片/视频/文档/音频/语音的细精细化准入控制。"
+        ])
+        
+        builder.add_button(f"精细化类型设置", f"new_menu:media_types:{rid}", icon="📷")
+        builder.add_button(f"最大文件限制: {rule.get('max_media_size', 10)}MB", f"new_menu:set_rule_val:{rid}:max_media_size", icon="📦")
+        builder.add_button(f"扩展名黑/白名单", f"new_menu:media_extensions:{rid}", icon="📄")
+        
+        builder.add_section("高级维度过滤", [
+            f"时长过滤: {'✅ 启用' if rule.get('enable_duration_filter') else '❌ 禁用'}",
+            f"分辨率过滤: {'✅ 启用' if rule.get('enable_resolution_filter') else '❌ 禁用'}",
+            f"字节范围过滤: {'✅ 启用' if rule.get('enable_file_size_range') else '❌ 禁用'}"
+        ])
+        
+        builder.add_button(f"时长: {rule.get('min_duration', 0)}s - {rule.get('max_duration', '∞')}s", f"new_menu:set_rule_val:{rid}:duration_range")
+        builder.add_button(f"分辨率: {rule.get('min_width', 0)}x{rule.get('min_height', 0)} 起", f"new_menu:set_rule_val:{rid}:resolution_range")
+        
+        builder.add_button("返回详情", f"new_menu:rule_detail:{rid}", icon=UIStatus.BACK)
+        return builder.build()
+
+    def render_ai_settings(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染 AI 增强设置页"""
+        rule = data.get('rule', {})
+        rid = rule.get('id')
+        
+        builder = self.new_builder()
+        builder.set_title(f"AI 智慧引擎 - {rid}", icon=UIStatus.DOT)
+        builder.add_breadcrumb(["首页", "规则库", rid, "AI 增强"])
+        
+        builder.add_section("内容重写 (Rewrite)", [
+            f"启用 AI 重写: {'✅' if rule.get('is_ai') else '❌'}",
+            f"当前模型: `{rule.get('ai_model') or '默认'}`"
+        ])
+        
+        builder.add_button("切换 AI 重写", f"new_menu:toggle_rule_set:{rid}:is_ai", icon=UIStatus.SYNC)
+        builder.add_button("模型切换", f"new_menu:set_rule_val:{rid}:ai_model", icon="🤖")
+        builder.add_button("编辑重写提示词", f"new_menu:set_rule_val:{rid}:ai_prompt", icon="📝")
+        
+        builder.add_section("定时总结 (Summary)", [
+            f"启用定时总结: {'✅' if rule.get('is_summary') else '❌'}",
+            f"总结频率: 每天 `{rule.get('summary_time', '07:00')}`",
+            f"置顶今日总结: {'✅' if rule.get('is_top_summary') else '❌'}"
+        ])
+        
+        builder.add_button("切换定时总结", f"new_menu:toggle_rule_set:{rid}:is_summary", icon=UIStatus.SYNC)
+        builder.add_button("设置总结时间", f"new_menu:set_rule_val:{rid}:summary_time", icon="⏰")
+        builder.add_button("编辑总结提示词", f"new_menu:set_rule_val:{rid}:summary_prompt", icon="✍️")
+        builder.add_button(f"置顶设置: {'开启' if rule.get('is_top_summary') else '关闭'}", f"new_menu:toggle_rule_set:{rid}:is_top_summary")
+        
+        builder.add_button("返回详情", f"new_menu:rule_detail:{rid}", icon=UIStatus.BACK)
+        return builder.build()
+
+    def render_single_rule_status(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染单条规则的实时运行状态"""
+        rule = data.get('rule', {})
+        rid = rule.get('id', 'N/A')
+        stats = data.get('stats', {})
+        logs = data.get('logs', [])
+        
+        builder = self.new_builder()
+        builder.set_title(f"运行状态 - {rid}", icon="📊")
+        builder.add_breadcrumb(["首页", "规则库", str(rid), "状态"])
+        
+        # 1. 核心统计数据
+        builder.add_section("今日转发看板", [
+            f"成功次数: `{stats.get('success_count', 0)}` 次",
+            f"失败次数: `{stats.get('error_count', 0)}` 次",
+            f"过滤跳过: `{stats.get('filtered_count', 0)}` 次",
+            f"运行状态: {'🟢 正常' if rule.get('enabled', True) else '🔴 已停止'}"
+        ])
+        
+        # 2. 最近流水记录
+        if not logs:
+            builder.add_section("流水记录", "📭 暂无转发记录，规则可能刚启用或未匹配到消息。", icon=UIStatus.INFO)
+        else:
+            log_lines = []
+            for log in logs[:5]:
+                # 尝试格式化时间
+                dt = log.get('created_at')
+                dt_str = "--:--"
+                if hasattr(dt, 'strftime'):
+                    dt_str = dt.strftime('%H:%M:%S')
+                elif isinstance(dt, str) and 'T' in dt:
+                    dt_str = dt.split('T')[1][:8]
+                
+                status = "✅" if log.get('action') == 'success' else "❌"
+                latency = f"{log.get('processing_time', 0)}ms"
+                msg_type = (log.get('message_type') or 'text').upper()
+                log_lines.append(f"`{dt_str}` {status} [{msg_type}] ({latency})")
+            builder.add_section("最近记录 (Limit 5)", log_lines, icon="🕒")
+            
+        builder.add_button("导出记录", f"new_menu:export_rule_logs:{rid}", icon="📤")
+        builder.add_button("返回规则详情", f"new_menu:rule_detail:{rid}", icon=UIStatus.BACK)
         return builder.build()

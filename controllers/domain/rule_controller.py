@@ -70,11 +70,17 @@ class RuleController(BaseController):
             # 返回对应的设置子页面
             basic_keys = ['use_bot', 'forward_mode', 'handle_mode', 'is_delete_original']
             display_keys = ['message_mode', 'is_preview', 'is_original_sender', 'is_original_time', 'is_original_link', 'is_filter_user_info', 'enable_comment_button']
+            media_keys = ['enable_duration_filter', 'enable_resolution_filter', 'enable_file_size_range']
+            ai_keys = ['is_ai', 'is_summary', 'is_top_summary']
             
             if field in basic_keys:
                 await self.show_basic_settings(event, rule_id)
             elif field in display_keys:
                 await self.show_display_settings(event, rule_id)
+            elif field in media_keys:
+                await self.show_media_settings(event, rule_id)
+            elif field in ai_keys:
+                await self.show_ai_settings(event, rule_id)
             else:
                 await self.show_advanced_settings(event, rule_id)
         except Exception as e:
@@ -271,3 +277,75 @@ class RuleController(BaseController):
         """显示规则同步配置"""
         from handlers.button.modules.rules_menu import rules_menu
         await rules_menu.show_sync_config(event, rule_id)
+
+    async def show_media_settings(self, event, rule_id: int):
+        """显示媒体设置页"""
+        try:
+            data = await rule_management_service.get_rule_detail(rule_id)
+            view_result = self.container.ui.rule.render_media_settings({'rule': data})
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_ai_settings(self, event, rule_id: int):
+        """显示 AI 设置页"""
+        try:
+            data = await rule_management_service.get_rule_detail(rule_id)
+            view_result = self.container.ui.rule.render_ai_settings({'rule': data})
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def enter_set_value_state(self, event, rule_id: int, key: str):
+        """进入设置数值或文本的状态"""
+        field_names = {
+            'max_media_size': '最大文件限制 (MB)',
+            'ai_model': 'AI 模型名称',
+            'ai_prompt': 'AI 重写提示词',
+            'summary_time': '定时总结时间 (HH:mm)',
+            'summary_prompt': '总结提示词',
+            'delay_seconds': '延迟处理秒数'
+        }
+        name = field_names.get(key, key)
+        await self._set_user_state(event, f"set_val:{rule_id}:{key}", rule_id)
+        
+        text = f"请输入 **{name}** 的新值。完成后按回车发送即可。\n\n也可发送 `取消` 直接返回。"
+        buttons = [[Button.inline("❌ 取消", f"new_menu:rule_detail:{rule_id}")]]
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system._render_page(event, f"📝 设置 {name}", [text], buttons)
+
+    async def show_sync_rule_picker(self, event, rule_id: int, page: int = 0):
+        """显示同步规则选择器"""
+        from handlers.button.button_helpers import create_sync_rule_buttons
+        buttons = await create_sync_rule_buttons(rule_id, page=page)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system._render_page(
+            event, 
+            "🔗 **同步目标管理**", 
+            ["请选择要同步状态的目标规则：\n(开启后，源规则转发成功会自动激活目标规则)"], 
+            buttons,
+            breadcrumb=f"🏠 > 📝 {rule_id} > 🔗 > ⚙️"
+        )
+
+    async def toggle_rule_sync(self, event, rule_id: int, target_id: int, page: int):
+        """切换同步关系"""
+        try:
+            await rule_management_service.toggle_rule_sync(rule_id, target_id)
+            await event.answer("✅ 同步状态已更新")
+            await self.show_sync_rule_picker(event, rule_id, page)
+        except Exception as e:
+            return self.handle_exception(e)

@@ -66,14 +66,16 @@ class StatsRepository:
             # Optional: Retry logic or drop? For logs, dropping is acceptable to avoid deadlock.
             # But let's log error.
 
-    async def log_action(self, rule_id, msg_id, status, result=None):
+    async def log_action(self, rule_id, msg_id, status, result=None, msg_text=None, msg_type=None, processing_time=None):
         """记录详细日志 (Buffered)"""
         # Create log entry dictionary
-        # RuleLog expects: rule_id, action, source_message_id, result
         log_entry = {
             "rule_id": rule_id,
             "message_id": msg_id,
             "action": status,
+            "message_text": msg_text[:500] if msg_text else None, # 限制长度防止数据库膨胀
+            "message_type": msg_type,
+            "processing_time": int(processing_time) if processing_time is not None else None,
             "details": str(result) if result else "",
             "created_at": datetime.utcnow()
         }
@@ -243,7 +245,8 @@ class StatsRepository:
                     RuleStatistics.rule_id,
                     func.sum(RuleStatistics.total_triggered).label('processed'),
                     func.sum(RuleStatistics.success_count).label('forwarded'),
-                    func.sum(RuleStatistics.error_count).label('error')
+                    func.sum(RuleStatistics.error_count).label('error'),
+                    func.sum(RuleStatistics.filtered_count).label('filtered')
                 )
                 .where(RuleStatistics.rule_id.in_(rule_ids))
                 .group_by(RuleStatistics.rule_id)
@@ -255,7 +258,8 @@ class StatsRepository:
                 stats_map[row.rule_id] = {
                     'processed': int(row.processed or 0),
                     'forwarded': int(row.forwarded or 0),
-                    'error': int(row.error or 0)
+                    'error': int(row.error or 0),
+                    'filtered': int(row.filtered or 0)
                 }
                 
             # Fill missing with zeros
