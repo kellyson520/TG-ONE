@@ -258,9 +258,11 @@ async def handle_command(client, event):
             await event.respond("未知命令，请使用 /help 查看帮助")
     except FloodWaitError as e:
         # 下调日志级别为 warning，并提供更详细的建议
+        from datetime import datetime, timedelta
+        unlock_time = (datetime.now() + timedelta(seconds=e.seconds)).strftime('%Y-%m-%d %H:%M')
         logger.warning(
             f"⚠️ [Bot命令] 检测到速率限制 (FloodWait): TraceID={trace_id}, "
-            f"需要等待={e.seconds}秒. "
+            f"需要等待={e.seconds}秒 (预计 {unlock_time} 解除). "
             f"{'这通常源于账号受限或代理问题' if e.seconds > 300 else '建议稍后重试'}."
         )
         # 尝试通过 respond 告知用户（虽然可能依然失败，但比直接沉默好）
