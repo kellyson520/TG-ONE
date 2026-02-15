@@ -28,26 +28,40 @@
 
 ## 🚀 快速开始
 
-### 1. 安装依赖
+## 🚀 快速开始
+
+### 1. 技术栈说明
+- **前端**: React + Vite + TypeScript + Tailwind CSS (位于 `web_admin/frontend`)
+- **后端**: FastAPI (位于 `web_admin` 根目录)
+
+### 2. 开发环境设置
+
+#### 后端
+系统集成在主进程中，随 `python main.py` 自动启动 FastAPI 服务。
+默认端口: `9000`
+
+#### 前端 (开发模式)
+```bash
+cd web_admin/frontend
+npm install
+npm run dev
+```
+访问: `http://localhost:5173`
+
+### 3. 构建与部署
+
+前端构建产物由 FastAPI 自动托管。若修改了前端代码，需要重新构建：
 
 ```bash
-uv pip install flask flask-cors
+cd web_admin/frontend
+npm run build
 ```
+构建完成后，产物会自动输出到 `web_admin/frontend/dist`，重启 Python 主程序即可生效。
 
-### 2. 启动Web管理系统
+### 4. 访问管理界面 (生产环境)
 
-系统已集成在主进程中，随 `python main.py` 自动启动。若需单独配置，请在 `.env` 中修改 `WEB_PORT`。
-
-默认配置下：
-- **监听端口**: 9000 (容器内)
-- **Host映射**: 9810 (配套 docker-compose.yml)
-
-### 3. 访问管理界面
-
-打开浏览器访问以下地址：
-
-- **主页 (本地)**: http://localhost:9000
-- **主页 (Docker 映射)**: http://localhost:9810
+- **主页**: http://localhost:9000
+- **Docker 映射**: 默认映射到宿主机 9810 端口 -> `http://localhost:9810`
 
 ## 📖 使用指南
 
@@ -84,28 +98,15 @@ uv pip install flask flask-cors
 
 ## 🛠️ API接口
 
-Web管理系统提供完整的RESTful API，支持以下操作：
+后端提供完整的 RESTful API，基于 FastAPI 构建，支持 Swagger UI 文档 (访问 `/docs`)。
 
-### 系统状态
-- `GET /api/status` - 获取系统状态
-- `GET /api/stats/overview` - 获取统计概览
+### 核心模块
+- **认证**: `POST /api/auth/token`, `POST /api/auth/login`
+- **系统**: `GET /api/system/stats`, `GET /api/system/logs`
+- **规则**: `GET /api/rules`, `POST /api/rules`
+- **WS**: `WS /ws/logs` (实时日志推送)
 
-### 规则管理
-- `GET /api/rules` - 获取所有规则
-- `GET /api/rules/{id}` - 获取单个规则详情
-- `POST /api/rules/{id}/toggle` - 切换规则启用状态
-- `DELETE /api/rules/{id}` - 删除规则
-
-### 聊天管理
-- `GET /api/chats` - 获取所有聊天
-- `POST /api/chats` - 添加新聊天
-
-### 配置管理
-- `GET /api/config` - 获取系统配置
-- `POST /api/config` - 更新系统配置
-
-### 可视化数据
-- `GET /api/visualization/graph` - 获取可视化图数据
+详细文档请参考在线 Swagger UI。
 
 ## 🎨 界面预览
 
@@ -134,19 +135,21 @@ Web管理系统提供完整的RESTful API，支持以下操作：
 
 ## 🔧 高级配置
 
-### 环境变量
+### 环境变量 (.env)
 
 ```bash
-# Flask应用配置
-FLASK_ENV=production
-FLASK_DEBUG=0
+# Web Admin Port
+WEB_PORT=9000
+
+# Security (JWT)
+SECRET_KEY=your_secret_key_here
+ACCESS_TOKEN_EXPIRE_MINUTES=43200
 
 # 数据库配置
 DATABASE_URL=sqlite:///./db/forward.db
 
 # API配置
 API_RATE_LIMIT=100
-API_TIMEOUT=30
 ```
 
 ### 自定义主题

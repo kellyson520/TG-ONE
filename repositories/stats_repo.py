@@ -191,10 +191,15 @@ class StatsRepository:
             items = result.scalars().all()
             return {'items': items, 'total': total, 'total_pages': (total + size - 1) // size}
             
+from sqlalchemy.orm import joinedload
+
     async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50):
         """获取规则转发日志"""
         async with self.db.get_session() as session:
-            query = select(RuleLog)
+            query = select(RuleLog).options(
+                joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
+                joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
+            )
             if rule_id:
                 query = query.filter(RuleLog.rule_id == rule_id)
             
@@ -227,10 +232,14 @@ class StatsRepository:
             return [{'name': row.message_type or 'Unknown', 'value': row.count} for row in result]
 
     async def get_recent_activity(self, limit: int = 10):
-        """获取最近的系统活动日志"""
+        """获取最近的系统 activity 日志"""
         async with self.db.get_session() as session:
             stmt = (
                 select(RuleLog)
+                .options(
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
+                )
                 .order_by(RuleLog.created_at.desc())
                 .limit(limit)
             )
