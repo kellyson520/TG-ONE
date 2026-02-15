@@ -633,9 +633,10 @@ class AnalyticsService:
             from sqlalchemy import select, or_
             from models.models import RuleLog
             
+            from sqlalchemy.orm import joinedload
             async with self.container.db.get_session() as session:
-                # 搜索规则日志
-                stmt = select(RuleLog).filter(
+                # 搜索规则日志，预加载关联的规则以获取频道 ID
+                stmt = select(RuleLog).options(joinedload(RuleLog.rule)).filter(
                     or_(
                         RuleLog.message_text.like(f'%{query}%'),
                         RuleLog.action.like(f'%{query}%')
@@ -645,15 +646,20 @@ class AnalyticsService:
                 result = await session.execute(stmt)
                 logs = result.scalars().all()
                 
-                records = [{
-                    'id': log.id,
-                    'rule_id': log.rule_id,
-                    'action': log.action,
-                    'message_text': log.message_text[:100] if log.message_text else '',
-                    'created_at': log.created_at,
-                    'source_chat_id': log.source_chat_id,
-                    'target_chat_id': log.target_chat_id
-                } for log in logs]
+                records = []
+                for log in logs:
+                    source_id = log.rule.source_chat_id if log.rule else "未知"
+                    target_id = log.rule.target_chat_id if log.rule else "未知"
+                    
+                    records.append({
+                        'id': log.id,
+                        'rule_id': log.rule_id,
+                        'action': log.action,
+                        'message_text': log.message_text[:100] if log.message_text else '',
+                        'created_at': log.created_at,
+                        'source_chat_id': source_id,
+                        'target_chat_id': target_id
+                    })
                 
                 return {
                     'query': query,

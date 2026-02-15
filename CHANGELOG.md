@@ -1,6 +1,17 @@
 
 ## 📅 2026-02-15 更新摘要
 
+### 🚀 v1.2.5.2: 转发中心与搜索稳定性提升 (Forwarding & Analytics Stability)
+- **Analytics Service 搜索修复**:
+    - **AttributeError 治理**: 修复了 `AnalyticsService.search_records` 方法中，因直接访问 `RuleLog` 对象不存在的 `source_chat_id` 和 `target_chat_id` 属性导致的崩溃。
+    - **关联预加载 (joinedload)**: 引入 `sqlalchemy.orm.joinedload` 预加载关联的 `ForwardRule` 模型。这不仅修复了属性访问问题，还通过单次 SQL 查询解决了 N+1 查询性能瓶颈。
+    - **防御性访问**: 在构造结果集时通过 `log.rule` 安全访问字段，并对缺失规则的情况提供了 `"未知"` 的优雅回退，提高了数据的展示容错性。
+- **转发日志显示优化**:
+    - **未知实体修复**: 修复了由于 `analytics_service` 内部逻辑缺陷导致的 Source Entity/Target Entity 在某些场景下显示为 `Unknown` 的问题，确保了管理端日志的可读性。
+- **质量与验证**:
+    - **新增单测**: 在 `tests/unit/services/test_analytics_service.py` 中新增了 `test_search_records` 测试，完整覆盖了搜索逻辑、属性访问及空值处理路径。
+    - **Mock 健壮性**: 修复了原有 `AnalyticsService` 单元测试中对异步组件 (`stats_repo`, `bot_client`) 的 Mock 不完整问题，提升了本地 CI 的稳定性。
+
 ### 🚀 Web Admin React UI Integration (Web UI Refactor)
 - **Frontend Architecture**:
     - **Single Page Application (SPA)**: 完全集成了基于 React + Vite 的现代化单页应用前端，替代了旧版基于 Jinja2 模板的后端渲染页面。

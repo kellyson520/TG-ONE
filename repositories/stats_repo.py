@@ -1,6 +1,7 @@
 from typing import Optional
-from models.models import RuleLog, ChatStatistics, ErrorLog, RuleStatistics
+from models.models import RuleLog, ChatStatistics, ErrorLog, RuleStatistics, ForwardRule
 from sqlalchemy import select, update, insert, func
+from sqlalchemy.orm import joinedload
 from datetime import date, datetime
 import asyncio
 import logging
@@ -190,8 +191,6 @@ class StatsRepository:
             )
             items = result.scalars().all()
             return {'items': items, 'total': total, 'total_pages': (total + size - 1) // size}
-            
-from sqlalchemy.orm import joinedload
 
     async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50):
         """获取规则转发日志"""

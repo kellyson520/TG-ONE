@@ -33,7 +33,15 @@ async def test_get_analytics_overview(analytics_service):
                 'cached_signatures': 500
             }
             
-            result = await analytics_service.get_analytics_overview()
+            # Mock stats_repo to prevent await failure in get_detailed_stats
+            mock_stats_repo = AsyncMock()
+            mock_stats_repo.get_hourly_trend.return_value = []
+            mock_container.stats_repo = mock_stats_repo
+            
+            # Mock stats_repo related methods
+            with patch.object(analytics_service, 'get_daily_summary', new_callable=AsyncMock) as mock_daily:
+                mock_daily.return_value = {'total_forwards': 50}
+                result = await analytics_service.get_analytics_overview()
             
             assert result['overview']['total_rules'] == 10
             assert result['overview']['active_rules'] == 5
@@ -42,10 +50,16 @@ async def test_get_analytics_overview(analytics_service):
 
 @pytest.mark.asyncio
 async def test_get_system_status(analytics_service):
-    with patch('models.models.get_db_health') as mock_db_health, \
+    mock_container = MagicMock()
+    mock_container.bot_client.is_connected.return_value = True
+    mock_container.user_client.is_connected.return_value = True
+    
+    with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop, \
+         patch('models.models.get_db_health') as mock_db_health, \
          patch('services.analytics_service.get_heartbeat') as mock_heartbeat, \
          patch('services.dedup.engine.smart_deduplicator.config', PropertyMock(return_value={'enable_time_window': True})):
         
+        mock_container_prop.return_value = mock_container
         mock_db_health.return_value = {'connected': True}
         mock_heartbeat.return_value = {'status': 'running', 'age_seconds': 10}
         
@@ -53,6 +67,7 @@ async def test_get_system_status(analytics_service):
         
         assert result['db'] == 'running'
         assert result['bot'] == 'running'
+        assert result['user'] == 'running'
         assert result['dedup'] == 'running'
 
 @pytest.mark.asyncio
@@ -66,6 +81,13 @@ async def test_get_performance_metrics(analytics_service):
     
     mock_container = MagicMock()
     mock_container.task_repo = mock_task_repo
+    
+    # Mock database session for TPS/response time calculation
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.first.return_value = MagicMock(count=10, avg_time=500)
+    mock_session.execute.return_value = mock_result
+    mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
     
     with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop:
         mock_container_prop.return_value = mock_container
@@ -91,3 +113,39 @@ async def test_get_performance_metrics(analytics_service):
             assert result['queue_status']['pending_tasks'] == 50
             # Success rate 99% -> Error rate 1.0% -> "1.0%"
             assert result['queue_status']['error_rate'] == "1.0%"
+            # Verify TPS calculation (10 / 600 = 0.0166... -> 0.02)
+            assert result['performance']['current_tps'] == 0.02
+
+@pytest.mark.asyncio
+async def test_search_records(analytics_service):
+    from models.models import RuleLog
+    # Mocking RuleLog with spec to ensure AttributeError is raised for missing attributes
+    mock_log = MagicMock(spec=RuleLog)
+    mock_log.id = 1
+    mock_log.rule_id = 101
+    mock_log.action = 'forwarded'
+    mock_log.message_text = 'Hello World'
+    mock_log.created_at = '2026-02-15 12:00:00'
+    
+    mock_rule = MagicMock()
+    mock_rule.source_chat_id = 12345
+    mock_rule.target_chat_id = 67890
+    mock_log.rule = mock_rule
+    
+    # Mocking database session and result
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars().all.return_value = [mock_log]
+    mock_session.execute.return_value = mock_result
+    
+    mock_container = MagicMock()
+    mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
+    
+    with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop:
+        mock_container_prop.return_value = mock_container
+        
+        result = await analytics_service.search_records(query='Hello')
+        assert 'records' in result
+        assert len(result['records']) == 1
+        assert result['records'][0]['source_chat_id'] == 12345
+        assert result['records'][0]['target_chat_id'] == 67890

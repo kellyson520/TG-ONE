@@ -1,7 +1,11 @@
-VERSION = "1.2.5.1"
+VERSION = "1.2.5.2"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.5.2: 转发中心与搜索稳定性提升
+  - 修复 `AnalyticsService.search_records` 中 `RuleLog` 缺失属性导致的 `AttributeError`
+  - 优化转发记录搜索性能，通过 `joinedload` 预加载关联规则减少数据库查询
+  - 修复转发日志中 Source Entity/Target Entity 显示为 Unknown 的问题 (归属于前序任务)
 - v1.2.5.1: 更新自愈与健康检查稳定性优化
   - 修复 UpdateService 健康检查重复计数导致的回滚死循环
   - 引入 UpdateService 的进程级单次验证锁 (Health Check Debounce)

@@ -45,13 +45,13 @@ class RuleDTOMapper:
             "replace_rules_count": len(rule.replace_rules) if rule.replace_rules else 0,
             "source_chat": {
                 "id": rule.source_chat.id,
-                "title": rule.source_chat.name,
+                "title": rule.source_chat.title or rule.source_chat.name,
                 "telegram_chat_id": rule.source_chat.telegram_chat_id,
                 "username": rule.source_chat.username
             } if rule.source_chat else None,
             "target_chat": {
                 "id": rule.target_chat.id,
-                "title": rule.target_chat.name,
+                "title": rule.target_chat.title or rule.target_chat.name,
                 "telegram_chat_id": rule.target_chat.telegram_chat_id,
                 "username": rule.target_chat.username
             } if rule.target_chat else None,
@@ -78,9 +78,11 @@ class RuleDTOMapper:
         try:
              if item.rule:
                 if item.rule.source_chat:
-                    source_title = item.rule.source_chat.name or item.rule.source_chat.username or str(item.rule.source_chat.telegram_chat_id)
+                    chat = item.rule.source_chat
+                    source_title = chat.title or chat.name or chat.username or str(chat.telegram_chat_id)
                 if item.rule.target_chat:
-                    target_title = item.rule.target_chat.name or item.rule.target_chat.username or str(item.rule.target_chat.telegram_chat_id)
+                    chat = item.rule.target_chat
+                    target_title = chat.title or chat.name or chat.username or str(chat.telegram_chat_id)
         except Exception as e:
             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
