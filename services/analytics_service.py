@@ -281,7 +281,7 @@ class AnalyticsService:
                 },
                 "performance": {
                     "success_rate": success_rate,
-                    "avg_response_time": avg_response_time or 0.1, # 默认保底值
+                    "avg_response_time": avg_response_time or 0, # 默认保底值
                     "current_tps": current_tps,
                     "status": "good" if success_rate > 90 else "poor",
                 },
@@ -413,11 +413,8 @@ class AnalyticsService:
                 logger.warning(f"获取类型分布失败: {e}")
             
             if not type_dist:
-                 # 回退方案
-                 type_dist = [
-                    {"name": "文本", "count": int(today_summary.get("total_forwards", 0) * 0.7), "percentage": 70},
-                    {"name": "媒体", "count": int(today_summary.get("total_forwards", 0) * 0.3), "percentage": 30},
-                ]
+                 # 回退方案 - 既然用户通过真实数据反馈，则不再生成虚假分布
+                 pass
             
             return {
                 "daily_trends": [

@@ -26,7 +26,7 @@ async def get_current_user_profile(user = Depends(login_required)):
         'username': user.username,
         'is_admin': user.is_admin,
         'is_2fa_enabled': getattr(user, 'is_2fa_enabled', False),
-        'last_login': user.last_login.isoformat() if user.last_login else None
+        'last_login': user.last_login.isoformat() if hasattr(user.last_login, 'isoformat') else user.last_login
     })
 
 
@@ -42,7 +42,7 @@ async def list_users(user = Depends(admin_required)):
                 'username': u.username,
                 'is_admin': u.is_admin,
                 'is_active': getattr(u, 'is_active', True),
-                'created_at': u.created_at.isoformat() if u.created_at else None
+                'created_at': u.created_at.isoformat() if hasattr(u.created_at, 'isoformat') else u.created_at
             })
         return ResponseSchema(success=True, data=user_list)
     except Exception as e:

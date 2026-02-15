@@ -257,9 +257,9 @@ async def get_current_user_profile(user = Depends(login_required)):
         "username": user.username,
         "role": "admin" if user.is_admin else "user",
         "email": getattr(user, "email", ""),
-        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "created_at": user.created_at.isoformat() if hasattr(user.created_at, "isoformat") else user.created_at,
         "is_2fa_enabled": getattr(user, "is_2fa_enabled", False),
-        "last_login": user.last_login.isoformat() if user.last_login else None
+        "last_login": user.last_login.isoformat() if hasattr(user.last_login, "isoformat") else user.last_login
     }
 
 @router.post("/login/2fa", response_model=TokenResponse)
