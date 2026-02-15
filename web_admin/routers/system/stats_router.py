@@ -136,6 +136,32 @@ async def delete_task(
         return ResponseSchema(success=False, error=str(e))
 
 
+@router.get("/resources", response_model=ResponseSchema)
+async def get_system_resources(
+    user = Depends(login_required)
+):
+    """获取系统实时资源状态 (Lightweight)"""
+    try:
+        import psutil
+        
+        # CPU - 非阻塞调用
+        cpu = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        
+        return ResponseSchema(
+            success=True,
+            data={
+                "cpu_percent": cpu,
+                "memory_percent": mem.percent,
+                "timestamp": "now"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error fetching resources: {e}")
+        return ResponseSchema(success=False, error=str(e))
+
+
+
 @router.get("/stats", response_model=ResponseSchema)
 async def get_system_stats(
     user: Optional[dict] = Depends(login_required)
