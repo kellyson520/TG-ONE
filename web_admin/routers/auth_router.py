@@ -247,6 +247,21 @@ async def login(
         "message": "Login successful"
     }
 
+@router.get("/me")
+async def get_current_user_profile(user = Depends(get_current_user)):
+    """
+    Get current logged in user details.
+    """
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": "admin" if user.is_admin else "user",
+        "email": getattr(user, "email", ""),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "is_2fa_enabled": getattr(user, "is_2fa_enabled", False),
+        "last_login": user.last_login.isoformat() if user.last_login else None
+    }
+
 @router.post("/login/2fa", response_model=TokenResponse)
 async def login_2fa(
     request: Request,

@@ -24,156 +24,36 @@ router = APIRouter(prefix="/api/stats", tags=["Stats"])
 
 @router.get("/overview", response_model=ResponseSchema)
 async def api_stats_overview(request: Request, user = Depends(login_required)):
-
-    """获取统计总览"""
+    """获取统计总览 (统一入口)"""
     try:
-        # 初始化统计数据
-        base = {}
-        perf = {}
+        from services.analytics_service import analytics_service
         
-        # 获取系统资源使用情况
-        sys_res = {}
-        try:
-            local_sys = await realtime_stats_cache.get_system_stats(force_refresh=True)
-            if isinstance(local_sys, dict):
-                sys_res = local_sys.get('system_resources', {})
-        except Exception as e:
-            logger.error(f"Error getting system stats: {e}")
+        # 1. 获取基础概览
+        overview = await analytics_service.get_analytics_overview()
         
-        # 获取队列状态
-        queue_status = {}
-        try:
-            # ✅ 调用 Repository，逻辑收敛
-            queue_status = await container.task_repo.get_queue_status()
-        except Exception as e:
-            logger.error(f"Error getting queue status: {e}")
+        # 2. 获取性能指标
+        perf = await analytics_service.get_performance_metrics()
         
-        # 获取规则统计
-        overview = {}
-        try:
-            # ✅ 调用 Repository，逻辑收敛
-            rule_stats = await container.task_repo.get_rule_stats()
-            overview = {
-                'total_rules': rule_stats['total_rules'],
-                'active_rules': rule_stats['active_rules'],
-                'total_chats': rule_stats['total_chats']
-            }
-        except Exception as e:
-            logger.error(f"Error getting stats overview: {e}\n{traceback.format_exc()}")
-            overview = {'total_rules': 0, 'active_rules': 0, 'total_chats': 0, 'error': str(e)}
-        
-        # 获取转发统计
-        forward_stats = {'total_forwards': 0}
-        try:
-            fs = await forward_service.get_forward_stats()
-            if isinstance(fs, dict):
-                ft = int(((fs.get('today') or {}).get('total_forwards') or 0))
-                if ft >= 0:
-                    forward_stats = {'total_forwards': ft}
-                    # logger.info(f"统计总览使用业务层数据: today_total={ft}")
-        except Exception as e:
-            logger.warning(f"统计总览获取业务层转发统计失败: {e}")
-        
-        # 获取去重统计
-        dedup_stats = {'cached_signatures': 0}
-        try:
-            dedup = smart_deduplicator.get_stats()
-            dedup_stats = {'cached_signatures': int(dedup.get('cached_signatures', 0))}
-        except Exception as e:
-            logger.error(f"Error getting dedup stats: {e}")
-        
-        # 构建性能指标
-        perf = {
-            'system_resources': sys_res,
-            'queue_status': {
-                'active_queues': queue_status.get('active_queues', 0),
-                'avg_delay': '0s',
-                'error_rate': queue_status.get('error_rate', 0)
-            },
-            'performance': {}
-        }
-        
-        system_resources = perf.get('system_resources', {})
-        queue_status = perf.get('queue_status', {})
-        performance = perf.get('performance', {})
-        
-        # 服务状态检查 - 移除自引用 HTTP 请求防止单线程死锁
-        api_status = 'running'
-        ready_status = 'running'
-        
-        try:
-            db_health = await async_get_db_health()
-            if not db_health.get('connected'):
-                api_status = 'warning'
-        except Exception:
-            api_status = 'stopped'
-
-        try:
-            bt = settings.BOT_TOKEN
-            api_id = settings.API_ID
-            user_id = settings.USER_ID
-            cfg_ready = bool(str(bt or '').strip()) and bool(str(api_id or '').strip()) and bool(str(user_id or '').strip())
-            if not cfg_ready:
-                ready_status = 'warning'
-        except Exception:
-            ready_status = 'stopped'
-        
-        db = {}
-        try:
-            db = await async_get_db_health()
-        except Exception:
-            db = {}
-        db_status = 'running' if bool(db.get('connected')) else 'stopped'
-        
-        # Bot 状态检查 - 使用线程池避免网络请求阻塞
-        bot_status = 'unknown'
-        try:
-            from fastapi.concurrency import run_in_threadpool
-            hb = await run_in_threadpool(get_heartbeat)
-            age = float(hb.get('age_seconds') or 9999)
-            hbs = str(hb.get('status') or '')
-            if hbs == 'running' and age < 180:
-                bot_status = 'running'
-            elif hbs:
-                bot_status = 'stopped'
-        except Exception:
-            bot_status = 'unknown'
-        
-        try:
-            if bot_status == 'unknown':
-                if int(forward_stats.get('total_forwards', 0)) > 0:
-                    bot_status = 'running'
-                elif api_status == 'running' and db_status == 'running':
-                    bot_status = 'running'
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-        
-        try:
-            dedup_conf = smart_deduplicator.config or {}
-        except Exception:
-            dedup_conf = {}
-        dedup_enabled = bool(dedup_conf.get('enable_time_window')) or bool(dedup_conf.get('enable_content_hash')) or bool(dedup_stats.get('cached_signatures'))
-        dedup_state = 'running' if dedup_enabled else 'stopped'
+        # 3. 获取服务状态
+        system_status = await analytics_service.get_system_status()
         
         data = {
-            'overview': overview,
-            'forward_stats': forward_stats,
-            'dedup_stats': dedup_stats,
-            'system_resources': system_resources,
-            'queue_status': queue_status,
-            'performance': performance,
-            'service_status': {
-                'bot': bot_status,
-                'api': api_status,
-                'db': db_status,
-                'ready': ready_status,
-                'dedup': dedup_state
-            }
+            'overview': overview.get('overview', {}),
+            'forward_stats': overview.get('forward_stats', {}),
+            'dedup_stats': overview.get('dedup_stats', {}),
+            'system_resources': perf.get('system_resources', {}),
+            'queue_status': perf.get('queue_status', {}),
+            'performance': perf.get('performance', {}),
+            'service_status': system_status.get('service_status', {
+                'bot': 'running' if overview.get('forward_stats', {}).get('total_forwards', 0) > 0 else 'unknown',
+                'api': 'running',
+                'db': 'running'
+            })
         }
         
         return ResponseSchema(success=True, data=data)
     except Exception as e:
-        logger.error(f"Error in api_stats_overview: {str(e)}")
+        logger.error(f"Error in api_stats_overview: {str(e)}\n{traceback.format_exc()}")
         return ResponseSchema(success=False, error=str(e))
 
 
@@ -392,4 +272,3 @@ async def api_stats_system(request: Request, user = Depends(login_required)):
     except Exception as e:
         logger.error(f"Error in api_stats_system: {e}")
         return ResponseSchema(success=False, error=str(e))
-

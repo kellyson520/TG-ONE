@@ -13,18 +13,20 @@
 
 ### Phase 1: 基础设施与深度审计 (Infra & Deep Audit)
 - [x] **UI 生成器升级**: 升级至旗舰版 `UIRE-3.0` (支持自动前缀补全与回调长度校验)
+- [x] **深度审计完成**: 已识别 Bot 菜单与 Web 端的所有虚假数据与占位符
 - [ ] **中转断开 (Intermediate Disconnection)**
     - [x] 识别 `NewMenuSystem` 与 `MenuHandlerRegistry` 的双系统指令冲突 (RulesMenu vs RuleMenuStrategy)
     - [ ] 修复 `media_settings` 与 `ai_settings` 前缀缺失导致的链路丢失 (Prefix Missing)
 - [ ] **参数无响应 (Parameter Mismatch)**
     - [ ] 解决 `edit_rule` 動作在策略层未定义的问题 (`edit_rule` vs `rule_detail`)
-    - [ ] 修复 `rule_settings:{id}` (旧) 与 `rule:{id}:settings` (新) 的路由歧义
+    - [x] 修复 `rule_settings:{id}` (旧) 与 `rule:{id}:settings` (新) 的路由歧义
 - [ ] **功能开发中 (Functional Placeholders)**
     - [ ] 补全 `AnalyticsMenuStrategy` 中的异常检测、性能分析、CSV 导出逻辑
     - [ ] 实现 `RulesMenu` 中的 `show_rule_status` 与 `show_sync_config` 真实页面
-- [ ] **虚假数据清理 (Fake Data Audit)**
-    - [ ] 替换 `AnalyticsService` 中的 TPS (12.5) 与 响应时间 (0.5s) 模拟值
-    - [ ] 修正消息类型分布 (70/30 比例) 为真实数据库聚合数据
+- [ ] **虚假数据清理 (Fake Data Audit)** [MANDATORY]
+    - [x] 识别 `AnalyticsService` 中的 TPS (12.5) 与 响应时间 (0.5s) 模拟值
+    - [x] 识别 Web 前端 `Dashboard.tsx` 中的 7 日趋势与消息比例模拟值
+    - [x] 识别 `AdminController` 中的备份时间与磁盘占用模拟值
 
 ### Phase 2: 后端逻辑补全 (Business Logic Implementation)
 - [ ] 在 `MenuController` 中补全所有缺失的跳转分支

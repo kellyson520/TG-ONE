@@ -435,17 +435,34 @@ class TaskRepository:
             failed = failed_count.scalar() or 0
             total = total_count.scalar() or 0
             
+            # 计算平均延迟 (最近 100 条完成的任务)
+            from sqlalchemy import desc
+            avg_delay = 0
+            try:
+                delay_stmt = (
+                    select(TaskQueue.started_at, TaskQueue.created_at)
+                    .where(TaskQueue.status == 'completed', TaskQueue.started_at != None)
+                    .order_by(desc(TaskQueue.completed_at))
+                    .limit(100)
+                )
+                results = (await session.execute(delay_stmt)).all()
+                if results:
+                    total_delay = sum((r.started_at - r.created_at).total_seconds() for r in results)
+                    avg_delay = total_delay / len(results)
+            except Exception: pass
+
             # 计算错误率
             err_rate = 0.0
             if completed + failed > 0:
                 err_rate = (failed / (completed + failed)) * 100
-            
+
             return {
                 'active_queues': pending,
                 'total_tasks': total,
                 'completed_tasks': completed,
                 'failed_tasks': failed,
-                'error_rate': f"{err_rate:.1f}%"
+                'error_rate': f"{err_rate:.1f}%",
+                'avg_delay': f"{avg_delay:.1f}s"
             }
 
     async def get_rule_stats(self):
@@ -468,13 +485,15 @@ class TaskRepository:
                 'total_chats': total_chats.scalar() or 0
             }
 
-    async def get_tasks(self, page: int = 1, limit: int = 50, status: str = None):
+    async def get_tasks(self, page: int = 1, limit: int = 50, status: str = None, task_type: str = None):
         """分页获取任务列表"""
         async with self.db.get_session() as session:
             # 构建查询
             stmt = select(TaskQueue)
             if status:
                 stmt = stmt.where(TaskQueue.status == status)
+            if task_type:
+                stmt = stmt.where(TaskQueue.task_type == task_type)
             
             # 计算总数
             count_stmt = select(func.count()).select_from(stmt.subquery())

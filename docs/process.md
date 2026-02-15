@@ -176,7 +176,7 @@
 | 20260208_Unified_Command_Menu_UI | 统一命令与菜单系统 UI (视觉与交互对齐) | 2026-02-08 | 进行中 | 10% | [📂 查看](./Workstream_UI/20260208_Unified_Command_Menu_System/todo.md) |
 | 20260211_Menu_Architecture_Deep_Audit | 菜单系统架构深度审计与收尾重构 (Handler Purity + Controller Refactor) | 2026-02-11 | 2026-02-11 | 100% | [[report.md]](./Workstream_Core_Engineering/20260211_Menu_Architecture_Deep_Audit/implementation_report_final.md) |
 | 20260214_UI_Replacement_Feasibility | UI 现代化替换可行性分析 | 2026-02-14 | 进行中 | 30% | [📂 查看](./Workstream_UI_UX/20260214_UI_Replacement_Feasibility/todo.md) |
-| 20260214_Menu_Callback_and_API_Consistency_Audit | 菜单系统回调与接口一致性检查 | 2026-02-14 | 进行中 | 0% | [📂 查看](./Workstream_MenuSystem/20260214_Menu_Callback_and_API_Consistency_Audit/todo.md) |
+| 20260214_Menu_Callback_and_API_Consistency_Audit | 菜单系统回调与接口一致性审计 (数据真实性审计已完成) | 2026-02-14 | 进行中 | 50% | [📂 查看](./Workstream_MenuSystem/20260214_Menu_Callback_and_API_Consistency_Audit/todo.md) |
 
 | 20260206_Fix_Sqlite_Lock_Error | 修复归档任务 SQLite 数据库锁定错误 | 2026-02-06 | 进行中 | 10% | [📂 查看](./Workstream_Maintenance/20260206_Fix_Sqlite_Lock_Error/todo.md) |
 | 20260209_Fix_Shutdown_Hang | 修复系统关闭卡死问题 | 2026-02-09 | 2026-02-10 | 100% | [[report.md]](./docs/Workstream_Bugfix/20260209_Fix_Shutdown_Hang/report.md) |

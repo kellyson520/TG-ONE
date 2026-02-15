@@ -134,3 +134,107 @@ class AdminRenderer(BaseRenderer):
             .add_button("清除去重缓存", action="new_menu:clear_dedup_cache", icon=UIStatus.FILTER)
             .add_button("返回系统中心", action="new_menu:system_hub", icon=UIStatus.BACK)
             .build())
+    def render_analytics_hub(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染转发分析中心"""
+        overview = data.get('overview', {})
+        today_total = overview.get('today_total', 0)
+        yesterday_total = overview.get('yesterday_total', 0)
+        
+        builder = self.new_builder()
+        builder.set_title("转发分析面板", icon="📊")
+        builder.add_breadcrumb(["首页", "分析中心"])
+        
+        builder.add_section("今日转发流", [
+            f"总计转发: {today_total} 条",
+            f"环比昨日: {overview.get('trend', {}).get('text', 'N/A')} ({overview.get('trend', {}).get('percentage', 0)}%)",
+            f"存储占用: {overview.get('data_size_mb', 0.0):.1f} MB"
+        ], icon="📈")
+        
+        top_type = data.get('top_type', {})
+        if top_type:
+            builder.add_section("内容偏好", [
+                f"最热门类型: {top_type.get('type', 'Unknown')} ({top_type.get('count', 0)}次)",
+                f"占比: {top_type.get('percentage', 0):.1f}%"
+            ], icon="🎯")
+            
+        builder.add_button("详细统计", "new_menu:detailed_analytics", icon="📊")
+        builder.add_button("性能分析", "new_menu:performance_analysis", icon="📈")
+        builder.add_button("异常检测", "new_menu:anomaly_detection", icon="🚨")
+        builder.add_button("导出报告", "new_menu:export_csv", icon="📤")
+        builder.add_button("返回主菜单", "new_menu:main_menu", icon=UIStatus.BACK)
+        
+        return builder.build()
+
+    def render_performance_analysis(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染系统性能深度分析"""
+        sr = data.get("system_resources", {})
+        pf = data.get("performance", {})
+        qs = data.get("queue_status", {})
+        
+        builder = self.new_builder()
+        builder.set_title("系统性能分析", icon="⚙️")
+        builder.add_breadcrumb(["首页", "分析", "性能"])
+        
+        builder.add_status_grid({
+            "CPU": f"{sr.get('cpu_percent', 0):.1f}%",
+            "内存": f"{sr.get('memory_percent', 0):.1f}%",
+            "状态": sr.get('status', 'Unknown')
+        })
+        
+        builder.add_section("转发引擎效能", [
+            f"转发成功率: {pf.get('success_rate', 0):.1f}%",
+            f"平均响应时间: {pf.get('avg_response_time', 0)}s",
+            f"当前 TPS: {pf.get('current_tps', 0)}"
+        ], icon="⚡")
+        
+        builder.add_section("调度队列负荷", [
+            f"活跃队列: {qs.get('active_queues', 0)}",
+            f"平均任务延迟: {qs.get('avg_delay', 'N/A')}",
+            f"错误率: {qs.get('error_rate', '0%')}"
+        ], icon="📥")
+        
+        builder.add_button("刷新面板", "new_menu:performance_analysis", icon=UIStatus.SYNC)
+        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        
+        return builder.build()
+    def render_anomaly_detection(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染异常检测报告"""
+        status = data.get("status", "unknown")
+        message = data.get("message", "暂无数据")
+        
+        builder = self.new_builder()
+        builder.set_title("异常检测报告", icon="🚨")
+        builder.add_breadcrumb(["首页", "分析", "异常检测"])
+        
+        icon = "✅" if status == "healthy" else "⚠️" if status == "warning" else "🔴"
+        builder.add_section("扫描结果", [f"{icon} 状态: {status.upper()}", message], icon="🔍")
+        
+        builder.add_section("建议操作", [
+            "• 如果失败率高，请检查网络连接",
+            "• 检查机器人是否在目标频道被禁言",
+            "• 确认 API 限制(FloodWait)是否触发"
+        ], icon="💡")
+        
+        builder.add_button("重新扫描", "new_menu:anomaly_detection", icon=UIStatus.SYNC)
+        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        
+        return builder.build()
+
+    def render_failure_analysis(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染失败分析详情"""
+        logs = data.get("logs", [])
+        builder = self.new_builder()
+        builder.set_title("失败深度分析", icon="🔍")
+        builder.add_breadcrumb(["首页", "分析", "错误排查"])
+        
+        if not logs:
+            builder.add_section("统计", "✨ 今日暂无转发失败记录，表现完美！", icon=UIStatus.SUCCESS)
+        else:
+            builder.add_section("最近失败原因", [
+                f"• {log.get('error', '未知错误')[:100]}" for log in logs[:5]
+            ], icon="❌")
+            
+        builder.add_button("刷新", "new_menu:failure_analysis", icon=UIStatus.SYNC)
+        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        
+        return builder.build()

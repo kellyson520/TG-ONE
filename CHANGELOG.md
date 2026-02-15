@@ -1,4 +1,16 @@
-# Change Log
+
+## 📅 2026-02-15 更新摘要
+
+### 🚀 Web Admin React UI Integration (Web UI Refactor)
+- **Frontend Architecture**:
+    - **Single Page Application (SPA)**: 完全集成了基于 React + Vite 的现代化单页应用前端，替代了旧版基于 Jinja2 模板的后端渲染页面。
+    - **Directory Standardization**: 前端项目规范化部署于 `web_admin/frontend`，构建产物统一输出至 `dist/`，清理了 `ui/app` 和 `ui/static` 等非规范目录。
+- **Backend Integration**:
+    - **Unified API Client**: 实现了 `api-client.ts` 统一处理 API 请求与拦截器，支持 JWT 自动注入与 401 自动跳转。
+    - **Real Authentication**: 完成了 `/api/auth/login`, `/api/auth/me` 等 API 的对接，实现了前端与后端的真实鉴权闭环，移除了所有 Mock 数据。 (Task: `Workstream_Web_Real_Integration`)
+    - **Dashboard Data**: 仪表盘 (`Dashboard.tsx`) 成功对接 `/api/system/stats` 和 `/api/system/resources`，实时展示真实的 CPU/内存/磁盘及业务统计数据。
+- **Build System**:
+    - **Production Ready**: 优化了构建脚本，每次发布自动清理旧版本缓存文件，确保 `dist/` 目录清洁。
 
 ## 📅 2026-02-13 更新摘要
 

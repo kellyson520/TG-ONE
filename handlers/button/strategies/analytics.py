@@ -41,7 +41,7 @@ class AnalyticsMenuStrategy(BaseMenuHandler):
             await menu_controller.show_realtime_monitor(event)
         
         elif action == "anomaly_detection":
-            await event.answer("🚨 异常检测功能开发中", alert=True)
+            await menu_controller.run_anomaly_detection(event)
         
         elif action == "performance_analysis":
             await event.answer("📈 性能分析功能开发中", alert=True)
@@ -50,7 +50,7 @@ class AnalyticsMenuStrategy(BaseMenuHandler):
             await event.answer("📋 详细分析报告开发中", alert=True)
         
         elif action == "export_csv":
-            await event.answer("📤 CSV 导出功能开发中", alert=True)
+            await menu_controller.export_analytics_csv(event)
         
         # 2. DB Performance
         elif action == "db_performance_monitor":

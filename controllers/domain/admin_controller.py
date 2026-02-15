@@ -138,8 +138,8 @@ class AdminController(BaseController):
     async def show_backup_management(self, event):
         """显示备份管理"""
         try:
-            # 模拟数据，实际应从 service 获取
-            data = {'last_backup': '2026-02-09 10:00', 'backup_count': 5}
+            from services.system_service import system_service
+            data = await system_service.get_backup_info()
             view_result = self.container.ui.admin.render_db_backup(data)
             from handlers.button.new_menu_system import new_menu_system
             await new_menu_system._render_page(event, "💾 **数据库备份**", [view_result.text], view_result.buttons)
@@ -149,8 +149,15 @@ class AdminController(BaseController):
     async def show_cache_cleanup(self, event):
         """显示缓存清理"""
         try:
-            data = {'tmp_size': '1.2MB', 'log_size': '450KB', 'dedup_cache_size': '12MB'}
-            view_result = self.container.ui.admin.render_cache_cleanup(data)
+            from services.system_service import system_service
+            data = await system_service.get_cleanup_info()
+            # 映射字段名以符合 Renderer 预期
+            render_data = {
+                'tmp_size': data.get('tmp_size_mb', '0MB'),
+                'log_size': data.get('log_size_mb', '0MB'),
+                'dedup_cache_size': data.get('dedup_cache_size', '0条')
+            }
+            view_result = self.container.ui.admin.render_cache_cleanup(render_data)
             from handlers.button.new_menu_system import new_menu_system
             await new_menu_system._render_page(event, "🗑️ **垃圾清理**", [view_result.text], view_result.buttons)
         except Exception as e:
@@ -184,10 +191,13 @@ class AdminController(BaseController):
     async def do_backup(self, event):
         """执行备份"""
         try:
-            await self.notify(event, "⌛ 备份正在生成中...")
-            # 实际调用备份服务
-            await asyncio.sleep(1) 
-            await self.notify(event, "✅ 备份成功", alert=True)
+            await self.notify(event, "⌛ 备份正在生成中，请耐心等待...")
+            from services.system_service import system_service
+            result = await system_service.backup_database()
+            if result.get('success'):
+                await self.notify(event, f"✅ 备份成功！\n文件: `{os.path.basename(result['path'])}`\n大小: {result['size_mb']:.1f} MB", alert=True)
+            else:
+                await self.notify(event, f"❌ 备份失败: {result.get('error')}", alert=True)
             await self.show_backup_management(event)
         except Exception as e:
              return self.handle_exception(e)
@@ -234,15 +244,51 @@ class AdminController(BaseController):
         except Exception as e:
              return self.handle_exception(e)
 
-    async def show_analytics_hub(self, event):
-        """显示数据分析中心"""
+    async def show_forward_analytics(self, event):
+        """显示转发分析面板"""
         try:
-            overview_data = await analytics_service.get_analytics_overview()
-            # 这里复用 renderer.render_analytics_hub 或者迁移到 admin
-            from ui.menu_renderer import menu_renderer
-            render_data = menu_renderer.render_analytics_hub(overview_data)
+            from services.analytics_service import analytics_service
+            data = await analytics_service.get_analytics_overview()
+            view_result = self.container.ui.admin.render_analytics_hub(data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "📊 **数据分析中心**", [render_data['text']], render_data['buttons'], "🏠 > 📊")
+            await new_menu_system._render_page(
+                event, 
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def run_anomaly_detection(self, event):
+        """运行异常检测"""
+        try:
+            from services.system_service import system_service
+            data = await system_service.run_anomaly_detection()
+            view_result = self.container.ui.admin.render_anomaly_detection(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event, 
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def export_analytics_csv(self, event):
+        """导出分析 CSV"""
+        try:
+            from services.system_service import system_service
+            file_path = await system_service.export_analytics_csv()
+            if file_path and file_path.exists():
+                from services.network.telegram_utils import safe_edit
+                await safe_edit(event, f"✅ 分析报告已生成，正在发送文件...\n路径: `{file_path.name}`", [])
+                await event.client.send_file(event.chat_id, str(file_path), caption=f"📊 TG ONE 转发分析报告 ({datetime.now().strftime('%Y-%m-%d')})")
+            else:
+                await event.answer("❌ 导出失败：没有可导出的数据", alert=True)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -483,7 +529,9 @@ class AdminController(BaseController):
     async def show_db_optimization_config(self, event):
         """显示优化配置"""
         try:
-            data = {'config': {'auto_vacuum': True, 'wal_mode': True, 'sync_mode': 'NORMAL'}}
+            from services.system_service import system_service
+            config = await system_service.get_db_pragma_info()
+            data = {'config': config}
             from ui.menu_renderer import menu_renderer
             rendered = menu_renderer.render_db_optimization_config(data)
             from handlers.button.new_menu_system import new_menu_system
@@ -564,5 +612,40 @@ class AdminController(BaseController):
             rendered = menu_renderer.render_db_optimization_advice(advice)
             from handlers.button.new_menu_system import new_menu_system
             await new_menu_system._render_page(event, "💡 **优化建议**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            return self.handle_exception(e)
+    async def show_performance_analysis(self, event):
+        """显示系统性能分析"""
+        try:
+            from services.analytics_service import analytics_service
+            data = await analytics_service.get_performance_metrics()
+            view_result = self.container.ui.admin.render_performance_analysis(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_failure_analysis(self, event):
+        """显示失败深度分析"""
+        try:
+            from services.analytics_service import analytics_service
+            # 获取最近 10 条错误日志
+            items, _ = await self.container.stats_repo.get_logs(page=1, size=10, status="error")
+            logs = [{"error": item.error_log or item.message or "Unknown", "time": item.created_at} for item in items]
+            view_result = self.container.ui.admin.render_failure_analysis({"logs": logs})
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title=view_result.title,
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb=view_result.breadcrumb
+            )
         except Exception as e:
             return self.handle_exception(e)

@@ -37,7 +37,7 @@ class RulesMenu(BaseMenu):
             s_name = rule.source_chat.name if rule.source_chat else "Unknown"
             t_name = rule.target_chat.name if rule.target_chat else "Unknown"
             status = "🟢" if rule.enable_rule else "🔴"
-            buttons.append([Button.inline(f"{status} {s_name} ➔ {t_name}", f"rule_settings:{rule.id}")])
+            buttons.append([Button.inline(f"{status} {s_name} ➔ {t_name}", f"new_menu:rule_detail:{rule.id}")])
 
         nav_row = []
         if page > 1: nav_row.append(Button.inline("⬅️ 上一页", f"new_menu:list_rules:{page-1}"))
@@ -61,7 +61,7 @@ class RulesMenu(BaseMenu):
             for rule in rules[:10]:
                 s_name = rule.source_chat.name if rule.source_chat else "未知源"
                 t_name = rule.target_chat.name if rule.target_chat else "未知目标"
-                buttons.append([Button.inline(f"规则{rule.id}: {s_name} → {t_name}", f"rule_settings:{rule.id}")])
+                buttons.append([Button.inline(f"规则{rule.id}: {s_name} → {t_name}", f"new_menu:rule_detail:{rule.id}")])
             buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_management")])
             await self._render_from_text(event, "⚙️ **规则详细设置**\n\n选择要配置的转发规则：", buttons)
         except Exception as e:
@@ -81,7 +81,7 @@ class RulesMenu(BaseMenu):
         for r in current_rules:
             s_name = r.source_chat.name if r.source_chat else "Unknown"
             t_name = r.target_chat.name if r.target_chat else "Unknown"
-            buttons.append([Button.inline(f"规则{r.id}: {s_name}➔{t_name}", f"rule_settings:{r.id}")])
+            buttons.append([Button.inline(f"规则{r.id}: {s_name}➔{t_name}", f"new_menu:rule_detail:{r.id}")])
 
         nav = []
         if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:rule_management_page:{page-1}"))

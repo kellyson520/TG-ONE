@@ -125,3 +125,48 @@ class TaskRenderer(BaseRenderer):
             .add_button("🔒 10秒", "new_menu:set_delay:10")
             .add_button("👈 返回", "new_menu:history_messages", icon=UIStatus.BACK)
             .build())
+
+    def render_history_task_list(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染历史任务列表页面"""
+        tasks = data.get('tasks', [])
+        total = data.get('total', 0)
+        page = data.get('page', 1)
+        
+        builder = self.new_builder()
+        builder.set_title("历史任务中心", icon="📜")
+        builder.add_breadcrumb(["首页", "补全中心", "任务列表"])
+        
+        if not tasks:
+            builder.add_section("任务列表", "📭 暂无历史任务记录。", icon=UIStatus.INFO)
+            builder.add_button("启动新任务", "new_menu:history_task_selector", icon="🚀")
+        else:
+            builder.add_section(f"任务列表 (共 {total} 个)", [])
+            for task in tasks:
+                try:
+                    import json
+                    task_data = json.loads(task.task_data)
+                    rule_id = task_data.get('rule_id', 'Unknown')
+                    status_icon = "🟢" if task.status == 'running' else "✅" if task.status == 'completed' else "❌" if task.status == 'failed' else "⏳"
+                    
+                    builder.add_section(
+                        f"{status_icon} 任务 #{task.id} (规则 {rule_id})",
+                        [
+                            f"状态: {task.status}",
+                            f"创建于: {task.created_at.strftime('%m-%d %H:%M')}"
+                        ]
+                    )
+                except Exception:
+                    builder.add_section(f"⚠️ 任务 #{task.id}", ["数据解析异常"])
+            
+            # 翻页逻辑
+            if total > 10:
+                btn_row = []
+                if page > 1:
+                    btn_row.append(Button.inline("⬅️ 上一页", f"new_menu:history_task_list:{page-1}"))
+                if total > page * 10:
+                    btn_row.append(Button.inline("下一页 ➡️", f"new_menu:history_task_list:{page+1}"))
+                if btn_row:
+                    builder.add_button_row(btn_row)
+        
+        builder.add_button("返回", "new_menu:history_messages", icon=UIStatus.BACK)
+        return builder.build()

@@ -43,6 +43,8 @@ class TaskQueue(Base):
     started_at = Column(DateTime, nullable=True)
     locked_until = Column(DateTime, nullable=True, index=True) # 用于"可见性超时"模式
     completed_at = Column(DateTime, nullable=True)
+    progress = Column(Integer, default=0) # 0-100
+    speed = Column(String, nullable=True) # e.g. "1.2 MB/s"
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

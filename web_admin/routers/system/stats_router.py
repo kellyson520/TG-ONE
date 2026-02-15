@@ -18,16 +18,20 @@ async def get_tasks_list(
     page: int=Query(1, ge=1),
     limit: int=Query(50, ge=1, le=200),
     status: Optional[str]=None,
+    task_type: Optional[str]=None,
     user=Depends(admin_required),
     task_repo=Depends(deps.get_task_repo)
 ):
     """获取任务队列列表"""
     try:
-        tasks, total = await task_repo.get_tasks(page, limit, status)
+        if status == 'ALL':
+            status = None
+            
+        tasks, total = await task_repo.get_tasks(page, limit, status, task_type)
         
         data = []
         for t in tasks:
-            data.append({
+            task_dict = {
                 'id': t.id,
                 'type': t.task_type,
                 'status': t.status,
@@ -36,10 +40,23 @@ async def get_tasks_list(
                 'grouped_id': t.grouped_id,
                 'retry_count': t.retry_count,
                 'error_log': t.error_log,
+                'progress': getattr(t, 'progress', 0),
+                'speed': getattr(t, 'speed', None),
                 'created_at': t.created_at.isoformat() if t.created_at else None,
                 'updated_at': t.updated_at.isoformat() if t.updated_at else None,
                 'scheduled_at': t.scheduled_at.isoformat() if t.scheduled_at else None
-            })
+            }
+            
+            # 扩展下载任务的名称展示
+            if t.task_type in ('download_file', 'manual_download'):
+                try:
+                    import json
+                    payload = json.loads(t.task_data)
+                    task_dict['name'] = payload.get('file_name', f"Task #{t.id}")
+                except Exception:
+                    task_dict['name'] = f"Task #{t.id}"
+            
+            data.append(task_dict)
             
         return ResponseSchema(
             success=True,
@@ -55,78 +72,131 @@ async def get_tasks_list(
         logger.error(f"Error fetching tasks: {e}")
         return ResponseSchema(success=False, error=str(e))
 
+@router.post("/tasks/{task_id}/pause", response_model=ResponseSchema)
+async def pause_task(
+    task_id: int,
+    user=Depends(admin_required),
+    task_repo=Depends(deps.get_task_repo)
+):
+    """暂停任务"""
+    try:
+        from core.states import TaskStatus, validate_transition
+        from sqlalchemy import update
+        
+        async with task_repo.db.get_session() as session:
+            # 简单实现：直接更新状态
+            await session.execute(
+                update(TaskQueue).where(TaskQueue.id == task_id).values(status=TaskStatus.PAUSED)
+            )
+            await session.commit()
+            
+        return ResponseSchema(success=True, message="任务已暂停")
+    except Exception as e:
+        return ResponseSchema(success=False, error=str(e))
+
+@router.post("/tasks/{task_id}/resume", response_model=ResponseSchema)
+async def resume_task(
+    task_id: int,
+    user=Depends(admin_required),
+    task_repo=Depends(deps.get_task_repo)
+):
+    """恢复任务"""
+    try:
+        from core.states import TaskStatus
+        from sqlalchemy import update
+        
+        async with task_repo.db.get_session() as session:
+            await session.execute(
+                update(TaskQueue).where(TaskQueue.id == task_id).values(status=TaskStatus.PENDING)
+            )
+            await session.commit()
+            
+        return ResponseSchema(success=True, message="任务已恢复")
+    except Exception as e:
+        return ResponseSchema(success=False, error=str(e))
+
+@router.delete("/tasks/{task_id}", response_model=ResponseSchema)
+async def delete_task(
+    task_id: int,
+    user=Depends(admin_required),
+    task_repo=Depends(deps.get_task_repo)
+):
+    """删除任务"""
+    try:
+        from sqlalchemy import delete
+        
+        async with task_repo.db.get_session() as session:
+            await session.execute(
+                delete(TaskQueue).where(TaskQueue.id == task_id)
+            )
+            await session.commit()
+            
+        return ResponseSchema(success=True, message="任务已删除")
+    except Exception as e:
+        return ResponseSchema(success=False, error=str(e))
+
+
 @router.get("/stats", response_model=ResponseSchema)
 async def get_system_stats(
-    user: Optional[dict] = Depends(login_required),
-    task_repo: Optional[Any] = Depends(deps.get_task_repo),
-    forward_service: Optional[Any] = Depends(deps.get_forward_service),
-    dedup: Optional[Any] = Depends(deps.get_dedup_engine),
-    guard_service: Optional[Any] = Depends(deps.get_guard_service),
-    stats_repo: Optional[Any] = Depends(deps.get_stats_repo)
+    user: Optional[dict] = Depends(login_required)
 ):
-    """获取系统运行核心指标"""
+    """获取系统运行核心指标 (统一入口)"""
     try:
-        # 1. 规则统计
-        total_rules = 0
-        active_rules = 0
-        try:
-            rule_stats = await task_repo.get_rule_stats()
-            total_rules = rule_stats.get('total_rules', 0)
-            active_rules = rule_stats.get('active_rules', 0)
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            
-        # 2. 转发统计
-        today_forwards = 0
-        try:
-            fs = await forward_service.get_forward_stats()
-            if isinstance(fs, dict):
-                today_forwards = int(((fs.get('today') or {}).get('total_forwards') or 0))
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            
-        # 3. 去重统计
-        dedup_count = 0
-        try:
-            dedup_stats = dedup.get_stats()
-            dedup_count = dedup_stats.get('cached_signatures', 0) + dedup_stats.get('cached_content_hashes', 0)
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            
-        # 4. 系统运行状况 (容器管理)
-        guard_stats = {}
-        try:
-            guard_stats = guard_service.get_stats()
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-        # 5. 趋势数据
-        trend = []
-        try:
-            trend = await stats_repo.get_hourly_trend(24)
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-
-        return ResponseSchema(
-            success=True,
-            data={
-                'rules': {
-                    'total': total_rules,
-                    'active': active_rules,
-                    'enabled_rate': round((active_rules / total_rules * 100), 1) if total_rules > 0 else 0
-                },
-                'forwards': {
-                    'today': today_forwards,
-                    'trend': trend
-                },
-                'dedup': {
-                    'total_cached': dedup_count
-                },
-                'system': guard_stats
-            }
-        )
+        from services.analytics_service import analytics_service
+        import traceback
+        
+        # 获取基础概览 (包含 rules, forwards, trend, data_size)
+        overview = await analytics_service.get_analytics_overview()
+        ov = overview.get('overview', {})
+        
+        # 获取性能指标 (包含 cpu, mem, queue_status)
+        perf = await analytics_service.get_performance_metrics()
+        sr = perf.get('system_resources', {})
+        qs = perf.get('queue_status', {})
+        
+        # 获取详细统计 (用于分布数据)
+        detailed = await analytics_service.get_detailed_stats(days=1)
+        type_dist = detailed.get('type_distribution', [])
+        
+        # 获取最近活动
+        recent_logs = await analytics_service.search_records(query='', limit=10)
+        logs = recent_logs.get('records', [])
+        
+        data = {
+            'rules': {
+                'total': ov.get('total_rules', 0),
+                'active': ov.get('active_rules', 0),
+                'enabled_rate': round((ov.get('active_rules', 0) / ov.get('total_rules', 1) * 100), 1) if ov.get('total_rules', 0) > 0 else 0
+            },
+            'forwards': {
+                'today': ov.get('today_total', 0),
+                'trend': ov.get('hourly', [])
+            },
+            'dedup': {
+                'total_cached': overview.get('dedup_stats', {}).get('cached_signatures', 0)
+            },
+            'system': {
+                **sr,
+                'active_queues': qs.get('active_queues', 0),
+                'avg_delay': qs.get('avg_delay', '0s'),
+                'error_rate': qs.get('error_rate', '0%')
+            },
+            'distribution': [
+                {'name': item['name'], 'value': item['count']} for item in type_dist
+            ],
+            'recent_activity': [
+                {
+                    'id': log['id'],
+                    'message': f"{log['action']}: {log['message_text'][:30]}...",
+                    'type': 'error' if 'error' in log['action'].lower() else 'success',
+                    'time': log['created_at'].isoformat() if hasattr(log['created_at'], 'isoformat') else str(log['created_at'])
+                } for log in logs
+            ]
+        }
+        
+        return ResponseSchema(success=True, data=data)
     except Exception as e:
-        logger.error(f"Error fetching system stats: {e}")
+        logger.error(f"Error fetching system stats: {e}\n{traceback.format_exc()}")
         return ResponseSchema(success=False, error=str(e))
 
 @router.get("/db-pool", response_model=ResponseSchema)

@@ -2,6 +2,7 @@ import logging
 import asyncio
 import os
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 from core.config import settings
@@ -161,6 +162,57 @@ class SystemService:
                 "success": False, 
                 "error": str(e)
             }
+
+    async def get_backup_info(self) -> Dict[str, Any]:
+        """获取数据库备份统计信息"""
+        backup_dir = settings.BACKUP_DIR
+        try:
+            if not backup_dir.exists():
+                return {"last_backup": "从未", "backup_count": 0}
+            
+            backups = sorted(
+                [f for f in backup_dir.iterdir() if f.suffix == ".bak" or f.suffix == ".zip"],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True
+            )
+            
+            if not backups:
+                return {"last_backup": "从未", "backup_count": 0}
+            
+            last_backup_time = datetime.fromtimestamp(backups[0].stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+            return {
+                "last_backup": last_backup_time,
+                "backup_count": len(backups)
+            }
+        except Exception as e:
+            logger.error(f"Failed to get backup info: {e}")
+            return {"last_backup": "未知", "backup_count": 0}
+
+    async def get_cleanup_info(self) -> Dict[str, Any]:
+        """获取临时文件和缓存大小信息"""
+        try:
+            temp_dir = settings.TEMP_DIR
+            log_dir = settings.LOG_DIR
+            
+            def get_dir_size(path: Path) -> float:
+                if not path.exists(): return 0
+                return sum(f.stat().st_size for f in path.rglob('*') if f.is_file()) / (1024 * 1024)
+
+            tmp_size = get_dir_size(temp_dir)
+            log_size = get_dir_size(log_dir)
+            
+            # 获取去重缓存大小
+            from services.dedup.engine import smart_deduplicator
+            dedup_stats = smart_deduplicator.get_stats()
+            
+            return {
+                "tmp_size_mb": f"{round(tmp_size, 1)}MB",
+                "log_size_mb": f"{round(log_size, 1)}MB",
+                "dedup_cache_size": f"{round(dedup_stats.get('memory_mb', 0), 1)}MB" if 'memory_mb' in dedup_stats else f"{dedup_stats.get('cached_signatures', 0)}条"
+            }
+        except Exception as e:
+            logger.error(f"Failed to get cleanup info: {e}")
+            return {"tmp_size_mb": "0MB", "log_size_mb": "0MB", "dedup_cache_size": "0条"}
 
     async def restore_database(self, backup_path: str) -> Dict:
         """
@@ -328,6 +380,106 @@ class SystemService:
                 "realtime": realtime_data,
                 "api_enabled": api_optimizer is not None
             }
+
+    async def run_anomaly_detection(self) -> Dict[str, Any]:
+        """扫描消息日志中的异常模式"""
+        try:
+            from models.models import RuleLog
+            from sqlalchemy import select, func
+            
+            async with self.container.db.get_session() as session:
+                # 检查最近 1 小时的失败数
+                one_hour_ago = datetime.now() - timedelta(hours=1)
+                stmt_total = select(func.count(RuleLog.id)).where(RuleLog.created_at >= one_hour_ago)
+                total_recent = (await session.execute(stmt_total)).scalar() or 0
+                
+                if total_recent == 0:
+                    return {"status": "normal", "message": "最近 1 小时由于无转发数据，暂未发现异常。"}
+                
+                stmt_err = select(func.count(RuleLog.id)).where(
+                    RuleLog.status == "error",
+                    RuleLog.created_at >= one_hour_ago
+                )
+                recent_errors = (await session.execute(stmt_err)).scalar() or 0
+                error_rate = (recent_errors / total_recent) * 100
+                
+                if error_rate > 30: # 失败率超过 30%
+                    return {
+                        "status": "warning", 
+                        "message": f"🚨 [高失败率告警] 最近 1 小时失败率达 {error_rate:.1f}% ({recent_errors}/{total_recent})，请检查网络或目标频道权限。"
+                    }
+                
+                return {"status": "healthy", "message": "✅ 未检测到大规模转发异常，系统运行平稳。"}
+        except Exception as e:
+            logger.error(f"Anomaly detection failed: {e}")
+            return {"status": "error", "message": str(e)}
+
+    async def export_analytics_csv(self) -> Optional[Path]:
+        """导出最近 24 小时的转发统计到 CSV"""
+        try:
+            import csv
+            from models.models import RuleLog
+            from sqlalchemy import select
+            
+            os.makedirs(settings.TEMP_DIR, exist_ok=True)
+            export_path = settings.TEMP_DIR / f"analytics_export_{int(time.time())}.csv"
+            one_day_ago = datetime.now() - timedelta(days=1)
+            
+            async with self.container.db.get_session() as session:
+                stmt = select(RuleLog).where(RuleLog.created_at >= one_day_ago).order_by(RuleLog.created_at.desc()).limit(1000)
+                logs = (await session.execute(stmt)).scalars().all()
+                
+                if not logs:
+                    return None
+                    
+                with open(export_path, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["ID", "Time", "RuleID", "Type", "Status", "Latency"])
+                    for log in logs:
+                        writer.writerow([
+                            log.id, 
+                            log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                            log.rule_id,
+                            log.message_type,
+                            log.status,
+                            f"{log.latency:.3f}s" if log.latency else "0s"
+                        ])
+                
+                return export_path
+        except Exception as e:
+            logger.error(f"Export CSV failed: {e}")
+            return None
+
+    async def get_db_pragma_info(self) -> Dict[str, Any]:
+        """获取 SQLite 的 PRAGMA 配置信息"""
+        try:
+            from sqlalchemy import text
+            async with self.container.db.get_session() as session:
+                # 获取 auto_vacuum
+                res_v = await session.execute(text("PRAGMA auto_vacuum;"))
+                auto_vacuum = res_v.scalar()
+                
+                # 获取 journal_mode
+                res_j = await session.execute(text("PRAGMA journal_mode;"))
+                journal_mode = res_j.scalar()
+                
+                # 获取 synchronous
+                res_s = await session.execute(text("PRAGMA synchronous;"))
+                synchronous = res_s.scalar()
+                
+                # 获取 mmap_size
+                res_m = await session.execute(text("PRAGMA mmap_size;"))
+                mmap_size = res_m.scalar()
+                
+                return {
+                    "auto_vacuum": bool(auto_vacuum) if isinstance(auto_vacuum, int) else auto_vacuum != 'NONE',
+                    "wal_mode": str(journal_mode).upper() == 'WAL',
+                    "sync_mode": 'NORMAL' if synchronous == 1 else 'FULL' if synchronous == 2 else 'OFF' if synchronous == 0 else str(synchronous),
+                    "mmap_size": f"{int(mmap_size) / 1024 / 1024:.0f}MB" if mmap_size and int(mmap_size) > 0 else "0 (Disabled)"
+                }
+        except Exception as e:
+            logger.error(f"Failed to get DB PRAGMA info: {e}")
+            return {'auto_vacuum': False, 'wal_mode': False, 'sync_mode': 'Unknown'}
 
 class GuardService:
     """

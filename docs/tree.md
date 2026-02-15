@@ -912,6 +912,24 @@ TG ONE/
 ├── core
 │   └── templates.py
 ├── fastapi_app.py
+├── frontend
+│   ├── index.html
+│   ├── package.json
+│   ├── public
+│   ├── src
+│   │   ├── App.tsx
+│   │   ├── components
+│   │   ├── hooks
+│   │   ├── lib
+│   │   ├── main.tsx
+│   │   ├── pages
+│   │   ├── services
+│   │   ├── store
+│   │   └── types
+│   ├── tsconfig.app.json
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   └── vite.config.ts
 ├── mappers
 │   └── rule_mapper.py
 ├── middlewares

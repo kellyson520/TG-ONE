@@ -115,7 +115,7 @@ class RuleQueryService:
                     "id": str(chat.id),
                     "name": chat.name or f"Chat {chat.telegram_chat_id}",
                     "category": chat.type if hasattr(chat, 'type') else "unknown",
-                    "value": chat.telegram_chat_id
+                    "value": str(chat.telegram_chat_id)
                 })
             
             # 2. 连线: 规则 (Source -> Target)

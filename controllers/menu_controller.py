@@ -364,9 +364,33 @@ class MenuController:
         """恢复历史任务"""
         await self.container.media_controller.start_task(event)
 
-    async def show_history_task_list(self, event):
+    async def show_history_task_list(self, event, page: int = 1):
         """显示历史任务列表"""
-        await event.answer("🚧 列表功能正在集成中")
+        try:
+            from core.container import container
+            from ui.renderers.task_renderer import TaskRenderer
+            
+            # 手动实例并注入以确保一致性
+            renderer = TaskRenderer()
+            
+            tasks, total = await container.task_repo.get_tasks(page=page, limit=10, task_type='history')
+            
+            view_result = renderer.render_history_task_list({
+                'tasks': tasks,
+                'total': total,
+                'page': page
+            })
+            
+            await self._send_menu(
+                event,
+                "📜 **历史任务列表**",
+                [view_result.text],
+                view_result.buttons,
+                breadcrumb="🏠 > 📜 历史任务"
+            )
+        except Exception as e:
+            logger.error(f"Failed to show history task list: {e}")
+            await self._send_error(event, f"获取列表失败: {e}")
 
     async def run_db_reindex(self, event):
         """执行数据库重建索引"""
@@ -600,6 +624,14 @@ class MenuController:
     async def show_system_logs(self, event):
         """查看系统日志"""
         await self.container.admin_controller.show_system_logs(event)
+
+    async def run_anomaly_detection(self, event):
+        """运行异常检测"""
+        await self.container.admin_controller.run_anomaly_detection(event)
+
+    async def export_analytics_csv(self, event):
+        """导出分析 CSV"""
+        await self.container.admin_controller.export_analytics_csv(event)
 
 
 menu_controller = MenuController()

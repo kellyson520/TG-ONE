@@ -269,7 +269,9 @@ def migrate_db(engine):
                     'grouped_id': 'ALTER TABLE task_queue ADD COLUMN grouped_id VARCHAR',
                     'next_retry_at': 'ALTER TABLE task_queue ADD COLUMN next_retry_at TIMESTAMP',
                     'locked_until': 'ALTER TABLE task_queue ADD COLUMN locked_until TIMESTAMP',
-                    'error_log': 'ALTER TABLE task_queue ADD COLUMN error_log TEXT'
+                    'error_log': 'ALTER TABLE task_queue ADD COLUMN error_log TEXT',
+                    'progress': 'ALTER TABLE task_queue ADD COLUMN progress INTEGER DEFAULT 0',
+                    'speed': 'ALTER TABLE task_queue ADD COLUMN speed VARCHAR'
                 }
                 for col, sql in taskqueue_columns_map.items():
                     if col not in task_queue_columns_existing:
@@ -441,7 +443,13 @@ def migrate_db(engine):
         keywords_new_columns = {'is_blacklist': 'ALTER TABLE keywords ADD COLUMN is_blacklist BOOLEAN DEFAULT TRUE'}
         rss_sub_new_columns = {'latest_post_date': 'ALTER TABLE rss_subscriptions ADD COLUMN latest_post_date TIMESTAMP', 'fail_count': 'ALTER TABLE rss_subscriptions ADD COLUMN fail_count INTEGER DEFAULT 0'}
         rss_configs_new_columns = {'is_description_compressed': 'ALTER TABLE rss_configs ADD COLUMN is_description_compressed BOOLEAN DEFAULT 0', 'is_prompt_compressed': 'ALTER TABLE rss_configs ADD COLUMN is_prompt_compressed BOOLEAN DEFAULT 0'}
-        rule_logs_new_columns = {'is_result_compressed': 'ALTER TABLE rule_logs ADD COLUMN is_result_compressed BOOLEAN DEFAULT 0'}
+        rule_logs_new_columns = {
+            'message_text': 'ALTER TABLE rule_logs ADD COLUMN message_text TEXT',
+            'message_type': 'ALTER TABLE rule_logs ADD COLUMN message_type VARCHAR',
+            'processing_time': 'ALTER TABLE rule_logs ADD COLUMN processing_time INTEGER',
+            'details': 'ALTER TABLE rule_logs ADD COLUMN details TEXT',
+            'is_result_compressed': 'ALTER TABLE rule_logs ADD COLUMN is_result_compressed BOOLEAN DEFAULT 0'
+        }
         error_logs_new_columns = {'is_traceback_compressed': 'ALTER TABLE error_logs ADD COLUMN is_traceback_compressed BOOLEAN DEFAULT 0'}
 
         with engine.connect() as connection:
@@ -449,8 +457,29 @@ def migrate_db(engine):
                 if column not in forward_rules_columns:
                     try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
                     except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
+            
             for column, sql in keywords_new_columns.items():
                 if column not in keyword_columns:
+                    try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
+                    except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
+
+            for column, sql in rss_sub_new_columns.items():
+                if column not in rss_sub_columns:
+                    try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
+                    except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
+
+            for column, sql in rss_configs_new_columns.items():
+                if column not in rss_configs_columns:
+                    try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
+                    except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
+
+            for column, sql in rule_logs_new_columns.items():
+                if column not in rule_logs_columns:
+                    try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
+                    except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
+
+            for column, sql in error_logs_new_columns.items():
+                if column not in error_logs_columns:
                     try: connection.execute(text(sql)); logger.info(f'已添加列: {column}')
                     except Exception as e: logger.error(f'添加列 {column} 出错: {e}')
             

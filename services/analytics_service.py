@@ -116,7 +116,7 @@ class AnalyticsService:
                     'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > yesterday_total else '⏸️ 待机中',
                     'percentage': round((forward_stats.get('total_forwards', 0) - yesterday_total) / yesterday_total * 100, 1) if yesterday_total > 0 else 0
                 },
-                'hourly': detailed.get('time_analysis', {}).get('hourly_today', {})
+                'hourly': [{'hour': k, 'count': v} for k, v in detailed.get('time_analysis', {}).get('hourly_today', {}).items()]
             }
 
             return {
@@ -265,10 +265,12 @@ class AnalyticsService:
             # 4. 获取队列状态
             active_queues = 0
             pending_tasks = 0
+            avg_delay = "0s"
             try:
                 queue_status = await self.container.task_repo.get_queue_status()
                 active_queues = queue_status.get("active_queues", 0)
                 pending_tasks = queue_status.get("pending_tasks", 0)
+                avg_delay = queue_status.get("avg_delay", "0s")
             except Exception: pass
 
             return {
@@ -286,6 +288,7 @@ class AnalyticsService:
                 "queue_status": {
                     "active_queues": active_queues,
                     "pending_tasks": pending_tasks,
+                    "avg_delay": avg_delay,
                     "error_rate": f"{(100-success_rate):.1f}%",
                 },
             }

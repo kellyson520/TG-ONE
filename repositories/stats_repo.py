@@ -189,6 +189,7 @@ class StatsRepository:
                 .limit(size)
             )
             items = result.scalars().all()
+            return {'items': items, 'total': total, 'total_pages': (total + size - 1) // size}
             
     async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50):
         """获取规则转发日志"""
@@ -210,6 +211,31 @@ class StatsRepository:
             )
             items = result.scalars().all()
             return items, total
+
+    async def get_message_type_distribution(self):
+        """获取消息类型分布统计"""
+        async with self.db.get_session() as session:
+            stmt = (
+                select(
+                    RuleLog.message_type,
+                    func.count(RuleLog.id).label('count')
+                )
+                .group_by(RuleLog.message_type)
+                .order_by(func.count(RuleLog.id).desc())
+            )
+            result = await session.execute(stmt)
+            return [{'name': row.message_type or 'Unknown', 'value': row.count} for row in result]
+
+    async def get_recent_activity(self, limit: int = 10):
+        """获取最近的系统活动日志"""
+        async with self.db.get_session() as session:
+            stmt = (
+                select(RuleLog)
+                .order_by(RuleLog.created_at.desc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
 
     async def get_hourly_trend(self, hours: int = 24):
         """获取最近 N 小时的转发趋势"""
