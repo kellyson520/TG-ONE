@@ -248,7 +248,7 @@ async def login(
     }
 
 @router.get("/me")
-async def get_current_user_profile(user = Depends(get_current_user)):
+async def get_current_user_profile(user = Depends(login_required)):
     """
     Get current logged in user details.
     """
@@ -481,16 +481,13 @@ async def logout(request: Request, response: Response):
 @router.get("/sessions")
 async def get_active_sessions(
     request: Request, 
-    user = Depends(get_current_user)
+    user = Depends(login_required)
 ):  
     """
     Get all active sessions. 
     If user is admin, returns all sessions.
     If normal user, returns only their own sessions.
     """
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-        
     target_user_id = None
     if not user.is_admin:
         target_user_id = user.id
