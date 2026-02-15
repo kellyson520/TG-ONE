@@ -130,6 +130,19 @@ async def test_search_records(analytics_service):
     mock_rule = MagicMock()
     mock_rule.source_chat_id = 12345
     mock_rule.target_chat_id = 67890
+    
+    mock_source_chat = MagicMock()
+    mock_source_chat.title = "Source Chat Name"
+    mock_source_chat.name = None
+    mock_source_chat.username = None
+    
+    mock_target_chat = MagicMock()
+    mock_target_chat.title = "Target Chat Name"
+    mock_target_chat.name = None
+    mock_target_chat.username = None
+    
+    mock_rule.source_chat = mock_source_chat
+    mock_rule.target_chat = mock_target_chat
     mock_log.rule = mock_rule
     
     # Mocking database session and result
@@ -147,5 +160,7 @@ async def test_search_records(analytics_service):
         result = await analytics_service.search_records(query='Hello')
         assert 'records' in result
         assert len(result['records']) == 1
-        assert result['records'][0]['source_chat_id'] == 12345
-        assert result['records'][0]['target_chat_id'] == 67890
+        assert result['records'][0]['source_chat'] == "Source Chat Name"
+        assert result['records'][0]['target_chat'] == "Target Chat Name"
+        # 兼容性字段也应包含该名称
+        assert result['records'][0]['source_chat_id'] == "Source Chat Name"

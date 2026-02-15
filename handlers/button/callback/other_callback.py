@@ -57,7 +57,7 @@ async def handle_other_callback(event, **kwargs):
             "toggle_reverse_blacklist": callback_toggle_reverse_blacklist,
             "toggle_reverse_whitelist": callback_toggle_reverse_whitelist,
             "dedup_scan_now": callback_dedup_scan_now,
-            "delete_duplicates": callback_delete_duplicates,
+            "delete_duplicates": callback_confirm_delete_duplicates,
             "view_source_messages": callback_view_source_messages,
             "keep_duplicates": callback_keep_duplicates,
             "confirm_delete_duplicates": callback_confirm_delete_duplicates,

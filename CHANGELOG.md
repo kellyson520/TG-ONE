@@ -1,6 +1,24 @@
 
 ## 📅 2026-02-15 更新摘要
 
+### 🔧 v1.2.5.4: 系统稳定性与代码质量专项优化 (System Stability & Code Quality Review)
+- **代码质量治理 (Code Quality)**:
+    - **Undefined Name 修复**:
+        - `AnalyticsService`: 修复 `_resolve_chat_name` 中引用未定义的 `session_service`，修正为 `self.container.chat_info_service`。
+        - `AdminController`: 修复 `execute_admin_cleanup_logs` 中 `deleted_count` 未定义的问题；补充缺失的 `os` 和 `datetime` 引用。
+        - `other_callback.py`: 修复 `handler_map` 中指向未定义的 `callback_delete_duplicates`，修正为 `callback_confirm_delete_duplicates`。
+    - **未使用引用清理**: 移除 `stats_router.py` 中未使用的 `validate_transition` 导入。
+
+### 🚀 v1.2.5.3: Web 管理界面稳定性与鲁棒性修复 (Web Admin Stability & Robustness)
+- **搜索统计增强**:
+    - **Unknown 实体修复**: 彻底修复了“转发记录”搜索详情中，来源/目标实体显示为 `Unknown` 的 Bug。通过在 `AnalyticsService.search_records` 中增加对 `SourceChat` 和 `TargetChat` 的深度预加载 (`joinedload`)，确保了实体名称的实时解析。
+    - **数据格式对齐**: 优化了搜索结果的 DTO 映射，新增 `source_chat` 和 `target_chat` 字段以匹配 `RuleDTOMapper` 规范，提升了前后端数据交换的一致性。
+- **任务系统鲁棒性**:
+    - **日期序列化修复**: 修复了“任务队列”获取失败导致页面报错的问题。由于 SQLite 存储特性，部分日期字段可能以字符串形式存在，导致 `.isoformat()` 触发 `AttributeError`。现已引入 `hasattr` 守护校验，确保无论是 `datetime` 对象还是原始字符串都能安全序列化。
+    - **性能优化**: 减少了任务列表拉取时的防御性开销。
+- **工程质量**:
+    - **回归测试**: 建立了专门的 `test_search_records` (更新版) 和 `test_get_tasks_list_handles_string_dates` 验证逻辑，确保日期格式多样性下的系统稳定性。
+
 ### 🚀 v1.2.5.2: 转发中心与搜索稳定性提升 (Forwarding & Analytics Stability)
 - **Analytics Service 搜索修复**:
     - **AttributeError 治理**: 修复了 `AnalyticsService.search_records` 方法中，因直接访问 `RuleLog` 对象不存在的 `source_chat_id` 和 `target_chat_id` 属性导致的崩溃。

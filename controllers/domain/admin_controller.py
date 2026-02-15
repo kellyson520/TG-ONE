@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import os
+from datetime import datetime
 from typing import Optional
 from controllers.base import BaseController, ControllerAbort
 
@@ -64,6 +66,7 @@ class AdminController(BaseController):
         """执行日志清理"""
         try:
             from models.models import async_cleanup_old_logs
+            deleted_count = await async_cleanup_old_logs(days)
             if hasattr(event, 'answer'):
                 await event.answer(f"✅ 清理完成，删除 {deleted_count} 条记录")
             else:

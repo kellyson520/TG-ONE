@@ -8,6 +8,7 @@ from web_admin.security.deps import admin_required, login_required
 from core.db_factory import get_async_engine
 from web_admin.schemas.response import ResponseSchema
 from web_admin.api import deps
+from models.models import TaskQueue
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,9 @@ async def get_tasks_list(
                 'error_log': t.error_log,
                 'progress': getattr(t, 'progress', 0),
                 'speed': getattr(t, 'speed', None),
-                'created_at': t.created_at.isoformat() if t.created_at else None,
-                'updated_at': t.updated_at.isoformat() if t.updated_at else None,
-                'scheduled_at': t.scheduled_at.isoformat() if t.scheduled_at else None
+                'created_at': t.created_at.isoformat() if hasattr(t.created_at, 'isoformat') else str(t.created_at) if t.created_at else None,
+                'updated_at': t.updated_at.isoformat() if hasattr(t.updated_at, 'isoformat') else str(t.updated_at) if t.updated_at else None,
+                'scheduled_at': t.scheduled_at.isoformat() if hasattr(t.scheduled_at, 'isoformat') else str(t.scheduled_at) if t.scheduled_at else None
             }
             
             # 扩展下载任务的名称展示
@@ -80,7 +81,7 @@ async def pause_task(
 ):
     """暂停任务"""
     try:
-        from core.states import TaskStatus, validate_transition
+        from core.states import TaskStatus
         from sqlalchemy import update
         
         async with task_repo.db.get_session() as session:

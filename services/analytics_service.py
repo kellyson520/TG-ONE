@@ -452,8 +452,8 @@ class AnalyticsService:
                 if chat and chat.name:
                     return chat.name
             
-            # 尝试从 session_service 获取
-            name = await session_service.get_chat_name(int(chat_id))
+            # 尝试从 chat_info_service 获取
+            name = await self.container.chat_info_service.get_chat_name(int(chat_id))
             if name:
                 return name
         except Exception:
@@ -631,12 +631,15 @@ class AnalyticsService:
         """
         try:
             from sqlalchemy import select, or_
-            from models.models import RuleLog
+            from models.models import RuleLog, ForwardRule
             
             from sqlalchemy.orm import joinedload
             async with self.container.db.get_session() as session:
-                # 搜索规则日志，预加载关联的规则以获取频道 ID
-                stmt = select(RuleLog).options(joinedload(RuleLog.rule)).filter(
+                # 搜索规则日志，预加载关联的规则以及规则关联的聊天实体，确保显示名称而非 "未知"
+                stmt = select(RuleLog).options(
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
+                ).filter(
                     or_(
                         RuleLog.message_text.like(f'%{query}%'),
                         RuleLog.action.like(f'%{query}%')
@@ -648,8 +651,21 @@ class AnalyticsService:
                 
                 records = []
                 for log in logs:
-                    source_id = log.rule.source_chat_id if log.rule else "未知"
-                    target_id = log.rule.target_chat_id if log.rule else "未知"
+                    source_title = "未知"
+                    target_title = "未知"
+                    
+                    if log.rule:
+                        if log.rule.source_chat:
+                            c = log.rule.source_chat
+                            source_title = c.title or c.name or c.username or str(c.telegram_chat_id)
+                        else:
+                            source_title = str(log.rule.source_chat_id)
+                            
+                        if log.rule.target_chat:
+                            c = log.rule.target_chat
+                            target_title = c.title or c.name or c.username or str(c.telegram_chat_id)
+                        else:
+                            target_title = str(log.rule.target_chat_id)
                     
                     records.append({
                         'id': log.id,
@@ -657,8 +673,12 @@ class AnalyticsService:
                         'action': log.action,
                         'message_text': log.message_text[:100] if log.message_text else '',
                         'created_at': log.created_at,
-                        'source_chat_id': source_id,
-                        'target_chat_id': target_id
+                        'source_chat_id': source_title, # 保留旧字段但填入名称以修复显示
+                        'target_chat_id': target_title,
+                        'source_chat': source_title,    # 新增对齐 RuleDTOMapper
+                        'target_chat': target_title,
+                        'source_title': source_title,   # 冗余字段提高兼容性
+                        'target_title': target_title
                     })
                 
                 return {

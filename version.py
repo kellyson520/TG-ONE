@@ -1,11 +1,12 @@
-VERSION = "1.2.5.2"
+VERSION = "1.2.5.4"
 
 UPDATE_INFO = """
 **更新日志**
-- v1.2.5.2: 转发中心与搜索稳定性提升
-  - 修复 `AnalyticsService.search_records` 中 `RuleLog` 缺失属性导致的 `AttributeError`
-  - 优化转发记录搜索性能，通过 `joinedload` 预加载关联规则减少数据库查询
-  - 修复转发日志中 Source Entity/Target Entity 显示为 Unknown 的问题 (归属于前序任务)
+- v1.2.5.4: 系统稳定性与代码质量专项优化
+  - 修复 AnalyticsService._resolve_chat_name 中未命名的 session_service 引用
+  - 修复 AdminController 中清理日志逻辑的未定义变量与缺失导入
+  - 修复回调处理器 mapping 中 delete_duplicates 的 undefined name 错误
+- v1.2.5.3: Web 管理界面稳定性与鲁棒性修复
 - v1.2.5.1: 更新自愈与健康检查稳定性优化
   - 修复 UpdateService 健康检查重复计数导致的回滚死循环
   - 引入 UpdateService 的进程级单次验证锁 (Health Check Debounce)

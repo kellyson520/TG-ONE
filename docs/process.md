@@ -14,6 +14,7 @@
 |--------|----------|----------|----------|--------|----------|
 | 20260215_FixUnknownForwarderDisplay | 修复转发记录显示 unknown 为频道名 | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_FixUnknownForwarderDisplay/report.md) |
 | 20260215_Fix_RuleLog_AttributeError | 修复 RuleLog AttributeError (search_records) | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_Fix_RuleLog_AttributeError/report.md) |
+| 20260215_FixUnknownRecordAndTaskFetchFailure | 修复记录详情未知与任务列表失败 | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_FixUnknownRecordAndTaskFetchFailure/report.md) |
 | 20260213_Fix_Update_Restart_Loop | 修复更新重启循环与误触发回滚 (Duplicate Health Check & Hot-Restart) | 2026-02-13 | 2026-02-13 | 100% | [[report.md]](./Workstream_Bugfix/20260213_Fix_Update_Restart_Loop/report.md) |
 | 20260212_API_Performance_Optimization | API 性能优化与并发控制 (Request Coalescing & Semaphore) | 2026-02-12 | 2026-02-12 | 100% | [[report.md]](./Workstream_Optimization/20260212_API_Performance_Optimization/report.md) |
 | 20260212_Fix_Keyword_Filter_Interceptor | 修复过滤器 Keyword 全部拦截转发的错误 | 2026-02-12 | 2026-02-12 | 100% | [[report.md]](./Workstream_Bugfix/20260212_KeywordFilterFix/report.md) |
