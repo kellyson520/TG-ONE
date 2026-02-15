@@ -35,6 +35,9 @@ class ForwardLogEntry:
     ai_modified: bool = False
     processing_time_ms: int = 0
     error_message: Optional[str] = None
+    message_text: Optional[str] = None  # 消息内容摘要
+    message_type: Optional[str] = None  # 消息类型 (text, photo, etc)
+    details: Optional[str] = None       # 详细操作信息
     metadata: Dict = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
@@ -138,7 +141,10 @@ class ForwardLogBatchWriter:
         ai_modified: bool = False,
         filter_hit: Optional[str] = None,
         result: str = "success",
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        message_text: Optional[str] = None,
+        message_type: Optional[str] = None,
+        details: Optional[str] = None
     ):
         """简化的转发日志接口"""
         entry = ForwardLogEntry(
@@ -154,7 +160,10 @@ class ForwardLogBatchWriter:
             filter_hit=filter_hit,
             ai_modified=ai_modified,
             processing_time_ms=processing_time_ms,
-            error_message=error_message
+            error_message=error_message,
+            message_text=message_text,
+            message_type=message_type,
+            details=details
         )
         await self.log(entry)
     
@@ -211,10 +220,12 @@ class ForwardLogBatchWriter:
                     log = RuleLog(
                         rule_id=entry.rule_id,
                         action=entry.action,
-                        source_message_id=entry.source_message_id,
-                        target_message_id=entry.target_message_id,
-                        result=entry.result,
-                        error_message=entry.error_message,
+                        message_id=entry.source_message_id,  # Map source_message_id to message_id
+                        # RuleLog 实际上没有 result/error_message/target_message_id 字段
+                        # target_message_id 可以记录在 details 中如果需要
+                        details=entry.details or (f"Target Msg: {entry.target_message_id}" if entry.target_message_id else None) or entry.error_message,
+                        message_text=entry.message_text,
+                        message_type=entry.message_type or 'text',  # 默认为 text
                         processing_time=entry.processing_time_ms,
                         created_at=entry.timestamp.isoformat()
                     )

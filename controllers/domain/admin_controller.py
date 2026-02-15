@@ -440,6 +440,10 @@ class AdminController(BaseController):
         """显示实时监控面板 (别名)"""
         await self.show_realtime_monitor(event)
 
+    async def show_analytics_hub(self, event):
+        """显示数据分析中心"""
+        await self.show_forward_analytics(event)
+
     async def show_forward_analytics(self, event):
         """显示转发统计详情"""
         try:

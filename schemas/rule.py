@@ -20,6 +20,7 @@ class MediaExtensionDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class KeywordDTO(BaseModel):
+    id: Optional[int] = None
     keyword: str
     is_regex: bool = False
     is_blacklist: bool = True
@@ -27,6 +28,7 @@ class KeywordDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ReplaceRuleDTO(BaseModel):
+    id: Optional[int] = None
     pattern: str
     content: Optional[str] = None
     

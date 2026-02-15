@@ -299,10 +299,59 @@ callback_router.add_route("set_media_extensions:{rest}", handle_media_callback)
 callback_router.add_route("media_extensions_page:{rest}", handle_media_callback)
 callback_router.add_route("toggle_media_extension:{rest}", handle_media_callback)
 callback_router.add_route("toggle_media_allow_text:{rest}", handle_media_callback)
+# [Fix] 补全 AI 设置相关路由
+callback_router.add_route("set_summary_prompt:{rest}", handle_ai_callback)
+callback_router.add_route("set_ai_prompt:{rest}", handle_ai_callback)
+callback_router.add_route("change_model:{rest}", handle_ai_callback)
+callback_router.add_route("cancel_set_prompt:{rest}", handle_ai_callback)
+callback_router.add_route("cancel_set_summary:{rest}", handle_ai_callback)
+callback_router.add_route("summary_now:{rest}", handle_ai_callback)
+callback_router.add_route("model_page:{rest}", handle_ai_callback)
+callback_router.add_route("select_model:{rest}", handle_ai_callback)
+callback_router.add_route("time_page:{rest}", handle_ai_callback)
+callback_router.add_route("select_time:{rest}", handle_ai_callback)
+
+# [Fix] 补全 Push 设置相关路由
+callback_router.add_route("toggle_push_config:{rest}", handle_push_callback)
+callback_router.add_route("delete_push_config:{rest}", handle_push_callback)
+callback_router.add_route("push_page:{rest}", handle_push_callback)
+callback_router.add_route("cancel_add_push_channel:{rest}", handle_push_callback)
+callback_router.add_route("add_push_channel:{rest}", handle_push_callback)
+callback_router.add_route("toggle_push_config_status:{rest}", handle_push_callback)
+
+# [Fix] 补全高级媒体筛选相关路由
+callback_router.add_route("cancel_set_duration_range:{rest}", callback_cancel_set_duration_range)
+callback_router.add_route("cancel_set_resolution_range:{rest}", callback_cancel_set_resolution_range)
+callback_router.add_route("cancel_set_file_size_range:{rest}", callback_cancel_set_file_size_range)
+callback_router.add_route("set_duration_range:{rest}", callback_set_duration_range)
+callback_router.add_route("set_resolution_range:{rest}", callback_set_resolution_range)
+callback_router.add_route("set_file_size_range:{rest}", callback_set_file_size_range)
 callback_router.add_route("open_duration_picker:{rest}", handle_advanced_media_callback)
-callback_router.add_route("ai_settings:{rest}", handle_ai_callback)
-callback_router.add_route("set_summary_time:{rest}", handle_ai_callback)
-callback_router.add_route("other_callback:{rest}", handle_other_callback)
+
+# [Fix] 补全 Other 设置相关路由 (模板、去重、复制等)
+callback_router.add_route("cancel_set_userinfo:{rest}", handle_other_callback)
+callback_router.add_route("cancel_set_time:{rest}", handle_other_callback)
+callback_router.add_route("cancel_set_link:{rest}", handle_other_callback)
+callback_router.add_route("set_userinfo_template:{rest}", handle_other_callback)
+callback_router.add_route("set_time_template:{rest}", handle_other_callback)
+callback_router.add_route("set_original_link_template:{rest}", handle_other_callback)
+
+callback_router.add_route("dedup_scan_now:{rest}", handle_other_callback)
+callback_router.add_route("delete_duplicates:{rest}", handle_other_callback)
+callback_router.add_route("confirm_delete_duplicates:{rest}", handle_other_callback)
+callback_router.add_route("view_source_messages:{rest}", handle_other_callback)
+callback_router.add_route("keep_duplicates:{rest}", handle_other_callback)
+callback_router.add_route("toggle_allow_delete_source_on_dedup:{rest}", handle_other_callback)
+
+callback_router.add_route("other_settings:{rest}", handle_other_callback)
+callback_router.add_route("copy_rule:{rest}", handle_other_callback)
+callback_router.add_route("copy_keyword:{rest}", handle_other_callback)
+callback_router.add_route("perform_copy_rule:{rest}", handle_other_callback)
+callback_router.add_route("perform_copy_keyword:{rest}", handle_other_callback)
+callback_router.add_route("delete_rule:{rest}", handle_other_callback)
+callback_router.add_route("perform_delete_rule:{rest}", handle_other_callback)
+callback_router.add_route("ufb_item:{rest}", handle_other_callback)
+
 
 # 更新日志翻页
 from handlers.button.callback.modules.changelog_callback import callback_changelog_page

@@ -32,32 +32,37 @@ async def get_tasks_list(
         
         data = []
         for t in tasks:
-            task_dict = {
-                'id': t.id,
-                'type': t.task_type,
-                'status': t.status,
-                'priority': t.priority,
-                'unique_key': t.unique_key,
-                'grouped_id': t.grouped_id,
-                'retry_count': t.retry_count,
-                'error_log': t.error_log,
-                'progress': getattr(t, 'progress', 0),
-                'speed': getattr(t, 'speed', None),
-                'created_at': t.created_at.isoformat() if hasattr(t.created_at, 'isoformat') else str(t.created_at) if t.created_at else None,
-                'updated_at': t.updated_at.isoformat() if hasattr(t.updated_at, 'isoformat') else str(t.updated_at) if t.updated_at else None,
-                'scheduled_at': t.scheduled_at.isoformat() if hasattr(t.scheduled_at, 'isoformat') else str(t.scheduled_at) if t.scheduled_at else None
-            }
-            
-            # 扩展下载任务的名称展示
-            if t.task_type in ('download_file', 'manual_download'):
-                try:
-                    import json
-                    payload = json.loads(t.task_data)
-                    task_dict['name'] = payload.get('file_name', f"Task #{t.id}")
-                except Exception:
-                    task_dict['name'] = f"Task #{t.id}"
-            
-            data.append(task_dict)
+            try:
+                task_dict = {
+                    'id': t.id,
+                    'type': t.task_type,
+                    'status': t.status,
+                    'priority': t.priority,
+                    'unique_key': t.unique_key,
+                    'grouped_id': t.grouped_id,
+                    'retry_count': t.attempts,
+                    'error_log': t.error_message,
+                    'progress': getattr(t, 'progress', 0),
+                    'speed': getattr(t, 'speed', None),
+                    'created_at': t.created_at.isoformat() if hasattr(t.created_at, 'isoformat') else str(t.created_at) if t.created_at else None,
+                    'updated_at': t.updated_at.isoformat() if hasattr(t.updated_at, 'isoformat') else str(t.updated_at) if t.updated_at else None,
+                    'scheduled_at': t.scheduled_at.isoformat() if hasattr(t.scheduled_at, 'isoformat') else str(t.scheduled_at) if t.scheduled_at else None
+                }
+                
+                # 扩展下载任务的名称展示
+                if t.task_type in ('download_file', 'manual_download'):
+                    try:
+                        import json
+                        payload = json.loads(t.task_data) if t.task_data else {}
+                        task_dict['name'] = payload.get('file_name', f"Task #{t.id}")
+                    except Exception:
+                        task_dict['name'] = f"Task #{t.id}"
+                
+                data.append(task_dict)
+            except Exception as e:
+                logger.error(f"Error serializing task {t.id}: {e}")
+                # Skip bad task or add with error
+                continue
             
         return ResponseSchema(
             success=True,

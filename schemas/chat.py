@@ -7,6 +7,7 @@ class ChatBase(BaseModel):
     name: Optional[str] = None
     username: Optional[str] = None
     type: Optional[str] = None
+    title: Optional[str] = None
     description: Optional[str] = None
     is_active: bool = True
     member_count: Optional[int] = None

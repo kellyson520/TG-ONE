@@ -400,10 +400,25 @@ class AnalyticsService:
                     total_count = 0
                     temp_dist = []
                     for row in type_res:
-                        m_type = row.message_type or "unknown"
+                        # 修复: 确保 None/Unknown 映射为 "Text" (常见情况)
+                        m_type = row.message_type
+                        if not m_type or m_type.lower() == 'unknown':
+                            m_type = "Text"
+                        else:
+                            m_type = m_type.capitalize()
+                            
                         count = row.count or 0
                         total_count += count
-                        temp_dist.append({"name": m_type.capitalize(), "count": count})
+                        
+                        # 合并同名类型 (如 'text' 和 'Text')
+                        found = False
+                        for item in temp_dist:
+                            if item["name"] == m_type:
+                                item["count"] += count
+                                found = True
+                                break
+                        if not found:
+                            temp_dist.append({"name": m_type, "count": count})
                     
                     if total_count > 0:
                         for item in temp_dist:

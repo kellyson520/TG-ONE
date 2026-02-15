@@ -511,7 +511,7 @@ class WorkerService:
         """
         处理任务重试，根据错误类型和重试次数决定后续操作
         """
-        current_retries = task.retry_count + 1
+        current_retries = task.attempts + 1
         
         # 如果超过最大重试次数，升级为永久失败
         if current_retries > settings.MAX_RETRIES:

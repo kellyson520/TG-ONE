@@ -58,10 +58,11 @@ async def get_error_logs(
                     'level': log.level,
                     'module': log.module,
                     'function': log.function,
-                    'message': log.message,
+                    'message': log.message[:200] + '...' if log.message and len(log.message) > 200 else log.message,
                     'created_at': log.created_at,
-                    'traceback': log.traceback,
-                    'context': log.context
+                    'traceback': log.traceback[:300] + '...' if log.traceback and len(log.traceback) > 300 else log.traceback,
+                    # Context usually small, but let's be safe
+                    'context': str(log.context)[:500] + '...' if log.context and len(str(log.context)) > 500 else log.context
                 })
                 
             return ResponseSchema(
@@ -77,6 +78,42 @@ async def get_error_logs(
     except Exception as e:
         logger.error(f"Error fetching error logs: {e}")
         return ResponseSchema(success=False, error=str(e))
+
+@router.get("/logs/error_logs/{log_id}", response_model=ResponseSchema)
+async def get_error_log_detail(
+    log_id: int,
+    user = Depends(admin_required),
+    db = Depends(deps.get_db)
+):
+    """获取单条错误日志详情"""
+    try:
+        async with db.get_session() as session:
+            stmt = select(ErrorLog).where(ErrorLog.id == log_id)
+            result = await session.execute(stmt)
+            log = result.scalar_one_or_none()
+            
+            if not log:
+                return ResponseSchema(success=False, error="日志不存在")
+                
+            return ResponseSchema(
+                success=True,
+                data={
+                    'id': log.id,
+                    'level': log.level,
+                    'module': log.module,
+                    'function': log.function,
+                    'message': log.message,
+                    'created_at': log.created_at,
+                    'traceback': log.traceback,
+                    'context': log.context,
+                    'rule_id': log.rule_id,
+                    'chat_id': log.chat_id
+                }
+            )
+    except Exception as e:
+        logger.error(f"Error fetching log detail: {e}")
+        return ResponseSchema(success=False, error=str(e))
+
 
 @router.get("/logs/list", response_model=ResponseSchema)
 async def list_logs(user = Depends(admin_required)):
