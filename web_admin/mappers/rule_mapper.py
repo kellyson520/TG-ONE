@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any
 from models.models import ForwardRule, RuleLog
 
@@ -36,8 +37,8 @@ class RuleDTOMapper:
             "ai_prompt": rule.ai_prompt,
             "description": rule.description,
             "priority": rule.priority,
-            "created_at": rule.created_at if rule.created_at else None,
-            "updated_at": rule.updated_at if rule.updated_at else None,
+            "created_at": rule.created_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(rule.created_at, datetime) else rule.created_at,
+            "updated_at": rule.updated_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(rule.updated_at, datetime) else rule.updated_at,
             "forwards": stats.get('forwarded', 0),  
             "processed": stats.get('processed', 0),
             "errors": stats.get('error', 0),
@@ -93,7 +94,7 @@ class RuleDTOMapper:
             'action': item.action,
             'result': item.details,
             'error_message': item.details if item.action in ('error', 'filtered') else None,
-            'created_at': item.created_at if item.created_at else None,
+            'created_at': item.created_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(item.created_at, datetime) else item.created_at,
             'source_chat': source_title,
             'target_chat': target_title
         }

@@ -1,5 +1,6 @@
 import logging
 from core.config import settings
+from datetime import datetime, timezone
 from typing import Optional, Any
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse
@@ -44,9 +45,9 @@ async def get_tasks_list(
                     'error_log': t.error_message,
                     'progress': getattr(t, 'progress', 0),
                     'speed': getattr(t, 'speed', None),
-                    'created_at': t.created_at.isoformat() if hasattr(t.created_at, 'isoformat') else str(t.created_at) if t.created_at else None,
-                    'updated_at': t.updated_at.isoformat() if hasattr(t.updated_at, 'isoformat') else str(t.updated_at) if t.updated_at else None,
-                    'scheduled_at': t.scheduled_at.isoformat() if hasattr(t.scheduled_at, 'isoformat') else str(t.scheduled_at) if t.scheduled_at else None
+                    'created_at': t.created_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(t.created_at, datetime) else str(t.created_at) if t.created_at else None,
+                    'updated_at': t.updated_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(t.updated_at, datetime) else str(t.updated_at) if t.updated_at else None,
+                    'scheduled_at': t.scheduled_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(t.scheduled_at, datetime) else str(t.scheduled_at) if t.scheduled_at else None
                 }
                 
                 # 扩展下载任务的名称展示
@@ -344,9 +345,10 @@ async def api_stats_fragment(
         except Exception as e:
             logger.error(f"Error getting rule stats: {e}")
         
-        # 获取转发统计
+        # 获取转发统计 (统一使用缓存)
         try:
-            fs = await forward_service.get_forward_stats()
+            from core.helpers.realtime_stats import realtime_stats_cache
+            fs = await realtime_stats_cache.get_forward_stats()
             if isinstance(fs, dict):
                 today_total = int(((fs.get('today') or {}).get('total_forwards') or 0))
         except Exception as e:

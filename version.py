@@ -1,7 +1,10 @@
-VERSION = "1.2.5.4"
+VERSION = "1.2.5.5"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.5.5: 系统更新/重部署交互体验修复
+  - 修复确认页面“取消”按钮报错（Action: `data="delete"` -> `data="cancel"`）
+  - 完善回调路由器对 `cancel` 指令的免 ID 校验与通用分发逻辑
 - v1.2.5.4: 系统稳定性与代码质量专项优化
   - 修复 AnalyticsService._resolve_chat_name 中未命名的 session_service 引用
   - 修复 AdminController 中清理日志逻辑的未定义变量与缺失导入

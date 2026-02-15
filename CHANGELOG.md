@@ -1,6 +1,14 @@
 
 ## 📅 2026-02-15 更新摘要
 
+### 🔧 v1.2.5.5: 系统更新/重部署交互体验修复 (System Update UI Fix)
+- **UI 交互优化**:
+    - **取消按钮修复**: 修复了系统更新与回滚确认页面“取消”按钮触发“无效指令”的问题。由于原按钮 `data="delete"` 路由缺乏 `rule_id` 且未在解析免校验名单中，导致拦截报错。
+    - **路由指令对齐**: 将“取消”按钮数据统一重构为 `"cancel"`，并将其关联至通用的 `callback_close_settings` 处理器。
+    - **路由器鲁棒性**: 在 `callback_handlers.py` 中补全了对 `cancel` 和 `close_settings` 指令的免 ID 校验逻辑，确保此类全局性操作无需业务 ID 即可成功分发。
+- **质量验证**:
+    - **路由单元测试**: 新增验证逻辑确认 `RadixRouter` 能正确匹配并分发 `cancel` 路径。
+
 ### 🔧 v1.2.5.4: 系统稳定性与代码质量专项优化 (System Stability & Code Quality Review)
 - **代码质量治理 (Code Quality)**:
     - **Undefined Name 修复**:

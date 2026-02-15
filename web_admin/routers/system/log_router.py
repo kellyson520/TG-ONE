@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 import json
 
@@ -16,6 +16,25 @@ from web_admin.schemas.response import ResponseSchema
 from web_admin.api import deps
 
 logger = logging.getLogger(__name__)
+
+def _parse_audit_details(details: Optional[str]) -> str:
+    if not details:
+        return "-"
+    try:
+        data = json.loads(details)
+        if isinstance(data, dict):
+            reason = data.get("reason")
+            if reason:
+                mapping = {
+                    "invalid_credentials": "凭据无效",
+                    "account_locked": "账户已锁定",
+                    "max_attempts_exceeded": "达到最大重试次数",
+                    "invalid_otp": "动态验证码错误"
+                }
+                return mapping.get(reason, reason)
+        return str(data)
+    except:
+        return details
 
 router = APIRouter(prefix="/api/system", tags=["System Logs"])
 
@@ -59,7 +78,7 @@ async def get_error_logs(
                     'module': log.module,
                     'function': log.function,
                     'message': log.message[:200] + '...' if log.message and len(log.message) > 200 else log.message,
-                    'created_at': log.created_at,
+                    'created_at': (f"{log.created_at}Z" if log.created_at and 'T' in log.created_at and not log.created_at.endswith('Z') else log.created_at),
                     'traceback': log.traceback[:300] + '...' if log.traceback and len(log.traceback) > 300 else log.traceback,
                     # Context usually small, but let's be safe
                     'context': str(log.context)[:500] + '...' if log.context and len(str(log.context)) > 500 else log.context
@@ -103,7 +122,7 @@ async def get_error_log_detail(
                     'module': log.module,
                     'function': log.function,
                     'message': log.message,
-                    'created_at': log.created_at,
+                    'created_at': (f"{log.created_at}Z" if log.created_at and 'T' in log.created_at and not log.created_at.endswith('Z') else log.created_at),
                     'traceback': log.traceback,
                     'context': log.context,
                     'rule_id': log.rule_id,
@@ -292,9 +311,9 @@ async def get_audit_logs(
                 "resource_id": log.resource_id,
                 "ip_address": log.ip_address,
                 "user_agent": log.user_agent,
-                "details": log.details,
+                "details": _parse_audit_details(log.details),
                 "status": log.status,
-                "timestamp": log.timestamp.isoformat() if log.timestamp else None
+                "timestamp": log.timestamp.replace(tzinfo=timezone.utc).isoformat() if log.timestamp else None
             })
 
         return ResponseSchema(

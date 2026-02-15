@@ -80,8 +80,7 @@ for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "appr
         if lib == "rapidfuzz":
             sys.modules["rapidfuzz.fuzz"] = MagicMock()
 
-# Mock 缺失的底层工具 (更新路径以匹配重构后的 fastapi_app.py)
-for m in ["core.helpers.realtime_stats", "services.network.bot_heartbeat", "core.helpers.env_config"]:
+for m in ["services.network.bot_heartbeat", "core.helpers.env_config"]:
     sys.modules[m] = unittest.mock.MagicMock()
 
 # Mock decorator 类的工具

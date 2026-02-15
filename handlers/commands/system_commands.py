@@ -159,7 +159,7 @@ async def handle_update_command(event, parts=None):
     )
     
     buttons = [
-        [Button.inline("🚀 确认执行", data=f"confirm_update:{target}"), Button.inline("❌ 取消", data="delete")]
+        [Button.inline("🚀 确认执行", data=f"confirm_update:{target}"), Button.inline("❌ 取消", data="cancel")]
     ]
     await msg.edit(text, buttons=buttons)
 
@@ -192,7 +192,7 @@ async def handle_rollback_command(event):
     )
     
     buttons = [
-        [Button.inline("⚠️ 确认强制回滚", data="confirm_rollback"), Button.inline("❌ 取消", data="delete")]
+        [Button.inline("⚠️ 确认强制回滚", data="confirm_rollback"), Button.inline("❌ 取消", data="cancel")]
     ]
     await event.respond(text, buttons=buttons)
 

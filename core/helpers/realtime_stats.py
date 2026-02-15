@@ -44,23 +44,6 @@ class RealtimeStatsCache:
         """获取转发统计数据"""
         cache_key = "forward_stats"
 
-        # 检查持久化缓存中是否有今日概览数据
-        try:
-            mod = __import__('repositories.persistent_cache', fromlist=['get_persistent_cache'])
-            persistent_cache = mod.get_persistent_cache()
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            persistent_key = f"today_summary:{today_str}"
-
-            # 如果不是强制刷新，先尝试从持久化缓存获取
-            if not force_refresh:
-                cached_data = persistent_cache.get(persistent_key)
-                if cached_data:
-                    import json
-
-                    return cast(Dict[str, Any], json.loads(cached_data))
-        except Exception as e:
-            logger.debug(f"从持久化缓存获取今日概览数据失败: {e}")
-
         if not force_refresh and self._is_cache_valid(cache_key):
             return cast(Dict[str, Any], self._cache[cache_key])
 
@@ -76,24 +59,6 @@ class RealtimeStatsCache:
 
             # 通知更新
             await self._notify_update("forward_stats", stats)
-
-            # 将今日统计数据保存到持久化缓存中（有效期到今天结束）
-            try:
-                mod = __import__('repositories.persistent_cache', fromlist=['dumps_json'])
-                dumps_json = mod.dumps_json
-
-                tomorrow = datetime.now() + timedelta(days=1)
-                tomorrow_midnight = datetime(
-                    tomorrow.year, tomorrow.month, tomorrow.day
-                )
-                ttl_seconds = int((tomorrow_midnight - datetime.now()).total_seconds())
-
-                persistent_cache.set(persistent_key, dumps_json(stats), ttl_seconds)
-                logger.debug(
-                    f"已将今日统计数据保存到持久化缓存，有效期至: {tomorrow_midnight}"
-                )
-            except Exception as e:
-                logger.debug(f"保存今日统计数据到持久化缓存失败: {e}")
 
             return cast(Dict[str, Any], stats)
 

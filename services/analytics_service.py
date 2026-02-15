@@ -2,7 +2,7 @@ import logging
 import traceback
 import os
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from services.network.bot_heartbeat import get_heartbeat
@@ -65,11 +65,11 @@ class AnalyticsService:
                 'total_chats': rule_stats.get('total_chats', 0)
             }
             
-            # 2. 获取转发统计 (从 ForwardService 获取今日统计)
+            # 2. 获取转发统计 (从缓存获取以对齐 Bot 菜单)
             forward_stats = {'total_forwards': 0}
             try:
-                from services.forward_service import forward_service
-                fs = await forward_service.get_forward_stats()
+                from core.helpers.realtime_stats import realtime_stats_cache
+                fs = await realtime_stats_cache.get_forward_stats()
                 if isinstance(fs, dict):
                     ft = int(((fs.get('today') or {}).get('total_forwards') or 0))
                     if ft >= 0:
@@ -687,7 +687,7 @@ class AnalyticsService:
                         'rule_id': log.rule_id,
                         'action': log.action,
                         'message_text': log.message_text[:100] if log.message_text else '',
-                        'created_at': log.created_at,
+                        'created_at': log.created_at.replace(tzinfo=timezone.utc).isoformat() if hasattr(log.created_at, 'isoformat') else str(log.created_at),
                         'source_chat_id': source_title, # 保留旧字段但填入名称以修复显示
                         'target_chat_id': target_title,
                         'source_chat': source_title,    # 新增对齐 RuleDTOMapper

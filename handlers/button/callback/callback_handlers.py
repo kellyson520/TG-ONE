@@ -170,6 +170,7 @@ CALLBACK_HANDLERS = {
     "delay_time_page": callback_delay_time_page,
     "page_rule": callback_page_rule,
     "close_settings": callback_close_settings,
+    "cancel": callback_close_settings,
     "set_sync_rule": callback_set_sync_rule,
     "toggle_rule_sync": callback_toggle_rule_sync,
     "sync_rule_page": callback_sync_rule_page,
@@ -447,7 +448,7 @@ async def handle_callback(event):
                     return
 
             # 3. 参数校验 (非管理操作且非取消操作时，rule_id 通常是必须的)
-            if not rule_id and not is_admin_action and "cancel" not in data and "noop" not in data:
+            if not rule_id and not is_admin_action and "cancel" not in data and "noop" not in data and "close_settings" not in data:
                 logger.warning(f"由于缺失业务 ID，回调分发终止: {data}")
                 await event.answer("无效的指令参数", alert=True)
                 return
