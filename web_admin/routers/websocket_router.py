@@ -138,8 +138,10 @@ class ConnectionManager:
                 # 如果没有定时器，启动一个
                 if self._throttle_tasks[topic] is None or self._throttle_tasks[topic].done():
                     delay = (self.THROTTLE_MS - (now - state["last_time"])) / 1000
-                    self._throttle_tasks[topic] = asyncio.create_task(
-                        self._flush_pending(topic, delay)
+                    from services.exception_handler import exception_handler
+                    self._throttle_tasks[topic] = exception_handler.create_task(
+                        self._flush_pending(topic, delay),
+                        name=f"ws_throttle_{topic}"
                     )
                 return
         

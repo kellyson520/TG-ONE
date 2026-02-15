@@ -136,9 +136,22 @@ if __name__ == '__main__':
     # 设置自定义异常处理器以减少退出时的噪音
     def _loop_exception_handler(loop, context):
         msg = context.get("message")
-        # 忽略退出阶段常见的“任务被取消”或“Socket 已关闭”的次要错误
-        if msg and any(x in msg for x in ["Task was destroyed", "Event loop is closed", "CancelledError"]):
+        exception = context.get("exception")
+        
+        # 常见退出噪音：任务被销毁、事件循环已关闭、取消异常、传输错误
+        noise_keywords = ["Task was destroyed", "Event loop is closed", "CancelledError", "Fatal error on transport"]
+        
+        is_noise = False
+        if msg and any(x in msg for x in noise_keywords):
+            is_noise = True
+        elif exception and any(x in str(exception) for x in noise_keywords):
+            is_noise = True
+            
+        if is_noise:
+            # 退出阶段只记录为 debug，不作为 error 记录
+            logger.debug(f"已忽略退出阶段的事件循环噪音: {context}")
             return
+            
         logger.error(f"事件循环未处理异常: {context}")
         
     loop.set_exception_handler(_loop_exception_handler)
@@ -173,8 +186,13 @@ if __name__ == '__main__':
             logger.info("[Shutdown 3/4] 正在关闭系统执行器线程池...")
             loop.run_until_complete(loop.shutdown_default_executor())
             
-            # Step D: 关闭循环
-            logger.info("[Shutdown 4/4] 正在释放事件循环资源...")
+            # Step D: 最后的沉淀期 (Settling Period)
+            # 给一些仍在后台或传输层排队的回调一个执行机会
+            logger.info("[Shutdown 4/5] 正在等待残留回调沉淀...")
+            loop.run_until_complete(asyncio.sleep(0.2))
+            
+            # Step E: 关闭循环
+            logger.info("[Shutdown 5/5] 正在释放事件循环资源...")
             loop.close()
             
         except Exception as e:

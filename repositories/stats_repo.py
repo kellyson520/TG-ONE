@@ -1,5 +1,5 @@
 from typing import Optional
-from models.models import RuleLog, ChatStatistics, ErrorLog, RuleStatistics, ForwardRule
+from models.models import RuleLog, ChatStatistics, ErrorLog, RuleStatistics, ForwardRule, Chat
 from sqlalchemy import select, update, insert, func
 from sqlalchemy.orm import joinedload
 from datetime import date, datetime

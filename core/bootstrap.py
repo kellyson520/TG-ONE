@@ -377,6 +377,13 @@ class Bootstrap:
             )
         
         self.coordinator.register_cleanup(_disconnect_clients, priority=3, timeout=5.0, name="telegram_clients")
+        
+        # Priority 4: Dispose Database Engines (Final I/O cleanup)
+        async def _dispose_db() -> None:
+            from core.db_factory import dispose_all_engines
+            await dispose_all_engines()
+            
+        self.coordinator.register_cleanup(_dispose_db, priority=4, timeout=5.0, name="db_engine_disposal")
 
     async def _post_startup(self) -> None:
         # TODO: Implement unified bot command registration if needed

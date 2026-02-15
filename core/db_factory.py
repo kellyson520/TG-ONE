@@ -23,6 +23,47 @@ _async_read_engine: Optional[AsyncEngine] = None
 _write_factory: Optional[async_sessionmaker[AsyncSession]] = None
 _read_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
+# 导出清理函数
+async def dispose_all_engines() -> None:
+    """异步关闭所有数据库引擎"""
+    global _engine
+    # 1. 处理同步引擎
+    if _engine:
+        try:
+            _engine.dispose()
+            _engine = None
+            logger.info("[DbFactory] 同步数据库引擎已释放")
+        except Exception as e:
+            logger.error(f"[DbFactory] 释放同步引擎失败: {e}")
+            
+    # 2. 处理异步读写引擎
+    # 优先处理类变量中的引擎
+    engines_to_dispose = []
+    if hasattr(DbFactory, "_async_write_engine") and DbFactory._async_write_engine:
+        engines_to_dispose.append(("Async Write", DbFactory._async_write_engine))
+        DbFactory._async_write_engine = None
+        
+    if hasattr(DbFactory, "_async_read_engine") and DbFactory._async_read_engine:
+        engines_to_dispose.append(("Async Read", DbFactory._async_read_engine))
+        DbFactory._async_read_engine = None
+
+    # 处理全局变量中的引擎 (如果有)
+    global _async_write_engine, _async_read_engine
+    if _async_write_engine:
+        engines_to_dispose.append(("Global Async Write", _async_write_engine))
+        _async_write_engine = None
+    if _async_read_engine:
+        engines_to_dispose.append(("Global Async Read", _async_read_engine))
+        _async_read_engine = None
+
+    for name, engine in engines_to_dispose:
+        try:
+            await engine.dispose()
+            logger.info(f"[DbFactory] {name} 数据库引擎已释放")
+        except Exception as e:
+            logger.error(f"[DbFactory] 释放 {name} 引擎失败: {e}")
+
+
 
 class DbFactory:
     """Database Factory for creating Engines and Sessions"""
