@@ -43,12 +43,13 @@ async def get_rule_logs(
     rule_id: Optional[int] = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
+    query: Optional[str] = Query(None),
     user = Depends(login_required),
     stats_repo = Depends(deps.get_stats_repo)
 ):
     """获取规则转发日志列表"""
     try:
-        items, total = await stats_repo.get_rule_logs(rule_id, page, size)
+        items, total = await stats_repo.get_rule_logs(rule_id, page, size, query_str=query)
         
         data = [RuleDTOMapper.log_to_dict(item) for item in items]
         

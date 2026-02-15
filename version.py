@@ -1,7 +1,14 @@
-VERSION = "1.2.5.5"
+VERSION = "1.2.6.0"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.6.0: Web 管理端服务端搜索与分页功能升级
+  - 核心仓库增强：实现 RuleRepository 与 StatsRepository 的服务端关键词搜索逻辑
+  - 接口标准化：为 Rules 与 Logs API 引入分页参数 (Page/Size) 与搜索参数 (Query)
+  - 前端 UI 优化：
+    - Rules 页面支持实时防抖搜索与服务端分页跳转
+    - History 页面集成 URL 级联过滤 (支持通过规则 ID 直接定位)
+    - 修复 History 详情页展示逻辑与 TypeScript 类型报错
 - v1.2.5.5: 系统更新/重部署交互体验修复
   - 修复确认页面“取消”按钮报错（Action: `data="delete"` -> `data="cancel"`）
   - 完善回调路由器对 `cancel` 指令的免 ID 校验与通用分发逻辑

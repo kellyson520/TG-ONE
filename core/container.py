@@ -467,6 +467,7 @@ class Container:
             await asyncio.gather(
                 self.stats_repo.log_action(
                     data['rule_id'], data['msg_id'], "success", 
+                    result=f"转发成功 (模式: {data.get('mode', '未知')})",
                     msg_text=data.get('msg_text'),
                     msg_type=data.get('msg_type'),
                     processing_time=data.get('duration')

@@ -133,7 +133,7 @@ async def update_user_settings(request: Request, user = Depends(admin_required))
         payload = await request.json()
         allow = payload.get('allow_registration')
         if allow is not None:
-            system_service.set_allow_registration(bool(allow))
+            await system_service.set_allow_registration(bool(allow))
         return ResponseSchema(success=True, message='设置已更新')
     except Exception as e:
         return ResponseSchema(success=False, error=str(e))

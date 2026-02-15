@@ -81,6 +81,19 @@ class RuleRepository:
             obj = result.scalar_one_or_none()
             return RuleDTO.model_validate(obj) if obj else None
 
+    async def get_by_ids(self, rule_ids: List[int], session=None) -> Dict[int, RuleDTO]:
+        """批量获取规则"""
+        if not rule_ids:
+            return {}
+        async with self.db.get_session(session) as session:
+            stmt = (
+                select(ForwardRule)
+                .options(selectinload(ForwardRule.source_chat), selectinload(ForwardRule.target_chat))
+                .where(ForwardRule.id.in_(rule_ids))
+            )
+            result = await session.execute(stmt)
+            return {r.id: RuleDTO.model_validate(r) for r in result.scalars().all()}
+
     async def get_rules_for_source_chat(self, chat_id, session=None) -> List[RuleDTO]:
         """获取源聊天的规则 (Unified Source of Truth)"""
         # 1. 查内存缓存 (TTLCache)
@@ -319,15 +332,45 @@ class RuleRepository:
             orm_rules = result.scalars().all()
             return [RuleDTO.model_validate(r) for r in orm_rules]
 
-    async def get_all(self, page: int = 1, size: int = 10, session=None) -> Any:
-        """分页获取所有规则"""
+    async def get_all(self, page: int = 1, size: int = 10, query_str: str = None, session=None) -> Any:
+        """分页获取所有规则，支持关键词搜索"""
         async with self.db.get_session(session) as session:
-            total_stmt = select(func.count(ForwardRule.id))
-            total_res = await session.execute(total_stmt)
+            # 构建基础查询
+            stmt_base = select(ForwardRule)
+            
+            # 如果有搜索词，增加过滤条件
+            if query_str:
+                from sqlalchemy import or_
+                search = f"%{query_str}%"
+                
+                # 定义子查询或直接连接以搜索关联的 Chat 标题/ID
+                from sqlalchemy.orm import aliased
+                source_chat = aliased(Chat)
+                target_chat = aliased(Chat)
+                
+                stmt_base = (
+                    stmt_base
+                    .join(source_chat, ForwardRule.source_chat_id == source_chat.id, isouter=True)
+                    .join(target_chat, ForwardRule.target_chat_id == target_chat.id, isouter=True)
+                    .filter(or_(
+                        source_chat.title.like(search),
+                        source_chat.telegram_chat_id.like(search),
+                        target_chat.title.like(search),
+                        target_chat.telegram_chat_id.like(search),
+                        ForwardRule.description.like(search),
+                        ForwardRule.source_chat_id.like(search),
+                        ForwardRule.target_chat_id.like(search)
+                    ))
+                )
+
+            # 获取过滤后的总数
+            count_stmt = select(func.count()).select_from(stmt_base.subquery())
+            total_res = await session.execute(count_stmt)
             total = total_res.scalar() or 0
             
+            # 分页查询
             stmt = (
-                select(ForwardRule)
+                stmt_base
                 .options(*self._get_rule_select_options())
                 .order_by(ForwardRule.id.desc())
                 .offset((page - 1) * size)

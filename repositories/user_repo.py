@@ -124,26 +124,6 @@ class UserRepository:
             result = await session.execute(stmt)
             return result.scalar() or 0
 
-    async def get_allow_registration(self) -> bool:
-        """获取是否允许注册"""
-        try:
-            from core.config import settings
-            mod = __import__('services.config_service', fromlist=['config_service'])
-            config_service = mod.config_service
-            v = await config_service.get('ALLOW_REGISTRATION')
-            if v is None:
-                 return settings.ALLOW_REGISTRATION
-            return str(v).lower() in ('1', 'true', 'yes')
-        except Exception:
-            from core.config import settings
-            return settings.ALLOW_REGISTRATION
-
-    async def set_allow_registration(self, allow: bool) -> None:
-        """设置是否允许注册"""
-        mod = __import__('services.config_service', fromlist=['config_service'])
-        config_service = mod.config_service
-        await config_service.set('ALLOW_REGISTRATION', 'true' if allow else 'false', data_type='string')
-
     async def get_user_by_telegram_id(self, telegram_id: str) -> Optional[UserDTO]:
         """根据Telegram ID获取用户"""
         async with self.db.get_session() as session:

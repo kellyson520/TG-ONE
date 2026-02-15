@@ -22,7 +22,9 @@ async def get_tasks_list(
     status: Optional[str]=None,
     task_type: Optional[str]=None,
     user=Depends(admin_required),
-    task_repo=Depends(deps.get_task_repo)
+    task_repo=Depends(deps.get_task_repo),
+    chat_info_service=Depends(deps.get_chat_info_service),
+    rule_repo=Depends(deps.get_rule_repo)
 ):
     """获取任务队列列表"""
     try:
@@ -31,6 +33,19 @@ async def get_tasks_list(
             
         tasks, total = await task_repo.get_tasks(page, limit, status, task_type)
         
+        # 批量获取关联信息以优化性能
+        rule_ids = set()
+        for t in tasks:
+            try:
+                payload = json.loads(t.task_data) if t.task_data else {}
+                if payload.get('rule_id'):
+                    rule_ids.add(int(payload['rule_id']))
+                if payload.get('target_rule_id'):
+                    rule_ids.add(int(payload['target_rule_id']))
+            except: pass
+        
+        rules_map = await rule_repo.get_by_ids(list(rule_ids)) if rule_ids else {}
+
         data = []
         for t in tasks:
             try:
@@ -50,14 +65,31 @@ async def get_tasks_list(
                     'scheduled_at': t.scheduled_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(t.scheduled_at, datetime) else str(t.scheduled_at) if t.scheduled_at else None
                 }
                 
-                # 扩展下载任务的名称展示
-                if t.task_type in ('download_file', 'manual_download'):
-                    try:
-                        import json
-                        payload = json.loads(t.task_data) if t.task_data else {}
-                        task_dict['name'] = payload.get('file_name', f"Task #{t.id}")
-                    except Exception:
-                        task_dict['name'] = f"Task #{t.id}"
+                # 构建易读名称
+                payload = json.loads(t.task_data) if t.task_data else {}
+                task_dict['name'] = f"任务 #{t.id}" # 默认
+                
+                if t.task_type == 'process_message':
+                    chat_id = payload.get('chat_id')
+                    rule_id = payload.get('rule_id') or payload.get('target_rule_id')
+                    source_name = await chat_info_service.get_chat_name(chat_id) if chat_id else "未知"
+                    
+                    if rule_id and int(rule_id) in rules_map:
+                        rule = rules_map[int(rule_id)]
+                        target_name = "未知"
+                        if rule.target_chat:
+                            target_name = rule.target_chat.title or rule.target_chat.name
+                        task_dict['name'] = f"{source_name} 转发到 {target_name}"
+                    else:
+                        task_dict['name'] = f"处理 {source_name} 的消息"
+                
+                elif t.task_type == 'message_delete':
+                    chat_id = payload.get('chat_id')
+                    source_name = await chat_info_service.get_chat_name(chat_id) if chat_id else "未知"
+                    task_dict['name'] = f"删除 {source_name} 的消息"
+                    
+                elif t.task_type in ('download_file', 'manual_download'):
+                    task_dict['name'] = payload.get('file_name', f"下载任务 #{t.id}")
                 
                 data.append(task_dict)
             except Exception as e:

@@ -14,7 +14,7 @@ class SystemService:
     Service for system-wide configurations and state.
     """
     def __init__(self):
-        self._allow_registration = True # Default
+        pass # Settings managed via core.config.settings and config_service
         
     @property
     def container(self):
@@ -59,10 +59,14 @@ class SystemService:
             return False
         
     def get_allow_registration(self) -> bool:
-        return self._allow_registration
+        return settings.ALLOW_REGISTRATION
         
-    def set_allow_registration(self, value: bool):
-        self._allow_registration = value
+    async def set_allow_registration(self, value: bool):
+        from services.config_service import config_service
+        # 持久化到数据库
+        await config_service.set("ALLOW_REGISTRATION", value, data_type="boolean")
+        # 同步更新内存中的 settings 对象，确保后续请求立即生效
+        settings.ALLOW_REGISTRATION = value
         logger.info(f"Registration allowed set to: {value}")
 
     async def get_system_configurations(self, limit: int = 20):

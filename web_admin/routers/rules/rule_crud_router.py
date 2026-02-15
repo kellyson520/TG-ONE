@@ -16,12 +16,13 @@ async def get_rules(
     request: Request,
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
+    query: Optional[str] = Query(None),
     user = Depends(login_required),
     rule_repo = Depends(deps.get_rule_repo),
     stats_repo = Depends(deps.get_stats_repo)
 ):
     """返回分页后的规则列表"""
-    items, total = await rule_repo.get_all(page, size)
+    items, total = await rule_repo.get_all(page, size, query_str=query)
     
     rules = []
     if items:

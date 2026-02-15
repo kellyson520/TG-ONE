@@ -192,27 +192,55 @@ class StatsRepository:
             items = result.scalars().all()
             return {'items': items, 'total': total, 'total_pages': (total + size - 1) // size}
 
-    async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50):
-        """获取规则转发日志"""
+    async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50, query_str: str = None):
+        """获取规则转发日志，支持查询筛选"""
         async with self.db.get_session() as session:
-            query = select(RuleLog).options(
-                joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
-                joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
-            )
-            if rule_id:
-                query = query.filter(RuleLog.rule_id == rule_id)
+            # 构建基础查询
+            stmt_base = select(RuleLog)
             
-            # Count total
-            count_result = await session.execute(select(func.count()).select_from(query.subquery()))
-            total = count_result.scalar() or 0
+            # 如果有搜索词，增加关联和过滤
+            if query_str:
+                from sqlalchemy import or_
+                from sqlalchemy.orm import aliased
+                search = f"%{query_str}%"
+                
+                # 连接到 rule 和 chat 以便搜索标题
+                source_chat = aliased(Chat)
+                target_chat = aliased(Chat)
+                
+                stmt_base = (
+                    stmt_base
+                    .join(RuleLog.rule)
+                    .join(source_chat, ForwardRule.source_chat_id == source_chat.id, isouter=True)
+                    .join(target_chat, ForwardRule.target_chat_id == target_chat.id, isouter=True)
+                    .filter(or_(
+                        RuleLog.message_text.like(search),
+                        RuleLog.details.like(search),
+                        source_chat.title.like(search),
+                        target_chat.title.like(search),
+                        RuleLog.action.like(search)
+                    ))
+                )
+            elif rule_id:
+                stmt_base = stmt_base.filter(RuleLog.rule_id == rule_id)
+
+            # 获取总数
+            count_stmt = select(func.count()).select_from(stmt_base.subquery())
+            total_res = await session.execute(count_stmt)
+            total = total_res.scalar() or 0
             
-            # Get items
-            result = await session.execute(
-                query
+            # 分页查询并加载关联数据
+            stmt = (
+                stmt_base
+                .options(
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
+                    joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
+                )
                 .order_by(RuleLog.id.desc())
                 .offset((page-1)*size)
                 .limit(size)
             )
+            result = await session.execute(stmt)
             items = result.scalars().all()
             return items, total
 

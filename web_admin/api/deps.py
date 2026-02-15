@@ -57,6 +57,9 @@ def get_exception_handler():
     from services.exception_handler import exception_handler
     return exception_handler
 
+def get_chat_info_service():
+    return container.chat_info_service
+
 def get_db():
     return container.db 
     # This is container.db instance, to get session use async with container.db.get_session()
