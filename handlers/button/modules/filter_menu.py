@@ -19,7 +19,7 @@ class FilterMenu(BaseMenu):
             [Button.inline("📏 媒体大小", "new_menu:filter_media_size")],
             [Button.inline("⏱️ 媒体时长", "new_menu:filter_media_duration")],
             [Button.inline("📁 媒体扩展", "new_menu:filter_media_extension")],
-            [Button.inline("👈 返回上一级", "new_menu:forward_management")],
+            [Button.inline("👈 返回上一级", "new_menu:forward_hub")],
         ]
         await self._render_page(
             event,

@@ -12,7 +12,7 @@ class MediaController(BaseController):
         """显示历史任务中心 (Refactored to UIRE-3.0)"""
         try:
             # 获取当前补全任务状态
-            task_status = await self.container.session_service.get_history_task_status(event.sender_id)
+            task_status = await session_service.get_history_task_status(event.sender_id)
             
             data = {
                 'current_task': task_status['progress'] if task_status.get('has_task') else None
@@ -32,11 +32,11 @@ class MediaController(BaseController):
         try:
             from services.forward_settings_service import forward_settings_service
             # 获取选中的规则
-            res = await self.container.session_service.get_selected_rule(event.sender_id)
+            res = await session_service.get_selected_rule(event.sender_id)
             # 获取全局媒体设置
             settings = await forward_settings_service.get_global_media_settings()
             # 获取时间范围设置
-            time_config = await self.container.session_service.get_time_range_config(event.sender_id)
+            time_config = await session_service.get_time_range_config(event.sender_id)
             
             data = {
                 'selected': res,
@@ -94,7 +94,7 @@ class MediaController(BaseController):
         """显示时间范围设置 (Refactored to TaskRenderer)"""
         try:
             # 获取当前设置
-            config = await self.container.session_service.get_time_range_config(event.sender_id)
+            config = await session_service.get_time_range_config(event.sender_id)
             
             view_result = self.container.ui.task.render_time_range_settings(config)
             
@@ -106,8 +106,8 @@ class MediaController(BaseController):
     async def show_history_task_selector(self, event):
         """显示历史任务规则选择器 (Refactored to TaskRenderer)"""
         try:
-            rules_res = await self.container.session_service.get_available_rules(event.sender_id)
-            selection = await self.container.session_service.get_selected_rule(event.sender_id)
+            rules_res = await session_service.get_available_rules(event.sender_id)
+            selection = await session_service.get_selected_rule(event.sender_id)
             
             data = {
                 'rules': rules_res.get('rules', []),
@@ -129,7 +129,7 @@ class MediaController(BaseController):
     async def show_current_history_task(self, event):
         """显示当前执行中的历史任务 (Refactored to TaskRenderer)"""
         try:
-            status = await self.container.session_service.get_history_task_status(event.sender_id)
+            status = await session_service.get_history_task_status(event.sender_id)
             
             view_result = self.container.ui.task.render_current_history_task(status)
             from handlers.button.new_menu_system import new_menu_system
@@ -146,7 +146,7 @@ class MediaController(BaseController):
     async def show_history_delay_settings(self, event):
         """显示历史任务延迟设置 (Refactored to TaskRenderer)"""
         try:
-            delay_data = await self.container.session_service.get_delay_settings(event.sender_id)
+            delay_data = await session_service.get_delay_settings(event.sender_id)
             
             view_result = self.container.ui.task.render_delay_settings(delay_data)
             from handlers.button.new_menu_system import new_menu_system
