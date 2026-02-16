@@ -1,4 +1,15 @@
-## 📅 2026-02-15 更新摘要
+## 📅 2026-02-16 更新摘要
+
+### 🚀 v1.2.6.1: MenuController 及领域控制器架构标准化重构 (UIRE-3.0)
+- **CVM 架构深度重构 (Architecture)**:
+    - **核心解耦**: 彻底分离了 `MenuController` 与 `Media/Rule/Admin` 控制器中的 UI 构造逻辑。控制器现仅负责业务调度，不再持有任何硬编码的标题或导航字符串。
+    - **统一渲染入口**: 引入 `BaseMenu.display_view` 方法，实现了对 `ViewResult` 产物的标准化分发，确保全系统渲染行为的一致性。
+- **UI 渲染引擎升级 (UI Engine)**:
+    - **渲染内聚化**: 将分割线、标题图标、标准面包屑及动态“更新时间”脚注完全封装在 `Renderer` 层（基于 `MenuBuilder`），实现了 UI 结构的中央管控。
+    - **Emoji 与排版修复**: 修复了由于双重复合导致的 Telegram 消息双重标题问题，并优化了 Emoji 标题在各端显示的一致性。
+- **质量保障 (Quality)**:
+    - **路由合规**: 确保所有菜单交互按钮（如历史记录、规则管理等）必须经由相应的 Controller 转发，严格对齐了 PSB 工程协议的分层要求。
+    - **全量验证**: 通过本地 CI (Arch Guard & Flake8 Critical) 检查。
 
 ### 🚀 v1.2.6.0: Web 管理端服务端搜索与分页功能升级 (Server-side Search & Pagination)
 - **核心后端增强 (Core Backend)**:

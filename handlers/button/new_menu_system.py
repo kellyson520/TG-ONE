@@ -111,7 +111,9 @@ class NewMenuSystem(BaseMenu):
 
     # 1. 规则与管理 (Rules)
     async def show_rule_list(self, event, page=1): await self.rules_menu.show_rule_list(event, page)
-    async def show_rule_management(self, event, page=0): await self.rules_menu.show_rule_management(event, page)
+    async def show_rule_management(self, event, page=0):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_rule_management(event, page)
     async def show_multi_source_management(self, event, page=0): await self.rules_menu.show_multi_source_management(event, page)
     async def show_multi_source_detail(self, event, rule_id): await self.rules_menu.show_multi_source_detail(event, rule_id)
     async def show_rule_selection_for_settings(self, event): await self.rules_menu.show_rule_selection_for_settings(event)
@@ -188,11 +190,25 @@ class NewMenuSystem(BaseMenu):
     async def show_message_filter_menu(self, event): await self.session_menu.show_message_filter_menu(event)
 
     # 8. 历史消息转发 (History)
-    async def show_history_messages(self, event): await self.history_module.show_history_messages(event)
-    async def show_history_task_selector(self, event): await self.history_module.show_history_task_selector(event)
-    async def show_current_history_task(self, event): await self.history_module.show_current_history_task(event)
-    async def show_history_delay_settings(self, event): await self.history_module.show_history_delay_settings(event)
-    async def show_history_time_range(self, event): await self.history_module.show_time_range_selection(event)
+    async def show_history_messages(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_history_messages(event)
+
+    async def show_history_task_selector(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_history_task_selector(event)
+
+    async def show_current_history_task(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_current_history_task(event)
+
+    async def show_history_delay_settings(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_history_delay_settings(event)
+
+    async def show_history_time_range(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_history_time_range(event)
     async def show_time_range_selection(self, event): await self.history_module.show_time_range_selection(event)
 
     # 9. 选择器 (Pickers)

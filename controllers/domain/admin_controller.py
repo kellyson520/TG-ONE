@@ -22,13 +22,7 @@ class AdminController(BaseController):
             view_result = self.container.ui.admin.render_system_hub(stats)
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title="⚙️ **系统设置中心**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb="🏠 > ⚙️"
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -115,7 +109,7 @@ class AdminController(BaseController):
 
             view_result = self.container.ui.admin.render_db_performance_monitor({'dashboard': dashboard_data})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "🗄️ **数据库性能监控**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -134,7 +128,7 @@ class AdminController(BaseController):
             }
             view_result = self.container.ui.admin.render_db_optimization_center(optimization_data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "🔧 **数据库优化中心**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -145,7 +139,7 @@ class AdminController(BaseController):
             data = await system_service.get_backup_info()
             view_result = self.container.ui.admin.render_db_backup(data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "💾 **数据库备份**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -162,7 +156,7 @@ class AdminController(BaseController):
             }
             view_result = self.container.ui.admin.render_cache_cleanup(render_data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "🗑️ **垃圾清理**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -248,21 +242,22 @@ class AdminController(BaseController):
              return self.handle_exception(e)
 
     async def show_forward_analytics(self, event):
-        """显示转发分析面板"""
+        """显示转发统计详情"""
         try:
+            # 获取详细统计数据 (7天)
             from services.analytics_service import analytics_service
-            data = await analytics_service.get_analytics_overview()
-            view_result = self.container.ui.admin.render_analytics_hub(data)
+            stats = await analytics_service.get_detailed_analytics(days=7)
+            from ui.menu_renderer import menu_renderer
+            render_data = menu_renderer.render_forward_analytics(stats)
+            
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, render_data)
         except Exception as e:
             return self.handle_exception(e)
+
+    async def show_detailed_analytics(self, event):
+        """显示详细分析详情 (别名)"""
+        await self.show_forward_analytics(event)
 
     async def run_anomaly_detection(self, event):
         """运行异常检测"""
@@ -271,13 +266,7 @@ class AdminController(BaseController):
             data = await system_service.run_anomaly_detection()
             view_result = self.container.ui.admin.render_anomaly_detection(data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -332,12 +321,7 @@ class AdminController(BaseController):
             view_result = self.container.ui.admin.render_system_logs(logs)
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title=f"{UIStatus.INFO} **系统运行日志**", 
-                body_lines=[view_result.text], 
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -442,27 +426,15 @@ class AdminController(BaseController):
 
     async def show_analytics_hub(self, event):
         """显示数据分析中心"""
-        await self.show_forward_analytics(event)
-
-    async def show_forward_analytics(self, event):
-        """显示转发统计详情"""
         try:
-            # 获取详细统计数据
-            stats = await analytics_service.get_detailed_stats(days=7)
-            
-            from ui.menu_renderer import menu_renderer
-            render_data = menu_renderer.render_forward_analytics(stats)
-            
+            from services.analytics_service import analytics_service
+            data = await analytics_service.get_analytics_overview()
+            view_result = self.container.ui.admin.render_analytics_hub(data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title="📊 **转发详细统计**", 
-                body_lines=[render_data['text']], 
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 📊 分析 > 📈 转发"
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
+
 
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""
@@ -628,13 +600,7 @@ class AdminController(BaseController):
             data = await analytics_service.get_performance_metrics()
             view_result = self.container.ui.admin.render_performance_analysis(data)
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -647,12 +613,6 @@ class AdminController(BaseController):
             logs = [{"error": item.error_log or item.message or "Unknown", "time": item.created_at} for item in items]
             view_result = self.container.ui.admin.render_failure_analysis({"logs": logs})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)

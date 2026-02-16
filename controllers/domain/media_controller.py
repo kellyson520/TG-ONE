@@ -9,42 +9,45 @@ class MediaController(BaseController):
     """媒体、AI 与历史补全业务控制器"""
 
     async def show_history_hub(self, event):
-        """显示历史任务中心"""
+        """显示历史任务中心 (Refactored to UIRE-3.0)"""
         try:
-            # 简化：这里目前没有复杂的 Stats，直接渲染
-            view_result = self.container.ui.media.render_history_hub({})
+            # 获取当前补全任务状态
+            task_status = await self.container.session_service.get_history_task_status(event.sender_id)
+            
+            data = {
+                'current_task': task_status['progress'] if task_status.get('has_task') else None
+            }
+            if data['current_task']:
+                data['current_task']['status'] = task_status['status']
+
+            view_result = self.container.ui.media.render_history_hub(data)
+            
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title="补全 **历史中心**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb="🏠 > 📋 历史"
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
     async def show_task_actions(self, event):
-        """显示任务操作页"""
+        """显示任务操作页 (Refactored to TaskRenderer)"""
         try:
             from services.forward_settings_service import forward_settings_service
-            res = await self.container.menu_service.get_selected_rule(event.chat_id)
+            # 获取选中的规则
+            res = await self.container.session_service.get_selected_rule(event.sender_id)
+            # 获取全局媒体设置
             settings = await forward_settings_service.get_global_media_settings()
+            # 获取时间范围设置
+            time_config = await self.container.session_service.get_time_range_config(event.sender_id)
             
             data = {
                 'selected': res,
                 'dedup_enabled': settings.get('history_dedup_enabled', False),
-                'time_range': '最近 24 小时' # 示例 Hardcode
+                'time_range': time_config.get('display_text', '全部消息')
             }
             
-            view_result = self.container.ui.media.render_history_task_actions(data)
+            view_result = self.container.ui.task.render_history_task_actions(data)
+            
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title="🚀 **任务配置**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -88,9 +91,74 @@ class MediaController(BaseController):
             return self.handle_exception(e)
             
     async def show_time_range(self, event):
-        """显示时间范围设置"""
-        from handlers.button.modules.history import history_module
-        await history_module.show_time_range_selection(event)
+        """显示时间范围设置 (Refactored to TaskRenderer)"""
+        try:
+            # 获取当前设置
+            config = await self.container.session_service.get_time_range_config(event.sender_id)
+            
+            view_result = self.container.ui.task.render_time_range_settings(config)
+            
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_history_task_selector(self, event):
+        """显示历史任务规则选择器 (Refactored to TaskRenderer)"""
+        try:
+            rules_res = await self.container.session_service.get_available_rules(event.sender_id)
+            selection = await self.container.session_service.get_selected_rule(event.sender_id)
+            
+            data = {
+                'rules': rules_res.get('rules', []),
+                'current_selection': selection
+            }
+            
+            view_result = self.container.ui.task.render_history_task_selector(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title="🎯 **选择任务规则**",
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb="🏠 > 📋 历史 > 🎯"
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_current_history_task(self, event):
+        """显示当前执行中的历史任务 (Refactored to TaskRenderer)"""
+        try:
+            status = await self.container.session_service.get_history_task_status(event.sender_id)
+            
+            view_result = self.container.ui.task.render_current_history_task(status)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title="📊 **当前任务进度**",
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb="🏠 > 📋 历史 > 📊"
+            )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_history_delay_settings(self, event):
+        """显示历史任务延迟设置 (Refactored to TaskRenderer)"""
+        try:
+            delay_data = await self.container.session_service.get_delay_settings(event.sender_id)
+            
+            view_result = self.container.ui.task.render_delay_settings(delay_data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_page(
+                event,
+                title="⏱️ **转发延迟设置**",
+                body_lines=[view_result.text],
+                buttons=view_result.buttons,
+                breadcrumb="🏠 > 📋 历史 > ⏱️"
+            )
+        except Exception as e:
+            return self.handle_exception(e)
 
     async def show_media_filter_config(self, event):
         """显示媒体过滤配置"""
@@ -107,12 +175,7 @@ class MediaController(BaseController):
             view_result = self.container.ui.media.render_ai_settings(data)
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=f"🤖 **AI 增强设置**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -128,12 +191,7 @@ class MediaController(BaseController):
             })
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title="⏰ **设置总结时间**", 
-                body_lines=[view_result.text], 
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -167,12 +225,7 @@ class MediaController(BaseController):
             })
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title="🧠 **AI 模型选择**", 
-                body_lines=[view_result.text], 
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -224,12 +277,7 @@ class MediaController(BaseController):
             await session_service.update_user_state(event.sender_id, event.chat_id, state, rule_id, {"state_type": "ai"})
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event, 
-                title=f"✍️ 设置 AI {'总结' if is_summary else '处理'}提示词", 
-                body_lines=[view_result.text], 
-                buttons=view_result.buttons
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -337,13 +385,7 @@ class MediaController(BaseController):
             render_data = menu_renderer.render_dedup_hub(stats)
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title="🧹 **智能去重中心**",
-                body_lines=[render_data['text'].split('\n\n', 1)[1] if '\n\n' in render_data['text'] else render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 🧹"
-            )
+            await new_menu_system.display_view(event, render_data)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -403,3 +445,19 @@ class MediaController(BaseController):
             # 移除 Controller 层的 Session 管理 (符合架构规范)
             # 传递 None 作为 session，让 handler 内部通过 container.db.get_session(None) 自行管理
             await handler(event, rule_id, None, await event.get_message(), None)
+
+    async def show_history_task_list(self, event, page: int = 1):
+        """显示历史任务列表 (Refactored to UIRE-3.0)"""
+        try:
+            tasks, total = await self.container.task_repo.get_tasks(page=page, limit=10, task_type='history')
+            
+            view_result = self.container.ui.task.render_history_task_list({
+                'tasks': tasks,
+                'total': total,
+                'page': page
+            })
+            
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)

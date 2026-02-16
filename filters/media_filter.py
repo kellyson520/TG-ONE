@@ -141,6 +141,7 @@ class MediaFilter(BaseFilter):
                 context.media_blocked = True  # 标记媒体被屏蔽
             else:
                 context.should_forward = False
+                context.errors.append("媒体过滤：所有媒体被屏蔽")
             return True
             
         # 如果所有媒体都超限且不发送超限提醒，则设置不转发
@@ -151,6 +152,7 @@ class MediaFilter(BaseFilter):
                 context.media_blocked = True  # 标记媒体被屏蔽
             else:
                 context.should_forward = False
+                context.errors.append("媒体过滤：媒体超限且未开启提醒")
                 logger.info('所有媒体都超限且不发送超限提醒，设置不转发')
     
     async def _process_single_media(self, context):
@@ -249,6 +251,7 @@ class MediaFilter(BaseFilter):
                         return True  # 跳过后续的媒体下载
                     else:
                         context.should_forward = False
+                        context.errors.append("媒体过滤：文件大小超限")
                 context.skipped_media.append((event.message, file_size, file_name))
                 return True  # 不论如何都跳过后续的媒体下载
             else:

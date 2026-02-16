@@ -24,10 +24,21 @@ class BaseMenu:
             ts = datetime.now().strftime("%H:%M:%S")
         except Exception:
             ts = "--:--:--"
+            
         header = title.strip()
         prefix = f"{breadcrumb}\n\n" if breadcrumb else ""
-        body = "\n".join([line for line in (body_lines or []) if line is not None])
-        text = f"{header}\n\n" f"{prefix}" f"{body}\n\n" f"更新时间：{ts}"
+        
+        # 过滤掉 None 并在 body 之前添加间距
+        valid_lines = [line for line in (body_lines or []) if line is not None]
+        body = "\n".join(valid_lines)
+        
+        # 构造最终文本
+        # UIRE-3.0 规范：如果标题和面包屑已在正文中（通过 MenuBuilder），则此处应避免重复添加
+        # 这里的 header 和 prefix 由调用者传入决定
+        full_header = f"{header}\n\n" if header else ""
+        full_prefix = prefix if prefix else ""
+        
+        text = f"{full_header}" f"{full_prefix}" f"{body}\n\n" f"🕒 更新于：{ts}"
         
         try:
             edited = await safe_edit(event, text, buttons)
@@ -39,6 +50,37 @@ class BaseMenu:
                 await event.respond(text, buttons=buttons)
             except Exception:
                 raise
+
+    async def display_view(self, event, view_result, breadcrumb: str | None = None):
+        """
+        [Architecture UIRE-3.0] 
+        标准视图显示方法。直接接收 ViewResult 产物。
+        内部自动处理标题提取与正文分离，确保不出现重复 Header。
+        """
+        from ui.renderers.base_renderer import ViewResult
+        if not isinstance(view_result, ViewResult):
+            # 兼容字典
+            text = view_result.get('text', '')
+            buttons = view_result.get('buttons', [])
+        else:
+            text = view_result.text
+            buttons = view_result.buttons
+
+        # 如果 text 中包含 MenuBuilder 的分割符，说明它是 FullPage 模式
+        if "━━━━━━━━━━━━━━" in text:
+            # 此时 view_result.text = [Title] + [Divider] + [Breadcrumb] + [Body]
+            # 我们直接全量作为 body 传入 _render_page，并将 _render_page 的 title 置空
+            # 这样可以在保留 _render_page 的“更新时间”脚注的同时，完全尊重 Renderer 的排版
+            return await self._render_page(
+                event,
+                title="",
+                body_lines=[text],
+                buttons=buttons,
+                breadcrumb=breadcrumb if not ("🗺️" in text) else None # 如果自带了面包屑，则不再添加传入的
+            )
+        else:
+            # 回退到从文本推断逻辑
+             return await self._render_from_text(event, text, buttons, breadcrumb=breadcrumb)
 
     async def _render_from_text(
         self, event, text: str, buttons, breadcrumb: str | None = None

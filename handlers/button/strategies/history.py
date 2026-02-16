@@ -32,18 +32,21 @@ class HistoryMenuStrategy(BaseMenuHandler):
         "save_days", "save_time_range",
         
         # History Task Management
-        "history_task_selector", "select_history_rule", 
+        "history_task_selector", "select_history_task", 
+        "select_history_rule", "select_task",
         "current_history_task", "cancel_history_task", "history_task_details",
         "history_time_range", "history_delay_settings",
         "toggle_history_dedup", "history_quick_stats", "history_dry_run",
         "start_history_task", "pause_history_task", "resume_history_task",
+        "history_message_filter", "history_filter_media_types",
+        "history_filter_media_duration", "history_message_limit",
         
         # Time Range Presets
         "set_time_range_all", "set_time_range_days",
         "confirm_time_range", "set_start_time", "set_end_time",
         
         # Delay Settings
-        "set_delay"
+        "set_delay", "set_history_delay", "set_history_limit", "custom_history_limit"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -244,10 +247,10 @@ class HistoryMenuStrategy(BaseMenuHandler):
                  await event.answer("❌ 保存失败")
         
         # 5. History Task Management
-        elif action == "history_task_selector":
+        elif action in ["history_task_selector", "select_history_task"]:
             await menu_controller.show_history_task_selector(event)
         
-        elif action == "select_history_rule":
+        elif action in ["select_history_rule", "select_task"]:
             rule_id = arg1
             await event.answer(f"✅ 已选择规则 #{rule_id}")
             await menu_controller.show_history_task_actions(event)
@@ -317,8 +320,8 @@ class HistoryMenuStrategy(BaseMenuHandler):
             await event.answer("✅ 时间范围已确认")
             await menu_controller.show_history_task_actions(event)
         
-        # 7. Delay Settings
-        elif action == "set_delay":
+        # 7. Delay & Limit Settings
+        elif action in ["set_delay", "set_history_delay"]:
             delay = arg1
             # 保存延迟设置到session
             user_session = session_manager.user_sessions.get(event.sender_id, {})
@@ -327,3 +330,26 @@ class HistoryMenuStrategy(BaseMenuHandler):
             user_session[event.chat_id]["history_delay"] = delay
             await event.answer(f"✅ 已设置延迟: {delay}秒")
             await menu_controller.show_history_task_actions(event)
+
+        elif action == "set_history_limit":
+            limit = arg1
+            from core.config import settings
+            settings.HISTORY_MESSAGE_LIMIT = limit
+            await event.answer(f"✅ 已设置数量限制: {limit if limit > 0 else '不限'}")
+            await history_module.show_message_limit_menu(event)
+
+        elif action == "custom_history_limit":
+            await event.answer("🔢 请在对话框输入消息数量限制数值", alert=True)
+            # 这里通常需要设置用户状态，暂未实现
+            
+        elif action == "history_message_filter":
+            await history_module.show_message_filter_menu(event)
+            
+        elif action == "history_filter_media_types":
+            await history_module.show_media_types(event)
+            
+        elif action == "history_filter_media_duration":
+            await history_module.show_media_duration_settings(event)
+            
+        elif action == "history_message_limit":
+            await history_module.show_message_limit_menu(event)

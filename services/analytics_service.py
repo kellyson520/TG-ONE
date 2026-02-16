@@ -112,6 +112,7 @@ class AnalyticsService:
                 'today_total': forward_stats.get('total_forwards', 0),
                 'yesterday_total': yesterday_total,
                 'data_size_mb': system_status.get('system_resources', {}).get('total_size_mb', 0.0),
+                'saved_traffic_bytes': (fs.get('today') or {}).get('saved_traffic_bytes', 0) if isinstance(fs, dict) else 0,
                 'trend': {
                     'text': '📈 稳步增长' if forward_stats.get('total_forwards', 0) > yesterday_total else '⏸️ 待机中',
                     'percentage': round((forward_stats.get('total_forwards', 0) - yesterday_total) / yesterday_total * 100, 1) if yesterday_total > 0 else 0
@@ -380,7 +381,9 @@ class AnalyticsService:
                     top_rules.append({
                         'rule_id': rule_row.id,
                         'name': getattr(rule_row, 'name', f"Rule {rule_row.id}"),
-                        'count': stats_row.success_count
+                        'count': stats_row.success_count,
+                        'success_count': stats_row.success_count,
+                        'error_count': stats_row.error_count
                     })
 
             # 4. 获取类型分布 (从 RuleLog 真实聚合)
@@ -582,20 +585,30 @@ class AnalyticsService:
                         'date': date,
                         'total_forwards': summary.get('total_forwards', 0),
                         'error_count': summary.get('error_count', 0),
-                        'active_chats': summary.get('active_chats', 0)
+                        'active_chats': summary.get('active_chats', 0),
+                        'saved_traffic_bytes': summary.get('saved_traffic_bytes', 0)
                     })
                 
                 # 2. 规则统计
-                stmt = select(RuleStatistics).order_by(RuleStatistics.success_count.desc()).limit(10)
+                from models.models import ForwardRule
+                stmt = (
+                    select(RuleStatistics, ForwardRule)
+                    .join(ForwardRule, RuleStatistics.rule_id == ForwardRule.id)
+                    .order_by(RuleStatistics.success_count.desc())
+                    .limit(10)
+                )
                 result = await session.execute(stmt)
-                rule_stats = result.scalars().all()
                 
-                top_rules = [{
-                    'rule_id': rs.rule_id,
-                    'success_count': rs.success_count,
-                    'error_count': rs.error_count,
-                    'date': rs.date
-                } for rs in rule_stats]
+                top_rules = []
+                for row in result:
+                    rs, fr = row
+                    top_rules.append({
+                        'rule_id': rs.rule_id,
+                        'name': fr.name or f"Rule {rs.rule_id}",
+                        'success_count': rs.success_count,
+                        'error_count': rs.error_count,
+                        'date': rs.date
+                    })
                 
                 # 3. 聊天统计
                 stmt = select(ChatStatistics).order_by(ChatStatistics.message_count.desc()).limit(10)
@@ -609,6 +622,10 @@ class AnalyticsService:
                     'date': cs.date
                 } for cs in chat_stats]
                 
+                # 4. 类型分布 (组合自详细统计)
+                detailed_stats = await self.get_detailed_stats(days=days)
+                type_dist = detailed_stats.get('type_distribution', [])
+                
                 return {
                     'period': {
                         'start_date': start_date.strftime('%Y-%m-%d'),
@@ -618,6 +635,7 @@ class AnalyticsService:
                     'daily_stats': daily_stats,
                     'top_rules': top_rules,
                     'top_chats': top_chats,
+                    'type_distribution': type_dist,
                     'summary': {
                         'total_forwards': sum(d['total_forwards'] for d in daily_stats),
                         'total_errors': sum(d['error_count'] for d in daily_stats),

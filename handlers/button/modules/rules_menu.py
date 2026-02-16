@@ -92,10 +92,11 @@ class RulesMenu(BaseMenu):
         await self._render_from_text(event, "⚙️ **规则管理**\n\n选择要配置的规则：", buttons)
 
     async def show_multi_source_management(self, event, page=0):
-        """显示多源管理菜单"""
+        """显示多源管理菜单 (快速开关)"""
         from ..forward_management import forward_manager
         rules = await forward_manager.get_channel_rules()
-        per_page = 10
+        per_page = 8
+        page = int(page)
         total_pages = (len(rules) + per_page - 1) // per_page
         start, end = page * per_page, (page + 1) * per_page
         current_rules = rules[start:end]
@@ -104,14 +105,20 @@ class RulesMenu(BaseMenu):
         for r in current_rules:
             s_name = r.source_chat.name if r.source_chat else "Unknown"
             t_name = r.target_chat.name if r.target_chat else "Unknown"
-            buttons.append([Button.inline(f"🔗 规则{r.id}: {s_name}➔{t_name}", f"new_menu:manage_multi_source:{r.id}")])
+            # 根据当前状态显示不同的图标和动作
+            status_icon = "🟢" if r.enable_rule else "🔴"
+            action_text = "开启中" if r.enable_rule else "已关闭"
+            btn_text = f"{status_icon} {action_text} 规则{r.id}: {s_name}➔{t_name}"
+            # 回调携带来源标识和页码
+            buttons.append([Button.inline(btn_text, f"new_menu:toggle_rule:{r.id}:multi:{page}")])
 
         nav = []
         if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:multi_source_page:{page-1}"))
         if end < len(rules): nav.append(Button.inline("下一页 ➡️", f"new_menu:multi_source_page:{page+1}"))
         if nav: buttons.append(nav)
+        
         buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_hub")])
-        await self._render_from_text(event, "🔗 **多源管理**\n\n选择要管理的复合规则：", buttons)
+        await self._render_from_text(event, "🔗 **多源管理 (快速开关)**\n\n点击规则可快速 开启/关闭 转发：", buttons)
 
     async def show_multi_source_detail(self, event, rule_id):
         """显示多源管理详细页面"""

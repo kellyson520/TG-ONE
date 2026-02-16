@@ -12,6 +12,13 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260216_Refactor_MenuController_CVM_Standardization | MenuController 及领域控制器架构标准化重构 | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_MenuController_CVM_Standardization/report.md) |
+| 20260216_Refactor_History_Task_List_Architecture | 历史任务列表架构重构 (CVM 分层) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_History_Task_List_Architecture/report.md) |
+| 20260216_Refactor_Analytics_Menu_Architecture | 数据分析菜单架构重构 (CVM 对齐) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_Analytics_Menu_Architecture/report.md) |
+| 20260216_Fix_Forward_Stats_Empty_Display | 修复转发详细统计显示为空 | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_Bugfix/20260216_Fix_Forward_Stats_Empty_Display/report.md) |
+| 20260216_Fix_Forward_Stats_Display | 修复转发统计与节省流量显示 (采集+UI) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Fix_Forward_Stats_Display/report.md) |
+| 20260216_Fix_MultiSource_Management_Layout | 优化多源管理布局 (快速开关逻辑) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Fix_MultiSource_Management_Layout/report.md) |
+| 20260216_Fix_Forward_Hub_Buttons | 修复转发中心按钮 (详细统计/全局筛选/性能监控) 从“开发中”恢复 | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Fix_Forward_Hub_Buttons/report.md) |
 | 20260215_Fix_Optional_NameError | 修复 rule_crud_router.py 中的 Optional 未定义错误 | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_Fix_Optional_NameError/report.md) |
 | 20260215_FixWebBugs | 修复 Web 端消息类型分布、操作详情、任务队列及白屏错误 | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_FixWebBugs/report.md) |
 | 20260215_FixUnknownForwarderDisplay | 修复转发记录显示 unknown 为频道名 | 2026-02-15 | 2026-02-15 | 100% | [[report.md]](./Workstream_Bugfix/20260215_FixUnknownForwarderDisplay/report.md) |
@@ -119,6 +126,7 @@
 | 20260202_Fix_Duplicate_Fetch | 修复任务重复获取问题 | 2026-02-02 | 2026-02-02 | 100% | [📂 查看](./Workstream_Maintenance/20260202_Fix_Duplicate_Task_Fetching/todo.md) |
 | 20260203_Fix_RuleRepo_Error | 修复 RuleRepository AttributeError | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_RuleRepository_AttributeError/report.md) |
 | 20260203_Fix_Missing_Route_RuleSettingsNew | 修复规则设置路由缺失与 rule_id 错误 | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_Missing_Route_RuleSettingsNew/report.md) |
+| 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
 
 ### 进行中任务 ⏳
 
@@ -126,7 +134,6 @@
 |--------|----------|----------|----------|--------|----------|
 | 20260213_Task_Queue_Optimization | 任务队列吞吐量优化与失败治理 (积压 8.8w 处理) | 2026-02-13 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260213_Task_Queue_Throughput_and_Failure_Optimization/todo.md) |
 | 20260211_Fix_Menu_Localization_And_System_Errors | 修复菜单面板、汉化转发详情及系统导入错误 | 2026-02-11 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260211_Fix_Menu_Localization_And_System_Errors/todo.md) |
-| 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
 | 20260210_Fix_AccessControlList_AlreadyExists_Error | 修复 access_control_list 表已存在导致的数据库初始化错误 | 2026-02-10 | 2026-02-10 | 100% | [📂 查看](./Workstream_Database/20260210_Fix_AccessControlList_AlreadyExists_Error/todo.md) |
 | 20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint | 修复 Container RuntimeError 及 Dedup 指纹记录失败 | 2026-02-10 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260210_Fix_Container_AttributeError_and_Dedup_Fingerprint/todo.md) |
 | 20260115_Web_Fault_Analysis | Web 端 500 错误与卡顿性能分析修复 | 2026-01-15 | 进行中 | 10% | [📂 查看](./Workstream_Web_Fault_Analysis/20260115_Web_500_Lag_Analysis/) |

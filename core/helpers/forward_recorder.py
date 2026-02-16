@@ -203,12 +203,13 @@ class ForwardRecorder:
     
     async def _extract_message_info(self, msg: Any) -> Dict[str, Any]:
         """提取消息详细信息"""
+        text = getattr(msg, 'message', '') or ''
         info: Dict[str, Any] = {
             'message_id': getattr(msg, 'id', 0),
             'date': getattr(msg, 'date', datetime.now()).isoformat() if hasattr(msg, 'date') else None,
-            'text': getattr(msg, 'message', '')[:500],  # 限制文本长度
+            'text': text[:500],  # 限制文本长度
             'type': 'text',  # 默认类型
-            'size_bytes': 0,
+            'size_bytes': len(text.encode('utf-8')) if text else 0,
             'duration_seconds': 0,
             'file_info': {},
             'sender_info': {},

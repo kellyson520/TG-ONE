@@ -1,7 +1,13 @@
-VERSION = "1.2.6.0"
+VERSION = "1.2.7.0"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.7.0: MenuController 及领域控制器架构标准化重构 (UIRE-3.0)
+  - 核心重构：实现 MenuController 与领域控制器 (Media/Rule/Admin) 的彻底解耦
+  - UI 标准化：引入 `display_view` 统一渲染入口，消除控制器内所有硬编码 UI 字符串
+  - 渲染内聚：将标题、面包屑、分割线等结构完全收敛至 Renderer 层 (MenuBuilder 驱动)
+  - 修复逻辑：解决 Telegram 消息双重标题/面包屑冗余问题，修复 Emoji 编码混乱
+  - 路线对齐：全系菜单路由现在强制通过 Controller 分发，确保全链路遵循 CVM 模式
 - v1.2.6.0: Web 管理端服务端搜索与分页功能升级
   - 核心仓库增强：实现 RuleRepository 与 StatsRepository 的服务端关键词搜索逻辑
   - 接口标准化：为 Rules 与 Logs API 引入分页参数 (Page/Size) 与搜索参数 (Query)

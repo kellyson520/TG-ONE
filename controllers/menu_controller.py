@@ -58,8 +58,8 @@ class MenuController:
             await admin_ctrl.check_maintenance(event)
             
             stats = await self.service.get_main_menu_data(force_refresh=force_refresh)
-            render_data = self.renderer.render_main_menu(stats)
-            await self._send_menu(event, "🏠 **主菜单**", [render_data['text']], render_data['buttons'])
+            view_result = self.renderer.render_main_menu(stats)
+            await self.view.display_view(event, view_result)
         except FloodWaitError as e:
             logger.error(f"显示主菜单触发流控: 需要等待 {e.seconds} 秒")
         except Exception as e:
@@ -76,8 +76,8 @@ class MenuController:
             await admin_ctrl.check_maintenance(event)
 
             stats = await self.service.get_forward_hub_data(force_refresh=force_refresh)
-            render_data = self.renderer.render_forward_hub(stats)
-            await self._send_menu(event, "🔄 **转发管理中心**", [render_data['text']], render_data['buttons'], "🏠 > 🔄")
+            view_result = self.renderer.render_forward_hub(stats)
+            await self.view.display_view(event, view_result)
         except Exception as e:
             if isinstance(e, ControllerAbort):
                  return await self.container.ui.render_error(e.message, e.back_target)
@@ -95,6 +95,26 @@ class MenuController:
     async def show_forward_analytics(self, event):
         """显示转发统计详情"""
         await self.container.admin_controller.show_forward_analytics(event)
+
+    async def show_detailed_analytics(self, event):
+        """显示详细分析"""
+        await self.container.admin_controller.show_detailed_analytics(event)
+
+    async def show_performance_analysis(self, event):
+        """显示系统性能分析"""
+        await self.container.admin_controller.show_performance_analysis(event)
+
+    async def show_failure_analysis(self, event):
+        """显示失败深度分析"""
+        await self.container.admin_controller.show_failure_analysis(event)
+
+    async def run_anomaly_detection(self, event):
+        """运行异常检测"""
+        await self.container.admin_controller.run_anomaly_detection(event)
+
+    async def export_analytics_csv(self, event):
+        """导出数据报告 (CSV)"""
+        await self.container.admin_controller.export_analytics_csv(event)
 
     async def show_system_hub(self, event):
         """显示系统设置中心"""
@@ -155,58 +175,27 @@ class MenuController:
 
 
     async def show_history_messages(self, event):
-        """显示历史消息处理页"""
-        # 如果 self.view (new_menu_system) 没有该方法，则尝试调用其支持的方法或直接由控制器处理
-        try:
-            await self.view.show_history_messages_menu(event)
-        except AttributeError:
-            from handlers.button.modules.history import history_module
-            await history_module.show_history_messages(event)
+        """显示历史消息处理中心"""
+        await self.container.media_controller.show_history_hub(event)
 
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""
         await self.container.admin_controller.show_realtime_monitor(event)
 
     async def show_help_guide(self, event):
-        """显示帮助说明页面"""
-        text = (
-            "🎯 **四大功能模块介绍**\n\n"
-            "🔄 **转发管理**\n"
-            "• 创建和管理转发规则\n"
-            "• 批量处理历史消息\n\n"
-            "🧹 **智能去重**\n"
-            "• 时间窗口去重\n"
-            "• 智能相似度检测\n\n"
-            "📊 **数据分析**\n"
-            "• 转发统计分析\n"
-            "• 实时性能监控\n\n"
-            "⚙️ **系统设置**\n"
-            "• 数据库备份与恢复\n"
-            "• 系统资源监控"
-        )
-        
-        buttons = [
-            [Button.inline("🏠 返回主菜单", "new_menu:main_menu")]
-        ]
-        
-        await self.view._render_page(
-            event,
-            title="📖 **使用帮助**",
-            body_lines=[text],
-            buttons=buttons
-        )
+        """显示帮助说明页面 (Refactored to Renderer)"""
+        try:
+            view_result = self.renderer.render_help_guide()
+            await self.view.display_view(event, view_result)
+        except Exception as e:
+            logger.error(f"加载帮助菜单失败: {e}")
+            await self._send_error(event, "加载失败")
 
     async def show_faq(self, event):
         """显示常见问题"""
         try:
-            render_data = self.renderer.render_faq()
-            await self._send_menu(
-                event,
-                title="❓ **常见问题**",
-                body_lines=[render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 📖 > ❓"
-            )
+            view_result = self.renderer.render_faq()
+            await self.view.display_view(event, view_result)
         except Exception as e:
             logger.error(f"加载FAQ失败: {e}")
             await self._send_error(event, "加载失败")
@@ -214,14 +203,8 @@ class MenuController:
     async def show_detailed_docs(self, event):
         """显示详细文档"""
         try:
-            render_data = self.renderer.render_detailed_docs()
-            await self._send_menu(
-                event,
-                title="📖 **详细文档**",
-                body_lines=[render_data['text']],
-                buttons=render_data['buttons'],
-                breadcrumb="🏠 > 📖 > 📚"
-            )
+            view_result = self.renderer.render_detailed_docs()
+            await self.view.display_view(event, view_result)
         except Exception as e:
             logger.error(f"加载详细文档失败: {e}")
             await self._send_error(event, "加载失败")
@@ -229,6 +212,10 @@ class MenuController:
     async def show_history_task_actions(self, event):
         """显示历史任务操作菜单 (增强版)"""
         await self.container.media_controller.show_task_actions(event)
+
+    async def show_history_delay_settings(self, event):
+        """显示历史任务延迟设置"""
+        await self.container.media_controller.show_history_delay_settings(event)
     async def show_history_time_range(self, event):
         """显示历史任务时间范围设置"""
         await self.container.media_controller.show_time_range(event)
@@ -323,9 +310,9 @@ class MenuController:
         """显示优化日志"""
         await self.container.admin_controller.show_db_optimization_logs(event)
 
-    async def show_rule_management(self, event, page=0):
+    async def show_rule_management(self, event, page: int = 0):
         """显示规则管理菜单 (转发管理中心)"""
-        await self.view.show_rule_management(event, page)
+        await self.container.rule_controller.list_rules(event, page=page)
 
     async def rebuild_bloom_index(self, event):
         """重启 Bloom 索引系统"""
@@ -342,11 +329,11 @@ class MenuController:
     # --- 历史数据处理 ---
     async def show_history_task_selector(self, event):
         """显示历史任务选择器"""
-        await self.view.show_history_task_selector(event)
+        await self.container.media_controller.show_history_task_selector(event)
 
     async def show_current_history_task(self, event):
         """显示当前执行中的历史任务"""
-        await self.view.show_current_history_task(event)
+        await self.container.media_controller.show_current_history_task(event)
 
     async def start_history_task(self, event):
         """启动历史迁移任务"""
@@ -366,31 +353,7 @@ class MenuController:
 
     async def show_history_task_list(self, event, page: int = 1):
         """显示历史任务列表"""
-        try:
-            from core.container import container
-            from ui.renderers.task_renderer import TaskRenderer
-            
-            # 手动实例并注入以确保一致性
-            renderer = TaskRenderer()
-            
-            tasks, total = await container.task_repo.get_tasks(page=page, limit=10, task_type='history')
-            
-            view_result = renderer.render_history_task_list({
-                'tasks': tasks,
-                'total': total,
-                'page': page
-            })
-            
-            await self._send_menu(
-                event,
-                "📜 **历史任务列表**",
-                [view_result.text],
-                view_result.buttons,
-                breadcrumb="🏠 > 📜 历史任务"
-            )
-        except Exception as e:
-            logger.error(f"Failed to show history task list: {e}")
-            await self._send_error(event, f"获取列表失败: {e}")
+        await self.container.media_controller.show_history_task_list(event, page=page)
 
     async def run_db_reindex(self, event):
         """执行数据库重建索引"""

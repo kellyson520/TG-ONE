@@ -18,15 +18,8 @@ class RuleController(BaseController):
             # 使用新的 ViewResult 渲染流程
             view_result = self.container.ui.rule.render_rule_list(data)
             
-            # 这里调用 View (NewMenuSystem) 进行底层发送
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title="📋 **规则列表**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb="🏠 > 🔄 > 📋"
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -40,24 +33,22 @@ class RuleController(BaseController):
             view_result = self.container.ui.rule.render_rule_detail({'rule': data})
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=f"📝 **规则详情：{rule_id}**",
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=f"🏠 > 🔄 > 📋 > 📝 {rule_id}"
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e, back_target="new_menu:list_rules:0")
 
-    async def toggle_status(self, event, rule_id: int):
+    async def toggle_status(self, event, rule_id: int, from_page: str = 'detail', page: int = 0):
         """切换规则启用状态"""
         try:
             data = await rule_management_service.get_rule_detail(rule_id)
             new_status = not data.get('enabled', False)
             await rule_management_service.toggle_rule_status(rule_id, new_status)
             await self.notify(event, f"✅ 规则 {rule_id} 已{'开启' if new_status else '关闭'}")
-            await self.show_detail(event, rule_id)
+            
+            if from_page == 'multi':
+                await self.show_multi_source_management(event, page)
+            else:
+                await self.show_detail(event, rule_id)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -91,21 +82,21 @@ class RuleController(BaseController):
         data = await rule_management_service.get_rule_detail(rule_id)
         view_result = self.container.ui.rule.render_rule_basic_settings({'rule': data})
         from handlers.button.new_menu_system import new_menu_system
-        await new_menu_system._render_page(event, "⚙️ **基础设置**", [view_result.text], view_result.buttons, f"🏠 > 📝 {rule_id} > ⚙️")
+        await new_menu_system.display_view(event, view_result)
 
     async def show_display_settings(self, event, rule_id: int):
         """显示设置页"""
         data = await rule_management_service.get_rule_detail(rule_id)
         view_result = self.container.ui.rule.render_rule_display_settings({'rule': data})
         from handlers.button.new_menu_system import new_menu_system
-        await new_menu_system._render_page(event, "🎨 **显示设置**", [view_result.text], view_result.buttons, f"🏠 > 📝 {rule_id} > 🎨")
+        await new_menu_system.display_view(event, view_result)
 
     async def show_advanced_settings(self, event, rule_id: int):
         """高级设置页"""
         data = await rule_management_service.get_rule_detail(rule_id)
         view_result = self.container.ui.rule.render_rule_advanced_settings({'rule': data})
         from handlers.button.new_menu_system import new_menu_system
-        await new_menu_system._render_page(event, "🚀 **高级配置**", [view_result.text], view_result.buttons, f"🏠 > 📝 {rule_id} > 🚀")
+        await new_menu_system.display_view(event, view_result)
 
     async def delete_confirm(self, event, rule_id: int):
         """删除确认"""
@@ -132,7 +123,7 @@ class RuleController(BaseController):
             keywords = await rule_management_service.get_keywords(rule_id, is_blacklist=None)
             view_result = self.container.ui.rule.render_manage_keywords({'rule_id': rule_id, 'keywords': keywords})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "🔎 **关键词管理**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -142,7 +133,7 @@ class RuleController(BaseController):
             rules = await rule_management_service.get_replace_rules(rule_id)
             view_result = self.container.ui.rule.render_manage_replace_rules({'rule_id': rule_id, 'replace_rules': rules})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(event, "🔄 **替换规则管理**", [view_result.text], view_result.buttons)
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -284,13 +275,7 @@ class RuleController(BaseController):
             data = await rule_management_service.get_rule_detail(rule_id)
             view_result = self.container.ui.rule.render_media_settings({'rule': data})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 
@@ -300,13 +285,7 @@ class RuleController(BaseController):
             data = await rule_management_service.get_rule_detail(rule_id)
             view_result = self.container.ui.rule.render_ai_settings({'rule': data})
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system._render_page(
-                event,
-                title=view_result.title,
-                body_lines=[view_result.text],
-                buttons=view_result.buttons,
-                breadcrumb=view_result.breadcrumb
-            )
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 

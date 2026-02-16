@@ -243,53 +243,69 @@ class DeduplicationService:
         )
         
         if is_dup:
-            logger.info(f"Duplicate found in chat {chat_id}: {reason}")
-            try:
-                # Calculate and record saved traffic
-                size = self._get_message_size(message_obj)
-                if size > 0:
-                    await self.stats_repo.increment_stats(chat_id, saved_bytes=size)
-            except Exception as e:
-                logger.warning(f"Failed to record saved traffic stats: {e}")
+            await self._on_duplicate_found(chat_id, message_obj, reason)
             return True
         
         return False
 
+    async def _on_duplicate_found(self, chat_id: int, message_obj, reason: str, rule_id: int = None):
+        """当发现重复消息时的统一处理逻辑"""
+        logger.info(f"🚫 [Dedup] Duplicate found in chat {chat_id}: {reason}")
+        try:
+            # 1. 计算并记录节省流量
+            size = self._get_message_size(message_obj)
+            if size > 0:
+                await self.stats_repo.increment_stats(chat_id, saved_bytes=size)
+            
+            # 2. 如果提供了规则ID，更新规则统计
+            if rule_id:
+                await self.stats_repo.increment_rule_stats(rule_id, status="filtered")
+                
+                # 3. 记录过滤日志 (可选，考虑到性能和存储，这里选择记录)
+                from core.helpers.msg_utils import detect_message_type
+                msg_type = detect_message_type(message_obj)
+                msg_text = getattr(message_obj, 'text', '') or getattr(message_obj, 'raw_text', '')
+                
+                await self.stats_repo.log_action(
+                    rule_id=rule_id,
+                    msg_id=getattr(message_obj, 'id', 0),
+                    status="filtered",
+                    result=f"Duplicate: {reason}",
+                    msg_text=msg_text,
+                    msg_type=msg_type
+                )
+        except Exception as e:
+            logger.warning(f"Failed to record duplicate stats: {e}")
+
     def _get_message_size(self, message) -> int:
         """获取消息大小(字节)"""
         try:
+            # 优先从 file 属性获取 (Telethon Message)
             if hasattr(message, "file") and message.file:
                 return int(getattr(message.file, "size", 0) or 0)
-            elif hasattr(message, "raw_text") and message.raw_text:
-                return len(str(message.raw_text))
+            # 文本消息计算长度
+            text = getattr(message, 'text', '') or getattr(message, 'raw_text', '')
+            if text:
+                return len(str(text))
         except Exception:
             pass
         return 0
         
-    async def check_and_lock(self, chat_id: int, message_obj, rule_config: Dict = None) -> Tuple[bool, str]:
+    async def check_and_lock(self, chat_id: int, message_obj, rule_config: Dict = None, rule_id: int = None) -> Tuple[bool, str]:
         """
         [Transaction Start] 乐观去重检查 + 锁定
-        检查消息是否重复。如果未重复，立即在内存/缓存中记录（锁定），防止并发处理。
-        
-        Usage:
-            is_dup, reason = await dedup.check_and_lock(...)
-            if not is_dup:
-                try:
-                    process()
-                    await dedup.commit(...)
-                except Exception as e:
-                    logger.warning(f"处理失败，正在执行去重回退: {e}")
-                    await dedup.rollback(...)
-        
-        Returns: (is_duplicate, reason)
         """
-        # readonly=False 表示乐观记录 (Tentative Record)
-        return await smart_deduplicator.check_duplicate(
+        is_dup, reason = await smart_deduplicator.check_duplicate(
             message_obj,
             chat_id,
             rule_config=rule_config,
             readonly=False
         )
+        
+        if is_dup:
+            await self._on_duplicate_found(chat_id, message_obj, reason, rule_id=rule_id)
+            
+        return is_dup, reason
 
     # Alias for backward compatibility (Deprecated)
     check_and_record = check_and_lock

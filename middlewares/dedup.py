@@ -39,7 +39,12 @@ class DedupMiddleware(Middleware):
 
                 # Optimistic Dedup: Check AND tentative record (Lock)
                 # 注入单条规则配置
-                is_dup, reason = await dedup_service.check_and_lock(target_id, ctx.message_obj, rule_config=rule_config)
+                is_dup, reason = await dedup_service.check_and_lock(
+                    target_id, 
+                    ctx.message_obj, 
+                    rule_config=rule_config,
+                    rule_id=rule.id
+                )
                 
                 if is_dup:
                     logger.info(f"🚫 [Pipeline-Dedup] 发现重复消息，跳过规则: 规则ID={rule.id}, 原因={reason}")

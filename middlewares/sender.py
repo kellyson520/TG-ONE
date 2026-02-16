@@ -153,21 +153,8 @@ class SenderMiddleware(Middleware):
             duration = (time.time() - ctx.start_time) * 1000 # ms
             
             # 提取消息类型
-            msg_type = "text"
-            if ctx.message_obj.photo: msg_type = "photo"
-            elif ctx.message_obj.video: msg_type = "video"
-            elif ctx.message_obj.document: 
-                if ctx.message_obj.gif: msg_type = "gif"
-                else: msg_type = "document"
-            elif ctx.message_obj.voice: msg_type = "voice"
-            elif ctx.message_obj.audio: msg_type = "audio"
-            elif ctx.message_obj.sticker: msg_type = "sticker"
-            elif ctx.message_obj.video_note: msg_type = "video_note"
-            elif ctx.message_obj.contact: msg_type = "contact"
-            elif ctx.message_obj.location: msg_type = "location"
-            elif ctx.message_obj.poll: msg_type = "poll"
-            elif ctx.message_obj.game: msg_type = "game"
-            elif ctx.message_obj.geo: msg_type = "location"
+            from core.helpers.msg_utils import detect_message_type
+            msg_type = detect_message_type(ctx.message_obj)
 
             await self.bus.publish("FORWARD_SUCCESS", {
                 "rule_id": rule.id,

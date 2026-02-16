@@ -54,6 +54,7 @@ class GlobalFilter(BaseFilter):
             if not settings.get('allow_text', True):
                 logger.info('全局设置：文本消息被屏蔽')
                 context.should_forward = False
+                context.errors.append("全局过滤：禁止文本消息")
                 return False
                 
             # 检查是否允许表情包
@@ -84,6 +85,7 @@ class GlobalFilter(BaseFilter):
                     if emoji_pattern.fullmatch(text):
                         logger.info('全局设置：表情包消息被屏蔽')
                         context.should_forward = False
+                        context.errors.append("全局过滤：禁止表情包")
                         return False
         
         # 如果没有媒体，直接通过
@@ -288,6 +290,7 @@ class GlobalFilter(BaseFilter):
                     logger.info("全局设置：媒体被屏蔽，仅转发文本")
                 else:
                     logger.info("全局设置：媒体被屏蔽且无文本，取消转发")
+                    context.errors.append("全局过滤：媒体屏蔽且无文本")
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}')
             return context.should_forward

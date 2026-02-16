@@ -30,13 +30,17 @@ class KeywordFilter(BaseFilter):
         sender_ok = self._check_sender(rule, context)
         if not sender_ok:
             logger.debug(f"发送者校验未通过: RuleID={getattr(rule, 'id', 'N/A')}")
+            context.errors.append("发送者不匹配")
             return False
 
         # 2. 关键词校验 (增强模式)
         keyword_ok = await self._enhanced_keyword_check(rule, message_text, event)
-        
+        if not keyword_ok:
+            context.errors.append("关键词过滤拦截")
+            return False
+            
         # ⚠️ 注意: 智能去重已迁移至 DedupMiddleware
-        return keyword_ok
+        return True
     
     def _check_sender(self, rule, context) -> bool:
         """校验发送者是否匹配规则要求"""

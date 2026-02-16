@@ -53,7 +53,7 @@ class MainMenuRenderer(BaseRenderer):
             builder.add_status_grid({
                 "今日转发": f"{overview.get('total_forwards', 0):,} 条",
                 "数据传输": f"{overview.get('total_size_bytes', 0) / 1024 / 1024:.1f} MB",
-                "活跃聊天": f"{overview.get('active_chats', 0)} 个"
+                "拦截流量": f"{overview.get('saved_traffic_bytes', 0) / 1024 / 1024:.1f} MB"
             })
         
         builder.add_button("⚙️ 规则管理", "new_menu:forward_management")
@@ -109,7 +109,8 @@ class MainMenuRenderer(BaseRenderer):
         if overview:
             builder.add_section("转发趋势", f"今日: {overview.get('today_total', 0)} 条 | 昨日: {overview.get('yesterday_total', 0)} 条")
             builder.add_status_grid({
-                "数据量": f"{overview.get('data_size_mb', 0):.1f} MB",
+                "数据总量": f"{overview.get('data_size_mb', 0):.1f} MB",
+                "拦截节省": f"{overview.get('saved_traffic_bytes', 0) / 1024 / 1024:.1f} MB",
                 "最热类型": data.get('top_type', {}).get('name', '暂无'),
                 "活跃会话": data.get('top_chat', {}).get('name', 'N/A')
             })
@@ -161,6 +162,14 @@ class MainMenuRenderer(BaseRenderer):
             for r in top_rules[:5]:
                 rule_lines.append(f"• ID {r.get('rule_id')}: {r.get('success_count', 0)} 条")
             builder.add_section("热门转发规则", "\n".join(rule_lines))
+        
+        # 4. 内容类型分布
+        type_dist = data.get('type_distribution', [])
+        if type_dist:
+            dist_lines = []
+            for t in type_dist[:5]: # 只显示前 5 名
+                dist_lines.append(f"• {t.get('type', 'Unknown')}: {t.get('count', 0)} ({t.get('percentage', 0):.1f}%)")
+            builder.add_section("内容类型分布", "\n".join(dist_lines))
 
         builder.add_button("🔄 刷新数据", "new_menu:forward_analytics")
         builder.add_button("👈 返回分析中心", "new_menu:analytics_hub")

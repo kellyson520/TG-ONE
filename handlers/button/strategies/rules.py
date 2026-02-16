@@ -71,7 +71,9 @@ class RuleMenuStrategy(BaseMenuHandler):
         # 2. Rule Actions
         elif action == "toggle_rule":
             rule_id = arg1
-            await menu_controller.toggle_rule_status(event, rule_id)
+            from_page = extra_data[1] if len(extra_data) > 1 else "detail"
+            page = int(extra_data[2]) if len(extra_data) > 2 else 0
+            await menu_controller.toggle_rule_status(event, rule_id, from_page, page)
         
         elif action == "delete_rule_confirm":
             rule_id = arg1
@@ -169,15 +171,15 @@ class RuleMenuStrategy(BaseMenuHandler):
             rule_id = arg1
             await menu_controller.show_multi_source_detail(event, rule_id)
         
-        # 6. History Messages \u0026 Extended Features
+        # 6. History Messages & Extended Features
         elif action == "history_messages":
             await menu_controller.show_history_messages(event)
         
         elif action == "forward_stats_detailed":
-            await event.answer("📊 详细统计功能开发中", alert=True)
+            await new_menu_system.show_detailed_analytics(event)
         
         elif action == "global_forward_settings":
-            await event.answer("🎛️ 全局筛选功能开发中", alert=True)
+            await new_menu_system.show_filter_settings(event)
         
         elif action == "forward_performance":
-            await event.answer("🚀 性能监控功能开发中", alert=True)
+            await new_menu_system.show_performance_analysis(event)

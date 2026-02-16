@@ -29,21 +29,8 @@ class AnalyticsMenu(BaseMenu):
 
     async def show_detailed_analytics(self, event):
         """详细分析（最近7天）"""
-        try:
-            data = await analytics_service.get_detailed_analytics(days=7)
-            text = "📈 详细分析（7天）\n\n"
-            if data.get("daily_trends"):
-                text += "【每日转发】\n"
-                for d in data["daily_trends"]: text += f"- {d['date']}: {d['total']} 条, {d['size_mb']:.1f} MB\n"
-                text += "\n"
-            if data.get("type_distribution"):
-                text += "【类型分布】\n"
-                for t in data["type_distribution"][:8]: text += f"- {t['type']}: {t['count']} ({t['percentage']:.1f}%)\n"
-            buttons = [[Button.inline("👈 返回分析", "new_menu:forward_analytics")]]
-            await self._render_from_text(event, text, buttons)
-        except Exception as e:
-            logger.error(f"详细分析显示失败: {e}")
-            await event.answer("加载失败", alert=True)
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_detailed_analytics(event)
 
     async def show_performance_analysis(self, event):
         """性能分析"""

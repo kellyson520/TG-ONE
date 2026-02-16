@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-14 15:38
+> Updated: 2026-02-16 08:19
 
 ---
 
@@ -14,12 +14,14 @@ TG ONE/
 ├── 📄 AGENTS.md            # AI Skills Context
 ├── 📄 CHANGELOG.md         # File
 ├── 📄 Dockerfile           # Docker Build
+├── 📁 MagicMock            # Directory
 ├── 📄 README.md            # File
 ├── 📁 ai                   # AI Provider Integration
 ├── 📁 alembic              # Directory
 ├── 📄 alembic.ini          # File
 ├── 📁 api                  # Directory
-├── 📄 app.log              # File
+├── 📄 ci_output.txt        # File
+├── 📄 ci_output_2.txt      # File
 ├── 📁 controllers          # Directory
 ├── 📁 core                 # Core Business Logic
 ├── 📁 data                 # Directory
@@ -42,6 +44,10 @@ TG ONE/
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
+├── 📄 telegram-forwarder-opt-20260215102004.log # File
+├── 📄 telegram-forwarder-opt-20260215103715.log # File
+├── 📄 telegram-forwarder-opt-20260215105004.log # File
+├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
 ├── 📁 tests                # Test Suite
 ├── 📁 ui                   # Bot UI Renderer
@@ -135,6 +141,7 @@ TG ONE/
 │   │   └── media.py
 │   ├── message_utils.py
 │   ├── metrics.py
+│   ├── msg_utils.py
 │   ├── patch.py
 │   ├── priority_utils.py
 │   ├── realtime_stats.py
@@ -217,6 +224,14 @@ TG ONE/
 │   │   ├── report.md
 │   │   └── todo.md
 │   ├── 20260213_Fix_WorkerService_Scaling_Monitor_Error
+│   ├── 20260215_Fix_RuleLog_AttributeError
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260215_Fix_WebTimeDiffAndAccessLog
+│   │   └── todo.md
+│   ├── 20260216_Fix_Forward_Stats_Empty_Display
+│   │   ├── report.md
+│   │   └── todo.md
 │   └── Menu_Quality_Improvements_Report.md
 ├── Workstream_Core
 │   ├── 20260204_Dedup_Engine_Unit_Tests
@@ -391,7 +406,14 @@ TG ONE/
 │   ├── 20260208_Investigate_Forward_Delay
 │   │   ├── report.md
 │   │   └── todo.md
-│   └── 20260208_LogAnalysis_P1
+│   ├── 20260208_LogAnalysis_P1
+│   │   └── todo.md
+│   └── Task_Bind_Web_Port
+│       └── todo.md
+├── Workstream_MenuSystem
+│   └── 20260214_Menu_Callback_and_API_Consistency_Audit
+│       ├── audit_report.md
+│       ├── spec.md
 │       └── todo.md
 ├── Workstream_Ops
 │   ├── 20260210_Upgrade_Update_Service_NonGit
@@ -422,7 +444,10 @@ TG ONE/
 │       ├── spec.md
 │       └── todo.md
 ├── Workstream_UI_UX
-│   └── 20260115_Web_Interface_Refactor
+│   ├── 20260115_Web_Interface_Refactor
+│   │   ├── spec.md
+│   │   └── todo.md
+│   └── 20260214_UI_Replacement_Feasibility
 │       ├── spec.md
 │       └── todo.md
 ├── Workstream_Web_Fault_Analysis
@@ -433,11 +458,20 @@ TG ONE/
 │       ├── report.md
 │       ├── spec.md
 │       └── todo.md
+├── Workstream_Web_Real_Integration
+│   ├── 20260215_Real_Data_Integration
+│   │   └── todo.md
+│   ├── spec.md
+│   └── todo.md
 ├── Workstream_Web_UI
+│   ├── 20260214_Real_Data_Integration
+│   │   └── todo.md
+│   ├── Mock_API_Server
+│   │   ├── report.md
+│   │   └── todo.md
 │   ├── report.md
 │   ├── spec.md
 │   └── todo.md
-├── architecture_diagram_v2.svg
 ├── archive
 │   ├── Workstream_Architecture_Refactor
 │   │   ├── 20260126_Phase5_Stability_Async_Governance
@@ -491,11 +525,31 @@ TG ONE/
 │   │   ├── 20260212_KeywordFilterFix
 │   │   │   ├── report.md
 │   │   │   └── todo.md
-│   │   └── 20260214_Fix_SQLite_Disk_IO_Error
-│   │       ├── auto_fix_readme.md
-│   │       ├── check_integrity.py
-│   │       ├── proposal_statistics_persistence.md
+│   │   ├── 20260214_Fix_SQLite_Disk_IO_Error
+│   │   │   ├── auto_fix_readme.md
+│   │   │   ├── check_integrity.py
+│   │   │   ├── proposal_statistics_persistence.md
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260215_FixUnknownForwarderDisplay
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260215_FixUnknownRecordAndTaskFetchFailure
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260215_FixWebBugs
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260215_Fix_Optional_NameError
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   ├── 20260216_Fix_History_Message_Menu_Actions
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   └── 20260216_Fix_Unmatched_History_Actions
 │   │       ├── report.md
+│   │       ├── spec.md
 │   │       └── todo.md
 │   ├── Workstream_Core
 │   │   ├── 20260203_Fix_Container_AttributeError
@@ -692,6 +746,18 @@ TG ONE/
 │   │   │   ├── spec.md
 │   │   │   └── todo.md
 │   │   └── 20260208_Fix_Redundant_Shutdown_Warning
+│   │       ├── report.md
+│   │       ├── spec.md
+│   │       └── todo.md
+│   ├── Workstream_MenuSystem
+│   │   ├── 20260216_Fix_Forward_Hub_Buttons
+│   │   │   ├── report.md
+│   │   │   ├── spec.md
+│   │   │   └── todo.md
+│   │   ├── 20260216_Fix_Forward_Stats_Display
+│   │   │   ├── report.md
+│   │   │   └── todo.md
+│   │   └── 20260216_Fix_MultiSource_Management_Layout
 │   │       ├── report.md
 │   │       ├── spec.md
 │   │       └── todo.md
@@ -913,19 +979,113 @@ TG ONE/
 │   └── templates.py
 ├── fastapi_app.py
 ├── frontend
+│   ├── README.md
+│   ├── components.json
+│   ├── dist
+│   │   ├── assets
+│   │   │   ├── index-BJH_9hPs.css
+│   │   │   └── index-CfQzsMIS.js
+│   │   └── index.html
+│   ├── eslint.config.js
 │   ├── index.html
+│   ├── lint_output.txt
+│   ├── lint_output_2.txt
+│   ├── package-lock.json
 │   ├── package.json
-│   ├── public
+│   ├── postcss.config.js
 │   ├── src
+│   │   ├── App.css
 │   │   ├── App.tsx
 │   │   ├── components
+│   │   │   ├── layout
+│   │   │   │   ├── Header.tsx
+│   │   │   │   ├── Layout.tsx
+│   │   │   │   └── Sidebar.tsx
+│   │   │   └── ui
+│   │   │       ├── accordion.tsx
+│   │   │       ├── alert-dialog.tsx
+│   │   │       ├── alert.tsx
+│   │   │       ├── aspect-ratio.tsx
+│   │   │       ├── avatar.tsx
+│   │   │       ├── badge.tsx
+│   │   │       ├── breadcrumb.tsx
+│   │   │       ├── button-group.tsx
+│   │   │       ├── button.tsx
+│   │   │       ├── calendar.tsx
+│   │   │       ├── card.tsx
+│   │   │       ├── carousel.tsx
+│   │   │       ├── chart.tsx
+│   │   │       ├── checkbox.tsx
+│   │   │       ├── collapsible.tsx
+│   │   │       ├── command.tsx
+│   │   │       ├── context-menu.tsx
+│   │   │       ├── dialog.tsx
+│   │   │       ├── drawer.tsx
+│   │   │       ├── dropdown-menu.tsx
+│   │   │       ├── empty.tsx
+│   │   │       ├── field.tsx
+│   │   │       ├── form.tsx
+│   │   │       ├── hover-card.tsx
+│   │   │       ├── input-group.tsx
+│   │   │       ├── input-otp.tsx
+│   │   │       ├── input.tsx
+│   │   │       ├── item.tsx
+│   │   │       ├── kbd.tsx
+│   │   │       ├── label.tsx
+│   │   │       ├── menubar.tsx
+│   │   │       ├── navigation-menu.tsx
+│   │   │       ├── pagination.tsx
+│   │   │       ├── popover.tsx
+│   │   │       ├── progress.tsx
+│   │   │       ├── radio-group.tsx
+│   │   │       ├── resizable.tsx
+│   │   │       ├── scroll-area.tsx
+│   │   │       ├── select.tsx
+│   │   │       ├── separator.tsx
+│   │   │       ├── sheet.tsx
+│   │   │       ├── sidebar.tsx
+│   │   │       ├── skeleton.tsx
+│   │   │       ├── slider.tsx
+│   │   │       ├── sonner.tsx
+│   │   │       ├── spinner.tsx
+│   │   │       ├── switch.tsx
+│   │   │       ├── table.tsx
+│   │   │       ├── tabs.tsx
+│   │   │       ├── textarea.tsx
+│   │   │       ├── toggle-group.tsx
+│   │   │       ├── toggle.tsx
+│   │   │       └── tooltip.tsx
 │   │   ├── hooks
+│   │   │   └── use-mobile.ts
+│   │   ├── index.css
 │   │   ├── lib
+│   │   │   ├── api-client.ts
+│   │   │   ├── api.ts
+│   │   │   ├── utils.ts
+│   │   │   └── websocket.ts
 │   │   ├── main.tsx
 │   │   ├── pages
+│   │   │   ├── Archive.tsx
+│   │   │   ├── AuditLogs.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Downloads.tsx
+│   │   │   ├── History.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Logs.tsx
+│   │   │   ├── Rules.tsx
+│   │   │   ├── Security.tsx
+│   │   │   ├── Settings.tsx
+│   │   │   ├── Tasks.tsx
+│   │   │   ├── Users.tsx
+│   │   │   └── Visualization.tsx
 │   │   ├── services
+│   │   │   ├── auth-service.ts
+│   │   │   └── system-service.ts
 │   │   ├── store
+│   │   │   └── index.ts
 │   │   └── types
+│   │       └── index.ts
+│   ├── tailwind.config.js
 │   ├── tsconfig.app.json
 │   ├── tsconfig.json
 │   ├── tsconfig.node.json
@@ -942,7 +1102,6 @@ TG ONE/
 ├── routers
 │   ├── __init__.py
 │   ├── auth_router.py
-│   ├── page_router.py
 │   ├── rules
 │   │   ├── rule_content_router.py
 │   │   ├── rule_crud_router.py
@@ -950,6 +1109,7 @@ TG ONE/
 │   ├── security_router.py
 │   ├── settings_router.py
 │   ├── simulator_router.py
+│   ├── spa_router.py
 │   ├── stats_router.py
 │   ├── system
 │   │   ├── __init__.py
@@ -987,55 +1147,15 @@ TG ONE/
 │       ├── register.html
 │       ├── rss_dashboard.html
 │       └── rss_subscriptions.html
-├── run.py
 ├── schemas
 │   ├── response.py
 │   └── rule_schemas.py
-├── security
-│   ├── __init__.py
-│   ├── csrf.py
-│   ├── deps.py
-│   ├── exceptions.py
-│   ├── log_broadcast_handler.py
-│   ├── password_validator.py
-│   └── rate_limiter.py
-├── static
-│   ├── css
-│   │   └── main.css
-│   ├── js
-│   │   ├── command_panel.js
-│   │   └── main.js
-│   └── libs
-│       ├── bootstrap
-│       │   ├── css
-│       │   │   └── bootstrap.min.css
-│       │   └── js
-│       │       └── bootstrap.bundle.min.js
-│       ├── bootstrap-icons
-│       │   └── font
-│       │       ├── bootstrap-icons.css
-│       │       └── fonts
-│       │           ├── bootstrap-icons.woff
-│       │           └── bootstrap-icons.woff2
-│       └── echarts
-│           └── echarts.min.js
-└── templates
-    ├── archive.html
-    ├── audit_logs.html
-    ├── base.html
-    ├── components
-    │   └── command_panel.html
-    ├── dashboard.html
-    ├── downloads.html
-    ├── history.html
-    ├── index.html
-    ├── login.html
-    ├── logs.html
-    ├── register.html
-    ├── rules.html
-    ├── security.html
-    ├── settings.html
-    ├── tasks.html
-    ├── users.html
-    └── visualization.html
+└── security
+    ├── __init__.py
+    ├── csrf.py
+    ├── deps.py
+    ├── exceptions.py
+    ├── log_broadcast_handler.py
+    ├── password_validator.py
+    └── rate_limiter.py
 ```

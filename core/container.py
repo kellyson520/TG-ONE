@@ -508,7 +508,9 @@ class Container:
             await asyncio.gather(
                 self.stats_repo.log_action(
                     rule_id, data.get('msg_id', 0), "filtered", 
-                    result=data.get('reason', 'Filtered by rules')
+                    result=data.get('reason', 'Filtered by rules'),
+                    msg_text=data.get('msg_text'),
+                    msg_type=data.get('msg_type')
                 ),
                 self.stats_repo.increment_rule_stats(rule_id, "filtered")
             )
