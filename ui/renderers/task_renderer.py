@@ -168,5 +168,32 @@ class TaskRenderer(BaseRenderer):
                 if btn_row:
                     builder.add_button_row(btn_row)
         
-        builder.add_button("返回", "new_menu:history_messages", icon=UIStatus.BACK)
-        return builder.build()
+    def render_quick_stats_result(self, stats: Dict[str, Any]) -> ViewResult:
+        """渲染快速统计结果"""
+        cnt = stats.get('count', 0)
+        src = stats.get('source_title', 'Unknown')
+        tgt = stats.get('target_title', 'Unknown')
+        tr = stats.get('time_range', 'Whole History')
+        
+        # 估算耗时
+        seconds = cnt / 3
+        if seconds < 60: duration = f"{int(seconds)}秒"
+        elif seconds < 3600: duration = f"{int(seconds/60)}分钟"
+        else: duration = f"{seconds/3600:.1f}小时"
+
+        return (self.new_builder()
+            .set_title("快速统计报告", icon="📊")
+            .add_breadcrumb(["首页", "补全中心", "统计报告"])
+            .add_section("任务概览", [
+                f"源频道: `{src}`",
+                f"目标频道: `{tgt}`",
+                f"时间范围: `{tr}`"
+            ])
+            .add_section("量级预估", [
+                f"消息总数: **{cnt:,}** 条",
+                f"预计耗时: **~{duration}** (按平均速度估算)"
+            ], icon="⏱️")
+            .add_section("提示", "此结果基于首尾消息ID推算，并非精确计数。实际转发数可能因已删除消息、过滤规则等原因减少。")
+            .add_button("🚀 立即开始任务", "new_menu:start_history_task")
+            .add_button("返回", "new_menu:history_messages", icon=UIStatus.BACK)
+            .build())

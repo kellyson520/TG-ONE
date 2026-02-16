@@ -252,8 +252,13 @@ class HistoryMenuStrategy(BaseMenuHandler):
         
         elif action in ["select_history_rule", "select_task"]:
             rule_id = arg1
-            await event.answer(f"✅ 已选择规则 #{rule_id}")
-            await menu_controller.show_history_task_actions(event)
+            res = await session_manager.set_selected_rule(event.sender_id, rule_id)
+            if res.get('success'):
+                await event.answer(f"✅ 已选择规则 #{rule_id}")
+                # 显示历史消息主菜单，而不是任务操作菜单，以便查看更新后的状态
+                await new_menu_system.show_history_messages(event)
+            else:
+                await event.answer(f"❌ 选择失败: {res.get('error')}", alert=True)
         
         elif action == "current_history_task":
             await menu_controller.show_current_history_task(event)
@@ -274,10 +279,10 @@ class HistoryMenuStrategy(BaseMenuHandler):
             await menu_controller.toggle_history_dedup(event)
         
         elif action == "history_quick_stats":
-            await event.answer("📊 快速统计功能开发中", alert=True)
+            await menu_controller.show_quick_stats(event)
         
         elif action == "history_dry_run":
-            await event.answer("🧪 模拟运行功能开发中", alert=True)
+            await menu_controller.start_dry_run(event)
         
         elif action == "start_history_task":
             await menu_controller.start_history_task(event)

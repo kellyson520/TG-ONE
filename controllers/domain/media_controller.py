@@ -59,9 +59,39 @@ class MediaController(BaseController):
                 await self.notify(event, "🚀 任务已启动", alert=True)
                 await self.show_task_actions(event)
             else:
-                await self.notify(event, f"❌ 启动失败: {res.get('message')}", alert=True)
+                await self.notify(event, f"启动失败: {res.get('error')}", alert=True)
+        except Exception as e:
+            await self.handle_exception(event, e)
+
+    async def start_dry_run(self, event):
+        """启动模拟运行"""
+        try:
+            res = await session_service.start_history_task(event.sender_id, dry_run=True)
+            if res.get('success'):
+                await self.notify(event, "🧪 模拟运行已启动 (不会产生实际转发)", alert=True)
+                await self.show_current_history_task(event)
+            else:
+                await self.notify(event, f"启动失败: {res.get('error')}", alert=True)
         except Exception as e:
             return self.handle_exception(e)
+
+    async def show_quick_stats(self, event):
+        """显示快速统计"""
+        try:
+            if hasattr(event, 'answer'):
+                await event.answer("⏳ 正在计算统计数据，请稍候...", alert=False)
+            
+            stats = await session_service.get_quick_stats(event.sender_id)
+            if not stats['success']:
+                await self.notify(event, f"统计失败: {stats.get('error')}", alert=True)
+                return
+            
+            from handlers.button.new_menu_system import new_menu_system
+            view_result = self.container.ui.task.render_quick_stats_result(stats)
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
 
     async def cancel_task(self, event):
         """取消任务"""

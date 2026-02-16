@@ -216,9 +216,17 @@ class MenuController:
     async def show_history_delay_settings(self, event):
         """显示历史任务延迟设置"""
         await self.container.media_controller.show_history_delay_settings(event)
+
+    async def start_dry_run(self, event):
+        """启动模拟运行"""
+        await self.container.media_controller.start_dry_run(event)
     async def show_history_time_range(self, event):
         """显示历史任务时间范围设置"""
         await self.container.media_controller.show_time_range(event)
+
+    async def show_quick_stats(self, event):
+        """显示快速统计"""
+        await self.container.media_controller.show_quick_stats(event)
 
     async def _set_user_state(self, event, state: str, rule_id: int, extra: dict = None):
         """统一设置用户会话状态"""

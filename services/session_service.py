@@ -313,7 +313,7 @@ class SessionService:
         session = self._get_user_session(user_id)
         return session.get('history_task')
 
-    async def start_history_task(self, user_id: int, rule_id: Optional[int] = None, time_config: Optional[Dict] = None) -> Dict[str, Any]:
+    async def start_history_task(self, user_id: int, rule_id: Optional[int] = None, time_config: Optional[Dict] = None, dry_run: bool = False) -> Dict[str, Any]:
         """启动历史任务"""
         try:
             session = self._get_user_session(user_id)
@@ -338,6 +338,7 @@ class SessionService:
             cancel_event = asyncio.Event()
             task_info = {
                 'status': 'running',
+                'mode': 'dry_run' if dry_run else 'normal',
                 'start_time': datetime.now().isoformat(),
                 'total': 0,
                 'done': 0,
@@ -351,7 +352,7 @@ class SessionService:
             
             # 启动后台任务
             task_future = asyncio.create_task(
-                self._run_history_task(user_id, rule_id, time_config, cancel_event)
+                self._run_history_task(user_id, rule_id, time_config, cancel_event, dry_run)
             )
             task_info['future'] = task_future
             
@@ -380,7 +381,7 @@ class SessionService:
             return True
         return False
 
-    async def _run_history_task(self, user_id: int, rule_id: int, time_config: Dict, cancel_event: asyncio.Event):
+    async def _run_history_task(self, user_id: int, rule_id: int, time_config: Dict, cancel_event: asyncio.Event, dry_run: bool = False):
         """历史任务执行循环 - 增强版"""
         from core.helpers.history import (
             HistoryTaskProgress,
@@ -388,7 +389,6 @@ class SessionService:
             ErrorHandler,
             MediaFilter,
         )
-        
         session = self._get_user_session(user_id)
         task_info = session.get('history_task')
         
@@ -412,8 +412,7 @@ class SessionService:
         media_filter = MediaFilter(media_settings)
         
         try:
-            # 1. 获取规则详情 (使用 repository 确保 eager loading)
-            # 使用 DTO 避免直接操作 ORM 对象导致的 MissingGreenlet 问题
+            # 1. 获取规则详情
             rule = await container.rule_repo.get_by_id(rule_id)
             if not rule:
                 raise ValueError(f"Rule {rule_id} not found")
@@ -479,6 +478,29 @@ class SessionService:
                     logger.debug(f"⏭️ 消息 {message.id} 被过滤: {filter_reason}")
                     continue
                 
+                # Dry Run Logic
+                if dry_run:
+                    # 模拟成功处理
+                    progress.increment('forwarded')
+                    progress.increment('done')
+                    task_info['forwarded'] = progress.forwarded
+                    task_info['done'] = progress.done
+                    
+                    # 简单模拟背压，避免过快 (仅每50条check一次)
+                    if progress.done % 50 == 0:
+                        task_info.update(progress.to_dict())
+                        should_continue = await backpressure.check_and_wait(
+                            container.task_repo, # 这里可能需要 mock task_repo 或者 ignoring count
+                            progress.done,
+                            cancel_event
+                        )
+                        if not should_continue:
+                            progress.status = "cancelled"
+                            break
+                        # 短暂 yield 释放 event loop
+                        await asyncio.sleep(0.01)
+                    continue
+
                 # 推送到处理队列
                 payload = {
                     "chat_id": source_chat_id,
@@ -617,6 +639,47 @@ class SessionService:
         except Exception as e:
             logger.warning(f"估算消息总数失败: {e}")
             return 0
+
+    async def get_quick_stats(self, user_id: int) -> Dict[str, Any]:
+        """获取快速统计信息"""
+        try:
+             # 获取选中的规则
+            res = await self.get_selected_rule(user_id)
+            if not res['has_selection']:
+                return {'success': False, 'error': '未选择转发规则'}
+            
+            rule_id = res['rule_id']
+            # 直接查询数据库获取规则详情
+            from core.container import container
+            rule = await container.rule_repo.get_by_id(rule_id)
+            if not rule or not rule.source_chat:
+                return {'success': False, 'error': '规则源会话无效'}
+
+            source_chat_id = int(rule.source_chat.telegram_chat_id)
+            target_chat_title = rule.target_chat.name if rule.target_chat else 'Unknown'
+            source_chat_title = rule.source_chat.name
+            
+            # 获取时间范围
+            time_config = await self.get_time_range_config(user_id)
+            time_range = time_config.get('time_range', {})
+            begin_date, end_date, _, _ = parse_time_range_to_dates(time_range)
+            
+            # 估算
+            client = container.user_client
+            count = await self._estimate_message_count(client, source_chat_id, begin_date, end_date)
+            
+            # 显示时间
+            time_str = time_config.get('display_text', '全部时间')
+            
+            return {
+                'success': True,
+                'count': count,
+                'time_range': time_str,
+                'source_title': source_chat_title,
+                'target_title': target_chat_title
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     def _calculate_estimated_time(self, progress: Dict[str, Any]) -> Optional[str]:
         """计算预估剩余时间"""
