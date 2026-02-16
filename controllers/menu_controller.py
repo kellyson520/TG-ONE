@@ -149,9 +149,9 @@ class MenuController:
         """管理规则关键词"""
         await self.container.rule_controller.show_keywords(event, rule_id)
 
-    async def toggle_rule_status(self, event, rule_id: int):
+    async def toggle_rule_status(self, event, rule_id: int, from_page: str = 'detail', page: int = 0):
         """快捷切换规则状态"""
-        await self.container.rule_controller.toggle_status(event, rule_id)
+        await self.container.rule_controller.toggle_status(event, rule_id, from_page, page)
 
     async def delete_rule_confirm(self, event, rule_id: int):
         """删除规则二次确认"""

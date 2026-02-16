@@ -1,7 +1,10 @@
-VERSION = "1.2.7.0"
+VERSION = "1.2.6.3"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.6.3: 修复菜单系统交互缺陷
+  - 修正 MenuController.toggle_rule_status 参数传递错误
+  - 解决规则切换时的 TypeError
 - v1.2.7.0: MenuController 及领域控制器架构标准化重构 (UIRE-3.0)
   - 核心重构：实现 MenuController 与领域控制器 (Media/Rule/Admin) 的彻底解耦
   - UI 标准化：引入 `display_view` 统一渲染入口，消除控制器内所有硬编码 UI 字符串
