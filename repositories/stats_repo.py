@@ -12,6 +12,9 @@ class StatsRepository:
     def __init__(self, db):
         self.db = db
         self._log_buffer = []
+        self._buffer_lock = asyncio.Lock()
+        self._flush_task = None
+        self._shutdown_event = asyncio.Event()
 
     async def archive_old_logs(self, hot_days_log: int = 30, hot_days_stats: int = 180) -> dict:
         """归档旧日志和统计数据。"""
@@ -44,9 +47,6 @@ class StatsRepository:
         )).to_dict()
         
         return results
-        self._buffer_lock = asyncio.Lock()
-        self._flush_task = None
-        self._shutdown_event = asyncio.Event()
 
     async def start(self):
         """Start background flushing task"""
