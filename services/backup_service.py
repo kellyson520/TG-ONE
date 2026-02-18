@@ -29,7 +29,7 @@ class BackupService:
 
     async def backup_db(self, label: str = "manual") -> Optional[Path]:
         """
-        备份数据库。使用 SQLite 备份 API 以确保事务安全性。
+        备份数据库。使用文件拷贝方式，安全兼容 aiosqlite 连接池。
         命名格式: tgone_db_{timestamp}.bak
         """
         try:
@@ -44,15 +44,10 @@ class BackupService:
             timestamp = self._get_timestamp()
             backup_path = self.backup_dir / f"tgone_db_{timestamp}.bak"
 
-            # 优先使用 SQLite 备份 API (支持在线备份)
-            try:
-                # 使用 loop.run_in_executor 处理同步的 sqlite 备份
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self._sqlite_backup_sync, str(db_file), str(backup_path))
-                logger.debug(f"通过 SQLite API 备份成功: {backup_path.name}")
-            except Exception as e:
-                logger.warning(f"SQLite 备份 API 失败: {e}，尝试直接文件拷贝...")
-                shutil.copy2(db_file, backup_path)
+            # 使用 asyncio.to_thread 在线程池中执行同步文件拷贝
+            # 注意：直接用 sqlite3.connect 备份会与 aiosqlite 连接池冲突导致 database is locked
+            # shutil.copy2 是文件层面的拷贝，对 WAL 模式的 SQLite 是安全的
+            await asyncio.to_thread(shutil.copy2, str(db_file), str(backup_path))
             
             logger.info(f"✅ [备份] 数据库备份已创建: {backup_path.name}")
             self.rotate("tgone_db_*.bak")
@@ -158,8 +153,7 @@ class BackupService:
                             arcname = str(file_path.relative_to(settings.BASE_DIR))
                             z.write(file_path, arcname)
 
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, _zip_sync)
+            await asyncio.to_thread(_zip_sync)
             
             logger.info(f"✅ [备份] 代码备份已创建: {backup_path.name}")
             self.rotate("tgone_code_*.zip")
@@ -282,8 +276,6 @@ class BackupService:
                     for member in z.namelist():
                         if '..' in member or member.startswith('/') or '\\' in member:
                             continue
-                        # 如果包含更新逻辑中的虚拟子目录，由于我们现在解压到根，需要小心
-                        # 但新格式 tgone_code_*.zip 应该是扁平的根目录结构
                         target = settings.BASE_DIR / member
                         if member.endswith('/'):
                             target.mkdir(parents=True, exist_ok=True)
@@ -292,8 +284,7 @@ class BackupService:
                             with z.open(member) as src, open(target, "wb") as dst:
                                 shutil.copyfileobj(src, dst)
                                 
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, _extract_sync)
+            await asyncio.to_thread(_extract_sync)
             return True, f"代码已成功还原自 {path.name}"
         except Exception as e:
             return False, f"代码还原失败: {e}"
