@@ -117,8 +117,9 @@ class UpdateService:
             logger.info(f"🛡️ [更新] 正在启动更新序列 (目标: {target_version})...")
             
             # 1. 分别备份代码和数据库 (互不影响)
-            code_backup = await self._backup_code()
-            db_backup = self._backup_db()
+            from .backup_service import backup_service
+            code_backup = await backup_service.backup_code(label="update_pre")
+            db_backup = await backup_service.backup_db(label="update_pre")
             
             if code_backup:
                 logger.info(f"✅ [更新] 代码备份: {code_backup.name}")
@@ -988,164 +989,10 @@ class UpdateService:
         except Exception:
             return False
 
-    async def _create_local_backup(self) -> Optional[Path]:
-        """[兼容旧调用] 创建代码备份"""
-        return await self._backup_code()
-
-    async def _backup_code(self) -> Optional[Path]:
-        """
-        代码备份：将源代码打包为 zip。
-        命名: tgone_code_YYYYMMDD_HHMMSS.zip
-        最多保留 UPDATE_BACKUP_LIMIT 个 (默认 10)。
-        """
-        import zipfile
-        
-        backup_dir = settings.BASE_DIR / "data" / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"tgone_code_{timestamp}.zip"
-        
-        excluded_dirs = {
-            ".git", "__pycache__", "venv", ".venv", ".mypy_cache",
-            ".pytest_cache", "logs", "temp", "data", "sessions",
-            "node_modules", "dist", ".agent"
-        }
-        excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz")
-        
-        try:
-            with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as z:
-                for root, dirs, files in os.walk(settings.BASE_DIR):
-                    dirs[:] = [d for d in dirs if d not in excluded_dirs]
-                    for file in files:
-                        if file.endswith(excluded_exts):
-                            continue
-                        file_path = Path(root) / file
-                        arcname = str(file_path.relative_to(settings.BASE_DIR))
-                        z.write(file_path, arcname)
-                        
-            logger.info(f"📦 [备份] 代码备份已创建: {backup_path.name}")
-            self._rotate_backups(backup_dir, "tgone_code_*.zip", settings.UPDATE_BACKUP_LIMIT)
-            return backup_path
-        except Exception as e:
-            logger.error(f"❌ [备份] 代码备份失败: {e}")
-            return None
-
-    def _backup_db(self) -> Optional[Path]:
-        """
-        数据库备份：直接拷贝 DB 文件 (秒级完成)。
-        命名: tgone_db_YYYYMMDD_HHMMSS.bak
-        最多保留 UPDATE_BACKUP_LIMIT 个 (默认 10)。
-        """
-        import shutil
-        
-        backup_dir = settings.BASE_DIR / "data" / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        
-        db_file = Path(settings.DB_PATH)
-        if not db_file.is_absolute():
-            db_file = settings.BASE_DIR / db_file
-        
-        if not db_file.exists():
-            logger.warning("⚠️ [备份] 数据库文件不存在，跳过 DB 备份")
-            return None
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"tgone_db_{timestamp}.bak"
-        
-        try:
-            shutil.copy2(db_file, backup_path)
-            logger.info(f"📀 [备份] 数据库备份已创建: {backup_path.name}")
-            self._rotate_backups(backup_dir, "tgone_db_*.bak", settings.UPDATE_BACKUP_LIMIT)
-            return backup_path
-        except Exception as e:
-            logger.error(f"❌ [备份] 数据库备份失败: {e}")
-            return None
-
-    def _rotate_backups(self, directory: Path, pattern: str, limit: int = 10):
-        """旋转备份文件，保留最新的 N 个"""
-        try:
-            if not directory.exists():
-                return
-            
-            import glob
-            # 获取匹配 pattern 的所有文件，按修改时间降序排序
-            file_list = sorted(
-                glob.glob(str(directory / pattern)),
-                key=os.path.getmtime,
-                reverse=True
-            )
-            
-            if len(file_list) > limit:
-                to_delete = file_list[limit:]
-                logger.info(f"🧹 [更新] 发现备份超限 ({len(file_list)} > {limit})，正在清理旧备份 {pattern}...")
-                for f in to_delete:
-                    try:
-                        os.remove(f)
-                        logger.debug(f"已删除旧备份: {os.path.basename(f)}")
-                    except Exception as e:
-                        logger.warning(f"删除物理文件失败: {f}, 错误: {e}")
-        except Exception as e:
-            logger.error(f"旋转备份失败: {e}")
-
-    async def _restore_code_backup(self, backup_path_str: str) -> Tuple[bool, str]:
-        """从代码 zip 备份还原"""
-        import zipfile
-        import shutil
-        
-        backup_path = Path(backup_path_str)
-        if not backup_path.exists():
-            return False, "代码备份文件已不存在"
-            
-        try:
-            logger.info(f"📦 [还原] 正在还原代码: {backup_path.name}")
-            
-            with zipfile.ZipFile(backup_path, 'r') as z:
-                for member in z.namelist():
-                    if '..' in member or member.startswith('/') or '\\' in member:
-                        continue
-                    
-                    target = settings.BASE_DIR / member
-                    
-                    if member.endswith('/'):
-                        target.mkdir(parents=True, exist_ok=True)
-                    else:
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        for i in range(3):
-                            try:
-                                with z.open(member) as source, open(target, "wb") as dest:
-                                    shutil.copyfileobj(source, dest)
-                                break
-                            except PermissionError:
-                                if i == 2: raise
-                                await asyncio.sleep(0.5)
-                                
-            return True, f"代码已还原至 {backup_path.name}"
-        except Exception as e:
-            return False, f"代码还原失败: {e}"
-
-    def _restore_db_backup(self, backup_path_str: str) -> Tuple[bool, str]:
-        """从 .bak 文件还原数据库"""
-        import shutil
-        
-        backup_path = Path(backup_path_str)
-        if not backup_path.exists():
-            return False, "数据库备份文件已不存在"
-        
-        db_file = Path(settings.DB_PATH)
-        if not db_file.is_absolute():
-            db_file = settings.BASE_DIR / db_file
-        
-        try:
-            logger.info(f"📀 [还原] 正在还原数据库: {backup_path.name}")
-            shutil.copy2(backup_path, db_file)
-            return True, f"数据库已还原至 {backup_path.name}"
-        except Exception as e:
-            return False, f"数据库还原失败: {e}"
-
     async def rollback(self) -> Tuple[bool, str]:
         """执行紧急回滚流程 (支持 Git 和 HTTP)"""
         state = self._get_state()
+        from .backup_service import backup_service
         
         # 1. 如果有 Git
         if self._git_available and self._is_git_repo:
@@ -1172,7 +1019,7 @@ class UpdateService:
                 return False, "未找到可用的代码备份文件"
             
             logger.critical(f"🚑 [回滚] 正在还原代码: {Path(code_backup).name}...")
-            success, msg = await self._restore_code_backup(code_backup)
+            success, msg = await backup_service.restore(code_backup)
             if success:
                 for f in ["UPDATE_LOCK.json", "UPDATE_VERIFYING.json"]:
                     lock_f = settings.BASE_DIR / "data" / f
@@ -1180,69 +1027,14 @@ class UpdateService:
             return success, msg
 
     async def list_local_backups(self) -> list[dict]:
-        """
-        列出所有备份 (代码 + DB 分别列出)。
-        按时间倒序排列，最多返回 10 个。
-        """
-        import glob
-        backup_dir = settings.BASE_DIR / "data" / "backups"
-        if not backup_dir.exists():
-            return []
-        
-        # 搜索所有历史格式
-        patterns = [
-            "tgone_code_*.zip",     # 新格式: 代码
-            "tgone_db_*.bak",       # 新格式: DB
-            "tgone_backup_*.zip",   # 过渡格式
-            "update_backup_*.zip",  # 旧格式
-        ]
-        all_files = []
-        for pattern in patterns:
-            all_files.extend(glob.glob(str(backup_dir / pattern)))
-        
-        file_list = sorted(set(all_files), key=os.path.getmtime, reverse=True)
-        
-        backups = []
-        for f in file_list[:20]:  # 取前 20 条 (代码+DB 各最多 10)
-            path = Path(f)
-            
-            # 类型识别
-            if "_code_" in path.name or "update_backup" in path.name or "tgone_backup" in path.name:
-                btype = "code"
-            elif "_db_" in path.name:
-                btype = "db"
-            else:
-                btype = "unknown"
-            
-            # 从文件名提取时间戳
-            try:
-                date_part = "_".join(path.stem.split("_")[-2:])
-                dt = datetime.strptime(date_part, "%Y%m%d_%H%M%S")
-                ts_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except Exception:
-                try:
-                    ts_int = int(path.stem.split('_')[-1])
-                    ts_str = datetime.fromtimestamp(ts_int).strftime("%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    ts_str = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-                
-            size_mb = path.stat().st_size / (1024 * 1024)
-            backups.append({
-                "name": path.name,
-                "path": str(path),
-                "type": btype,
-                "timestamp": ts_str,
-                "size_mb": round(size_mb, 2),
-            })
-        return backups
+        """列出所有备份 (转发给 BackupService)"""
+        from .backup_service import backup_service
+        return await backup_service.list_backups()
 
     async def restore_from_backup(self, backup_path: str) -> Tuple[bool, str]:
-        """公开的还原接口，根据文件类型自动路由"""
-        p = Path(backup_path)
-        if p.suffix == '.bak':
-            return self._restore_db_backup(backup_path)
-        else:
-            return await self._restore_code_backup(backup_path)
+        """公开的还原接口 (转发给 BackupService)"""
+        from .backup_service import backup_service
+        return await backup_service.restore(backup_path)
 
     def stop(self):
         """停止更新监控并清理任务"""

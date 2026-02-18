@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     
     # === 数据库配置 ===
     DATABASE_URL: str = Field(
-        default="sqlite+aiosqlite:///data/db/forward.db",
+        default_factory=lambda: f"sqlite+aiosqlite:///{(Path(__file__).resolve().parent.parent.parent / 'data' / 'db' / 'forward.db').as_posix()}",
         description="数据库连接URL"
     )
     DB_POOL_SIZE: int = Field(
@@ -135,8 +135,8 @@ class Settings(BaseSettings):
     DB_POOL_PRE_PING: bool = Field(default=True)
     DATABASE_URL_SQLITE: Optional[str] = Field(default=None)
     DB_PATH: str = Field(
-        default="data/db/forward.db",
-        description="SQLite 数据库文件相对路径"
+        default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "db" / "forward.db"),
+        description="SQLite 数据库文件路径"
     )
 
     # === Web Admin Defaults ===
@@ -420,7 +420,7 @@ class Settings(BaseSettings):
         description="转发记录模式 (full/summary/off)"
     )
     FORWARD_RECORDER_DIR: Path = Field(
-        default=Path("./data/zhuanfaji"), 
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "zhuanfaji", 
         description="转发记录存储目录"
     )
 

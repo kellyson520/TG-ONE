@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from core.config import settings
 from web_admin.security.deps import admin_required, login_required
 from web_admin.routers.settings_router import _get_full_settings_logic, _update_settings_logic
-from repositories.backup import backup_database, rotate_backups
+from services.backup_service import backup_service
 
 from models.models import RuleLog, RuleStatistics, ChatStatistics, ErrorLog, MediaSignature, TaskQueue
 from web_admin.schemas.response import ResponseSchema
@@ -139,19 +139,9 @@ async def reload_config(request: Request, user = Depends(admin_required)):
 
 @router.get("/backups", response_model=ResponseSchema)
 async def list_backups(user = Depends(admin_required)):
-    """获取所有数据库备份"""
+    """获取所有系统备份 (代码 + 数据库)"""
     try:
-        backup_dir = settings.BACKUP_DIR
-        files = []
-        if backup_dir.exists() and backup_dir.is_dir():
-            for f in backup_dir.glob("*.bak"):
-                stat = f.stat()
-                files.append({
-                    'name': f.name,
-                    'size': stat.st_size,
-                    'mtime': datetime.fromtimestamp(stat.st_mtime).isoformat()
-                })
-            files.sort(key=lambda x: x['mtime'], reverse=True)
+        files = await backup_service.list_backups()
         return ResponseSchema(success=True, data=files)
     except Exception as e:
         return ResponseSchema(success=False, error=str(e))
@@ -160,10 +150,9 @@ async def list_backups(user = Depends(admin_required)):
 async def trigger_backup(user = Depends(admin_required)):
     """手动触发数据库备份"""
     try:
-        path = backup_database()
+        path = await backup_service.backup_db()
         if path:
-            rotate_backups()
-            return ResponseSchema(success=True, message=f'备份成功: {os.path.basename(path)}', data={'path': path})
+            return ResponseSchema(success=True, message=f'备份成功: {path.name}', data={'path': str(path)})
         else:
             return ResponseSchema(success=False, error='备份失败')
     except Exception as e:

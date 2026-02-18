@@ -139,29 +139,26 @@ class SystemService:
 
     async def backup_database(self) -> Dict:
         """
-        异步执行数据库备份
+        异步执行数据库备份 (统一接入 BackupService)
         """
         try:
-            from repositories.backup import backup_database as _backup
+            from .backup_service import backup_service
+            path = await backup_service.backup_db(label="system_service")
             
-            # 在线程池中执行同步备份操作
-            loop = asyncio.get_running_loop()
-            backup_path = await loop.run_in_executor(None, _backup)
-            
-            if backup_path and os.path.exists(backup_path):
-                size = os.path.getsize(backup_path) / (1024 * 1024)
+            if path:
+                size = os.path.getsize(str(path)) / (1024 * 1024)
                 return {
                     "success": True, 
-                    "path": backup_path, 
+                    "path": str(path), 
                     "size_mb": size
                 }
             else:
                 return {
                     "success": False, 
-                    "error": "Backup function returned empty path"
+                    "error": "备份服务未返回路径"
                 }
         except Exception as e:
-            logger.error(f"Backup failed: {e}")
+            logger.error(f"SystemService Backup failed: {e}")
             return {
                 "success": False, 
                 "error": str(e)

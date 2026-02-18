@@ -18,7 +18,7 @@ class StatsManager:
     
     def __init__(self):
         # 数据根目录下的 stats 子目录
-        self.stats_dir = settings.DATA_DIR / "stats"
+        self.stats_dir = settings.DATA_ROOT / "stats"
         self.stats_file = self.stats_dir / "lifetime_stats.json"
         self._ensure_dir()
         

@@ -89,7 +89,7 @@ class SystemMenu(BaseMenu):
     async def show_backup_history(self, event, page=0):
         """显示历史备份"""
         try:
-            backup_dirs = ["./db/backup", "backups"]
+            backup_dirs = [str(settings.BACKUP_DIR), str(settings.DB_DIR / "backup")]
             backup_files = []
             for backup_dir in backup_dirs:
                 if os.path.exists(backup_dir):
@@ -156,7 +156,7 @@ class SystemMenu(BaseMenu):
             await self._render_from_text(event, "🔄 正在恢复数据库...", buttons=None)
             
             # 重新获取备份列表
-            backup_dirs = ["./db/backup", "backups"]
+            backup_dirs = [str(settings.BACKUP_DIR), str(settings.DB_DIR / "backup")]
             backup_files = []
             for backup_dir in backup_dirs:
                 if os.path.exists(backup_dir):
@@ -205,8 +205,7 @@ class SystemMenu(BaseMenu):
             from pathlib import Path
             db_size_str = "未知"
             try:
-                base_dir = Path(__file__).resolve().parent.parent.parent.parent
-                db_path = (base_dir / "db" / "forward.db").resolve()
+                db_path = (settings.DB_DIR / "forward.db").resolve()
                 if db_path.exists():
                     db_size_str = f"{os.path.getsize(str(db_path)) / (1024 * 1024):.2f} MB"
             except Exception as e:
@@ -268,7 +267,7 @@ class SystemMenu(BaseMenu):
         try:
             cleaned_files = 0
             cleaned_size = 0
-            temp_dirs = ["temp", "cache", "/tmp"]
+            temp_dirs = [str(settings.TEMP_DIR)]
             for temp_dir in temp_dirs:
                 if os.path.exists(temp_dir):
                     for root, dirs, files in os.walk(temp_dir):

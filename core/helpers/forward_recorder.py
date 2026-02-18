@@ -32,21 +32,21 @@ class ForwardRecorder:
             logger.info(f"使用转发记录目录: {self.base_dir}")
         except Exception as e:
             logger.error(f"无法创建目录 {self.base_dir}: {e}")
-            # 回退到项目根目录
-            fallback_local = Path.cwd() / "zhuanfaji"
+            # 回退到 data/zhuanfaji (始终在 DATA_ROOT 下)
+            fallback_local = Path(settings.DATA_ROOT) / "zhuanfaji"
             try:
                 fallback_local.mkdir(parents=True, exist_ok=True)
                 logger.warning(f"目录不可写 {self.base_dir}，回退到 {fallback_local}")
                 self.base_dir = fallback_local
             except Exception as e2:
                 logger.error(f"回退目录 {fallback_local} 也无法创建: {e2}")
-                self.base_dir = Path("data") / "zhuanfaji"
+                self.base_dir = Path(settings.DATA_ROOT) / "zhuanfaji"
                 self.base_dir.mkdir(parents=True, exist_ok=True)
                 logger.warning(f"最终回退到: {self.base_dir}")
 
         # 最终路径可写性检查
         if not self._is_writable(self.base_dir):
-            fallback = Path.cwd() / "zhuanfaji"
+            fallback = Path(settings.DATA_ROOT) / "zhuanfaji"
             logger.warning(f"目录不可写 {self.base_dir}，再次回退到 {fallback}")
             try:
                 fallback.mkdir(parents=True, exist_ok=True)

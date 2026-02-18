@@ -5,7 +5,8 @@ UPDATE_INFO = """
 - v1.2.6.4: 热冷分层存储与万能归档系统 (Phase 6+)
   - 核心突破：实现 UniversalArchiver，支持全模型自动归档至 Parquet 冷存储
   - 热冷查询：引入 UnifiedQueryBridge，通过 DuckDB 实现 SQLite 与 Parquet 的联邦查询
-  - 架构重构：AuditService/TaskService/AnalyticsService 深度集成热冷桥接，性能与容量兼得
+  - 统一备份：建立中央 BackupService，支持代码(.zip)与数据库(.bak)独立备份、在线 SQL 备份及版本旋转机制
+  - 架构重构：Audit/Task/Update 等所有服务全面接入统一备份协议，废弃原有冗余逻辑
   - 运维增强：任务队列默认保留 1 天，并在归档后自动执行 WAL Checkpoint 与 VACUUM
 - v1.2.6.3: 修复菜单系统交互缺陷
   - 修正 MenuController.toggle_rule_status 参数传递错误

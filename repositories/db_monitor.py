@@ -237,10 +237,9 @@ class DatabaseMonitor:
 
             # WAL文件大小
             from pathlib import Path
+            from core.config import settings
 
-            wal_file = (
-                Path(__file__).resolve().parent.parent / "db" / "forward.db-wal"
-            ).resolve()
+            wal_file = (settings.DB_DIR / "forward.db-wal").resolve()
             if wal_file.exists():
                 wal_size = os.path.getsize(str(wal_file))
 

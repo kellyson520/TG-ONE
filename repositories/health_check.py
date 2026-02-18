@@ -123,11 +123,9 @@ def check_and_fix_dbs_at_startup():
         logger.info("Health check skipped: Non-SQLite database.")
         return
 
-    # Parse path from url "sqlite+aiosqlite:///db/forward.db"
-    # Basic parsing
-    path_str = db_url.split("///")[-1]
-    # Handle absolute paths if needed, but relative usually works
-    db_path = Path(settings.BASE_DIR) / path_str
+    # Parse path from url - use settings.DB_DIR for reliability
+    # (DATABASE_URL may contain absolute or relative paths)
+    db_path = settings.DB_DIR / "forward.db"
     
     # Also check dedup.db if it exists in the same dir
     dedup_path = db_path.parent / "dedup.db"

@@ -16,6 +16,8 @@ try:
 except ImportError:
     import json
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,14 +25,14 @@ class TombstoneManager:
     def __init__(self) -> None:
         self._managed_objects: List[Dict[str, Any]] = []
         self._is_frozen = False
-        self._tombstone_path = "./temp/tombstone_state.bin"
+        self._tombstone_path = str(settings.TEMP_DIR / "tombstone_state.bin")
         # ✅ 新增：并发锁，防止同时冻结和复苏
         self._lock = asyncio.Lock()
         # ✅ 新增：冷却时间，防止频繁冻结（例如冻结后至少保持 5 分钟不再次冻结）
         self._last_freeze_time: float = 0.0
         self._freeze_cooldown = 300
 
-        # 创建temp目录
+        # 创建目录
         os.makedirs(os.path.dirname(self._tombstone_path), exist_ok=True)
 
         # 加载 libc 以调用 malloc_trim (Linux 专属内存释放神器)

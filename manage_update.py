@@ -94,8 +94,8 @@ async def rollback():
 async def list_backups():
     """列出所有本地备份 (代码 + 数据库)"""
     print("📦 [Update Manager] 正在检索本地备份...")
-    from services.update_service import update_service
-    backups = await update_service.list_local_backups()
+    from services.backup_service import backup_service
+    backups = await backup_service.list_backups()
     
     if not backups:
         print("📭 未发现任何本地备份。")
@@ -108,45 +108,46 @@ async def list_backups():
     idx = 1
     if code_backups:
         print("\n--- 📦 代码备份 ---")
-        print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'文件名'}")
         for b in code_backups:
-            size_str = f"{b.get('size_mb', 0):.1f}MB"
-            print(f"{idx:<6} {b['timestamp']:<22} {size_str:<10} {b['name']}")
+            print(f"  [{idx}] {b['time']} | {b['size_mb']:>6} MB | {b['name']}")
             b['_idx'] = idx
             idx += 1
-    
+            
     if db_backups:
         print("\n--- 📀 数据库备份 ---")
-        print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'文件名'}")
         for b in db_backups:
-            size_str = f"{b.get('size_mb', 0):.1f}MB"
-            print(f"{idx:<6} {b['timestamp']:<22} {size_str:<10} {b['name']}")
+            print(f"  [{idx}] {b['time']} | {b['size_mb']:>6} MB | {b['name']}")
             b['_idx'] = idx
             idx += 1
-        
+            
     print(f"\n提示: 使用 `python manage_update.py restore <编号>` 进行指定还原")
     print("  代码还原 = 覆盖源代码 (不影响数据库)")
     print("  DB 还原  = 覆盖数据库 (不影响代码)")
 
 async def restore_specific(index: int):
-    """还原指定的本地备份"""
-    from services.update_service import update_service
-    backups = await update_service.list_local_backups()
+    """还原指定的备份"""
+    from services.backup_service import backup_service
+    backups = await backup_service.list_backups()
     if not backups or index < 1 or index > len(backups):
         print(f"❌ 错误: 无效的备份编号 {index}")
         return
-        
+
     target = backups[index-1]
     btype = "代码" if target.get('type') == 'code' else "数据库"
-    print(f"⏪ [Update Manager] 准备还原{btype}备份: {target['name']}")
-    confirm = input(f"警告：这将覆盖当前{btype}！确定还原 {target['timestamp']} 的备份吗？(y/N): ")
+    
+    print(f"\n⚠️  [警告] 您选择了{btype}还原")
+    print(f"   目标文件: {target['name']}")
+    print(f"   备份时间: {target['time']}")
+    
+    confirm = input(f"\n这将覆盖当前{btype}！确定继续吗？(y/N): ")
     if confirm.lower() != 'y':
         print("已取消。")
         return
-        
-    success, msg = await update_service.restore_from_backup(target['path'])
+
+    print(f"🚀 正在还原 {btype}...")
+    success, msg = await backup_service.restore(target['path'])
     if success:
-        print(f"✅ 还原成功: {msg}")
+        print(f"✅ {msg}")
         if target.get('type') == 'code':
             print("请手动重启应用以加载新代码。")
     else:

@@ -4,6 +4,12 @@
 - **分层存储架构 (Tiered Storage)**:
     - **UniversalArchiver**: 实现了通用的万能归档引擎，支持将任何带有时间戳的模型数据归档至 Parquet 冷存储。
     - **UnifiedQueryBridge**: 引入基于 DuckDB 的统一查询桥接，支持同时从 SQLite (Hot) 和 Parquet (Cold) 中联邦查询数据。
+- **统一备份系统 (Unified Backup System)**:
+    - **BackupService**: 建立中央备份服务，整合了代码压缩 (.zip) 与数据库在线备份 (.bak) 逻辑。
+    - **在线数据库备份**: 引入 SQLite `backup` API，支持在系统运行中进行安全、事务一致的数据库备份，自动降级为文件拷贝加速。
+    - **独立旋转机制**: 实现了代码与数据库的独立版本旋转 (Rotation)，默认保留各 10 个最新备份。
+    - **全链路分层重构**: 更新服务 (`UpdateService`)、系统维护 (`SystemService/DBMaintenanceService`) 及 Web 管理端已全面切换至统一备份协议，废弃了内部冗余实现。
+    - **CLI 增强**: `manage_update.py` 现在支持分类查看与路由还原（代码 vs 数据库），提供更安全的还原保障。
 - **服务层深度集成 (Service Integration)**:
     - **TaskService**: 任务列表与详情查询现已完全接入桥接器，支持查看已归档的 60w+ 历史任务。
     - **AuditService**: 审计日志查询实现跨层级联合，确保持久化审计记录的可回溯性。

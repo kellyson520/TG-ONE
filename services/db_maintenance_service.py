@@ -120,20 +120,10 @@ class DatabaseManager:
             logger.warning(f"数据库写入测试失败 {db_path}: {e}")
             return False
 
-    def backup_database(self, db_path: Path) -> Optional[Path]:
-        """备份数据库"""
-        try:
-            if not db_path.exists():
-                return None
-            timestamp = int(time.time())
-            if not self.backup_dir.exists():
-                self.backup_dir.mkdir(parents=True, exist_ok=True)
-            backup_path = self.backup_dir / f"{db_path.stem}.backup.{timestamp}{db_path.suffix}"
-            shutil.copy2(db_path, backup_path)
-            return backup_path
-        except Exception as e:
-            logger.error(f"数据库备份失败 {db_path}: {e}")
-            return None
+    def backup_database(self, db_path: Optional[Path] = None) -> Optional[Path]:
+        """[Deprecated] 备份数据库。转发至 BackupService。"""
+        from .backup_service import backup_service
+        return backup_service.backup_db_sync()
 
     def scan_database_files(self) -> List[Path]:
         """扫描所有数据库文件 (排除备份)"""
@@ -350,16 +340,15 @@ class DBMaintenanceService:
             return {"success": False, "error": str(e)}
 
     async def backup_database(self) -> Dict[str, Any]:
-        """执行数据库备份"""
+        """执行数据库备份 (统一接入 BackupService)"""
         try:
-            from core.config import settings
-            db_path = Path(settings.DB_PATH.replace("sqlite+aiosqlite:///", ""))
-            backup_path = await asyncio.to_thread(self.manager.backup_database, db_path)
-            if backup_path:
+            from .backup_service import backup_service
+            path = await backup_service.backup_db(label="db_maintenance")
+            if path:
                 return {
                     "success": True, 
-                    "path": str(backup_path),
-                    "size_mb": backup_path.stat().st_size / (1024 * 1024)
+                    "path": str(path),
+                    "size_mb": path.stat().st_size / (1024 * 1024)
                 }
             return {"success": False, "error": "备份失败"}
         except Exception as e:

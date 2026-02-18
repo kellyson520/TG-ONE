@@ -24,9 +24,9 @@ class RemoteConfigSyncService:
     """远程配置同步服务"""
     
     def __init__(self, config_dir: str = "config/remote"):
-        # 获取项目根目录
-        project_root = Path(os.getcwd())
-        self.config_dir = (project_root / config_dir).resolve()
+        from core.config import settings
+        # 使用 DATA_ROOT 作为基础路径，确保在 data/ 下
+        self.config_dir = (settings.DATA_ROOT / config_dir).resolve()
         self.config_path = self.config_dir / "config.json"
         
         self.server_url: Optional[str] = None

@@ -1,5 +1,6 @@
 import logging
 import os
+from core.config import settings
 try:
     import pytz
     PYTZ_AVAILABLE = True
@@ -134,7 +135,7 @@ class PushFilter(BaseFilter):
             if context.media_group_messages and not context.media_files:
                 logger.info(f'检测到媒体组消息但没有媒体文件，开始下载...')
                 need_cleanup = True
-                temp_dir = os.path.join(os.getcwd(), 'temp')
+                temp_dir = str(settings.TEMP_DIR)
                 if not os.path.exists(temp_dir):
                     os.makedirs(temp_dir, exist_ok=True)
                     
@@ -154,7 +155,7 @@ class PushFilter(BaseFilter):
                 need_cleanup = True
                 for message in context.media_group_messages:
                     if message.media:
-                        file_path = await message.download_media(os.path.join(os.getcwd(), 'temp'))
+                        file_path = await message.download_media(str(settings.TEMP_DIR))
                         if file_path:
                             files.append(file_path)
                             logger.info(f'已下载媒体文件: {file_path}')
@@ -297,7 +298,7 @@ class PushFilter(BaseFilter):
             elif rule.enable_only_push and event.message and event.message.media:
                 logger.info(f'需要自己下载文件，开始下载单个媒体消息...')
                 need_cleanup = True
-                file_path = await event.message.download_media(os.path.join(os.getcwd(), 'temp'))
+                file_path = await event.message.download_media(str(settings.TEMP_DIR))
                 if file_path:
                     files.append(file_path)
                     logger.info(f'已下载媒体文件: {file_path}')
