@@ -881,7 +881,8 @@ class UpdateService:
                 zip_data = io.BytesIO(resp.content)
                 
             # 备份当前版本
-            backup_path = await self._create_local_backup()
+            from .backup_service import backup_service
+            backup_path = await backup_service.backup_code(label="pre_http_update")
             state = self._get_state()
             prev_version = state.get("current_version", "未知")
 
