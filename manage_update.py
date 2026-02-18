@@ -92,28 +92,44 @@ async def rollback():
         print(f"❌ 触发回退失败: {e}")
 
 async def list_backups():
-    """列出所有本地代码备份"""
+    """列出所有本地备份 (代码 + 数据库)"""
     print("📦 [Update Manager] 正在检索本地备份...")
-    # 动态导入防止循环依赖
     from services.update_service import update_service
     backups = await update_service.list_local_backups()
     
     if not backups:
         print("📭 未发现任何本地备份。")
         return
+    
+    # 分类显示
+    code_backups = [b for b in backups if b.get('type') == 'code']
+    db_backups = [b for b in backups if b.get('type') == 'db']
+    
+    idx = 1
+    if code_backups:
+        print("\n--- 📦 代码备份 ---")
+        print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'文件名'}")
+        for b in code_backups:
+            size_str = f"{b.get('size_mb', 0):.1f}MB"
+            print(f"{idx:<6} {b['timestamp']:<22} {size_str:<10} {b['name']}")
+            b['_idx'] = idx
+            idx += 1
+    
+    if db_backups:
+        print("\n--- 📀 数据库备份 ---")
+        print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'文件名'}")
+        for b in db_backups:
+            size_str = f"{b.get('size_mb', 0):.1f}MB"
+            print(f"{idx:<6} {b['timestamp']:<22} {size_str:<10} {b['name']}")
+            b['_idx'] = idx
+            idx += 1
         
-    print("\n--- 可用的本地备份 (最近 10 个) ---")
-    print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'含DB':<6} {'文件名'}")
-    for i, b in enumerate(backups, 1):
-        db_flag = "✅" if b.get('has_db') else "❌"
-        size_str = f"{b.get('size_mb', 0):.1f}MB"
-        print(f"{i:<6} {b['timestamp']:<22} {size_str:<10} {db_flag:<6} {b['name']}")
-        
-    print("\n提示: 使用 `python manage_update.py restore <编号>` 进行指定还原")
+    print(f"\n提示: 使用 `python manage_update.py restore <编号>` 进行指定还原")
+    print("  代码还原 = 覆盖源代码 (不影响数据库)")
+    print("  DB 还原  = 覆盖数据库 (不影响代码)")
 
 async def restore_specific(index: int):
     """还原指定的本地备份"""
-    # 动态导入防止循环依赖
     from services.update_service import update_service
     backups = await update_service.list_local_backups()
     if not backups or index < 1 or index > len(backups):
@@ -121,8 +137,9 @@ async def restore_specific(index: int):
         return
         
     target = backups[index-1]
-    print(f"⏪ [Update Manager] 准备还原备份: {target['name']}")
-    confirm = input(f"警告：这将覆盖当前代码！确定还原日期为 {target['timestamp']} 的备份吗？(y/N): ")
+    btype = "代码" if target.get('type') == 'code' else "数据库"
+    print(f"⏪ [Update Manager] 准备还原{btype}备份: {target['name']}")
+    confirm = input(f"警告：这将覆盖当前{btype}！确定还原 {target['timestamp']} 的备份吗？(y/N): ")
     if confirm.lower() != 'y':
         print("已取消。")
         return
@@ -130,7 +147,8 @@ async def restore_specific(index: int):
     success, msg = await update_service.restore_from_backup(target['path'])
     if success:
         print(f"✅ 还原成功: {msg}")
-        print("请手动重启应用。")
+        if target.get('type') == 'code':
+            print("请手动重启应用以加载新代码。")
     else:
         print(f"❌ 还原失败: {msg}")
 
