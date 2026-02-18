@@ -16,7 +16,8 @@ class MediaMenuStrategy(BaseMenuHandler):
         "set_max_media_size", "select_max_media_size",
         "set_media_types", "toggle_media_type",
         "set_media_extensions", "media_extensions_page", "toggle_media_extension",
-        "toggle_media_allow_text"
+        "toggle_media_allow_text",
+        "media_filter_config"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -34,6 +35,10 @@ class MediaMenuStrategy(BaseMenuHandler):
             parts = kwargs.get("data").split(":")
             if len(parts) > 1 and parts[1].isdigit():
                 rule_id = int(parts[1])
+
+        # Global actions validation (no rule_id needed)
+        if action == "media_filter_config":
+            return await menu_controller.container.media_controller.show_media_filter_config(event)
 
         if not rule_id:
             logger.warning(f"MediaStrategy: No rule_id for action {action}")

@@ -14,6 +14,20 @@ class DedupRepository:
     def __init__(self, db):
         self.db = db
 
+    async def archive_old_signatures(self, hot_days: int = 60, batch_size: int = 10000) -> dict:
+        """归档旧媒体签名记录。"""
+        from core.archive.engine import UniversalArchiver
+        from models.models import MediaSignature
+        
+        archiver = UniversalArchiver()
+        result = await archiver.archive_table(
+            model_class=MediaSignature,
+            hot_days=hot_days,
+            batch_size=batch_size,
+            time_column="created_at"
+        )
+        return result.to_dict()
+
     async def find_by_signature(self, chat_id: Optional[str], signature: str) -> Optional[MediaSignatureDTO]:
         """根据签名查找 (chat_id=None 表示全局)"""
         async with self.db.get_session() as session:

@@ -7,7 +7,15 @@ Telegram 转发器核心重构项目 (Core Refactoring).
 ## 🚀 项目状态 (Project Status)
 - **Version**: 1.2.2.4
 - **Architecture**: Domain-Driven Design (DDD) + Service Layer
-- **Progress**: Phase 6 (Web Admin Refactor)
+- **Progress**: Phase 7 (Hybrid Cloud Integration)
+- **Key Feature**: **Hot-Cold Tiering Storage** (SQLite + Parquet + DuckDB)
+
+## 💎 核心特性：热冷分层存储 (Hot-Cold Tiering)
+为了应对海量历史转发日志和任务数据，系统实现了工业级的热冷分层策略：
+- **热数据 (Hot)**: 最近 7-30 天的活跃数据保留在 **SQLite** 中，确保极速写入和低延迟访问。
+- **冷数据 (Cold)**: 历史存量数据自动归档至 **Parquet** 列式存储文件，大幅节省空间（1/10 压缩率）。
+- **统一查询 (Unified)**: 使用 **UnifiedQueryBridge** (基于 DuckDB)，支持跨 SQLite 和 Parquet 的无缝联合查询，前端透明感知。
+- **自动运维**: 每日凌晨自动执行归档和数据库压实 (VACUUM)，永久告警 SQLite 大文件性能瓶颈。
 
 ## 🛠️CI/CD (持续集成)
 本项目使用 GitHub Actions 进行自动化测试与构建。

@@ -127,6 +127,7 @@
 | 20260203_Fix_RuleRepo_Error | 修复 RuleRepository AttributeError | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_RuleRepository_AttributeError/report.md) |
 | 20260203_Fix_Missing_Route_RuleSettingsNew | 修复规则设置路由缺失与 rule_id 错误 | 2026-02-03 | 2026-02-03 | 100% | [[report.md]](./Workstream_Maintenance/20260203_Fix_Missing_Route_RuleSettingsNew/report.md) |
 | 20260211_Fix_ViewResult_NameError | 修复 MainMenuRenderer 中 ViewResult 未定义错误 | 2026-02-11 | 2026-02-11 | 100% | [📂 查看](./Workstream_Bugfix/20260211_Fix_ViewResult_NameError/report.md) |
+| 20260218_Fix_Analytics_Worker_Registry | 修复分析服务 AttributeError、动作未匹配及 Telethon 实体缺失错误 | 2026-02-18 | 2026-02-18 | 100% | [[report.md]](./Workstream_Bugfix/20260218_Fix_Analytics_Worker_Registry/report.md) |
 
 ### 进行中任务 ⏳
 

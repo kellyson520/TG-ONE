@@ -1,7 +1,6 @@
 from .base import BaseMenuHandler
 from .registry import MenuHandlerRegistry
-from core.container import container
-from telethon import Button
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
         "open_wheel_picker", "picker_adj", "picker_limit",
         "set_all_time_zero",
         "save_days", "save_time_range",
-        
+
         # History Task Management
         "history_task_selector", "select_history_task", 
         "select_history_rule", "select_task",
@@ -40,13 +39,16 @@ class HistoryMenuStrategy(BaseMenuHandler):
         "start_history_task", "pause_history_task", "resume_history_task",
         "history_message_filter", "history_filter_media_types",
         "history_filter_media_duration", "history_message_limit",
-        
+
         # Time Range Presets
         "set_time_range_all", "set_time_range_days",
         "confirm_time_range", "set_start_time", "set_end_time",
         
         # Delay Settings
-        "set_delay", "set_history_delay", "set_history_limit", "custom_history_limit"
+        "set_delay", "set_history_delay", "set_history_limit", "custom_history_limit",
+        
+        # Additional Actions
+        "history_task_list"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -250,13 +252,17 @@ class HistoryMenuStrategy(BaseMenuHandler):
         elif action in ["history_task_selector", "select_history_task"]:
             await menu_controller.show_history_task_selector(event)
         
+        elif action == "history_task_list":
+            page = arg1 if arg1 > 0 else 1
+            await menu_controller.show_history_task_list(event, page=page)
+        
         elif action in ["select_history_rule", "select_task"]:
             rule_id = arg1
             res = await session_manager.set_selected_rule(event.sender_id, rule_id)
             if res.get('success'):
                 await event.answer(f"✅ 已选择规则 #{rule_id}")
-                # 显示历史消息主菜单，而不是任务操作菜单，以便查看更新后的状态
-                await new_menu_system.show_history_messages(event)
+                # 跳转至任务配置页
+                await menu_controller.show_history_task_actions(event)
             else:
                 await event.answer(f"❌ 选择失败: {res.get('error')}", alert=True)
         

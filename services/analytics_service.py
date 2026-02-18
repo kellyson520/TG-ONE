@@ -3,7 +3,7 @@ import traceback
 import os
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional, Union
 
 from services.network.bot_heartbeat import get_heartbeat
 from services.dedup.engine import smart_deduplicator
@@ -19,6 +19,8 @@ class AnalyticsService:
     
     def __init__(self, container=None):
         self._container = container
+        from core.archive.bridge import UnifiedQueryBridge
+        self.bridge = UnifiedQueryBridge()
 
     @property
     def container(self):
@@ -301,132 +303,120 @@ class AnalyticsService:
                 "queue_status": {"active_queues": 0},
             }
 
+    async def get_unified_hourly_trend(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """跨热冷获取小时级转发趋势"""
+        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        sql = """
+            SELECT 
+                strftime('%Y-%m-%dT%H', CAST(created_at AS TIMESTAMP)) as hour,
+                COUNT(*) as count
+            FROM {table}
+            WHERE created_at >= ?
+            GROUP BY hour
+            ORDER BY hour
+        """
+        return await self.bridge.query_aggregate("rule_logs", sql, [cutoff])
+
     async def get_daily_summary(self, date_str: str) -> Dict[str, Any]:
-        """获取指定日期的每日汇总 (从数据库获取)"""
+        """获取指定日期的每日汇总 (跨热冷查询)"""
         try:
-            from sqlalchemy import select, func
-            from models.models import RuleLog, ChatStatistics
+            # 1. 统计转发和错误 (从 rule_logs 跨层)
+            sql = """
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN action = 'error' THEN 1 ELSE 0 END) as errors
+                FROM {table}
+                WHERE strftime('%Y-%m-%d', CAST(created_at AS TIMESTAMP)) = ?
+            """
+            res = await self.bridge.query_aggregate("rule_logs", sql, [date_str])
+            row = res[0] if res else {}
+            total = row.get('total', 0)
+            errors = row.get('errors', 0)
 
-            async with self.container.db.get_session() as session:
-                # 1. 统计总转发数和错误数 (从 RuleLog)
-                stats_stmt = (
-                    select(
-                        func.count(RuleLog.id).label('total'),
-                        func.sum(RuleLog.action == 'error').label('errors')
-                    )
-                    .where(func.strftime('%Y-%m-%d', RuleLog.created_at) == date_str)
-                )
-                stats_res = await session.execute(stats_stmt)
-                row = stats_res.first()
-                total = row.total if row and row.total else 0
-                errors = row.errors if row and row.errors else 0
-
-                # 2. 统计活跃聊天 (从 ChatStatistics)
-                chats_stmt = (
-                    select(ChatStatistics)
-                    .where(ChatStatistics.date == date_str)
-                    .order_by(ChatStatistics.forward_count.desc())
-                )
-                chats_res = await session.execute(chats_stmt)
-                chats_data = chats_res.scalars().all()
-                
-                chats_dict = {str(c.chat_id): c.forward_count for c in chats_data}
-                
-                # 3. 统计节省流量 (从 ChatStatistics)
-                traffic_stmt = (
-                    select(func.sum(ChatStatistics.saved_traffic_bytes))
-                    .where(ChatStatistics.date == date_str)
-                )
-                saved_bytes = (await session.execute(traffic_stmt)).scalar() or 0
-                
-                return {
-                    'total_forwards': total,
-                    'error_count': errors,
-                    'chats': chats_dict,
-                    'active_chats': len(chats_dict),
-                    'date': date_str,
-                    'saved_traffic_bytes': saved_bytes
-                }
+            # 2. 统计活跃聊天 (从 chat_statistics 跨层)
+            # 注意: ChatStatistics 也是按天分的
+            chat_sql = "SELECT * FROM {table} WHERE date = ? ORDER BY forward_count DESC"
+            chats_data = await self.bridge.query_aggregate("chat_statistics", chat_sql, [date_str])
+            chats_dict = {str(c.get('chat_id')): c.get('forward_count', 0) for c in chats_data}
+            
+            # 3. 统计节省流量
+            saved_bytes = sum([c.get('saved_traffic_bytes', 0) or 0 for c in chats_data])
+            
+            return {
+                'total_forwards': total,
+                'error_count': errors,
+                'chats': chats_dict,
+                'active_chats': len(chats_dict),
+                'date': date_str,
+                'saved_traffic_bytes': saved_bytes,
+                'is_unified': True
+            }
         except Exception as e:
             logger.error(f"get_daily_summary 失败 for {date_str}: {e}")
             return {'total_forwards': 0, 'error_count': 0, 'chats': {}, 'active_chats': 0, 'date': date_str}
 
     async def get_detailed_stats(self, days: int = 1) -> Dict[str, Any]:
-        """获取详细的分时段/分频道统计 (从数据库获取)"""
+        """获取详细的分时段/分频道统计 (跨热冷查询)"""
         try:
-            # 1. 获取最近 24 小时趋势
-            hourly_trend = await self.container.stats_repo.get_hourly_trend(hours=24)
+            # 1. 获取最近趋势 (跨层)
+            hours = days * 24
+            hourly_trend = await self.get_unified_hourly_trend(hours=hours)
             
             # 2. 获取今日汇总
             today_str = datetime.now().strftime("%Y-%m-%d")
             today_summary = await self.get_daily_summary(today_str)
             
-            # 3. 获取 Top 规则 (从 RuleStatistics)
-            from models.models import RuleStatistics, ForwardRule
-            from sqlalchemy import select
+            # 3. 获取 Top 规则 (从 rule_statistics 跨层)
+            # 由于聚合需要涉及 ForwardRule (SQLite 专有)，我们先查 stats ID，再回 SQLite 查规则名
+            stats_sql = """
+                SELECT rule_id, SUM(success_count) as success_count, SUM(error_count) as error_count
+                FROM {table}
+                WHERE date = ?
+                GROUP BY rule_id
+                ORDER BY success_count DESC
+                LIMIT 5
+            """
+            stats_res = await self.bridge.query_aggregate("rule_statistics", stats_sql, [today_str])
             
             top_rules = []
-            async with self.container.db.get_session() as session:
-                stmt = (
-                    select(RuleStatistics, ForwardRule)
-                    .join(ForwardRule, RuleStatistics.rule_id == ForwardRule.id)
-                    .where(RuleStatistics.date == today_str)
-                    .order_by(RuleStatistics.success_count.desc())
-                    .limit(5)
-                )
-                res = await session.execute(stmt)
-                for row in res:
-                    # SQLAlchemy 返回的是元组 (RuleStatistics, ForwardRule)
-                    stats_row, rule_row = row
-                    top_rules.append({
-                        'rule_id': rule_row.id,
-                        'name': getattr(rule_row, 'name', f"Rule {rule_row.id}"),
-                        'count': stats_row.success_count,
-                        'success_count': stats_row.success_count,
-                        'error_count': stats_row.error_count
-                    })
+            if stats_res:
+                rule_ids = [r['rule_id'] for r in stats_res]
+                from models.models import ForwardRule
+                from sqlalchemy import select
+                async with self.container.db.get_session() as session:
+                    stmt = select(ForwardRule).where(ForwardRule.id.in_(rule_ids))
+                    res = await session.execute(stmt)
+                    rule_map = {r.id: r for r in res.scalars().all()}
+                    
+                    for s in stats_res:
+                        rule_row = rule_map.get(s['rule_id'])
+                        top_rules.append({
+                            'rule_id': s['rule_id'],
+                            'name': getattr(rule_row, 'description', f"Rule {s['rule_id']}") if rule_row else f"Rule {s['rule_id']}",
+                            'count': s['success_count'],
+                            'success_count': s['success_count'],
+                            'error_count': s['error_count']
+                        })
 
-            # 4. 获取类型分布 (从 RuleLog 真实聚合)
+            # 4. 获取类型分布 (从 rule_logs 聚合)
             type_dist = []
             try:
-                from sqlalchemy import select, func
-                from models.models import RuleLog
-                async with self.container.db.get_session() as session:
-                    type_stmt = select(
-                        RuleLog.message_type,
-                        func.count(RuleLog.id).label('count')
-                    ).where(
-                        func.strftime('%Y-%m-%d', RuleLog.created_at) == today_str
-                    ).group_by(RuleLog.message_type)
-                    
-                    type_res = await session.execute(type_stmt)
-                    total_count = 0
-                    temp_dist = []
-                    for row in type_res:
-                        # 修复: 确保 None/Unknown 映射为 "Text" (常见情况)
-                        m_type = row.message_type
-                        if not m_type or m_type.lower() == 'unknown':
-                            m_type = "Text"
-                        else:
-                            m_type = m_type.capitalize()
-                            
-                        count = row.count or 0
-                        total_count += count
-                        
-                        # 合并同名类型 (如 'text' 和 'Text')
-                        found = False
-                        for item in temp_dist:
-                            if item["name"] == m_type:
-                                item["count"] += count
-                                found = True
-                                break
-                        if not found:
-                            temp_dist.append({"name": m_type, "count": count})
-                    
-                    if total_count > 0:
-                        for item in temp_dist:
-                            item["percentage"] = round((item["count"] / total_count) * 100, 1)
-                            type_dist.append(item)
+                type_sql = """
+                    SELECT message_type, COUNT(*) as count
+                    FROM {table}
+                    WHERE strftime('%Y-%m-%d', CAST(created_at AS TIMESTAMP)) = ?
+                    GROUP BY message_type
+                """
+                type_res = await self.bridge.query_aggregate("rule_logs", type_sql, [today_str])
+                
+                total_count = sum([r['count'] for r in type_res])
+                for r in type_res:
+                    m_type = (r['message_type'] or "Text").capitalize()
+                    type_dist.append({
+                        "name": m_type,
+                        "count": r['count'],
+                        "percentage": round((r['count'] / total_count * 100), 1) if total_count > 0 else 0
+                    })
             except Exception as e:
                 logger.warning(f"获取类型分布失败: {e}")
             
@@ -604,7 +594,7 @@ class AnalyticsService:
                     rs, fr = row
                     top_rules.append({
                         'rule_id': rs.rule_id,
-                        'name': fr.name or f"Rule {rs.rule_id}",
+                        'name': getattr(fr, 'description', f"Rule {rs.rule_id}"),
                         'success_count': rs.success_count,
                         'error_count': rs.error_count,
                         'date': rs.date
@@ -653,73 +643,84 @@ class AnalyticsService:
             }
 
     async def search_records(self, query: str, limit: int = 50) -> Dict[str, Any]:
-        """搜索转发记录
-        
-        Args:
-            query: 搜索关键词
-            limit: 返回结果数量限制
-            
-        Returns:
-            搜索结果字典
-        """
+        """搜索转发记录 (支持跨热冷查询)"""
         try:
-            from sqlalchemy import select, or_
-            from models.models import RuleLog, ForwardRule
+            where_sql = "(message_text LIKE ? OR action LIKE ?)"
+            params = [f'%{query}%', f'%{query}%']
             
+            rows = await self.bridge.query_unified(
+                "rule_logs",
+                where_sql=where_sql,
+                params=params,
+                limit=limit,
+                order_by="created_at DESC"
+            )
+            
+            records = []
+            # 预加载缓存规则
+            from models.models import ForwardRule, Chat
+            from sqlalchemy import select
             from sqlalchemy.orm import joinedload
-            async with self.container.db.get_session() as session:
-                # 搜索规则日志，预加载关联的规则以及规则关联的聊天实体，确保显示名称而非 "未知"
-                stmt = select(RuleLog).options(
-                    joinedload(RuleLog.rule).joinedload(ForwardRule.source_chat),
-                    joinedload(RuleLog.rule).joinedload(ForwardRule.target_chat)
-                ).filter(
-                    or_(
-                        RuleLog.message_text.like(f'%{query}%'),
-                        RuleLog.action.like(f'%{query}%')
-                    )
-                ).order_by(RuleLog.created_at.desc()).limit(limit)
+            
+            # 获取所有涉及的 rule_id
+            rule_ids = list(set([r.get('rule_id') for r in rows if r.get('rule_id')]))
+            rule_map = {}
+            
+            if rule_ids:
+                async with self.container.db.get_session() as session:
+                    stmt = select(ForwardRule).options(
+                        joinedload(ForwardRule.source_chat),
+                        joinedload(ForwardRule.target_chat)
+                    ).where(ForwardRule.id.in_(rule_ids))
+                    res = await session.execute(stmt)
+                    for rule in res.scalars().all():
+                        rule_map[rule.id] = rule
+
+            for log in rows:
+                rule = rule_map.get(log.get('rule_id'))
+                source_title = "未知"
+                target_title = "未知"
                 
-                result = await session.execute(stmt)
-                logs = result.scalars().all()
+                if rule:
+                    if rule.source_chat:
+                        c = rule.source_chat
+                        source_title = c.title or c.name or c.username or str(c.telegram_chat_id)
+                    else:
+                        source_title = str(rule.source_chat_id)
+                        
+                    if rule.target_chat:
+                        c = rule.target_chat
+                        target_title = c.title or c.name or c.username or str(c.telegram_chat_id)
+                    else:
+                        target_title = str(rule.target_chat_id)
                 
-                records = []
-                for log in logs:
-                    source_title = "未知"
-                    target_title = "未知"
-                    
-                    if log.rule:
-                        if log.rule.source_chat:
-                            c = log.rule.source_chat
-                            source_title = c.title or c.name or c.username or str(c.telegram_chat_id)
-                        else:
-                            source_title = str(log.rule.source_chat_id)
-                            
-                        if log.rule.target_chat:
-                            c = log.rule.target_chat
-                            target_title = c.title or c.name or c.username or str(c.telegram_chat_id)
-                        else:
-                            target_title = str(log.rule.target_chat_id)
-                    
-                    records.append({
-                        'id': log.id,
-                        'rule_id': log.rule_id,
-                        'action': log.action,
-                        'message_text': log.message_text[:100] if log.message_text else '',
-                        'created_at': log.created_at.replace(tzinfo=timezone.utc).isoformat() if hasattr(log.created_at, 'isoformat') else str(log.created_at),
-                        'source_chat_id': source_title, # 保留旧字段但填入名称以修复显示
-                        'target_chat_id': target_title,
-                        'source_chat': source_title,    # 新增对齐 RuleDTOMapper
-                        'target_chat': target_title,
-                        'source_title': source_title,   # 冗余字段提高兼容性
-                        'target_title': target_title
-                    })
-                
-                return {
-                    'query': query,
-                    'total_results': len(records),
-                    'records': records,
-                    'limit': limit
-                }
+                created_at = log.get('created_at')
+                if isinstance(created_at, datetime):
+                    created_at_str = created_at.replace(tzinfo=timezone.utc).isoformat()
+                else:
+                    created_at_str = str(created_at)
+
+                records.append({
+                    'id': log.get('id'),
+                    'rule_id': log.get('rule_id'),
+                    'action': log.get('action'),
+                    'message_text': (log.get('message_text') or '')[:100],
+                    'created_at': created_at_str,
+                    'source_chat_id': source_title,
+                    'target_chat_id': target_title,
+                    'source_chat': source_title,
+                    'target_chat': target_title,
+                    'source_title': source_title,
+                    'target_title': target_title
+                })
+
+            return {
+                'query': query,
+                'total_results': len(records),
+                'records': records,
+                'limit': limit,
+                'is_unified': True
+            }
         except Exception as e:
             logger.error(f"search_records 失败: {e}\n{traceback.format_exc()}")
             return {

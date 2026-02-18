@@ -14,51 +14,35 @@ logger = logging.getLogger(__name__)
 
 
 class TaskService:
+    def __init__(self):
+        from core.archive.bridge import UnifiedQueryBridge
+        self.bridge = UnifiedQueryBridge()
+
     async def list_tasks(self, task_type: Optional[str] = None, limit: int = 10) -> Dict[str, Any]:
-        """列出最近的任务 (原生异步)
-        
-        Args:
-            task_type: 任务类型，None表示所有类型
-            limit: 返回的最大任务数量
-            
-        Returns:
-            包含任务列表的字典
-        """
-        logger.info(f"[TaskService] 开始列出任务，类型={task_type}，限制={limit}")
+        """列出最近的任务 (支持热冷联邦查询)"""
+        logger.info(f"[TaskService] 开始跨层列出任务，类型={task_type}，限制={limit}")
         
         try:
-            async with container.db.get_session() as session:
-                stmt = (
-                    select(TaskQueue)
-                    .order_by(TaskQueue.id.desc())
-                    .limit(limit)
-                )
-                
-                # 根据task_type过滤
-                if task_type:
-                    stmt = stmt.filter(TaskQueue.task_type == task_type)
-                    logger.debug(f"[TaskService] 根据类型过滤任务: {task_type}")
-                    
-                result = await session.execute(stmt)
-                rows = result.scalars().all()
+            rows = await self.bridge.list_tasks(status=None, task_type=task_type, limit=limit)
                 
             tasks = []
             for r in rows:
                 try:
-                    data = json.loads(r.task_data) if r.task_data else {}
+                    task_data_raw = r.get('task_data')
+                    data = json.loads(task_data_raw) if task_data_raw else {}
                 except Exception as json_err:
-                    logger.warning(f"[TaskService] 解析任务数据失败，ID={r.id}，错误={json_err}")
+                    logger.warning(f"[TaskService] 解析任务数据失败，ID={r.get('id')}，错误={json_err}")
                     data = {}
                 
                 task_info = {
-                    'id': r.id,
-                    'status': r.status,
-                    'started_at': r.started_at,
-                    'completed_at': r.completed_at,
-                    'forwarded': getattr(r, 'forwarded_count', data.get('forwarded', 0)),
-                    'filtered': getattr(r, 'filtered_count', data.get('filtered', 0)),
-                    'failed': getattr(r, 'failed_count', data.get('failed', 0)),
-                    'total': getattr(r, 'total_count', data.get('total', 0)),
+                    'id': r.get('id'),
+                    'status': r.get('status'),
+                    'started_at': r.get('started_at'),
+                    'completed_at': r.get('completed_at'),
+                    'forwarded': r.get('forwarded_count') or data.get('forwarded', 0),
+                    'filtered': r.get('filtered_count') or data.get('filtered', 0),
+                    'failed': r.get('failed_count') or data.get('failed', 0),
+                    'total': r.get('total_count') or data.get('total', 0),
                 }
                 tasks.append(task_info)
                 
@@ -73,57 +57,37 @@ class TaskService:
         return await self.list_tasks(task_type='history_forward', limit=limit)
 
     async def get_task_detail(self, task_id: Optional[int] = None, task_type: Optional[str] = None) -> Dict[str, Any]:
-        """获取任务详情 (原生异步)
-        
-        Args:
-            task_id: 任务ID，None表示获取最新任务
-            task_type: 任务类型，None表示所有类型
-            
-        Returns:
-            包含任务详情的字典
-        """
+        """获取任务详情 (支持热冷联邦查询)"""
         try:
-            async with container.db.get_session() as session:
-                if task_id is not None:
-                    stmt = select(TaskQueue).filter(TaskQueue.id == task_id)
-                    result = await session.execute(stmt)
-                    row = result.scalar_one_or_none()
-                else:
-                    stmt = (
-                        select(TaskQueue)
-                        .order_by(TaskQueue.id.desc())
-                        .limit(1)
-                    )
-                    
-                    # 根据task_type过滤
-                    if task_type:
-                        stmt = stmt.filter(TaskQueue.task_type == task_type)
-                        
-                    result = await session.execute(stmt)
-                    row = result.scalar_one_or_none()
+            if task_id is not None:
+                row = await self.bridge.get_task_detail(task_id)
+            else:
+                rows = await self.bridge.list_tasks(task_type=task_type, limit=1)
+                row = rows[0] if rows else None
             
             if not row:
                 return {'success': False, 'error': '未找到任务'}
             try:
-                data = json.loads(row.task_data) if row.task_data else {}
+                task_data_raw = row.get('task_data')
+                data = json.loads(task_data_raw) if task_data_raw else {}
             except Exception as e:
                 logger.warning(f"[TaskService] Failed to parse task_data: {e}")
                 data = {}
             detail = {
-                'id': row.id,
-                'status': row.status,
-                'started_at': row.started_at,
-                'completed_at': row.completed_at,
+                'id': row.get('id'),
+                'status': row.get('status'),
+                'started_at': row.get('started_at'),
+                'completed_at': row.get('completed_at'),
                 'data': {
                     **data,
-                    'done': getattr(row, 'done_count', data.get('done', 0)),
-                    'total': getattr(row, 'total_count', data.get('total', 0)),
-                    'forwarded': getattr(row, 'forwarded_count', data.get('forwarded', 0)),
-                    'filtered': getattr(row, 'filtered_count', data.get('filtered', 0)),
-                    'failed': getattr(row, 'failed_count', data.get('failed', 0)),
-                    'last_id': getattr(row, 'last_message_id', data.get('last_id')),
-                    'source_chat_id': getattr(row, 'source_chat_id', data.get('source_chat_id')),
-                    'target_chat_id': getattr(row, 'target_chat_id', data.get('target_chat_id')),
+                    'done': row.get('done_count') or data.get('done', 0),
+                    'total': row.get('total_count') or data.get('total', 0),
+                    'forwarded': row.get('forwarded_count') or data.get('forwarded', 0),
+                    'filtered': row.get('filtered_count') or data.get('filtered', 0),
+                    'failed': row.get('failed_count') or data.get('failed', 0),
+                    'last_id': row.get('last_message_id') or data.get('last_id'),
+                    'source_chat_id': row.get('source_chat_id') or data.get('source_chat_id'),
+                    'target_chat_id': row.get('target_chat_id') or data.get('target_chat_id'),
                 },
             }
             return {'success': True, 'task': detail}

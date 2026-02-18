@@ -10,6 +10,20 @@ class AuditRepository:
     def __init__(self, db):
         self.db = db
 
+    async def archive_old_audit_logs(self, hot_days: int = 30, batch_size: int = 10000) -> dict:
+        """归档旧审计日志记录。"""
+        from core.archive.engine import UniversalArchiver
+        from models.models import AuditLog
+        
+        archiver = UniversalArchiver()
+        result = await archiver.archive_table(
+            model_class=AuditLog,
+            hot_days=hot_days,
+            batch_size=batch_size,
+            time_column="timestamp"
+        )
+        return result.to_dict()
+
     async def create_log(
         self, 
         action: str, 

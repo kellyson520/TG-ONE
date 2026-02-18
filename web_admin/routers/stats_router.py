@@ -136,18 +136,15 @@ async def api_stats_series(
     try:
         from datetime import datetime, timedelta
         
+        from services.analytics_service import analytics_service
+        
         if period and period.lower() == '24h':
-            # 获取最近 24 小时的每小时趋势
-            trend_data = await container.stats_repo.get_hourly_trend(24)
+            # 获取跨层 24 小时趋势
+            trend_data = await analytics_service.get_unified_hourly_trend(hours=24)
             
-            # 格式化前端需要的 labels 和 series
             labels = []
             series = []
-            
-            # 为了确保图表连续，我们可以补齐缺失的小时，或者直接使用返回的数据
-            # 这里简单直接使用返回的数据
             for item in trend_data:
-                # '2026-01-13T10' -> '10:00'
                 hour_part = item['hour'].split('T')[1] if 'T' in item['hour'] else item['hour']
                 labels.append(f"{hour_part}:00")
                 series.append(item['count'])
@@ -161,51 +158,26 @@ async def api_stats_series(
                 }
             )
 
-        
-        # 默认返回 7 天内的每日趋势
-        # 我们可以从 RuleStatistics 表聚合
-        async with container.db.get_session() as session:
-            from models.models import RuleStatistics
-            from sqlalchemy import func
+        # 默认转发趋势 (跨层汇总)
+        labels = []
+        series = []
+        for i in range(days-1, -1, -1):
+            date_str = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            summary = await analytics_service.get_daily_summary(date_str)
             
-            cutoff_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            # '2026-01-13' -> '01-13'
+            short_date = '-'.join(date_str.split('-')[1:])
+            labels.append(short_date)
+            series.append(summary.get('total_forwards', 0))
             
-            # 按日期聚合所有规则的成功转发数
-            stmt = (
-                select(
-                    RuleStatistics.date,
-                    func.sum(RuleStatistics.success_count).label('count')
-                )
-                .where(RuleStatistics.date >= cutoff_date)
-                .group_by(RuleStatistics.date)
-                .order_by(RuleStatistics.date)
-            )
-            
-            result = await session.execute(stmt)
-            labels = []
-            series = []
-            
-            for row in result:
-                # '2026-01-13' -> '01-13'
-                short_date = '-'.join(row.date.split('-')[1:])
-                labels.append(short_date)
-                series.append(int(row.count or 0))
-                
-            # 如果没数据，返回最近几天的空占位 (可选)
-            if not labels:
-                for i in range(days-1, -1, -1):
-                    d = (datetime.now() - timedelta(days=i)).strftime('%m-%d')
-                    labels.append(d)
-                    series.append(0)
-            
-            return ResponseSchema(
-                success=True, 
-                data={
-                    'labels': labels, 
-                    'series': series,
-                    'title': f'{days}天转发趋势'
-                }
-            )
+        return ResponseSchema(
+            success=True, 
+            data={
+                'labels': labels, 
+                'series': series,
+                'title': f'{days}天转发趋势'
+            }
+        )
 
             
     except Exception as e:

@@ -11,6 +11,19 @@ class TaskRepository:
     def __init__(self, db):
         self.db = db
 
+    async def archive_old_tasks(self, hot_days: int = 7, batch_size: int = 10000) -> dict:
+        """归档旧任务记录。"""
+        from core.archive.engine import UniversalArchiver
+        from models.models import TaskQueue
+        
+        archiver = UniversalArchiver()
+        result = await archiver.archive_table(
+            model_class=TaskQueue,
+            hot_days=hot_days,
+            batch_size=batch_size
+        )
+        return result.to_dict()
+
     async def push(self, task_type: str, payload: dict, priority: int = 0, scheduled_at: datetime = None):
         import json
         from sqlalchemy import insert

@@ -363,6 +363,16 @@ class Settings(BaseSettings):
     DUCKDB_THREADS: int = Field(default=0)
     DUCKDB_MEMORY_LIMIT: Optional[str] = Field(default=None)
     
+    # === 热冷分层归档配置 ===
+    HOT_DAYS_TASK: int = Field(default=1, description="TaskQueue 热数据保留天数")
+    HOT_DAYS_LOG: int = Field(default=30, description="日志类热数据保留天数 (RuleLog/AuditLog/ErrorLog)")
+    HOT_DAYS_SIGN: int = Field(default=60, description="去重签名保留天数 (MediaSignature)")
+    HOT_DAYS_STATS: int = Field(default=180, description="统计数据保留天数")
+    
+    ARCHIVE_BATCH_SIZE: int = Field(default=10000, description="归档单批次处理记录数")
+    ARCHIVE_MAX_WORKERS: int = Field(default=2, description="归档任务并发工作进程数")
+    AUTO_ARCHIVE_ENABLED: bool = Field(default=True, description="是否启用自动归档逻辑")
+    
     # === Bloom Filter 指数配置 ===
     BLOOM_ROOT: str = Field(
         default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "archive" / "bloom"), 

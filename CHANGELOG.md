@@ -1,3 +1,18 @@
+## 📅 2026-02-18 更新摘要
+
+### 🚀 v1.2.6.4: 热冷分层存储与万能归档系统 (Phase 6+)
+- **分层存储架构 (Tiered Storage)**:
+    - **UniversalArchiver**: 实现了通用的万能归档引擎，支持将任何带有时间戳的模型数据归档至 Parquet 冷存储。
+    - **UnifiedQueryBridge**: 引入基于 DuckDB 的统一查询桥接，支持同时从 SQLite (Hot) 和 Parquet (Cold) 中联邦查询数据。
+- **服务层深度集成 (Service Integration)**:
+    - **TaskService**: 任务列表与详情查询现已完全接入桥接器，支持查看已归档的 60w+ 历史任务。
+    - **AuditService**: 审计日志查询实现跨层级联合，确保持久化审计记录的可回溯性。
+    - **AnalyticsService**: 统计分析功能全面适配联邦查询，准确反映热冷库综合数据。
+- **运维与性能优化 (Ops & Performance)**:
+    - **保留策略**: 将 `task_queue` 默认热数据保留期限由 7 天缩短至 1 天，极大减轻主库负担。
+    - **空间回收**: 自动化归档流程集成 `WAL Checkpoint` 与 `VACUUM`，实现极致的主库磁盘空间回收。
+    - **测试质量**: 修复了归档单元测试中的 SQLAlchemy Mock 兼容性问题 (`ArgumentError`)。
+
 ## 📅 2026-02-16 更新摘要
 
 ### 🚀 v1.2.6.1: MenuController 及领域控制器架构标准化重构 (UIRE-3.0)

@@ -12,6 +12,38 @@ class StatsRepository:
     def __init__(self, db):
         self.db = db
         self._log_buffer = []
+
+    async def archive_old_logs(self, hot_days_log: int = 30, hot_days_stats: int = 180) -> dict:
+        """归档旧日志和统计数据。"""
+        from core.archive.engine import UniversalArchiver
+        from models.models import RuleLog, RuleStatistics, ChatStatistics
+        
+        archiver = UniversalArchiver()
+        results = {}
+        
+        # 1. 归档详细转发日志 (RuleLog)
+        results["rule_logs"] = (await archiver.archive_table(
+            model_class=RuleLog,
+            hot_days=hot_days_log,
+            time_column="created_at"
+        )).to_dict()
+        
+        # 2. 归档旧的统计数据 (RuleStatistics)
+        # 注意：统计数据是按天存的，created_at 即使是 DateTime 也能对比
+        results["rule_statistics"] = (await archiver.archive_table(
+            model_class=RuleStatistics,
+            hot_days=hot_days_stats,
+            time_column="created_at"
+        )).to_dict()
+        
+        # 3. 归档聊天统计 (ChatStatistics)
+        results["chat_statistics"] = (await archiver.archive_table(
+            model_class=ChatStatistics,
+            hot_days=hot_days_stats,
+            time_column="created_at"
+        )).to_dict()
+        
+        return results
         self._buffer_lock = asyncio.Lock()
         self._flush_task = None
         self._shutdown_event = asyncio.Event()

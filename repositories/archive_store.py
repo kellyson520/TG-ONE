@@ -13,6 +13,35 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
+def model_to_dict(obj: Any) -> Dict[str, Any]:
+    """将 SQLAlchemy 模型对象转换为字典，处理日期和 JSON 字段。"""
+    if obj is None:
+        return {}
+    
+    import json
+    from datetime import datetime
+    
+    result = {}
+    # 尝试通过 __table__ 获取列
+    if hasattr(obj, "__table__"):
+        for column in obj.__table__.columns:
+            val = getattr(obj, column.name)
+            
+            # 处理日期类型 (Parquet 对原生 datetime 支持较好，但有时需要标准化)
+            if isinstance(val, datetime):
+                # 保持 datetime 对象，DuckDB/Pandas/Parquet 能识别
+                pass
+            
+            # 处理特殊的 JSON 字符串字段 (如果存的是字符串但实际上是数据)
+            # 在 TG ONE 中，task_data 这种通常是字符串
+            
+            result[column.name] = val
+    else:
+        # 回退到 __dict__ 但过滤掉内部属性
+        result = {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        
+    return result
+
 # 归档根路径
 ARCHIVE_ROOT = str(settings.ARCHIVE_ROOT)
 

@@ -250,7 +250,64 @@ class DBMaintenanceService:
         # 2. 清理数据 (如果提供了 session)
         if session:
             await self.cleaner.full_cleanup(session)
+        
+        # 3. 自动归档冷数据 (热冷分层)
+        if settings.AUTO_ARCHIVE_ENABLED:
+            try:
+                await self.auto_archive_data()
+            except Exception as e:
+                logger.error(f"Auto-archive failed during maintenance: {e}")
+                
         logger.info("DB maintenance complete.")
+
+    async def auto_archive_data(self) -> Dict[str, Any]:
+        """按配置执行全量归档任务"""
+        logger.info("🚀 [DBMaintenance] 开始执行自动归档任务...")
+        from core.container import container
+        
+        results = {}
+        
+        # 1. 归档任务队列 (TaskQueue)
+        try:
+            results["task_queue"] = await container.task_repo.archive_old_tasks(
+                hot_days=settings.HOT_DAYS_TASK,
+                batch_size=settings.ARCHIVE_BATCH_SIZE
+            )
+        except Exception as e:
+            logger.error(f"TaskQueue archive failed: {e}")
+            results["task_queue"] = {"error": str(e)}
+
+        # 2. 归档转发日志 (RuleLog/Statistics)
+        try:
+            results["stats"] = await container.stats_repo.archive_old_logs(
+                hot_days_log=settings.HOT_DAYS_LOG,
+                hot_days_stats=settings.HOT_DAYS_STATS
+            )
+        except Exception as e:
+            logger.error(f"Stats archive failed: {e}")
+            results["stats"] = {"error": str(e)}
+
+        # 3. 归档审计日志 (AuditLog)
+        try:
+            results["audit"] = await container.audit_repo.archive_old_audit_logs(
+                hot_days=settings.HOT_DAYS_LOG
+            )
+        except Exception as e:
+            logger.error(f"Audit archive failed: {e}")
+            results["audit"] = {"error": str(e)}
+
+        # 4. 归档去重指纹 (MediaSignature)
+        try:
+            # 去重指纹通常保留时间较长，默认 60 天
+            results["dedup"] = await container.dedup_repo.archive_old_signatures(
+                hot_days=settings.HOT_DAYS_SIGN
+            )
+        except Exception as e:
+            logger.error(f"Dedup archive failed: {e}")
+            results["dedup"] = {"error": str(e)}
+
+        logger.info("✅ [DBMaintenance] 自动归档任务完成")
+        return results
 
     async def optimize_database(self) -> Dict[str, Any]:
         """优化数据库性能 (ANALYZE + VACUUM)"""

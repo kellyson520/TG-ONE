@@ -10,8 +10,12 @@ class AuditService:
     负责记录和查询系统的所有的安全相关操作日志
     """
     
-    @staticmethod
+    def __init__(self):
+        from core.archive.bridge import UnifiedQueryBridge
+        self.bridge = UnifiedQueryBridge()
+    
     async def log_event(
+        self,
         action: str,
         user_id: int = None,
         username: str = None,
@@ -37,8 +41,8 @@ class AuditService:
             status=status
         )
 
-    @staticmethod
     async def get_logs(
+        self,
         page: int = 1, 
         limit: int = 50,
         user_id: int = None,
@@ -47,15 +51,23 @@ class AuditService:
         end_date: datetime = None
     ):
         """
-        查询审计日志 (通过 Repository)
+        查询审计日志 (支持热冷联邦查询)
         """
-        return await container.audit_repo.get_logs(
-            page=page,
-            limit=limit,
+        offset = (page - 1) * limit
+        logs = await self.bridge.list_audit_logs(
             user_id=user_id,
             action=action,
-            start_date=start_date,
-            end_date=end_date
+            limit=limit,
+            offset=offset
         )
+        
+        # 兼容旧接口的 total 统计 (可选，这里先返回 logs 和近似 total)
+        # 如果需要精准 total，需要跨层 count
+        total = 0
+        if logs:
+            res = await self.bridge.query_aggregate("audit_logs", "SELECT COUNT(*) as cnt FROM {table}")
+            total = res[0]['cnt'] if res else len(logs)
+            
+        return logs, total
 
 audit_service = AuditService()

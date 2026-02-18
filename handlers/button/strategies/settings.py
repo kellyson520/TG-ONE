@@ -178,13 +178,33 @@ class SettingsMenuStrategy(BaseMenuHandler):
             await menu_controller.show_dedup_config(event)
         
         elif action == "toggle_similarity":
-            await event.answer("🚧 相似度去重功能开发中", alert=True)
+            # toggle_similarity:{true|false}
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.toggle_feature("smart_similarity", enabled_bool)
+            await event.answer(f"✅ 智能相似度检测已{'开启' if enabled_bool else '关闭'}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_similarity(event)
         
         elif action == "set_similarity":
-            await event.answer("🚧 相似度设置功能开发中", alert=True)
+            # set_similarity:{threshold}
+            threshold = float(extra_data[0]) if extra_data else 0.85
+            from services.dedup_service import dedup_service
+            await dedup_service.set_similarity_threshold(threshold)
+            await event.answer(f"✅ 相似度阈值已设为 {threshold:.0%}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_similarity(event)
         
         elif action == "toggle_content_hash":
-            await event.answer("🚧 内容哈希去重功能开发中", alert=True)
+            # toggle_content_hash:{true|false}
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.toggle_feature("content_hash", enabled_bool)
+            await event.answer(f"✅ 内容哈希去重已{'开启' if enabled_bool else '关闭'}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_content_hash(event)
         
         # Performance Monitoring
         elif action == "db_performance_refresh":
@@ -193,10 +213,12 @@ class SettingsMenuStrategy(BaseMenuHandler):
             await event.answer("✅ 数据库性能面板已刷新")
         
         elif action == "detailed_performance":
-            await event.answer("📈 详细性能报告功能开发中", alert=True)
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_performance_analysis(event)
         
         elif action == "performance_tuning":
-            await event.answer("⚙️ 性能调控功能开发中", alert=True)
+            from controllers.menu_controller import menu_controller
+            await menu_controller.show_db_optimization_center(event)
         
         # Misc
         elif action == "create_rule":

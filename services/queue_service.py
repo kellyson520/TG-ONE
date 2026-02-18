@@ -372,4 +372,29 @@ async def forward_messages_queued(client, source_chat_id, target_chat_id, messag
     return await telegram_queue_service.run_guarded_operation(target_chat_id, source_chat_id, "Forward", lambda: client.forward_messages(target_chat_id, messages, from_peer=source_chat_id, **kwargs))
 
 async def get_messages_queued(client, chat_id, ids=None, **kwargs):
-    return await telegram_queue_service.run_guarded_operation(chat_id, None, "GetMsgs", lambda: client.get_messages(chat_id, ids=ids, **kwargs))
+    """
+    带队列控制的消息获取。
+    增加了实体自动修复逻辑，防止 'Could not find the input entity' 导致的 ValueError。
+    """
+    async def _get_msgs_with_recovery():
+        try:
+            return await client.get_messages(chat_id, ids=ids, **kwargs)
+        except ValueError as e:
+            # 捕获 Telethon 实体缺失错误
+            if "Could not find the input entity" in str(e):
+                logger.info(f"Entities cache miss for {chat_id}, attempting to resolve via get_entity...")
+                try:
+                    # 获取实体详情（会尝试通过 API 获取并更新缓存）
+                    await client.get_entity(chat_id)
+                    # 再次尝试获取消息
+                    return await client.get_messages(chat_id, ids=ids, **kwargs)
+                except Exception as ex:
+                    logger.error(f"Failed to resolve entity for {chat_id}: {ex}")
+                    raise e # 抛出原始的 ValueError
+            raise e
+        except Exception as e:
+            raise e
+
+    return await telegram_queue_service.run_guarded_operation(
+        chat_id, None, "GetMsgs", _get_msgs_with_recovery
+    )

@@ -44,10 +44,10 @@ class AnalyticsMenuStrategy(BaseMenuHandler):
             await menu_controller.run_anomaly_detection(event)
         
         elif action == "performance_analysis":
-            await event.answer("📈 性能分析功能开发中", alert=True)
+            await menu_controller.show_performance_analysis(event)
         
         elif action == "detailed_analytics":
-            await event.answer("📋 详细分析报告开发中", alert=True)
+            await menu_controller.show_detailed_analytics(event)
         
         elif action == "export_csv":
             await menu_controller.export_analytics_csv(event)

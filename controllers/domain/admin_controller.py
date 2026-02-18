@@ -246,7 +246,7 @@ class AdminController(BaseController):
         try:
             # 获取详细统计数据 (7天)
             from services.analytics_service import analytics_service
-            stats = await analytics_service.get_detailed_analytics(days=7)
+            stats = await analytics_service.get_detailed_stats(days=7)
             from ui.menu_renderer import menu_renderer
             render_data = menu_renderer.render_forward_analytics(stats)
             
@@ -258,6 +258,20 @@ class AdminController(BaseController):
     async def show_detailed_analytics(self, event):
         """显示详细分析详情 (别名)"""
         await self.show_forward_analytics(event)
+
+    async def show_analytics_hub(self, event):
+        """显示数据分析中心"""
+        try:
+            from services.menu_service import menu_service
+            stats = await menu_service.get_analytics_hub_data()
+            
+            from ui.menu_renderer import menu_renderer
+            view_result = menu_renderer.render_analytics_hub(stats)
+            
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
 
     async def run_anomaly_detection(self, event):
         """运行异常检测"""

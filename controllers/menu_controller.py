@@ -440,6 +440,10 @@ class MenuController:
         """取消 AI 状态并返回设置"""
         await self.container.media_controller.cancel_ai_state(event, rule_id)
 
+    async def show_dedup_config(self, event):
+        """显示去重配置菜单"""
+        await self.view.show_dedup_config(event)
+
     # --- 管理员面板增强 ---
     async def show_admin_panel(self, event):
         """显示管理员面板"""
@@ -603,6 +607,22 @@ class MenuController:
     async def export_analytics_csv(self, event):
         """导出分析 CSV"""
         await self.container.admin_controller.export_analytics_csv(event)
+
+    async def show_performance_analysis(self, event):
+        """显示系统性能剖析"""
+        await self.container.admin_controller.show_performance_analysis(event)
+
+    async def show_detailed_analytics(self, event):
+        """显示详细分析"""
+        await self.container.admin_controller.show_detailed_analytics(event)
+
+    async def show_db_performance_monitor(self, event):
+        """显示数据库性能监控"""
+        await self.container.admin_controller.show_performance_monitor(event)
+
+    async def show_db_optimization_center(self, event):
+        """显示数据库优化中心"""
+        await self.container.admin_controller.show_optimization_center(event)
 
 
 menu_controller = MenuController()

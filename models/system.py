@@ -45,14 +45,22 @@ class TaskQueue(Base):
     completed_at = Column(DateTime, nullable=True)
     progress = Column(Integer, default=0) # 0-100
     speed = Column(String, nullable=True) # e.g. "1.2 MB/s"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Context
+    # 统计与上下文 (对齐数据库实际 Schema)
+    done_count = Column(Integer, default=0)
+    total_count = Column(Integer, default=0)
+    forwarded_count = Column(Integer, default=0)
+    filtered_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+    last_message_id = Column(Integer, nullable=True)
+    error_log = Column(String, nullable=True)
+    
     source_chat_id = Column(String, nullable=True)
     target_chat_id = Column(String, nullable=True)
     unique_key = Column(String, unique=True, index=True, nullable=True)
     grouped_id = Column(String, index=True, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class RSSSubscription(Base):
     """外部 RSS 订阅表"""
