@@ -72,7 +72,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /usr/local/bin/uv
 
 # 创建必要目录
 RUN echo "\033[1;34m📂 [RUNTIME] Creating Directories...\033[0m" && \
-    mkdir -p /app/temp /app/sessions /app/logs && \
+    mkdir -p /app/data/temp /app/data/sessions /app/data/logs && \
     echo "\033[1;32m✅ [RUNTIME] Ready to Launch.\033[0m"
 
 # 复制项目代码

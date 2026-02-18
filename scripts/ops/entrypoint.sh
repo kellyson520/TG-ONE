@@ -23,6 +23,9 @@ BACKUP_LIMIT=10      # 保留备份数量
 
 # 确保目录存在
 mkdir -p "$BACKUP_DIR"
+mkdir -p "$DATA_DIR/sessions"
+mkdir -p "$DATA_DIR/logs"
+mkdir -p "$DATA_DIR/temp"
 
 cd "$APP_DIR" || exit 1
 
