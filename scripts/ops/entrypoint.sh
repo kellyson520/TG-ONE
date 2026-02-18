@@ -15,7 +15,7 @@ echo -e "\033[1;36m
 # 定义常量
 APP_DIR="/app"
 DATA_DIR="$APP_DIR/data"
-BACKUP_DIR="$DATA_DIR/backups/auto_update"
+BACKUP_DIR="$DATA_DIR/backups"
 LOCK_FILE="$DATA_DIR/UPDATE_LOCK.json"
 VERIFY_LOCK="$DATA_DIR/UPDATE_VERIFYING.json"
 EXIT_CODE_UPDATE=10  # 约定：Python返回10代表请求系统级更新
@@ -50,14 +50,13 @@ install_with_retry() {
     echo "📦 [守护进程] 发现环境变更，开始同步依赖..."
     
     while [ $count -lt $max_retries ]; do
-        # 使用 uv pip sync 强制对齐依赖 (自动安装缺失、卸载多余)
-        # 注意: 在 Docker 环境中，uv 需要明确指定 python 环境或 --system
-        echo "🔄 [守护进程] 执行 uv pip sync (Try $((count + 1))/$max_retries)..."
+        # 使用 uv pip install 强制对齐依赖 (sync 在某些环境可能受阻)
+        echo "🔄 [守护进程] 执行 uv pip install (Try $((count + 1))/$max_retries)..."
         
-        uv pip sync requirements.txt --python $(which python3)
+        uv pip install -r requirements.txt --python $(which python3)
         
         if [ $? -eq 0 ]; then
-            echo "✅ [守护进程] 依赖同步完成 (uv sync)。"
+            echo "✅ [守护进程] 依赖同步完成。"
             return 0
         fi
         
@@ -76,7 +75,7 @@ check_and_fix_dependencies() {
         return 0
     fi
 
-    # 1. 快速检查：Python 级深度校验 (pkg_resources 是事实标准)
+    # 1. 快速检查：Python 级深度校验
     echo "🔍 [守护进程] 正在校验 Python 依赖环境..."
     python3 -c "
 import sys
@@ -89,7 +88,6 @@ try:
         pkg_resources.require(reqs)
     sys.exit(0)
 except Exception as e:
-    print(f'[DependencyCheck] Missing/Mismatch: {e}')
     sys.exit(1)
 " 2>/dev/null
 
@@ -113,37 +111,44 @@ perform_rollback() {
     if [ -f "$LOCK_FILE" ]; then current_lock="$LOCK_FILE"; fi
     if [ -f "$VERIFY_LOCK" ]; then current_lock="$VERIFY_LOCK"; fi
 
-    # 优先尝试从 git 回滚（如果记录了前一个 SHA）
-    if [ -n "$current_lock" ] && command -v git >/dev/null 2>&1; then
+    # 1. 优先尝试从 git 回退（如果记录了前一个 SHA）
+    if [ -n "$current_lock" ] && command -v git >/dev/null 2>&1 && [ -d ".git" ]; then
         PREV_SHA=$(python3 -c "import json; print(json.load(open('$current_lock')).get('prev_version', ''))" 2>/dev/null)
         if [ -n "$PREV_SHA" ]; then
             echo "⏪ [守护进程] 正在执行 Git 分支回滚至: $PREV_SHA"
             git reset --hard "$PREV_SHA"
             if [ $? -eq 0 ]; then
-                echo "✅ [守护进程] Git 回滚成功。"
+                echo "✅ [守护进程] Git 回退成功。"
                 rm -f "$LOCK_FILE" "$VERIFY_LOCK"
                 return 0
             fi
         fi
     fi
 
-    # Fallback: 从物理备份还原
-    LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/code_backup_*.tar.gz 2>/dev/null | head -1)
+    # 2. Fallback: 从物理备份还原 (兼容 .zip)
+    LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/tgone_code_*.zip 2>/dev/null | head -1)
     
     if [ -z "$LATEST_BACKUP" ]; then
-        echo "☠️ [守护进程] 严重错误：未找到物理备份文件！系统可能已损坏。"
+        # 兼容旧格式
+        LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/code_backup_*.tar.gz 2>/dev/null | head -1)
+    fi
+
+    if [ -z "$LATEST_BACKUP" ]; then
+        echo "☠️ [守护进程] 严重错误：未找到有效的物理备份文件！"
         return 1
     fi
     
     echo "⏪ [守护进程] 正在从备份恢复核心文件: $LATEST_BACKUP"
-    # 还原时保留 data 目录
-    tar -xzf "$LATEST_BACKUP" -C "$APP_DIR"
+    if [[ "$LATEST_BACKUP" == *.zip ]]; then
+        unzip -o "$LATEST_BACKUP" -d "$APP_DIR" > /dev/null
+    else
+        tar -xzf "$LATEST_BACKUP" -C "$APP_DIR"
+    fi
     
     if [ $? -eq 0 ]; then
         echo "✅ [守护进程] 物理回滚成功。"
-        echo "{\"status\": \"rolled_back\", \"error\": \"启动持续失败，已触发紧急物理回滚\", \"timestamp\": \"$(date -u +%H:%M:%S)\"}" > "$DATA_DIR/update_state.json"
+        echo "{\"status\": \"rolled_back\", \"error\": \"自动回滚成功\", \"timestamp\": \"$(date -u +%H:%M:%S)\"}" > "$DATA_DIR/update_state.json"
         rm -f "$LOCK_FILE" "$VERIFY_LOCK"
-        # 回滚后恢复依赖（以防万一）
         check_and_fix_dependencies
     else
         echo "☠️ [守护进程] 物理回滚失败！"
@@ -159,35 +164,25 @@ perform_update() {
     if [ -f "$LOCK_FILE" ]; then
         local STATUS=$(python3 -c "import json; print(json.load(open('$LOCK_FILE')).get('status', ''))" 2>/dev/null)
         if [ "$STATUS" == "rollback_requested" ]; then
-            echo "⏪ [守护进程] 检测到手动回滚请求，正在跳过更新，直接执行回滚..."
+            echo "⏪ [守护进程] 检测到手动回滚请求，正在跳过更新，直接回滚..."
             perform_rollback
             return
         fi
     fi
     
-    # 1. 备份 (创建前清理超限备份)
-    prune_backups "$BACKUP_DIR" "code_backup_*.tar.gz" "$BACKUP_LIMIT"
-    
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    BACKUP_PATH="$BACKUP_DIR/code_backup_$TIMESTAMP.tar.gz"
-    
-    # 记录前一个版本 SHA 用于回滚 (如果支持 git)
+    # 1. 备份处理 (Python 已经做过主要备份，这里做一个 Git 标记即可)
     PREV_SHA=""
     if command -v git >/dev/null 2>&1 && [ -d ".git" ]; then
         PREV_SHA=$(git rev-parse HEAD 2>/dev/null)
+        if [ -f "$LOCK_FILE" ] && [ -n "$PREV_SHA" ]; then
+            python3 -c "import json; d=json.load(open('$LOCK_FILE')); d['prev_version']='${PREV_SHA}'; json.dump(d, open('$LOCK_FILE', 'w'))" 2>/dev/null
+        fi
     fi
-    
-    echo "📦 [守护进程] 创建当前版本快照: $BACKUP_PATH"
-    tar --exclude='./data' --exclude='./.git' --exclude='./__pycache__' --exclude='./logs' --exclude='./temp' --exclude='./sessions' -czf "$BACKUP_PATH" . 2>/dev/null
     
     # 2. 拉取代码
     TARGET_VERSION="origin/main"
     if [ -f "$LOCK_FILE" ]; then
         TARGET_VERSION=$(python3 -c "import json; print(json.load(open('$LOCK_FILE')).get('version', 'origin/main'))" 2>/dev/null || echo "origin/main")
-        # 将 PREV_SHA 注入锁文件
-        if [ -n "$PREV_SHA" ]; then
-            python3 -c "import json; d=json.load(open('$LOCK_FILE')); d['prev_version']='${PREV_SHA}'; json.dump(d, open('$LOCK_FILE', 'w'))" 2>/dev/null
-        fi
     fi
     
     if command -v git >/dev/null 2>&1 && [ -d ".git" ]; then
@@ -195,18 +190,16 @@ perform_update() {
         git fetch origin && git reset --hard "$TARGET_VERSION"
         
         if [ $? -ne 0 ]; then
-            echo "❌ [守护进程] Git 拉取失败，系统未受损，取消本次更新。"
+            echo "❌ [守护进程] Git 拉取失败，取消更新。"
             rm -f "$LOCK_FILE"
             return
         fi
+        echo "✅ [守护进程] Git 代码同步成功。"
     else
-        echo "⚠️ [守护进程] 未检测到 Git 环境或非 Git 仓库，跳过 Git 同步。将直接尝试使用新版本启动..."
-        # 这种场景下，通常程序已经在 Python 层面通过 HTTP 下载好了代码，或者只需要重启
-        echo "💡 [守护进程] 若此后启动失败，请检查 Docker Compose 或部署包是否完整。"
+        echo "⚠️ [守护进程] 非 Git 环境，代码已由 Python 预先同步或只需重启。"
     fi
-    
-    echo "✅ [守护进程] 代码更新完成。"
 }
+
 
 # --- 初始化设置 ---
 echo "🚀 [守护进程] TG ONE 守护进程启动 (v3.0)"
