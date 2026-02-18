@@ -109,27 +109,19 @@ class UpdateService:
 
     async def trigger_update(self, target_version: str = "origin/main"):
         """
-        [阶段1] 触发更新：备份DB -> 写锁 -> 退出进程
+        [阶段1] 触发更新：统一备份(代码+DB) -> 写锁 -> 退出进程
         这是工业级双层状态机的第一阶段，由 Python 层执行
         target_version: 可以是 commit SHA, branch name 或 tag
         """
         try:
             logger.info(f"🛡️ [更新] 正在启动更新序列 (目标: {target_version})...")
             
-            # 1. 数据库原子备份
-            db_backup_path = None
-            db_file = settings.BASE_DIR / "data" / "bot.db"
-            if db_file.exists():
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                db_backup_path = self._state_file.parent / "backups" / "auto_update" / f"bot.db.{timestamp}.bak"
-                db_backup_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                import shutil
-                shutil.copy2(db_file, db_backup_path)
-                logger.info(f"✅ [更新] 数据库已备份至 {db_backup_path}")
-                
-                # 旋转备份
-                self._rotate_backups(db_backup_path.parent, "bot.db.*.bak", settings.UPDATE_BACKUP_LIMIT)
+            # 1. 统一备份 (代码 + 数据库)
+            backup_path = await self._create_unified_backup()
+            if backup_path:
+                logger.info(f"✅ [更新] 统一备份已创建: {backup_path.name}")
+            else:
+                logger.warning("⚠️ [更新] 备份创建失败，继续更新但无法回滚")
 
             # 2. 如果非 Git 环境，先行通过 Python 下载代码
             if not self._git_available or not self._is_git_repo:
@@ -143,7 +135,7 @@ class UpdateService:
             state = {
                 "status": "processing",
                 "start_time": datetime.now().isoformat(),
-                "db_backup": str(db_backup_path) if db_backup_path else None,
+                "backup_file": str(backup_path) if backup_path else None,
                 "version": target_version
             }
             
@@ -316,16 +308,33 @@ class UpdateService:
                 if lock_file.exists(): lock_file.unlink()
 
     def _rollback_db(self, backup_path: str):
-        """回滚数据库到备份版本"""
+        """回滚数据库到备份版本 (支持旧格式 .bak 和新格式统一包)"""
         logger.warning(f"⏪ [更新] 正在从备份回滚数据库: {backup_path}...")
         try:
             import shutil
             backup_file = Path(backup_path)
-            db_file = settings.BASE_DIR / "data" / "bot.db"
             
-            if backup_file.exists():
+            # 解析实际 DB 文件路径
+            db_file = Path(settings.DB_PATH)
+            if not db_file.is_absolute():
+                db_file = settings.BASE_DIR / db_file
+            
+            if backup_file.suffix == '.zip':
+                # 统一备份格式: 从 zip 中提取 _db_snapshot/*
+                import zipfile
+                with zipfile.ZipFile(backup_file, 'r') as z:
+                    db_entries = [n for n in z.namelist() if n.startswith("_db_snapshot/")]
+                    if db_entries:
+                        # 取第一个 DB 文件
+                        with z.open(db_entries[0]) as src, open(db_file, 'wb') as dst:
+                            shutil.copyfileobj(src, dst)
+                        logger.info("✅ [更新] 数据库回滚完成 (从统一备份包)。")
+                    else:
+                        logger.warning("⚠️ [更新] 统一备份包中未找到数据库快照。")
+            elif backup_file.exists():
+                # 旧格式: 直接 .bak 文件
                 shutil.copy2(backup_file, db_file)
-                logger.info("✅ [更新] 数据库回滚完成。")
+                logger.info("✅ [更新] 数据库回滚完成 (从 .bak 文件)。")
             else:
                 logger.error("☠️ [更新] 数据库备份文件丢失！")
         except Exception as e:
@@ -992,38 +1001,58 @@ class UpdateService:
             return False
 
     async def _create_local_backup(self) -> Optional[Path]:
-        """为 HTTP 更新创建本地文件备份 (Zip)"""
+        """[兼容旧调用] 创建统一备份"""
+        return await self._create_unified_backup()
+
+    async def _create_unified_backup(self) -> Optional[Path]:
+        """
+        统一备份：将代码 + 数据库打包为单个 zip 文件。
+        命名格式: tgone_backup_YYYYMMDD_HHMMSS.zip
+        最多保留 10 个 (由 UPDATE_BACKUP_LIMIT 控制)。
+        """
         import zipfile
         
         backup_dir = settings.BASE_DIR / "data" / "backups"
         backup_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = int(datetime.now().timestamp())
-        backup_path = backup_dir / f"update_backup_{timestamp}.zip"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"tgone_backup_{timestamp}.zip"
         
         try:
             with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as z:
-                # 备份核心代码，排除数据文件
+                # --- 备份代码文件 ---
+                excluded_dirs = {
+                    ".git", "__pycache__", "venv", ".venv", ".mypy_cache",
+                    ".pytest_cache", "logs", "temp", "data", "sessions",
+                    "node_modules", "dist", ".agent"
+                }
+                excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz")
+                
                 for root, dirs, files in os.walk(settings.BASE_DIR):
-                    # 排除目录
-                    dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", "venv", ".venv", ".mypy_cache", ".pytest_cache", "logs", "temp", "data", "sessions", "db"]]
-                    
+                    dirs[:] = [d for d in dirs if d not in excluded_dirs]
                     for file in files:
-                        if file.endswith((".pyc", ".db", ".sqlite", ".log", ".zip")):
+                        if file.endswith(excluded_exts):
                             continue
-                            
                         file_path = Path(root) / file
-                        arcname = file_path.relative_to(settings.BASE_DIR)
+                        arcname = str(file_path.relative_to(settings.BASE_DIR))
                         z.write(file_path, arcname)
+                
+                # --- 备份数据库 ---
+                db_file = Path(settings.DB_PATH)
+                if not db_file.is_absolute():
+                    db_file = settings.BASE_DIR / db_file
+                if db_file.exists():
+                    z.write(db_file, f"_db_snapshot/{db_file.name}")
+                    logger.info(f"📀 [备份] 数据库已包含: {db_file.name}")
                         
-            logger.info(f"已创建本地备份: {backup_path}")
+            logger.info(f"✅ [备份] 统一备份已创建: {backup_path.name}")
             
-            # 旋转备份
-            self._rotate_backups(backup_dir, "update_backup_*.zip", settings.UPDATE_BACKUP_LIMIT)
+            # 旋转备份 (保留最新 10 个)
+            self._rotate_backups(backup_dir, "tgone_backup_*.zip", settings.UPDATE_BACKUP_LIMIT)
             
             return backup_path
         except Exception as e:
-            logger.error(f"创建本地备份失败: {e}")
+            logger.error(f"❌ [备份] 创建统一备份失败: {e}")
             return None
 
     def _rotate_backups(self, directory: Path, pattern: str, limit: int = 10):
@@ -1053,7 +1082,7 @@ class UpdateService:
             logger.error(f"旋转备份失败: {e}")
 
     async def _restore_from_local_backup(self, backup_path_str: str) -> Tuple[bool, str]:
-        """从本地 Zip 备份还原"""
+        """从本地 Zip 备份还原 (支持统一格式的 _db_snapshot/ 路径)"""
         import zipfile
         import shutil
         
@@ -1062,15 +1091,30 @@ class UpdateService:
             return False, "备份文件已不存在"
             
         try:
-            logger.info(f"正在从备份还原: {backup_path}")
+            logger.info(f"正在从备份还原: {backup_path.name}")
             
-            # 解压还原
+            # 解析实际 DB 文件路径
+            db_file = Path(settings.DB_PATH)
+            if not db_file.is_absolute():
+                db_file = settings.BASE_DIR / db_file
+            
             with zipfile.ZipFile(backup_path, 'r') as z:
                 for member in z.namelist():
-                     # 安全检查
-                    if '..' in member or member.startswith('/') or  '\\' in member:
+                    # 安全检查
+                    if '..' in member or member.startswith('/') or '\\' in member:
                         continue
-                        
+                    
+                    # 处理 _db_snapshot/ 目录: 还原数据库到实际路径
+                    if member.startswith("_db_snapshot/"):
+                        db_name = member.replace("_db_snapshot/", "", 1)
+                        if not db_name:
+                            continue
+                        db_file.parent.mkdir(parents=True, exist_ok=True)
+                        with z.open(member) as src, open(db_file, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        logger.info(f"📀 [还原] 数据库已还原: {db_file.name}")
+                        continue
+                    
                     target = settings.BASE_DIR / member
                     
                     if member.endswith('/'):
@@ -1087,7 +1131,7 @@ class UpdateService:
                                 if i == 2: raise
                                 await asyncio.sleep(0.5)
                                 
-            return True, "已成功从本地备份还原"
+            return True, "已成功从本地备份还原 (含代码与数据库)"
         except Exception as e:
             return False, f"还原失败: {e}"
 
@@ -1127,6 +1171,67 @@ class UpdateService:
                     lock_f = settings.BASE_DIR / "data" / f
                     if lock_f.exists(): lock_f.unlink()
             return success, msg
+
+    async def list_local_backups(self) -> list[dict]:
+        """
+        列出所有有效备份 (统一格式 + 兼容旧格式)。
+        按时间倒序排列，最多返回 10 个。
+        """
+        import glob
+        backup_dir = settings.BASE_DIR / "data" / "backups"
+        if not backup_dir.exists():
+            return []
+        
+        # 搜索统一格式和旧格式的备份
+        patterns = ["tgone_backup_*.zip", "update_backup_*.zip"]
+        all_files = []
+        for pattern in patterns:
+            all_files.extend(glob.glob(str(backup_dir / pattern)))
+        
+        # 去重并按修改时间倒序
+        file_list = sorted(set(all_files), key=os.path.getmtime, reverse=True)
+        
+        backups = []
+        for f in file_list[:10]:
+            path = Path(f)
+            # 从文件名提取时间戳
+            try:
+                stem = path.stem  # e.g. tgone_backup_20260218_210820
+                # 尝试解析 YYYYMMDD_HHMMSS 格式
+                date_part = "_".join(stem.split("_")[-2:])  # 20260218_210820
+                dt = datetime.strptime(date_part, "%Y%m%d_%H%M%S")
+                ts_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                try:
+                    # 旧格式: unix timestamp
+                    ts_int = int(stem.split('_')[-1])
+                    dt = datetime.fromtimestamp(ts_int)
+                    ts_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    ts_str = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 检测是否包含 DB 快照
+            has_db = False
+            try:
+                import zipfile
+                with zipfile.ZipFile(path, 'r') as zf:
+                    has_db = any(n.startswith("_db_snapshot/") for n in zf.namelist())
+            except Exception:
+                pass
+                
+            size_mb = path.stat().st_size / (1024 * 1024)
+            backups.append({
+                "name": path.name,
+                "path": str(path),
+                "timestamp": ts_str,
+                "size_mb": round(size_mb, 2),
+                "has_db": has_db
+            })
+        return backups
+
+    async def restore_from_backup(self, backup_path: str) -> Tuple[bool, str]:
+        """公开的还原接口"""
+        return await self._restore_from_local_backup(backup_path)
 
     def stop(self):
         """停止更新监控并清理任务"""

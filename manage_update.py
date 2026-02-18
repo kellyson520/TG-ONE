@@ -89,7 +89,50 @@ async def rollback():
         print("✅ 回滚请求已发出，系统将立即退出并由守护进程执行回滚流程。")
         sys.exit(0)
     except Exception as e:
-        print(f"❌ 触发回滚失败: {e}")
+        print(f"❌ 触发回退失败: {e}")
+
+async def list_backups():
+    """列出所有本地代码备份"""
+    print("📦 [Update Manager] 正在检索本地备份...")
+    # 动态导入防止循环依赖
+    from services.update_service import update_service
+    backups = await update_service.list_local_backups()
+    
+    if not backups:
+        print("📭 未发现任何本地备份。")
+        return
+        
+    print("\n--- 可用的本地备份 (最近 10 个) ---")
+    print(f"{'编号':<4} {'备份日期':<22} {'大小':<10} {'含DB':<6} {'文件名'}")
+    for i, b in enumerate(backups, 1):
+        db_flag = "✅" if b.get('has_db') else "❌"
+        size_str = f"{b.get('size_mb', 0):.1f}MB"
+        print(f"{i:<6} {b['timestamp']:<22} {size_str:<10} {db_flag:<6} {b['name']}")
+        
+    print("\n提示: 使用 `python manage_update.py restore <编号>` 进行指定还原")
+
+async def restore_specific(index: int):
+    """还原指定的本地备份"""
+    # 动态导入防止循环依赖
+    from services.update_service import update_service
+    backups = await update_service.list_local_backups()
+    if not backups or index < 1 or index > len(backups):
+        print(f"❌ 错误: 无效的备份编号 {index}")
+        return
+        
+    target = backups[index-1]
+    print(f"⏪ [Update Manager] 准备还原备份: {target['name']}")
+    confirm = input(f"警告：这将覆盖当前代码！确定还原日期为 {target['timestamp']} 的备份吗？(y/N): ")
+    if confirm.lower() != 'y':
+        print("已取消。")
+        return
+        
+    success, msg = await update_service.restore_from_backup(target['path'])
+    if success:
+        print(f"✅ 还原成功: {msg}")
+        print("请手动重启应用。")
+    else:
+        print(f"❌ 还原失败: {msg}")
 
 def main():
     parser = argparse.ArgumentParser(description="TG ONE 更新与回滚管理工具")
@@ -103,7 +146,14 @@ def main():
     up_parser.add_argument("target", nargs="?", help="目标分支、SHA 或 Tag (默认使用配置中的分支)")
     
     # rollback
-    subparsers.add_parser("rollback", help="手动触发回滚")
+    subparsers.add_parser("rollback", help="自动回滚至上个稳定版本")
+    
+    # list-backups
+    subparsers.add_parser("list-backups", help="列出所有可用的本地代码备份")
+    
+    # restore
+    restore_parser = subparsers.add_parser("restore", help="从指定备份还原代码")
+    restore_parser.add_argument("index", type=int, help="备份编号 (见 list-backups)")
     
     args = parser.parse_args()
     
@@ -113,6 +163,10 @@ def main():
         asyncio.run(upgrade(args.target))
     elif args.command == "rollback":
         asyncio.run(rollback())
+    elif args.command == "list-backups":
+        asyncio.run(list_backups())
+    elif args.command == "restore":
+        asyncio.run(restore_specific(args.index))
     else:
         parser.print_help()
 
