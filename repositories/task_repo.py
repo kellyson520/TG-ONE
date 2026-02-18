@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import logging
 from core.states import validate_transition
 from core.config import settings
+from core.helpers.db_utils import async_db_retry
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class TaskRepository:
         )
         return result.to_dict()
 
+    @async_db_retry(max_retries=5)
     async def push(self, task_type: str, payload: dict, priority: int = 0, scheduled_at: datetime = None):
         import json
         from sqlalchemy import insert
@@ -249,6 +251,7 @@ class TaskRepository:
                     logger.error(f"fetch_next 失败: {e}")
                     raise
 
+    @async_db_retry(max_retries=5)
     async def complete(self, task_id: int):
         async with self.db.get_session() as session:
             # 先获取当前状态进行验证
@@ -271,6 +274,7 @@ class TaskRepository:
             else:
                 logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> completed")
 
+    @async_db_retry(max_retries=5)
     async def fail(self, task_id: int, error: str):
         async with self.db.get_session() as session:
             # 先获取当前状态进行验证
@@ -352,8 +356,8 @@ class TaskRepository:
                 logger.info(f"已救援 {result.rowcount} 个僵尸任务")
             return result.rowcount
             
+    @async_db_retry(max_retries=5)
     async def reschedule(self, task_id: int, next_run_time: datetime):
-        """重新调度任务，设置下次执行时间"""
         async with self.db.get_session() as session:
             # 先获取当前状态进行验证
             result = await session.execute(

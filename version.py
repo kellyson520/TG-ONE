@@ -1,7 +1,11 @@
-VERSION = "1.2.6.4"
+VERSION = "1.2.6.5"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.6.5: SQLite 稳定性与锁定修复专项 (Stability)
+  - 核心修复：引入异步重试装饰器 `async_db_retry`，通过指数退避解决 `database is locked` 瞬态错误
+  - 配置优化：升级 SQLite `busy_timeout` 至 30秒，深度调优 `synchronous` / `cache_size` / `temp_store`
+  - 鲁棒性增强：TaskRepository、StatsRepository 和 DedupRepository 的关键写入路径全面接入重试机制
 - v1.2.6.4: 热冷分层存储与万能归档系统 (Phase 6+)
   - 核心突破：实现 UniversalArchiver，支持全模型自动归档至 Parquet 冷存储
   - 热冷查询：引入 UnifiedQueryBridge，通过 DuckDB 实现 SQLite 与 Parquet 的联邦查询

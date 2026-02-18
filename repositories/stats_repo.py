@@ -4,6 +4,7 @@ from sqlalchemy import select, update, insert, func
 from sqlalchemy.orm import joinedload
 from datetime import date, datetime
 import asyncio
+from core.helpers.db_utils import async_db_retry
 import logging
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ class StatsRepository:
             except Exception as e:
                 logger.error(f"Stats flush loop error: {e}")
 
+    @async_db_retry(max_retries=5)
     async def flush_logs(self):
         """Flush buffered logs to database"""
         logs_to_insert = []
@@ -120,6 +122,7 @@ class StatsRepository:
         if should_flush:
             asyncio.create_task(self.flush_logs())
 
+    @async_db_retry(max_retries=5)
     async def increment_stats(self, chat_id: int, saved_bytes: int = 0):
         """[Scheme 7 Standard] 原子级聊天统计更新"""
         today = date.today().isoformat()
@@ -152,6 +155,7 @@ class StatsRepository:
             
         await session.commit()
 
+    @async_db_retry(max_retries=5)
     async def increment_rule_stats(self, rule_id: int, status: str = "success"):
         """原子级规则统计更新 (success, error, filtered)"""
         today = date.today().isoformat()

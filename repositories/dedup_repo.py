@@ -6,6 +6,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from models.models import MediaSignature
 from schemas.media import MediaSignatureDTO
 
+from core.helpers.db_utils import async_db_retry
 logger = logging.getLogger(__name__)
 
 class DedupRepository:
@@ -69,51 +70,40 @@ class DedupRepository:
             
             return None
 
+    @async_db_retry(max_retries=5)
     async def add_or_update(self, chat_id: str, signature: str, **kwargs) -> bool:
         """新增或更新媒体签名"""
         async with self.db.get_session() as session:
-            try:
-                stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
-                result = await session.execute(stmt)
-                existing = result.scalar_one_or_none()
-                
-                now = datetime.utcnow().isoformat()
-                
-                # [修复核心] 动态获取模型字段，过滤掉非法的 kwargs (如 message_id)
-                # 这样即使上层传错了参数，这里也不会报错崩溃
-                valid_columns = {c.name for c in MediaSignature.__table__.columns}
-                filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_columns}
-                
-                if existing:
-                    # 累加出现次数
-                    existing.count = (existing.count or 0) + 1
-                    
-                    # 更新字段
-                    for key, value in filtered_kwargs.items():
-                        if value and not getattr(existing, key, None):
-                            setattr(existing, key, value)
-                    
-                    existing.updated_at = now
-                    existing.last_seen = now
-                else:
-                    # 创建新记录
-                    new_sig = MediaSignature(
-                        chat_id=str(chat_id),
-                        signature=signature,
-                        count=1,
-                        created_at=now,
-                        updated_at=now,
-                        last_seen=now,
-                        **filtered_kwargs  # 使用过滤后的参数
-                    )
-                    session.add(new_sig)
-                
-                await session.commit()
-                return True
-            except Exception as e:
-                logger.error(f"DedupRepository.add_or_update failed: {e}")
-                await session.rollback()
-                return False
+            stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
+            
+            now = datetime.utcnow().isoformat()
+            
+            valid_columns = {c.name for c in MediaSignature.__table__.columns}
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_columns}
+            
+            if existing:
+                existing.count = (existing.count or 0) + 1
+                for key, value in filtered_kwargs.items():
+                    if value and not getattr(existing, key, None):
+                        setattr(existing, key, value)
+                existing.updated_at = now
+                existing.last_seen = now
+            else:
+                new_sig = MediaSignature(
+                    chat_id=str(chat_id),
+                    signature=signature,
+                    count=1,
+                    created_at=now,
+                    updated_at=now,
+                    last_seen=now,
+                    **filtered_kwargs
+                )
+                session.add(new_sig)
+            
+            await session.commit()
+            return True
 
     async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignatureDTO]:
         """获取重复媒体记录"""
@@ -127,6 +117,7 @@ class DedupRepository:
             objs = result.scalars().all()
             return [MediaSignatureDTO.model_validate(o) for o in objs]
 
+    @async_db_retry(max_retries=5)
     async def batch_add_media_signatures(self, records: List[dict]) -> bool:
         """批量插入媒体签名记录 (支持 SmartDeduplicator v4)"""
         if not records:
@@ -209,6 +200,7 @@ class DedupRepository:
     # 别名兼容
     batch_add = batch_add_media_signatures
 
+    @async_db_retry(max_retries=5)
     async def delete_by_chat(self, chat_id: str) -> int:
         """删除特定聊天的所有去重记录"""
         async with self.db.get_session() as session:
@@ -263,6 +255,7 @@ class DedupRepository:
         signature = f"text_fp:{fingerprint}"
         await self.add_or_update(chat_id, signature)
 
+    @async_db_retry(max_retries=5)
     async def delete_media_signature(self, chat_id: str, signature: str):
         """删除签名"""
         async with self.db.get_session() as session:
@@ -277,6 +270,7 @@ class DedupRepository:
         signature = f"content:{content_hash}"
         await self.delete_media_signature(chat_id, signature)
 
+    @async_db_retry(max_retries=5)
     async def save_config(self, config: dict):
         """保存全局去重配置到 SystemConfiguration"""
         try:

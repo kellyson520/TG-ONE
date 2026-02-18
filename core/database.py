@@ -63,7 +63,11 @@ class Database:
                         cursor.execute("PRAGMA synchronous=NORMAL")
                         # 增加缓存以减少磁盘I/O
                         cursor.execute("PRAGMA cache_size=-64000") # 64MB
-                        cursor.execute("PRAGMA busy_timeout=5000") # 5秒等待
+                        cursor.execute("PRAGMA busy_timeout=30000") # 增加到30秒等待
+                        # 限制 WAL 文件大小
+                        cursor.execute("PRAGMA journal_size_limit=20000000") # ~20MB
+                        # 内存存储临时表
+                        cursor.execute("PRAGMA temp_store=MEMORY")
                         
                         # 验证
                         cursor.execute("PRAGMA journal_mode")

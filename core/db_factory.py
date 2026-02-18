@@ -107,6 +107,9 @@ class DbFactory:
                 conn.execute(text("PRAGMA journal_mode=WAL"))
                 conn.execute(text("PRAGMA synchronous=NORMAL"))
                 conn.execute(text("PRAGMA cache_size=-64000"))
+                conn.execute(text("PRAGMA busy_timeout=30000"))
+                conn.execute(text("PRAGMA journal_size_limit=20000000"))
+                conn.execute(text("PRAGMA temp_store=MEMORY"))
                 conn.execute(text("PRAGMA mmap_size=0"))
                 conn.commit()
         return _engine
@@ -420,6 +423,9 @@ def set_sqlite_pragma(dbapi_connection: Any, _connection_record: Any) -> None:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA cache_size=-64000")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA journal_size_limit=20000000")
+        cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.execute("PRAGMA mmap_size=0")
         cursor.close()
     except Exception as e:

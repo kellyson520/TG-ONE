@@ -1,5 +1,19 @@
 ## 📅 2026-02-18 更新摘要
 
+### 🚀 v1.2.6.5: SQLite 稳定性与锁定修复专项 (SQLite Stability & Lock Mitigation)
+- **异步重试机制 (Async DB Retry)**:
+    - **async_db_retry**: 新建 `core/helpers/db_utils.py`，实现智能异步重试装饰器，支持指数退避 (Exponential Backoff) 与随机抖动 (Jitter)。
+    - **逻辑拦截**: 仅针对 `OperationalError` 中的锁定/忙碌状态 (`locked`, `busy`) 进行重试，确保瞬态冲突可自愈。
+    - **全链路覆盖**: 关键写入路径（`TaskRepository`, `StatsRepository`, `DedupRepository`）已全面接入重试保护。
+- **SQLite 配置调优 (PRAGMA Optimization)**:
+    - **busy_timeout**: 将数据库繁忙超时时间从 5s 暴力提升至 **30s**，大幅缓解极端并发下的锁异常。
+    - **极致性能参数**: 深度同步 `synchronous=NORMAL`, `temp_store=MEMORY`, `cache_size=-64000` (64MB) 等参数至 `Database` 核心及 `DbFactory`。
+    - **WAL 治理**: 限制 WAL 文件大小 (`journal_size_limit=20MB`)，在保证高性能的同时兼顾磁盘卫生。
+- **兼容性保障**:
+    - 为旧版本代码保留了 `retry_on_db_lock` 别名，确保平滑重构。
+- **验证矩阵**:
+    - 已通过 `test_task_repo.py` 并行压测模拟及 `py_compile` 静态语法分析。
+
 ### 🚀 v1.2.6.4: 热冷分层存储与万能归档系统 (Phase 6+)
 - **分层存储架构 (Tiered Storage)**:
     - **UniversalArchiver**: 实现了通用的万能归档引擎，支持将任何带有时间戳的模型数据归档至 Parquet 冷存储。

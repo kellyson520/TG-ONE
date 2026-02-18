@@ -1,53 +1,49 @@
-# Git
+# 忽略 Git 仓库
 .git
 .gitignore
-.github
 
-# Python
-__pycache__
+# 忽略数据文件夹 (这是最大的体积来源，运行时会通过 Volume 挂载)
+data/
+sessions/
+logs/
+temp/
+zhuanfaji/
+
+# 忽略备份和归档
+backups/
+archive/
+
+# 忽略 Python 缓存和虚拟环境
+**/__pycache__
 *.pyc
 *.pyo
 *.pyd
 .Python
 env/
 venv/
-.venv/
+.venv
 pip-log.txt
 pip-delete-this-directory.txt
-
-# Data & Logs (Huge folders)
-logs/
-db/
-archive/
-sessions/
-downloads/
-temp/
-# data/ # If data contains critical config, keep it. If it's just runtime data, ignore. 
-# based on file list, data/ seems to exist. entrypoint mounts lots of things.
-
-# IDE
-.vscode
-.idea
-*.swp
-
-# Tests
-tests/
-.pytest_cache/
-.hypothesis/
-.mypy_cache/
-htmlcov/
+.pytest_cache
 .coverage
+htmlcov
 
-# Documentation
-docs/
-# except maybe essential ones? usually docs are not needed in prod image.
+# 忽略各种配置文件和私密信息
+.env
+*.key
+*.pem
+*.session
+*.session-journal
 
-# Docker
-docker-compose.yml
+# 忽略 IDE 缓存
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 其他无关文件
 Dockerfile
-.dockerignore
-
-# Misc
-*.md
-LICENSE
-AGENTS.md
+docker-compose.yml
+README.md
+docs/
+tests/
