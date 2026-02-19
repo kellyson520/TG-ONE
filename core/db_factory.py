@@ -104,13 +104,9 @@ class DbFactory:
             )
 
             with _engine.connect() as conn:
-                conn.execute(text("PRAGMA journal_mode=WAL"))
-                conn.execute(text("PRAGMA synchronous=NORMAL"))
-                conn.execute(text("PRAGMA cache_size=-64000"))
-                conn.execute(text("PRAGMA busy_timeout=30000"))
-                conn.execute(text("PRAGMA journal_size_limit=20000000"))
-                conn.execute(text("PRAGMA temp_store=MEMORY"))
-                conn.execute(text("PRAGMA mmap_size=0"))
+                from core.helpers.sqlite_config import setup_sqlite_performance
+                setup_sqlite_performance(_engine)
+                conn.execute(text("SELECT 1"))
                 conn.commit()
         return _engine
 
@@ -128,6 +124,9 @@ class DbFactory:
                     pool_recycle=settings.DB_POOL_RECYCLE,
                     connect_args={"check_same_thread": False, "timeout": 30}
                 )
+                from core.helpers.sqlite_config import setup_sqlite_performance
+                # 只处理读引擎，不启用 BEGIN IMMEDIATE 以优化性能 (只读连接不需要 BEGIN IMMEDIATE)
+                setup_sqlite_performance(cls._async_read_engine, enable_immediate=False)
             return cls._async_read_engine
         else:
             if not hasattr(cls, '_async_write_engine') or cls._async_write_engine is None:
@@ -139,6 +138,8 @@ class DbFactory:
                     pool_recycle=settings.DB_POOL_RECYCLE,
                     connect_args={"check_same_thread": False, "timeout": 60}
                 )
+                from core.helpers.sqlite_config import setup_sqlite_performance
+                setup_sqlite_performance(cls._async_write_engine)
             return cls._async_write_engine
 
     @classmethod
@@ -416,17 +417,4 @@ async def async_get_database_info() -> Optional[Dict[str, Any]]:
         return None
 
 
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_connection: Any, _connection_record: Any) -> None:
-    try:
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA cache_size=-64000")
-        cursor.execute("PRAGMA busy_timeout=30000")
-        cursor.execute("PRAGMA journal_size_limit=20000000")
-        cursor.execute("PRAGMA temp_store=MEMORY")
-        cursor.execute("PRAGMA mmap_size=0")
-        cursor.close()
-    except Exception as e:
-        logger.warning(f"Failed to set PRAGMA for async connection: {e}")
+# 已移除同步 PRAGMA 事件监听，转由 sqlite_config 统一管理

@@ -238,9 +238,11 @@ class TelegramAPIOptimizer:
                 if ENABLE_API_DEBUG:
                     logger.debug(f"无法获取用户实体 {user_id}: {error_type} - {str(e)}")
                 elif not is_permanent:
-                    # 只对临时错误记录警告
-                    logger.warning(f"用户实体获取临时失败 {user_id}: {error_type}")
-
+                    # 将警告降级为调试，避免高负载下刷屏
+                    logger.debug(f"用户实体获取临时失败 {user_id}: {error_type}")
+                
+                # 在循环中稍微让出控制权，尤其是在获取实体这种网络操作后
+                await asyncio.sleep(0.01)
                 failed_users += 1
                 continue
 

@@ -2,6 +2,11 @@ VERSION = "1.2.6.5"
 
 UPDATE_INFO = """
 **更新日志**
+- [Hotfix] 2026-02-19: VPS 高负载与架构优化
+  - 伸缩重构：WorkerService 引入 CPU/LoadAvg 哨兵，扩容步长受限，支持紧急快速缩容
+  - 逻辑对齐：将 fetch_next 限制由 10 降为 1，确保数据库 running 状态与 Worker 数量真实对应
+  - 僵尸救援：新增任务自动巡检，重置卡死 15min+ 的僵尸任务为 PENDING 重新入队
+  - 架构净化：修复 Repository 层向上依赖违规，统一 legacy 备份路径归口至 services
 - v1.2.6.5: SQLite 稳定性与锁定修复专项 (Stability)
   - 核心修复：引入异步重试装饰器 `async_db_retry`，通过指数退避解决 `database is locked` 瞬态错误
   - 配置优化：升级 SQLite `busy_timeout` 至 30秒，深度调优 `synchronous` / `cache_size` / `temp_store`

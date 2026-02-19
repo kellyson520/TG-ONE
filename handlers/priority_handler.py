@@ -132,20 +132,28 @@ async def queue_status_handler(event):
         await event.reply("⚠️ QueueService 未升级至 QoS 4.0。")
         return
 
-    # 1. 泳道深度
+    # 1. 数据库任务状态 (Database Layer)
+    db_stats = await container.task_repo.get_queue_status()
     msg = "**🚦 队列状态 (QoS 4.0)**\n\n"
+    msg += "**任务积压 (Database):**\n"
+    msg += f"• ⏳ 等待中: `{db_stats['active_queues']}`\n"
+    msg += f"• ⚡ 正在运行: `{db_stats['running_tasks']}`\n"
+    msg += f"• 📊 平均延迟: `{db_stats['avg_delay']}`\n"
+    msg += f"• ❌ 失败率: `{db_stats['error_rate']}`\n\n"
+
+    # 2. 内存泳道深度 (Memory Layer)
     msg += "**泳道深度 (Lane Depths):**\n"
     
-    total = 0
+    total_mem = 0
     for name, q in qs.lanes.items():
         size = q.qsize()
-        total += size
+        total_mem += size
         icon = "🟢" if size < 10 else "🟡" if size < 100 else "🔴"
         msg += f"{icon} `{name.upper()}`: **{size}**\n"
     
-    msg += f"\n**总积压:** `{total}`\n"
+    msg += f"\n**内存总积压:** `{total_mem}`\n"
     
-    # 2. 拥塞 Top 5
+    # 3. 拥塞 Top 5
     if qs.pending_counts:
         msg += "\n**拥塞群组 Top 5:**\n"
         # Sort by count desc
@@ -156,12 +164,8 @@ async def queue_status_handler(event):
             from core.helpers.id_utils import get_display_name_async
             name = await get_display_name_async(chat_id)
             
-            # Calculate dynamic score
-            # Score = Base(Assume 0/10) - (Count * 0.5)
-            # We can't easily know Base here without DB query, just show Penalty
             penalty = count * qs.CONGESTION_PENALTY_FACTOR
-            
-            msg += f"• {name}: `{count}` (减分: -{penalty:.1f})\n"
+            msg += f"• {name}: `{count}` (负载分: -{penalty:.1f})\n"
     else:
         msg += "\n✅ 无拥塞群组。\n"
 

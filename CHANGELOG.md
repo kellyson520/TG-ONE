@@ -1,3 +1,18 @@
+## 📅 2026-02-19 更新摘要
+
+### 🚀 [Hotfix] VPS 高负载 (300%) 修复与并发优化 (VPS High Load Fix & Concurrency Optimization)
+- **WorkerService 伸缩逻辑重构**:
+    - **资源哨兵**: 扩容前强制校验 CPU (<80%)、系统负载 (LoadAvg) 与内存占用，防止过载扩容。
+    - **并发纠偏**: 将每个 Worker 的任务拉取限制从 10 降至 **1**，确保数据库 `running` 数与实际 Worker 数严格对齐。
+    - **紧急缩容**: 监控到 CPU > 95% 时主动回缩 Worker 数量，优先保障系统存活。
+- **任务自愈救援 (Zombie Task Rescue)**:
+    - 实现启动自检与分钟级巡检，自动重置长时间卡在 `running` 状态的僵尸任务为 `pending`。
+- **API 性能调优**:
+    - **日志降噪**: 将高频实体获取失败预警由 `Warning` 降级为 `Debug`，减少 IO 书写损耗。
+    - **让权逻辑**: 在实体解析循环中加入精准 `yield` (sleep)，确保不长时间阻塞事件循环。
+- **架构净化**:
+    - 修复了 `repositories` 层对 `services` 层的非法依赖，将遗留备份桥接逻辑迁移至 `services/legacy_backup_bridge.py`。
+
 ## 📅 2026-02-18 更新摘要
 
 ### 🚀 v1.2.6.5: SQLite 稳定性与锁定修复专项 (SQLite Stability & Lock Mitigation)

@@ -35,10 +35,18 @@ class WorkerService:
         
         self.workers = {} # task -> worker_id
         
+        # [Fix] 启动前清理僵尸任务，防止历史遗留的 running 任务占用状态
+        try:
+            count = await self.repo.rescue_stuck_tasks(timeout_minutes=15)
+            if count > 0:
+                logger.info(f"♻️ 系统启动救援: 已重置 {count} 个僵尸任务为 PENDING 状态")
+        except Exception as e:
+            logger.error(f"Failed to rescue tasks during startup: {e}")
+
         # 启动初始 Workers
         for i in range(settings.WORKER_MIN_CONCURRENCY):
             self._spawn_worker()
-            
+
         # 启动弹性伸缩监控
         self._monitor_task = asyncio.create_task(self._monitor_scaling(), name="worker_scaling_monitor")
         
@@ -94,53 +102,86 @@ class WorkerService:
                 
                 # --- 第一步：资源守卫 (Resource Guard) ---
                 try:
+                    # 使用 psutil 获取更准确的 CPU 使用率 (指定 interval)
+                    # 但是在 async 循环中不能长时间阻塞，改用非阻塞获取
+                    # interval=None 会返回上一秒到现在的时间差
                     cpu_usage = psutil.cpu_percent(interval=None)
                     process = psutil.Process()
-                    memory_mb = process.memory_info().rss / 1024 / 1024
+                    memory_info = process.memory_info()
+                    memory_mb = memory_info.rss / 1024 / 1024
+                    
+                    # 获取系统总体负载 (Load Average)
+                    try:
+                        load_1, load_5, load_15 = psutil.getloadavg()
+                        cpu_count = psutil.cpu_count()
+                        load_ratio = load_1 / cpu_count if cpu_count else 0
+                    except (AttributeError, Exception):
+                        load_ratio = 0
                 except Exception:
                     cpu_usage = 0
                     memory_mb = 0
+                    load_ratio = 0
 
                 # --- 第二步：计算目标 Worker 数 (Target Logic) ---
-                if pending_count > 5000:
-                    # [炸弹模式] 积压超过5000，立即拉满
-                    target_count = settings.WORKER_MAX_CONCURRENCY
-                elif pending_count > 0:
-                    # [常规模式] 更激进的扩容：每 100 条积压增加一个 worker + 基础值
-                    target_count = max(
-                        settings.WORKER_MIN_CONCURRENCY,
-                        min(
-                            settings.WORKER_MAX_CONCURRENCY,
-                            (pending_count // 100) + 2
-                        )
-                    )
-                else:
+                # 策略：更稳健的阶梯式扩容
+                if pending_count == 0:
                     target_count = settings.WORKER_MIN_CONCURRENCY
+                else:
+                    # 按照积压量级分档
+                    if pending_count > 10000:
+                        # 极端积压：允许达到最大值的一半或 15 (取较大值)，而不是直接拉满
+                        limit = max(settings.WORKER_MAX_CONCURRENCY // 2, 15)
+                        target_count = min(settings.WORKER_MAX_CONCURRENCY, limit)
+                    elif pending_count > 1000:
+                        # 中等积压：每 500 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 500)
+                    else:
+                        # 轻微积压：每 100 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 100)
 
-                # --- 第三步：执行调整 (Execution) ---
+                # 约束目标值
+                target_count = max(settings.WORKER_MIN_CONCURRENCY, min(settings.WORKER_MAX_CONCURRENCY, target_count))
+
+                # --- 第三步：执行调整 (Execution & Guard) ---
+                log_diagnostic = False
+                if idle_cycles % 6 == 0: # 每分钟记录一次诊断
+                     log_diagnostic = True
+                     # [Fix] 每分钟尝试救援一次超时严重的任务
+                     await self.repo.rescue_stuck_tasks(timeout_minutes=20)
+                
+                if log_diagnostic:
+                    logger.info(f"📊 [WorkerService] 系统负载: CPU={cpu_usage}%, Load={load_ratio:.2f}, RAM={memory_mb:.1f}MB | 积压={pending_count}, Workers={current_workers}/{target_count}")
+
                 if current_workers < target_count:
-                    # 扩容前检查系统负载 (容器感知)
-                    if cpu_usage > 85:
-                        if idle_cycles % 6 == 0: # 减少日志频率
-                            logger.warning(f"⚠️ [WorkerService] 系统 CPU 高负载 ({cpu_usage}%)，暂停扩容")
-                    elif memory_mb > 1800: # 接近系统强制重启的 2GB 限制
-                        if idle_cycles % 6 == 0:
-                            logger.warning(f"⚠️ [WorkerService] 内存接近上限 ({memory_mb:.1f}MB)，暂停扩容")
+                    # 扩容守卫：如果系统已经高负载，严禁进一步扩容
+                    # CPU > 80% 或 LoadRatio > 1.2 (说明 1.2 倍 CPU 核心正在排队)
+                    if cpu_usage > 80 or load_ratio > 1.2:
+                        if log_diagnostic:
+                            logger.warning(f"⚠️ [WorkerService] 系统高负载，已暂停扩容计划 (CPU={cpu_usage}%, Load={load_ratio:.2f})")
+                    elif memory_mb > 1500: # 提前预警
+                        if log_diagnostic:
+                            logger.warning(f"⚠️ [WorkerService] 内存占用较高 ({memory_mb:.1f}MB)，暂停扩容")
                     else:
                         diff = target_count - current_workers
-                        # 批量扩容步长：一次最多增加 5 个
-                        step = min(diff, 5) 
-                        logger.info(f"📈 [WorkerService] 检测到积压 {pending_count}，正在扩容: +{step} workers (当前: {current_workers})")
+                        # 扩容步长更保守：一次最多增加 3 个 (原来是 5)
+                        step = min(diff, 3) 
+                        logger.info(f"📈 [WorkerService] 扩容中: +{step} workers (负载正常)")
                         for _ in range(step):
                             self._spawn_worker()
-                    idle_cycles = 0 # 重置空闲计数
+                    idle_cycles = 0 
                 
                 elif current_workers > target_count:
-                    # 缩容策略：连续 3 个周期 (30s) 为空闲才真实收缩，防止抖动
+                    # 缩容策略：更激进地释放资源
                     idle_cycles += 1
-                    if idle_cycles >= 3:
-                        diff = current_workers - target_count
-                        logger.info(f"📉 [WorkerService] 队列空闲，正在缩容: -{diff} workers")
+                    # 如果 CPU 非常高，立即缩容，不需要等待 3 个周期
+                    if cpu_usage > 95 or load_ratio > 2.0:
+                         logger.warning(f"🚨 [WorkerService] 极端高负载，紧急释放资源: -2 workers")
+                         for _ in range(min(current_workers - settings.WORKER_MIN_CONCURRENCY, 2)):
+                             await self._kill_worker()
+                         idle_cycles = 0
+                    elif idle_cycles >= 3:
+                        diff = max(1, (current_workers - target_count) // 2) # 分批次缩容
+                        logger.info(f"📉 [WorkerService] 缩容中: -{diff} workers")
                         for _ in range(diff):
                             await self._kill_worker()
                         idle_cycles = 0
@@ -157,10 +198,10 @@ class WorkerService:
         
         while self.running:
             try:
-                # [Fix P1] 批量拉取任务以减少数据库锁竞争
                 try:
-                      # 默认拉取 10 个作为批次
-                      tasks = await self.repo.fetch_next(limit=10)
+                      # [Fix] 将批量拉取从 10 降到 1，确保数据库 "running" 状态与 Worker 数量严格一致
+                      # 避免过度锁定任务导致系统假性过载。对于媒体组，repo 内部会自动关联拉取。
+                      tasks = await self.repo.fetch_next(limit=1)
                 except asyncio.CancelledError:
                      logger.debug(f"[{worker_id}] Cancelled during fetch")
                      raise

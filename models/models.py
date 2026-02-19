@@ -104,7 +104,7 @@ async def async_get_database_info():
 
 def backup_database(db_path=None, backup_dir=None):
     """Backup database (lazy wrapper)"""
-    from repositories.backup import backup_database
+    from services.legacy_backup_bridge import backup_database
     return backup_database(db_path, backup_dir)
 
 def get_db_health():

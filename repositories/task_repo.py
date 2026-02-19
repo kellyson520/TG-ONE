@@ -66,6 +66,7 @@ class TaskRepository:
                 else:
                     logger.warning("⚠️ 任务入列被忽略 (rowcount=0)")
 
+    @async_db_retry(max_retries=5)
     async def push_batch(self, tasks_data: list):
         """
         批量写入任务 (Batch Insert)
@@ -108,31 +109,12 @@ class TaskRepository:
         from core.db_factory import AsyncSessionManager
         async with AsyncSessionManager() as session:
              # 使用 Core Insert + OR IGNORE (SQLite) 实现高性能批量去重写入
-             import asyncio
-             from sqlalchemy.exc import OperationalError
-             
-             max_retries = 3
-             for attempt in range(max_retries):
-                 try:
-                     stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
-                     await session.execute(stmt)
-                     # AsyncSessionManager handles commit automatically
-                     logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
-                     break # Success
-                 except OperationalError as e:
-                     if "disk I/O error" in str(e) or "database is locked" in str(e):
-                         if attempt < max_retries - 1:
-                             sleep_time = 0.2 * (attempt + 1)
-                             logger.warning(f"批量写入遭遇 SQLite 锁定/IO 错误，正在重试 ({attempt+1}/{max_retries}): {e}. 等待 {sleep_time}s")
-                             await asyncio.sleep(sleep_time)
-                             continue
-                     logger.error(f"批量写入失败 (OperationalError): {e}")
-                     raise
-                 except Exception as e:
-                     logger.error(f"批量写入失败: {e}")
-                     # Fallback: 如果批量失败（罕见），可以考虑逐条重试，或者直接抛出
-                     raise
+             stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
+             await session.execute(stmt)
+             # AsyncSessionManager handles commit automatically
+             logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
 
+    @async_db_retry(max_retries=5)
     async def fetch_next(self, limit: int = 1):
         """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合与批量拉取)
         Optimized: Split complex UPDATE with subqueries into SELECT + UPDATE by ID to avoid SQLite Disk I/O errors.
@@ -146,110 +128,89 @@ class TaskRepository:
             lease_duration = timedelta(minutes=15)
             lease_until = now + lease_duration
             
-            import asyncio
-            from sqlalchemy.exc import OperationalError
+            # 1. 第一步：获取候选任务 ID (Read Phase)
+            # 优先获取高优先级、早创建的任务
+            stmt_candidates = (
+                select(TaskQueue.id, TaskQueue.grouped_id)
+                .where(
+                    (TaskQueue.status == 'pending') |
+                    (
+                        (TaskQueue.status == 'running') & 
+                        (TaskQueue.locked_until != None) & 
+                        (TaskQueue.locked_until <= now)
+                    )
+                )
+                .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
+                .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
+                .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
+                .limit(limit)
+            )
             
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    # 1. 第一步：获取候选任务 ID (Read Phase)
-                    # 优先获取高优先级、早创建的任务
-                    stmt_candidates = (
-                        select(TaskQueue.id, TaskQueue.grouped_id)
-                        .where(
-                            (TaskQueue.status == 'pending') |
-                            (
-                                (TaskQueue.status == 'running') & 
-                                (TaskQueue.locked_until != None) & 
-                                (TaskQueue.locked_until <= now)
-                            )
+            result = await session.execute(stmt_candidates)
+            candidates = result.all() # List of Row(id, grouped_id)
+            
+            if not candidates:
+                return []
+                
+            # 收集 ID 和 Group ID
+            candidate_ids = [row.id for row in candidates]
+            group_ids = [row.grouped_id for row in candidates if row.grouped_id]
+            
+            final_task_ids = set(candidate_ids)
+            
+            # 2. 第二步：若存在 grouped_id，扩展获取同组任务
+            if group_ids:
+                stmt_groups = (
+                    select(TaskQueue.id)
+                    .where(TaskQueue.grouped_id.in_(group_ids))
+                    .where(
+                        (TaskQueue.status == 'pending') |
+                        (
+                            (TaskQueue.status == 'running') & 
+                            (TaskQueue.locked_until <= now)
                         )
-                        .where((TaskQueue.scheduled_at == None) | (TaskQueue.scheduled_at <= buffer_now))
-                        .where((TaskQueue.next_retry_at == None) | (TaskQueue.next_retry_at <= buffer_now))
-                        .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
-                        .limit(limit)
                     )
-                    
-                    result = await session.execute(stmt_candidates)
-                    candidates = result.all() # List of Row(id, grouped_id)
-                    
-                    if not candidates:
-                        return []
-                        
-                    # 收集 ID 和 Group ID
-                    candidate_ids = [row.id for row in candidates]
-                    group_ids = [row.grouped_id for row in candidates if row.grouped_id]
-                    
-                    final_task_ids = set(candidate_ids)
-                    
-                    # 2. 第二步：若存在 grouped_id，扩展获取同组任务
-                    if group_ids:
-                        stmt_groups = (
-                            select(TaskQueue.id)
-                            .where(TaskQueue.grouped_id.in_(group_ids))
-                            .where(
-                                (TaskQueue.status == 'pending') |
-                                (
-                                    (TaskQueue.status == 'running') & 
-                                    (TaskQueue.locked_until <= now)
-                                )
-                            )
-                            .where(TaskQueue.id.not_in(candidate_ids)) # 避免重复
-                        )
-                        group_result = await session.execute(stmt_groups)
-                        group_task_ids = group_result.scalars().all()
-                        final_task_ids.update(group_task_ids)
-                    
-                    if not final_task_ids:
-                        return []
+                    .where(TaskQueue.id.not_in(candidate_ids)) # 避免重复
+                )
+                group_result = await session.execute(stmt_groups)
+                group_task_ids = group_result.scalars().all()
+                final_task_ids.update(group_task_ids)
+            
+            if not final_task_ids:
+                return []
 
-                    # 3. 第三步：原子更新 (Write Phase)
-                    # 使用 ID 列表更新，大幅降低 SQLite 锁竞争和 I/O 压力
-                    stmt = (
-                        update(TaskQueue)
-                        .where(TaskQueue.id.in_(final_task_ids))
-                        .where(
-                            (TaskQueue.status == 'pending') |
-                            (
-                                (TaskQueue.status == 'running') & 
-                                (TaskQueue.locked_until <= now)
-                            )
-                        )
-                        .values(
-                            status='running',
-                            started_at=now,
-                            locked_until=lease_until, # 设置租约
-                            updated_at=now
-                        )
-                        .execution_options(synchronize_session=False)
-                        .returning(TaskQueue)
+            # 3. 第三步：原子更新 (Write Phase)
+            # 使用 ID 列表更新，大幅降低 SQLite 锁竞争和 I/O 压力
+            stmt = (
+                update(TaskQueue)
+                .where(TaskQueue.id.in_(final_task_ids))
+                .where(
+                    (TaskQueue.status == 'pending') |
+                    (
+                        (TaskQueue.status == 'running') & 
+                        (TaskQueue.locked_until <= now)
                     )
+                )
+                .values(
+                    status='running',
+                    started_at=now,
+                    locked_until=lease_until, # 设置租约
+                    updated_at=now
+                )
+                .execution_options(synchronize_session=False)
+                .returning(TaskQueue)
+            )
 
-                    result = await session.execute(stmt)
-                    tasks = result.scalars().all()
-                    
-                    if tasks:
-                        # AsyncSessionManager will commit automatically
-                        tasks.sort(key=lambda x: x.created_at)
-                        logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
-                        return tasks
-                    
-                    return []
-
-                except OperationalError as e:
-                    if "disk I/O error" in str(e) or "database is locked" in str(e):
-                        if attempt < max_retries - 1:
-                            # IMPORTANT: Rollback session on error to clear failed transaction state
-                            await session.rollback()
-                            sleep_time = 0.2 * (attempt + 1)
-                            logger.warning(f"fetch_next 遭遇 SQLite 锁定/IO 错误，正在重试 ({attempt+1}/{max_retries}): {e}. 等待 {sleep_time}s")
-                            await asyncio.sleep(sleep_time)
-                            continue
-                    logger.error(f"fetch_next 失败 (OperationalError): {e}")
-                    raise
-                except Exception as e:
-                    logger.error(f"fetch_next 失败: {e}")
-                    raise
+            result = await session.execute(stmt)
+            tasks = result.scalars().all()
+            
+            if tasks:
+                # AsyncSessionManager will commit automatically
+                tasks.sort(key=lambda x: x.created_at)
+                logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
+                return tasks
+            
+            return []
 
     @async_db_retry(max_retries=5)
     async def complete(self, task_id: int):
@@ -380,6 +341,7 @@ class TaskRepository:
             else:
                 logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> pending (reschedule)")
 
+    @async_db_retry(max_retries=5)
     async def fetch_group_tasks(self, grouped_id: str, exclude_task_id: int):
         """
         获取同一媒体组的其他相关任务，并原子锁定它们
@@ -437,6 +399,9 @@ class TaskRepository:
             pending_count = await session.execute(
                 select(func.count()).where(TaskQueue.status == 'pending')
             )
+            running_count = await session.execute(
+                select(func.count()).where(TaskQueue.status == 'running')
+            )
             completed_count = await session.execute(
                 select(func.count()).where(TaskQueue.status == 'completed')
             )
@@ -448,6 +413,7 @@ class TaskRepository:
             )
             
             pending = pending_count.scalar() or 0
+            running = running_count.scalar() or 0
             completed = completed_count.scalar() or 0
             failed = failed_count.scalar() or 0
             total = total_count.scalar() or 0
@@ -475,6 +441,7 @@ class TaskRepository:
 
             return {
                 'active_queues': pending,
+                'running_tasks': running,
                 'total_tasks': total,
                 'completed_tasks': completed,
                 'failed_tasks': failed,

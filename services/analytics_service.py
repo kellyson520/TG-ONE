@@ -311,7 +311,7 @@ class AnalyticsService:
                 strftime('%Y-%m-%dT%H', CAST(created_at AS TIMESTAMP)) as hour,
                 COUNT(*) as count
             FROM {table}
-            WHERE created_at >= ?
+            WHERE created_at >= CAST(? AS TIMESTAMP)
             GROUP BY hour
             ORDER BY hour
         """
