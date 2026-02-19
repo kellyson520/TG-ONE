@@ -113,6 +113,7 @@ class WorkerService:
                 
                 # 获取队列状态
                 queue_status = await self.repo.get_queue_status()
+                logger.info(f"🔍 [WorkerService] Managed Queue status: {queue_status}")
                 # 修复 P0: 使用正确键名 active_queues
                 pending_count = queue_status.get('active_queues', 0)
                 current_workers = len(self.workers)

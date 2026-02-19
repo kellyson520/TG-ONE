@@ -393,6 +393,7 @@ class TaskRepository:
             stmt = select(TaskQueue.status, func.count()).group_by(TaskQueue.status)
             res = await session.execute(stmt)
             counts = dict(res.all())
+            logger.info(f"🔍 [TaskRepository] DB Queue Status raw counts: {counts}")
             
             pending = counts.get('pending', 0)
             running = counts.get('running', 0)
