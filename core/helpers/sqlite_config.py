@@ -17,11 +17,11 @@ def setup_sqlite_performance(engine, enable_immediate: bool = True):
         try:
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA cache_size=-64000")  # 64MB
-            cursor.execute("PRAGMA busy_timeout=30000")  # 30s
+            cursor.execute("PRAGMA cache_size=-8000")     # 约 8MB，适配 1G RAM VPS
+            cursor.execute("PRAGMA busy_timeout=60000")  # 60s，给并发写入更多缓冲时间
             cursor.execute("PRAGMA journal_size_limit=20000000")  # 20MB
             cursor.execute("PRAGMA temp_store=MEMORY")
-            cursor.execute("PRAGMA mmap_size=0")
+            cursor.execute("PRAGMA mmap_size=67108864")   # 64MB，利用内存映射减少 read 系统调用
         except Exception as e:
             logger.error(f"[SQLiteConfig] 设置 PRAGMA 失败: {e}")
         finally:
@@ -44,6 +44,6 @@ def apply_pragma_to_connection(dbapi_connection):
     try:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA busy_timeout=60000")
     finally:
         cursor.close()

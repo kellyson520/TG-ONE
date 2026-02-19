@@ -621,6 +621,38 @@ class Settings(BaseSettings):
         default=20,
         description="Worker 最大并发数"
     )
+    
+    # === TaskDispatcher & 队列优化 ===
+    TASK_DISPATCHER_BATCH_SIZE: int = Field(
+        default=10,
+        description="Dispatcher 每次拉取任务的批次大小"
+    )
+    WORKER_QUEUE_SIZE: int = Field(
+        default=30,
+        description="内存任务队列的最大容量 (配合 Dispatcher 使用)"
+    )
+    TASK_DISPATCHER_SLEEP_BASE: float = Field(
+        default=1.0,
+        description="Dispatcher 无任务时的基础休眠时间"
+    )
+    TASK_DISPATCHER_MAX_SLEEP: float = Field(
+        default=30.0,
+        description="Dispatcher 最大休眠时间"
+    )
+    
+    # === 资源监控与熔断阈值 ===
+    MEMORY_WARNING_THRESHOLD_MB: int = Field(
+        default=250,
+        description="内存预警阈值 (MB)"
+    )
+    MEMORY_CRITICAL_THRESHOLD_MB: int = Field(
+        default=150,
+        description="内存熔断阈值 (MB)"
+    )
+    LOOP_LAG_THRESHOLD_MS: int = Field(
+        default=200,
+        description="事件循环延迟警告阈值 (毫秒)"
+    )
 
     # 模型配置 - Pydantic v2 语法
     model_config = SettingsConfigDict(

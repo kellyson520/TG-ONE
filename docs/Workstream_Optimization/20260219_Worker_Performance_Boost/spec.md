@@ -1,41 +1,37 @@
-# Worker 性能提升方案 (Worker Performance Boost Spec)
+# Worker 性能提升方案 (Low-Resource VPS Optimized)
 
 ## 1. 核心目标 (Core Objectives)
-- **提升吞吐量**: 减少 SQLite 锁竞争导致的获取延迟。
-- **降低 CPU 占用**: 优化轮询逻辑，减少无意义的数据库查询和上下文切换。
-- **优化内存足迹**: 及时回收资源，防止任务堆积导致的内存溢出。
+- **极简内存占用**: 针对 **1GB RAM** 环境，通过 `mmap` 控制和主动 GC 规避 Swap 换入。
+- **高能效比**: 借鉴 **Nginx** 的事件驱动思想，将 20 并发 Worker 的上下文切换开销通过 `Dispatcher` 降至最低。
+- **高可靠性**: 借鉴 **Celery/SQS** 的租约机制 (Visibility Timeout)，确保任务在崩溃后能自动赎回。
 
 ## 2. 方案细节 (Proposed Solutions)
 
-### 2.1 生产者-消费者架构 (Centralized Fetching)
-- **现状**: 15-40 个 Worker 同时调用 `fetch_next`，在高负载下 SQLite 频繁报 `database is locked`。
-- **改进**: 
-  - 引入 `TaskDispatcher` 类，作为唯一的任务拉取者。
-  - 使用 `asyncio.Queue` (带 backpressure) 存储拉取到的任务。
-  - Worker 仅从本地队列消费，不再直接操作 DB 获取任务。
-- **优势**: DB 压力降低至原来的 1/N，锁竞争几乎消失。
+### 2.1 生产者-消费者架构 (Inspired by Celery & Go Channels)
+- **Dispatcher (Producer)**: 
+    - **Prefetch 机制**: 不再单个拉取，而是根据 Worker 繁忙程度批量拉取 (一次 10-20 条)。
+    - **Backpressure (背压)**: 当 `asyncio.Queue` 满载时，Dispatcher 进入阻塞等待，防止内存中积压过多待处理对象。
+- **Worker (Consumer)**: 保持 **20** 并发，但职责简化为纯粹的消息处理，不再触碰 DB 轮询逻辑。
 
-### 2.2 批量拉取与预处理 (Batch Processing)
-- **改进**: `TaskDispatcher` 每次拉取 5-10 个任务（而非 1 个），并提前完成 `json.loads(task_data)` 的开销操作。
-- **优势**: 降低 SQL 执行频率，加快 Worker 启动速度。
+### 2.2 响应式负载守卫 (Inspired by Nginx & Node.js)
+- **Loop Lag 监控**: 
+    - 采用 "心跳延迟测定法"。若事件循环处理一轮 `sleep(0)` 的时间超过 200ms，自动触发 Dispatcher 休眠。
+    - **意义**: 在 2 CPU 环境下，这是防止系统进入 "雪崩效应" 的最前哨指标。
 
-### 2.3 极致弹性调度 (Refined Scaling)
-- **改进**: 
-  - 扩容步长根据积压量级动态调整（1/2/3 步进）。
-  - 引入 `IO Wait` 或 `Event Loop Delay` 监控作为资源守卫（而不只是 CPU）。
-- **优势**: 防止由于 IO 阻塞导致 CPU 虽低但系统响应慢的假象。
+### 2.3 SQLite 内核级调优 (Inspired by SQLite Performance Best Practices)
+- **写入串行化**: 维持 `BEGIN IMMEDIATE` 模式。
+- **内存映射控制**: 鉴于 1G RAM 限制，将 `mmap_size` 固定在 **64MB**。这借鉴了数据库引擎在内存受限环境下的 "指针映射" 策略，减少 Read 系统调用。
+- **WAL 检查点优化**: 在任务高峰期后自动触发 `PRAGMA wal_checkpoint(PASSIVE)`，控制 `.db-wal` 文件体积。
 
-### 2.4 内存自动释放 (Auto-GC Logic)
-- **改进**: 
-  - 在 Worker 完成大任务或空闲 60s 后触发 `gc.collect(1)`。
-  - 监控 `psutil` 的内存增长率，当斜率过高时触发全量回收。
-
-### 2.5 SQLite 深度优化
-- **改进**: 
-  - 强制开启 `journal_mode=WAL`。
-  - 设置 `synchronous=NORMAL`。
-  - 配置 `mmap_size=256MB` 以提高读取效率。
+### 2.4 任务租约与幂等保护 (Inspired by Amazon SQS)
+- **Lease-based Lock**: 任务锁定后拥有 15 分钟 "可见性超时"。
+- **Dispatcher 自动续约**: 对于执行特别耗时的任务（如大视频下载），由 Worker 向 Dispatcher 发送信号延长租约，防止任务被重复分配。
 
 ## 3. 架构影响 (Architecture Impact)
-- `WorkerService` 将作为协调者管理 `Dispatcher` 和 `WorkerPool`。
-- `TaskRepository` 保持原样，但 `fetch_next` 的 `limit` 参数将被更有意义地使用。
+- **解耦**: 数据库连接池将由 `Dispatcher` 和 `Worker` 共同持有共享，但 SQL 执行频率下降 60% 以上。
+- **资源隔离**: 确保 GC 回收和任务解析处于不同的 CPU Tick 中（通过 `yield`）。
+
+## 4. 质量矩阵 (Quality Matrix)
+- [ ] RSS 内存曲线呈 "锯齿状" 平稳运行，不出现单调递增。
+- [ ] SQLite `SQLITE_BUSY` 报错率从当前水平下降 90%。
+- [ ] 24 小时运行无 OOM 风险。

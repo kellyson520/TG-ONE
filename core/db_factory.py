@@ -333,31 +333,15 @@ async def async_cleanup_old_logs(days: int) -> int:
             res3 = await session.execute(stmt3)
             deleted_count += res3.rowcount
 
-            # 4. 清理已完成/失败的任务队列
-            from models.models import TaskQueue
-            from sqlalchemy import select, func
-            
-            # [Stats] 在删除前统计数量，用于持久化归档
-            count_stmt = select(func.count()).where(
-                TaskQueue.status.in_(['completed', 'failed']),
-                TaskQueue.updated_at < cutoff
-            )
-            tasks_to_remove = (await session.execute(count_stmt)).scalar() or 0
-            
-            stmt4 = delete(TaskQueue).where(
-                TaskQueue.status.in_(['completed', 'failed']),
-                TaskQueue.updated_at < cutoff
-            )
-            res4 = await session.execute(stmt4)
-            deleted_count += res4.rowcount
+            # 4. [已移除] 清理任务队列逻辑，改由 UniversalArchiver 处理
             
             # [Stats] 持久化统计数据
-            if tasks_to_remove > 0 or (res1.rowcount + res2.rowcount + res3.rowcount) > 0:
+            logs_removed = res1.rowcount + res2.rowcount + res3.rowcount
+            if logs_removed > 0:
                 try:
                     from core.stats_manager import stats_manager
-                    logs_removed = res1.rowcount + res2.rowcount + res3.rowcount
                     await stats_manager.async_record_cleanup(
-                        tasks_removed=tasks_to_remove,
+                        tasks_removed=0,  # 任务清理现归属于归档流程
                         logs_removed=logs_removed
                     )
                 except ImportError:

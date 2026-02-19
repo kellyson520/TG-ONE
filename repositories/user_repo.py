@@ -12,24 +12,24 @@ class UserRepository:
         self.db = db
 
     async def get_user_by_username(self, username: str) -> Optional[UserDTO]:
-        """根据用户名获取用户 (不含敏感信息)"""
-        async with self.db.get_session() as session:
+        """根据用户名获取用户 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(User.username == username)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return UserDTO.model_validate(obj) if obj else None
 
     async def get_user_for_auth(self, username: str) -> Optional[UserAuthDTO]:
-        """获取用户认证信息 (包含密码Hash等)"""
-        async with self.db.get_session() as session:
+        """获取用户认证信息 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(User.username == username)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return UserAuthDTO.model_validate(obj) if obj else None
 
     async def get_all_users(self) -> List[UserDTO]:
-        """获取所有用户"""
-        async with self.db.get_session() as session:
+        """获取所有用户 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).order_by(User.id.asc())
             result = await session.execute(stmt)
             users = result.scalars().all()
@@ -102,39 +102,39 @@ class UserRepository:
             return None
 
     async def get_user_by_id(self, user_id: int) -> Optional[UserDTO]:
-        """根据ID获取用户"""
-        async with self.db.get_session() as session:
+        """根据ID获取用户 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(User.id == user_id)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return UserDTO.model_validate(obj) if obj else None
             
     async def get_user_auth_by_id(self, user_id: int) -> Optional[UserAuthDTO]:
-        """根据ID获取用户认证信息 (包含密码Hash等)"""
-        async with self.db.get_session() as session:
+        """根据ID获取用户认证信息 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(User.id == user_id)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return UserAuthDTO.model_validate(obj) if obj else None
 
     async def get_user_count(self):
-        """获取用户数量"""
-        async with self.db.get_session() as session:
+        """获取用户数量 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(func.count(User.id))
             result = await session.execute(stmt)
             return result.scalar() or 0
 
     async def get_user_by_telegram_id(self, telegram_id: str) -> Optional[UserDTO]:
-        """根据Telegram ID获取用户"""
-        async with self.db.get_session() as session:
+        """根据Telegram ID获取用户 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(User.telegram_id == str(telegram_id))
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
             return UserDTO.model_validate(obj) if obj else None
 
     async def get_admin_by_telegram_id(self, telegram_id: str) -> Optional[UserDTO]:
-        """根据Telegram ID获取管理员用户"""
-        async with self.db.get_session() as session:
+        """根据Telegram ID获取管理员用户 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(User).filter(
                 User.telegram_id == str(telegram_id),
                 User.is_admin == True,

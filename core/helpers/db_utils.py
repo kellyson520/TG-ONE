@@ -1,13 +1,15 @@
 import asyncio
 import logging
 import functools
+import random
 from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
 
-def async_db_retry(max_retries: int = 3, base_delay: float = 0.2):
+def async_db_retry(max_retries: int = 3, base_delay: float = 0.3):
     """
     异步数据库操作重试装饰器，专门用于处理 SQLite 'database is locked' 错误。
+    使用指数退避 + 随机 Jitter 防止重试惊群效应。
     """
     def decorator(func):
         @functools.wraps(func)
@@ -23,13 +25,15 @@ def async_db_retry(max_retries: int = 3, base_delay: float = 0.2):
                     # 识别锁定、IO错误或数据库繁忙
                     if any(msg in error_msg for msg in ["locked", "io error", "busy", "timeout"]):
                         if attempt < max_retries - 1:
-                            # 指数退避 + 随机抖动
+                            # 指数退避 + 随机 Jitter (±30%)，防止多 Worker 同步共振
                             delay = base_delay * (2 ** attempt)
+                            jitter = delay * random.uniform(-0.3, 0.3)
+                            actual_delay = max(0.1, delay + jitter)
                             logger.warning(
                                 f"[DB_RETRY] {func_name} 数据库锁定/繁忙，准备重试 ({attempt + 1}/{max_retries}). "
-                                f"错误: {e}. 等待 {delay:.2f}s"
+                                f"错误: {e}. 等待 {actual_delay:.2f}s"
                             )
-                            await asyncio.sleep(delay)
+                            await asyncio.sleep(actual_delay)
                             continue
                     raise # 如果不是锁定错误，或者超过重试次数，直接抛出
                 except Exception as e:

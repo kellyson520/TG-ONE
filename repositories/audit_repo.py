@@ -68,9 +68,9 @@ class AuditRepository:
         start_date: datetime = None, 
         end_date: datetime = None
     ):
-        """查询审计日志 (带分页)"""
+        """查询审计日志 (带分页, 只读)"""
         try:
-            async with self.db.get_session() as session:
+            async with self.db.get_session(readonly=True) as session:
                 # 1. 查询总数
                 count_query = select(func.count()).select_from(AuditLog)
                 if user_id:

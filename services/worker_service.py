@@ -26,7 +26,16 @@ class WorkerService:
         self.min_sleep = 0.5  # 最小休眠时间 (秒)
         self.max_sleep = 30.0  # 最大休眠时间 (秒)
         self.current_sleep = self.min_sleep
-        self.sleep_increment = 1.0  # 每次增加的休眠时间
+        self.sleep_increment = 1.0  
+        
+        # [NEW] 中央分发资源
+        self.task_queue = asyncio.Queue(maxsize=settings.WORKER_QUEUE_SIZE)
+        self.dispatcher = None # 在 start() 中初始化
+        
+        # [NEW] 资源阈值
+        self.mem_warning = settings.MEMORY_WARNING_THRESHOLD_MB
+        self.mem_critical = settings.MEMORY_CRITICAL_THRESHOLD_MB
+        self.last_gc_time = 0
 
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""
@@ -43,12 +52,20 @@ class WorkerService:
         except Exception as e:
             logger.error(f"Failed to rescue tasks during startup: {e}")
 
+        # [Phase 14] 启动中央分发器 (Dispatcher)
+        from services.task_dispatcher import TaskDispatcher
+        self.dispatcher = TaskDispatcher(self.repo, self.task_queue)
+        await self.dispatcher.start()
+
         # 启动初始 Workers
         for i in range(settings.WORKER_MIN_CONCURRENCY):
             self._spawn_worker()
 
         # 启动弹性伸缩监控
         self._monitor_task = asyncio.create_task(self._monitor_scaling(), name="worker_scaling_monitor")
+        
+        # [NEW] 启动 Loop Lag 监控
+        self._lag_monitor_task = asyncio.create_task(self._monitor_loop_lag(), name="loop_lag_monitor")
         
         # 保持主任务运行（用于接收停止信号）
         while self.running:
@@ -158,9 +175,18 @@ class WorkerService:
                     if cpu_usage > 80 or load_ratio > 1.2:
                         if log_diagnostic:
                             logger.warning(f"⚠️ [WorkerService] 系统高负载，已暂停扩容计划 (CPU={cpu_usage}%, Load={load_ratio:.2f})")
-                    elif memory_mb > 1500: # 提前预警
+                    if memory_mb > self.mem_critical:
+                        logger.error(f"🚨 [ResourceGuard] 内存危机会话 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，执行同步熔断：暂停分发并强制全量 GC")
+                        if self.dispatcher: await self.dispatcher.stop()
+                        import gc
+                        gc.collect()
+                        await asyncio.sleep(5) 
+                        if self.running and self.dispatcher: await self.dispatcher.start()
+                    elif memory_mb > self.mem_warning: 
                         if log_diagnostic:
-                            logger.warning(f"⚠️ [WorkerService] 内存占用较高 ({memory_mb:.1f}MB)，暂停扩容")
+                            logger.warning(f"⚠️ [ResourceGuard] 内存占用较高 ({memory_mb:.1f}MB > {self.mem_warning}MB)，暂停扩容并触发轻量级 GC")
+                        import gc
+                        gc.collect(1)
                     else:
                         diff = target_count - current_workers
                         # 扩容步长更保守：一次最多增加 3 个 (原来是 5)
@@ -192,6 +218,25 @@ class WorkerService:
                 logger.error(f"Scaling monitor error: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
+    async def _monitor_loop_lag(self):
+        """[Resource Guard] 监控事件循环延迟 (Loop Lag)"""
+        threshold = settings.LOOP_LAG_THRESHOLD_MS / 1000.0
+        while self.running:
+            try:
+                start = asyncio.get_event_loop().time()
+                await asyncio.sleep(1.0)
+                lag = asyncio.get_event_loop().time() - start - 1.0
+                
+                if lag > threshold:
+                    logger.warning(f"⚠️ [LoopLag] 检测到异步延迟: {lag:.3f}s (阈值: {threshold}s)，系统负载处于高位")
+                    # 如果延迟过高，由调度器决定是否降速 (未来可增加联动)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Loop lag monitor error: {e}")
+                await asyncio.sleep(10)
+
     async def _worker_loop(self, worker_id: str):
         """单个 Worker 的工作循环 (支持批量任务处理)"""
         logger.debug(f"[{worker_id}] Loop Started")
@@ -199,21 +244,17 @@ class WorkerService:
         while self.running:
             try:
                 try:
-                      # [Fix] 将批量拉取从 10 降到 1，确保数据库 "running" 状态与 Worker 数量严格一致
-                      # 避免过度锁定任务导致系统假性过载。对于媒体组，repo 内部会自动关联拉取。
-                      tasks = await self.repo.fetch_next(limit=1)
+                      # [Optimization] 改为从中央队列获取任务批次，彻底消除 DB 锁竞争
+                      tasks = await self.task_queue.get()
+                      # 如果 Dispatcher 放入的是单个任务，包装为列表；如果是列表（媒体组），直接使用
+                      if not isinstance(tasks, list):
+                          tasks = [tasks]
                 except asyncio.CancelledError:
-                     logger.debug(f"[{worker_id}] Cancelled during fetch")
+                     logger.debug(f"[{worker_id}] Cancelled during queue.get")
                      raise
 
-                if not tasks:
-                    # 没任务时，增加休眠
-                    if int(time.time()) % 60 == 0: 
-                        logger.debug(f"[{worker_id}] Heartbeat: Waiting for tasks... (Queue is empty)")
-                    await self._adaptive_sleep() 
-                    continue
-                
-                self._reset_sleep() # 有任务，重置休眠
+                # [Fix] 这里的 tasks 永远不为空，因为 Dispatcher 只会在有任务时才放入队列
+                # queue.get() 在没有任务时会处于阻塞状态，不消耗 CPU
                 
                 # 按照 grouped_id 对拉取到的任务进行分组 (媒体组聚合)
                 # 如果没有 grouped_id，则视为独立任务
@@ -332,7 +373,7 @@ class WorkerService:
                 return
             
             primary_message = valid_messages[0]
-            log.info(f"📥 [Worker] 成功获取消息对象: ID={primary_message.id}, 内容预览={primary_message.text[:20] if primary_message.text else 'No Text'}")
+            logger.debug(f"📥 [Worker] 成功获取消息对象: ID={primary_message.id}, 内容预览={primary_message.text[:20] if primary_message.text else 'No Text'}")
             
             # === 进入处理管道 ===
             if task.task_type == "process_message":
@@ -449,9 +490,9 @@ class WorkerService:
             if group_tasks:
                 for t in group_tasks:
                     await self.repo.complete(t.id)
-                log.info(f"task_completed_with_group", count=len(group_tasks))
+                logger.debug(f"task_completed_with_group: count={len(group_tasks)}")
             else:
-                log.info("task_completed")
+                logger.debug("task_completed")
 
         except Exception as e:
             if isinstance(e, RescheduleTaskException):
@@ -485,12 +526,48 @@ class WorkerService:
 
     # ... Helper methods stay same ...
 
+    def get_performance_stats(self):
+        """[Observability] 获取 Worker 性能与调度统计"""
+        # [NEW] 统计信息汇总
+        stats = {
+            "current_workers": len(self.workers),
+            "queue_depth": self.task_queue.qsize() if self.task_queue else 0,
+            "max_concurrency": settings.WORKER_MAX_CONCURRENCY,
+        }
+        
+        # 调度器统计
+        if getattr(self, 'dispatcher', None):
+            stats["dispatcher"] = self.dispatcher.get_stats()
+        
+        # 精确内存统计 (psutil)
+        try:
+            import psutil
+            process = psutil.Process()
+            mem = psutil.virtual_memory()
+            stats["memory"] = {
+                "process_rss_mb": round(process.memory_info().rss / (1024*1024), 1),
+                "sys_available_mb": round(mem.available / (1024*1024), 1),
+                "sys_usage_percent": mem.percent
+            }
+            if hasattr(mem, 'swap_used'):
+                stats["memory"]["swap_used_mb"] = round(mem.swap_used / (1024*1024), 1)
+        except Exception:
+            pass
+            
+        return stats
+
     async def stop(self):
         """优雅停止 Worker"""
         logger.info("worker_stopping")
         self.running = False
         if getattr(self, '_monitor_task', None):
             self._monitor_task.cancel()
+        if getattr(self, '_lag_monitor_task', None):
+            self._lag_monitor_task.cancel()
+        
+        # Stop dispatcher
+        if self.dispatcher:
+            await self.dispatcher.stop()
         
         # Cancel all workers
         for task in list(self.workers.keys()):

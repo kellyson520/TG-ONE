@@ -30,8 +30,8 @@ class DedupRepository:
         return result.to_dict()
 
     async def find_by_signature(self, chat_id: Optional[str], signature: str) -> Optional[MediaSignatureDTO]:
-        """根据签名查找 (chat_id=None 表示全局)"""
-        async with self.db.get_session() as session:
+        """根据签名查找 (chat_id=None 表示全局) (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             filters = [MediaSignature.signature == signature]
             if chat_id is not None:
                 filters.append(MediaSignature.chat_id == str(chat_id))
@@ -41,8 +41,8 @@ class DedupRepository:
             return MediaSignatureDTO.model_validate(obj) if obj else None
 
     async def find_by_file_id_or_hash(self, chat_id: Optional[str], file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
-        """优先使用 file_id 查找，其次使用 content_hash (chat_id=None 为全局)"""
-        async with self.db.get_session() as session:
+        """优先使用 file_id 查找，其次使用 content_hash (chat_id=None 为全局) (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             # 基础过滤器
             base_filters = []
             if chat_id is not None:
@@ -106,8 +106,8 @@ class DedupRepository:
             return True
 
     async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignatureDTO]:
-        """获取重复媒体记录"""
-        async with self.db.get_session() as session:
+        """获取重复媒体记录 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = select(MediaSignature).filter(
                 MediaSignature.chat_id == str(chat_id),
                 MediaSignature.count > 1
@@ -303,12 +303,12 @@ class DedupRepository:
             logger.error(f"Save dedup config failed: {e}")
 
     async def load_config(self) -> dict:
-        """从 SystemConfiguration 加载配置"""
+        """从 SystemConfiguration 加载配置 (只读)"""
         try:
             import json
             from models.system import SystemConfiguration
             
-            async with self.db.get_session() as session:
+            async with self.db.get_session(readonly=True) as session:
                 stmt = select(SystemConfiguration).filter_by(key="dedup_global_config")
                 result = await session.execute(stmt)
                 obj = result.scalar_one_or_none()

@@ -1,6 +1,27 @@
 ## 📅 2026-02-19 更新摘要
 
-### 🚀 [Hotfix] VPS 高负载 (300%) 修复与并发优化 (VPS High Load Fix & Concurrency Optimization)
+### � [Hotfix] SQLite 锁竞争根因消除与全链路只读优化 (Database Lock Contention Root-Cause Fix)
+- **写事务原子化重构 (Write Transaction Atomization)**:
+    - **纯 UPDATE 模式**: 将 `TaskRepository` 的 `complete()` / `fail()` / `reschedule()` 从「SELECT 验证状态 → UPDATE 更新」两步操作重构为**纯 `UPDATE ... WHERE status IN(...)` 单步操作**（乐观锁模式）。
+    - **效果**: 每个写事务的锁持有时间从 ~2次数据库往返缩短至 ~1次，直接将写锁窗口减半。
+- **全链路只读 Session 优化 (Read-Only Session Sweep)**:
+    - **覆盖范围**: 系统性地为 6 个 Repository 中所有纯查询方法启用 `readonly=True`，完全绕过 `BEGIN IMMEDIATE` 写锁：
+        - `UserRepository`: 8 个查询方法（`get_user_by_username`, `get_user_for_auth`, `get_all_users`, `get_user_by_id`, `get_user_auth_by_id`, `get_user_count`, `get_user_by_telegram_id`, `get_admin_by_telegram_id`）
+        - `DedupRepository`: 4 个查询方法（`find_by_signature`, `find_by_file_id_or_hash`, `get_duplicates`, `load_config`）
+        - `AuditRepository`: `get_logs` 分页查询
+        - `RuleRepository`: `get_rules_for_target_chat` (已先前优化)
+        - `StatsRepository`: `get_hourly_trend`, `get_rules_stats_batch` (已先前优化)
+        - `TaskRepository`: `get_queue_status`, `get_rule_stats`, `get_tasks` (已先前优化)
+    - **效果**: 读操作不再与写操作竞争同一把锁，高频查询路径（认证、去重检查、API 展示）的延迟显著降低。
+- **重试器惊群效应防治 (Retry Jitter Anti-Thundering Herd)**:
+    - 为 `async_db_retry` 装饰器引入 **±30% 随机 Jitter**，防止多 Worker 的重试在完全相同的时间点同步碰撞锁。
+    - 基础退避延迟从 `0.2s` 提升至 `0.3s`，给 SQLite WAL 更多的 Checkpoint 缓冲。
+- **StatsRepository Commit 位置 Bug 修复**:
+    - 修复了 `increment_stats()` 和 `increment_rule_stats()` 中 `await session.commit()` 写在 `async with` 块**外部**的严重 Bug（session 在上下文管理器退出后已关闭，此时 commit 会产生幽灵事务加剧锁竞争）。
+- **busy_timeout 扩容**:
+    - SQLite `PRAGMA busy_timeout` 从 `30s` 扩容至 `60s`，在驱动层提供更充足的锁等待窗口。
+
+### �🚀 [Hotfix] VPS 高负载 (300%) 修复与并发优化 (VPS High Load Fix & Concurrency Optimization)
 - **WorkerService 伸缩逻辑重构**:
     - **资源哨兵**: 扩容前强制校验 CPU (<80%)、系统负载 (LoadAvg) 与内存占用，防止过载扩容。
     - **并发纠偏**: 将每个 Worker 的任务拉取限制从 10 降至 **1**，确保数据库 `running` 数与实际 Worker 数严格对齐。

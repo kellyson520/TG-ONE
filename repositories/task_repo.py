@@ -116,20 +116,18 @@ class TaskRepository:
 
     @async_db_retry(max_retries=5)
     async def fetch_next(self, limit: int = 1):
-        """[Scheme 7 Standard] 原子化拉取任务 (支持媒体组聚合与批量拉取)
-        Optimized: Split complex UPDATE with subqueries into SELECT + UPDATE by ID to avoid SQLite Disk I/O errors.
+        """
+        获取下一批待处理任务。
+        优化点：分两步执行，先只读查询候选 ID，再原子更新。这样可以缩短锁定时间。
         """
         from core.db_factory import AsyncSessionManager
-        async with AsyncSessionManager() as session:
-            # [Optimization] 增加 30s 时间冗余
-            now = datetime.utcnow()
-            buffer_now = now + timedelta(seconds=30)
-            # 定义租约有效期（Visibility Timeout）：15 分钟
-            lease_duration = timedelta(minutes=15)
-            lease_until = now + lease_duration
-            
-            # 1. 第一步：获取候选任务 ID (Read Phase)
-            # 优先获取高优先级、早创建的任务
+        now = datetime.utcnow()
+        # 预留 50ms 缓冲，确保不会因为微小的时钟差漏掉任务
+        buffer_now = now + timedelta(milliseconds=50)
+        lease_until = now + timedelta(seconds=settings.TASK_DISPATCHER_MAX_SLEEP + 60)
+        
+        # 1. 第一步：获取候选任务 ID (Read Phase - 不加锁)
+        async with AsyncSessionManager(readonly=True) as session:
             stmt_candidates = (
                 select(TaskQueue.id, TaskQueue.grouped_id)
                 .where(
@@ -148,39 +146,32 @@ class TaskRepository:
             
             result = await session.execute(stmt_candidates)
             candidates = result.all() # List of Row(id, grouped_id)
-            
-            if not candidates:
-                return []
-                
-            # 收集 ID 和 Group ID
-            candidate_ids = [row.id for row in candidates]
-            group_ids = [row.grouped_id for row in candidates if row.grouped_id]
-            
-            final_task_ids = set(candidate_ids)
-            
-            # 2. 第二步：若存在 grouped_id，扩展获取同组任务
-            if group_ids:
+
+        if not candidates:
+            return []
+
+        # 收集主任务 ID 和分组 ID
+        candidate_ids = [c.id for c in candidates]
+        group_ids = [c.grouped_id for c in candidates if c.grouped_id]
+        
+        final_task_ids = set(candidate_ids)
+        
+        # 2. 第二步：若存在 grouped_id，扩展并确定最终任务集合 (Read Phase - 不加锁)
+        if group_ids:
+            async with AsyncSessionManager(readonly=True) as session:
                 stmt_groups = (
                     select(TaskQueue.id)
                     .where(TaskQueue.grouped_id.in_(group_ids))
-                    .where(
-                        (TaskQueue.status == 'pending') |
-                        (
-                            (TaskQueue.status == 'running') & 
-                            (TaskQueue.locked_until <= now)
-                        )
-                    )
-                    .where(TaskQueue.id.not_in(candidate_ids)) # 避免重复
+                    .where(TaskQueue.status == 'pending')
                 )
                 group_result = await session.execute(stmt_groups)
-                group_task_ids = group_result.scalars().all()
-                final_task_ids.update(group_task_ids)
-            
-            if not final_task_ids:
-                return []
+                for row in group_result:
+                    final_task_ids.add(row[0])
 
-            # 3. 第三步：原子更新 (Write Phase)
-            # 使用 ID 列表更新，大幅降低 SQLite 锁竞争和 I/O 压力
+        final_task_ids = list(final_task_ids)
+        
+        # 3. 第三步：原子更新候选任务状态 (Write Phase - BEGIN IMMEDIATE)
+        async with AsyncSessionManager() as session:
             stmt = (
                 update(TaskQueue)
                 .where(TaskQueue.id.in_(final_task_ids))
@@ -200,70 +191,71 @@ class TaskRepository:
                 .execution_options(synchronize_session=False)
                 .returning(TaskQueue)
             )
-
+            
             result = await session.execute(stmt)
             tasks = result.scalars().all()
             
+            # [Fix] 如果在更新那一刻，某些任务状态变了，导致更新到的任务少于预期，是正常的
+            # 这里的原子性由 .where(status.in_...) 保证
             if tasks:
-                # AsyncSessionManager will commit automatically
                 tasks.sort(key=lambda x: x.created_at)
-                logger.debug(f"🔒 原子批量锁定成功: 获取到 {len(tasks)} 个任务 (IDs: {[t.id for t in tasks]})")
-                return tasks
+                logger.debug(f"[TaskRepo] 成功锁定 {len(tasks)} 个任务 (请求: {len(final_task_ids)})")
             
-            return []
+            return tasks
 
     @async_db_retry(max_retries=5)
     async def complete(self, task_id: int):
+        """标记任务完成 (纯 UPDATE，最小化锁持有时间)"""
+        now = datetime.utcnow()
         async with self.db.get_session() as session:
-            # 先获取当前状态进行验证
+            # [Optimization] 将状态验证内联到 WHERE 条件中，省去 SELECT 阶段
+            # 合法的前置状态: running -> completed
             result = await session.execute(
-                select(TaskQueue.status).where(TaskQueue.id == task_id)
-            )
-            current_status = result.scalar_one_or_none()
-            
-            if current_status and validate_transition(current_status, 'completed'):
-                now = datetime.utcnow()
-                await session.execute(
-                    update(TaskQueue).where(TaskQueue.id == task_id).values(
-                        status='completed',
-                        completed_at=now,
-                        updated_at=now
-                    )
+                update(TaskQueue)
+                .where(TaskQueue.id == task_id)
+                .where(TaskQueue.status.in_(['running', 'pending']))
+                .values(
+                    status='completed',
+                    completed_at=now,
+                    updated_at=now
                 )
-                await session.commit()
+            )
+            await session.commit()
+            if result.rowcount > 0:
                 logger.info(f"任务完成: {task_id}")
             else:
-                logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> completed")
+                logger.warning(f"任务完成失败(状态不匹配或不存在): {task_id}")
 
     @async_db_retry(max_retries=5)
     async def fail(self, task_id: int, error: str):
+        """标记任务失败 (纯 UPDATE，最小化锁持有时间)"""
+        now = datetime.utcnow()
+        error_str = str(error)
         async with self.db.get_session() as session:
-            # 先获取当前状态进行验证
+            # [Optimization] 将状态验证内联到 WHERE 条件中，省去 SELECT 阶段
+            # 合法的前置状态: running/pending -> failed
             result = await session.execute(
-                select(TaskQueue.status).where(TaskQueue.id == task_id)
-            )
-            current_status = result.scalar_one_or_none()
-            
-            if current_status and validate_transition(current_status, 'failed'):
-                now = datetime.utcnow()
-                await session.execute(
-                    update(TaskQueue).where(TaskQueue.id == task_id).values(
-                        status='failed', 
-                        error_message=str(error),
-                        updated_at=now
-                    )
+                update(TaskQueue)
+                .where(TaskQueue.id == task_id)
+                .where(TaskQueue.status.in_(['running', 'pending']))
+                .values(
+                    status='failed',
+                    error_message=error_str,
+                    updated_at=now
                 )
-                await session.commit()
-                
-                # 对于 "Source message not found" 这类预期内的业务情况,使用 DEBUG 级别
-                # 避免触发错误告警和日志循环
-                if "Source message not found" in str(error):
-                    logger.debug(f"任务失败: {task_id}, 错误: {error}")
-                else:
-                    logger.error(f"任务失败: {task_id}, 错误: {error}")
-            else:
-                logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> failed")
+            )
+            await session.commit()
             
+            if result.rowcount > 0:
+                # 对于 "Source message not found" 这类预期内的业务情况,使用 DEBUG 级别
+                if "Source message not found" in error_str:
+                    logger.debug(f"任务失败: {task_id}, 错误: {error_str}")
+                else:
+                    logger.error(f"任务失败: {task_id}, 错误: {error_str}")
+            else:
+                logger.warning(f"任务失败标记跳过(状态不匹配或不存在): {task_id}")
+            
+    @async_db_retry(max_retries=5)
     async def fail_or_retry(self, task_id: int, error: str, max_retries: int = settings.MAX_RETRIES):
         """核心修复：失败重试机制"""
         async with self.db.get_session() as session:
@@ -291,6 +283,7 @@ class TaskRepository:
                         logger.error(f"任务最终失败: {task_id}, 错误: {error}")
                 await session.commit()
             
+    @async_db_retry(max_retries=5)
     async def rescue_stuck_tasks(self, timeout_minutes: int = 10):
         """僵尸任务救援 - 将处于 'running' 状态超过指定时间的任务重置为 'pending'"""
         from core.db_factory import AsyncSessionManager
@@ -319,27 +312,27 @@ class TaskRepository:
             
     @async_db_retry(max_retries=5)
     async def reschedule(self, task_id: int, next_run_time: datetime):
+        """重新调度任务 (纯 UPDATE，最小化锁持有时间)"""
+        now = datetime.utcnow()
         async with self.db.get_session() as session:
-            # 先获取当前状态进行验证
+            # [Optimization] 将状态验证内联到 WHERE 条件中
+            # 合法的前置状态: running/pending/failed -> pending (reschedule)
             result = await session.execute(
-                select(TaskQueue.status).where(TaskQueue.id == task_id)
-            )
-            current_status = result.scalar_one_or_none()
-            
-            if current_status and validate_transition(current_status, 'pending'):
-                now = datetime.utcnow()
-                await session.execute(
-                    update(TaskQueue).where(TaskQueue.id == task_id).values(
-                        status='pending',
-                        scheduled_at=next_run_time,
-                        next_retry_at=next_run_time,  # 更新下次重试时间
-                        updated_at=now
-                    )
+                update(TaskQueue)
+                .where(TaskQueue.id == task_id)
+                .where(TaskQueue.status.in_(['running', 'pending', 'failed']))
+                .values(
+                    status='pending',
+                    scheduled_at=next_run_time,
+                    next_retry_at=next_run_time,
+                    updated_at=now
                 )
-                await session.commit()
+            )
+            await session.commit()
+            if result.rowcount > 0:
                 logger.info(f"任务重新调度: {task_id}, 下次执行时间: {next_run_time}")
             else:
-                logger.warning(f"Invalid state transition for task {task_id}: {current_status} -> pending (reschedule)")
+                logger.warning(f"任务调度跳过(状态不匹配或不存在): {task_id}")
 
     @async_db_retry(max_retries=5)
     async def fetch_group_tasks(self, grouped_id: str, exclude_task_id: int):
@@ -392,31 +385,20 @@ class TaskRepository:
             logger.info(f"🔒 原子锁定并获取媒体组任务: {len(tasks)} 个 (Group: {grouped_id})")
             return tasks
 
+    @async_db_retry(max_retries=5)
     async def get_queue_status(self):
-        """获取队列状态统计"""
-        async with self.db.get_session() as session:
+        """获取队列状态统计 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             # 获取各状态任务数量
-            pending_count = await session.execute(
-                select(func.count()).where(TaskQueue.status == 'pending')
-            )
-            running_count = await session.execute(
-                select(func.count()).where(TaskQueue.status == 'running')
-            )
-            completed_count = await session.execute(
-                select(func.count()).where(TaskQueue.status == 'completed')
-            )
-            failed_count = await session.execute(
-                select(func.count()).where(TaskQueue.status == 'failed')
-            )
-            total_count = await session.execute(
-                select(func.count(TaskQueue.id))
-            )
+            stmt = select(TaskQueue.status, func.count()).group_by(TaskQueue.status)
+            res = await session.execute(stmt)
+            counts = dict(res.all())
             
-            pending = pending_count.scalar() or 0
-            running = running_count.scalar() or 0
-            completed = completed_count.scalar() or 0
-            failed = failed_count.scalar() or 0
-            total = total_count.scalar() or 0
+            pending = counts.get('pending', 0)
+            running = counts.get('running', 0)
+            completed = counts.get('completed', 0)
+            failed = counts.get('failed', 0)
+            total = sum(counts.values())
             
             # 计算平均延迟 (最近 100 条完成的任务)
             from sqlalchemy import desc
@@ -450,8 +432,8 @@ class TaskRepository:
             }
 
     async def get_rule_stats(self):
-        """获取规则统计信息"""
-        async with self.db.get_session() as session:
+        """获取规则统计信息 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             # 获取总规则数和活跃规则数
             total_rules = await session.execute(
                 select(func.count(ForwardRule.id))
@@ -470,8 +452,8 @@ class TaskRepository:
             }
 
     async def get_tasks(self, page: int = 1, limit: int = 50, status: str = None, task_type: str = None):
-        """分页获取任务列表"""
-        async with self.db.get_session() as session:
+        """分页获取任务列表 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             # 构建查询
             stmt = select(TaskQueue)
             if status:

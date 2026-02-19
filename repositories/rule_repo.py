@@ -40,7 +40,7 @@ class RuleRepository:
 
     async def find_chat(self, chat_id, session=None) -> ChatDTO:
         """根据telegram_chat_id查找聊天"""
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             # 尝试直接匹配
             stmt = select(Chat).filter_by(telegram_chat_id=str(chat_id))
             chat = (await session.execute(stmt)).scalars().first()
@@ -65,13 +65,13 @@ class RuleRepository:
 
     async def find_chat_by_id_internal(self, chat_id: int, session=None) -> Optional[ChatDTO]:
         """根据数据库自增ID查找聊天 (Internal View)"""
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             chat = await session.get(Chat, chat_id)
             return ChatDTO.model_validate(chat) if chat else None
 
     async def get_by_id(self, rule_id: int, session=None) -> RuleDTO:
-        """根据ID获取规则，包含所有关联数据"""
-        async with self.db.get_session(session) as session:
+        """根据ID获取规则 (只读)"""
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = (
                 select(ForwardRule)
                 .options(*self._get_rule_select_options())
@@ -82,10 +82,10 @@ class RuleRepository:
             return RuleDTO.model_validate(obj) if obj else None
 
     async def get_by_ids(self, rule_ids: List[int], session=None) -> Dict[int, RuleDTO]:
-        """批量获取规则"""
+        """批量获取规则 (只读)"""
         if not rule_ids:
             return {}
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = (
                 select(ForwardRule)
                 .options(selectinload(ForwardRule.source_chat), selectinload(ForwardRule.target_chat))
@@ -119,7 +119,7 @@ class RuleRepository:
             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
         # 3. 查数据库
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             source_chat = await self.find_chat(chat_id, session=session)
             
             rules_orm = []
@@ -183,7 +183,7 @@ class RuleRepository:
             logger.debug(f"Failed to clear cache: {e}")
 
     async def get_rules_for_target_chat(self, chat_id, session=None) -> List[RuleDTO]:
-        """获取目标聊天的规则"""
+        """获取目标聊天的规则 (只读点)"""
         cached = self._target_rules_cache.get(chat_id)
         if cached is not None: return cached
         try:
@@ -192,7 +192,7 @@ class RuleRepository:
             if raw:
                 ids = loads_json(raw) or []
                 if ids:
-                    async with self.db.get_session(session) as session:
+                    async with self.db.get_session(session, readonly=True) as session:
                         stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(ForwardRule.id.in_(ids))
                         orm_rules = (await session.execute(stmt)).scalars().all()
                         rules = [RuleDTO.model_validate(r) for r in orm_rules]
@@ -201,7 +201,7 @@ class RuleRepository:
         except Exception as e:
             logger.debug(f"Persistent cache error: {e}")
 
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             target_chat = await self.find_chat(chat_id, session=session)
             rules_orm = []
             if target_chat:
@@ -218,13 +218,13 @@ class RuleRepository:
         return rules
 
     async def get_full_rule_orm(self, rule_id: int, session=None) -> Optional[ForwardRule]:
-        """获取完整的ForwardRule ORM对象 (仅限Service内部使用)"""
-        async with self.db.get_session(session) as session:
+        """获取完整的ForwardRule ORM对象 (只读)"""
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(id=rule_id)
             return (await session.execute(stmt)).scalar_one_or_none()
 
     async def get_rule_by_source_target(self, source_chat_id: int, target_chat_id: int, session=None) -> Optional[RuleDTO]:
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat_id, target_chat_id=target_chat_id)
             obj = (await session.execute(stmt)).scalar_one_or_none()
             return RuleDTO.model_validate(obj) if obj else None
@@ -255,7 +255,7 @@ class RuleRepository:
             return res.rowcount
 
     async def get_rule_count(self, session=None) -> int:
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = select(func.count(ForwardRule.id))
             return (await session.execute(stmt)).scalar() or 0
 
@@ -281,12 +281,12 @@ class RuleRepository:
             return result.rowcount
 
     async def get_all_chat_ids(self, session=None) -> List[int]:
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = select(Chat.id)
             return [r[0] for r in (await session.execute(stmt)).all()]
 
     async def count_rule_refs_for_chat(self, chat_id: int, session=None) -> Dict[str, int]:
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt_s = select(func.count(ForwardRule.id)).filter_by(source_chat_id=chat_id)
             stmt_t = select(func.count(ForwardRule.id)).filter_by(target_chat_id=chat_id)
             return {
@@ -295,13 +295,13 @@ class RuleRepository:
             }
 
     async def get_chats_using_add_id(self, tg_chat_id: str, session=None) -> List[ChatDTO]:
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = select(Chat).filter_by(current_add_id=tg_chat_id)
             return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]
 
     async def get_all_rules_with_chats(self, session=None) -> List[RuleDTO]:
-        """获取所有转发规则 (不分页)"""
-        async with self.db.get_session(session) as session:
+        """获取所有转发规则 (只读)"""
+        async with self.db.get_session(session, readonly=True) as session:
             stmt = (
                 select(ForwardRule)
                 .options(*self._get_rule_select_options())
@@ -312,8 +312,8 @@ class RuleRepository:
             return [RuleDTO.model_validate(r) for r in orm_rules]
 
     async def get_rules_related_to_chat(self, chat_id: Any, session=None) -> List[RuleDTO]:
-        """获取聊天相关规则 (作为源或目标)"""
-        async with self.db.get_session(session) as session:
+        """获取聊天相关规则 (只读)"""
+        async with self.db.get_session(session, readonly=True) as session:
             # 兼容 telegram_chat_id 和 db_id
             chat = await self.find_chat(chat_id, session=session)
             if not chat:
@@ -333,8 +333,8 @@ class RuleRepository:
             return [RuleDTO.model_validate(r) for r in orm_rules]
 
     async def get_all(self, page: int = 1, size: int = 10, query_str: str = None, session=None) -> Any:
-        """分页获取所有规则，支持关键词搜索"""
-        async with self.db.get_session(session) as session:
+        """分页获取所有规则 (只读)"""
+        async with self.db.get_session(session, readonly=True) as session:
             # 构建基础查询
             stmt_base = select(ForwardRule)
             
@@ -405,6 +405,7 @@ class RuleRepository:
             stmt = select(Chat).order_by(Chat.id.asc())
             return [ChatDTO.model_validate(c) for c in (await session.execute(stmt)).scalars().all()]
 
+    @retry_on_db_lock(retries=5)
     async def get_priority_map(self, session=None) -> Dict[int, int]:
         """获取源聊天优先级映射 {telegram_chat_id(int): priority}"""
         try:
@@ -417,7 +418,7 @@ class RuleRepository:
             pass
             
         priority_map = {}
-        async with self.db.get_session(session) as session:
+        async with self.db.get_session(session, readonly=True) as session:
             # 1. Direct Rules
             stmt1 = (
                 select(Chat.telegram_chat_id, ForwardRule.priority)

@@ -153,7 +153,7 @@ class StatsRepository:
                 except Exception:
                     await session.execute(stmt)
             
-        await session.commit()
+            await session.commit()
 
     @async_db_retry(max_retries=5)
     async def increment_rule_stats(self, rule_id: int, status: str = "success"):
@@ -201,12 +201,12 @@ class StatsRepository:
                 except Exception:
                     await session.execute(stmt)
             
-        await session.commit()
+            await session.commit()
 
 
     async def get_error_logs(self, page: int = 1, size: int = 20, level: str = None):
-        """获取系统错误日志，支持分页和级别筛选"""
-        async with self.db.get_session() as session:
+        """获取系统错误日志 (只读环境)"""
+        async with self.db.get_session(readonly=True) as session:
             # 构建查询
             query = select(ErrorLog)
             
@@ -229,8 +229,8 @@ class StatsRepository:
             return {'items': items, 'total': total, 'total_pages': (total + size - 1) // size}
 
     async def get_rule_logs(self, rule_id: Optional[int] = None, page: int = 1, size: int = 50, query_str: str = None):
-        """获取规则转发日志，支持查询筛选"""
-        async with self.db.get_session() as session:
+        """获取规则转发日志 (只读环境)"""
+        async with self.db.get_session(readonly=True) as session:
             # 构建基础查询
             stmt_base = select(RuleLog)
             
@@ -281,8 +281,8 @@ class StatsRepository:
             return items, total
 
     async def get_message_type_distribution(self):
-        """获取消息类型分布统计"""
-        async with self.db.get_session() as session:
+        """获取消息类型分布统计 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = (
                 select(
                     RuleLog.message_type,
@@ -295,8 +295,8 @@ class StatsRepository:
             return [{'name': row.message_type or 'Unknown', 'value': row.count} for row in result]
 
     async def get_recent_activity(self, limit: int = 10):
-        """获取最近的系统 activity 日志"""
-        async with self.db.get_session() as session:
+        """获取最近的系统 activity 日志 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
             stmt = (
                 select(RuleLog)
                 .options(
@@ -310,11 +310,11 @@ class StatsRepository:
             return result.scalars().all()
 
     async def get_hourly_trend(self, hours: int = 24):
-        """获取最近 N 小时的转发趋势"""
+        """获取最近 N 小时的转发趋势 (只读)"""
         from datetime import datetime, timedelta
         cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         
-        async with self.db.get_session() as session:
+        async with self.db.get_session(readonly=True) as session:
             # 使用 SQLite 的 strftime 来按小时分组 (YYYY-MM-DDTHH)
             # 兼容 ISO 格式: 2026-01-11T12:34:56.789
             stmt = (
@@ -330,13 +330,11 @@ class StatsRepository:
             return [{'hour': row.hour, 'count': row.count} for row in result]
 
     async def get_rules_stats_batch(self, rule_ids: list[int]):
-        """批量获取规则的累计统计数据"""
-        from models.models import RuleStatistics
-        
+        """批量获取规则的累计统计数据 (只读)"""
         if not rule_ids:
             return {}
             
-        async with self.db.get_session() as session:
+        async with self.db.get_session(readonly=True) as session:
             # 聚合查询: sum(processed), sum(forwarded), sum(error) group by rule_id
             stmt = (
                 select(

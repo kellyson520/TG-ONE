@@ -304,13 +304,22 @@ class SystemService:
 
             disk = psutil.disk_usage(str(settings.BASE_DIR))
             
+            # 获取 Worker 性能统计
+            worker_stats = {}
+            try:
+                from core.container import container
+                if hasattr(container, 'worker') and container.worker:
+                    worker_stats = container.worker.get_performance_stats()
+            except Exception: pass
+
             return {
                 "cpu_percent": cpu_percent,
                 "memory_percent": round(process.memory_percent(), 1),
                 "memory_used_mb": round(memory_info.rss / 1024 / 1024, 1),
                 "disk_percent": disk.percent,
                 "uptime": uptime_str,
-                "version": version_str
+                "version": version_str,
+                "worker": worker_stats
             }
         except Exception as e:
             logger.error(f"Get system status failed: {e}")
