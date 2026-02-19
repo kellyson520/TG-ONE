@@ -3,6 +3,7 @@ import json
 import random
 import time
 import psutil
+import gc
 from datetime import datetime, timedelta
 from core.pipeline import MessageContext
 from services.queue_service import FloodWaitException
@@ -36,6 +37,8 @@ class WorkerService:
         self.mem_warning = settings.MEMORY_WARNING_THRESHOLD_MB
         self.mem_critical = settings.MEMORY_CRITICAL_THRESHOLD_MB
         self.last_gc_time = 0
+        self.last_critical_alert = 0 # 上次发送内存紧急告警的时间
+        self.critical_mode = False   # 是否处于熔断模式
 
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""
@@ -182,19 +185,43 @@ class WorkerService:
                         scale_blocked = True
                     
                     if memory_mb > self.mem_critical:
-                        logger.error(f"🚨 [ResourceGuard] 内存危机会话 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，执行同步熔断：暂停分发并强制全量 GC")
+                        # 内存危急：触发熔断
+                        current_time = time.time()
+                        # 冷却时间：5分钟内只发送一次 ERROR 告警，其余时间为 WARNING
+                        if current_time - self.last_critical_alert > 300:
+                            logger.error(f"🚨 [ResourceGuard] 内存危机会话 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，执行同步熔断：暂停分发并强制全量 GC")
+                            self.last_critical_alert = current_time
+                        else:
+                            logger.warning(f"⚠️ [ResourceGuard] 内存仍处于危机状态 (RSS={memory_mb:.1f}MB)，持续熔断中...")
+
+                        self.critical_mode = True
                         if self.dispatcher: await self.dispatcher.stop()
-                        import gc
+                        
                         gc.collect()
+                        # 尝试更深度的清理
+                        gc.collect(2) 
+                        
                         await asyncio.sleep(5) 
-                        if self.running and self.dispatcher: await self.dispatcher.start()
+                        # 如果内存有所下降 (降至 90% 阈值以下)，尝试恢复
+                        if memory_mb < self.mem_critical * 0.9:
+                            if self.running and self.dispatcher: 
+                                await self.dispatcher.start()
+                                self.critical_mode = False
+                                logger.info(f"✅ [ResourceGuard] 内存已回落至安全范围 ({memory_mb:.1f}MB)，恢复分发")
+                        
                         scale_blocked = True
                     elif memory_mb > self.mem_warning: 
                         if log_diagnostic:
                             logger.warning(f"⚠️ [ResourceGuard] 内存占用较高 ({memory_mb:.1f}MB > {self.mem_warning}MB)，暂停扩容并触发轻量级 GC")
-                        import gc
-                        gc.collect(1)
+                        gc.collect(1) # 只清理第一代和第二代
                         scale_blocked = True
+                    else:
+                        # 如果之前处于熔断模式且内存现在正常了，恢复分发
+                        if self.critical_mode:
+                            if self.running and self.dispatcher:
+                                await self.dispatcher.start()
+                                self.critical_mode = False
+                                logger.info(f"✅ [ResourceGuard] 内存危机解除 ({memory_mb:.1f}MB)，系统恢复正常运行")
                     
                     if not scale_blocked:
                         diff = target_count - current_workers
@@ -593,7 +620,6 @@ class WorkerService:
         """自适应休眠：如果没有任务，逐步增加休眠时间，减少资源消耗"""
         # [Phase 13 Optimization] 如果进入深度休眠 (current_sleep 已经达到较大值)，触发 GC
         if self.current_sleep >= self.max_sleep:
-             import gc
              collected = gc.collect()
              if collected > 0:
                  logger.debug(f"[GC] Idle cleanup collected {collected} objects")

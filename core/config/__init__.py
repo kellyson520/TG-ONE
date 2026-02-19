@@ -642,11 +642,11 @@ class Settings(BaseSettings):
     
     # === 资源监控与熔断阈值 ===
     MEMORY_WARNING_THRESHOLD_MB: int = Field(
-        default=250,
+        default=512,
         description="内存预警阈值 (MB)"
     )
     MEMORY_CRITICAL_THRESHOLD_MB: int = Field(
-        default=150,
+        default=1024,
         description="内存熔断阈值 (MB)"
     )
     LOOP_LAG_THRESHOLD_MS: int = Field(

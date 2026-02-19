@@ -14,6 +14,7 @@
 |--------|----------|----------|----------|--------|----------|
 | 20260219_Fix_Database_Locked_Deep_Fix | 修复 SQLite 数据库锁定错误 (深度治理 & BEGIN IMMEDIATE) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Bugfix/20260219_Fix_Database_Locked_Error/report.md) |
 | 20260219_Fix_DuckDB_Timestamp_Cast | 修复 DuckDB Timestamp 与 VARCHAR 比较错误 | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Bugfix/20260219_Fix_DuckDB_Timestamp_Cast/report.md) |
+| 20260219_Worker_Memory_Crisis_Fix | Worker 内存熔断倒置与告警降噪修复 | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Optimization/20260219_Worker_Memory_Crisis_Fix/report.md) |
 | 20260216_Refactor_MenuController_CVM_Standardization | MenuController 及领域控制器架构标准化重构 | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_MenuController_CVM_Standardization/report.md) |
 | 20260216_Refactor_History_Task_List_Architecture | 历史任务列表架构重构 (CVM 分层) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_History_Task_List_Architecture/report.md) |
 | 20260216_Refactor_Analytics_Menu_Architecture | 数据分析菜单架构重构 (CVM 对齐) | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_Analytics_Menu_Architecture/report.md) |
@@ -44,6 +45,7 @@
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
 | 20260219_VPS_High_Load_Fix | VPS 高负载 (300%) 修复及并发优化 | 2026-02-19 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260219_VPS_High_Load_Fix/todo.md) |
+
 | 20260213_Task_Queue_Optimization | 任务队列吞吐量优化与失败治理 (积压 8.8w 处理) | 2026-02-13 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260213_Task_Queue_Throughput_and_Failure_Optimization/todo.md) |
 | 20260218_Fix_SQLite_Locked_TaskQueue | 修复 SQLite 数据库锁定错误 (修复任务队列更新失败) | 2026-02-18 | 进行中 | 80% | [📂 查看](./Workstream_Database_Optimization/20260218_Fix_SQLite_Locked_TaskQueue/todo.md) |
 | 20260211_Fix_Menu_Localization_And_System_Errors | 修复菜单面板、汉化转发详情及系统导入错误 | 2026-02-11 | 进行中 | 0% | [📂 查看](./Workstream_Bugfix/20260211_Fix_Menu_Localization_And_System_Errors/todo.md) |

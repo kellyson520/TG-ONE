@@ -509,7 +509,8 @@ class GuardService:
         # Maintenance settings
         self._temp_guard_max = settings.TEMP_GUARD_MAX
         self._temp_guard_path = settings.TEMP_DIR
-        self._memory_limit_mb = 500 # Default limit
+        self._memory_limit_mb = settings.MEMORY_CRITICAL_THRESHOLD_MB
+        self._memory_warning_mb = settings.MEMORY_WARNING_THRESHOLD_MB
 
     def get_stats(self) -> Dict[str, Any]:
         """获取守护服务的当前统计状态"""
