@@ -140,21 +140,23 @@ class WorkerService:
                     load_ratio = 0
 
                 # --- 第二步：计算目标 Worker 数 (Target Logic) ---
-                # 策略：更稳健的阶梯式扩容
+                # 策略：更积极的阶梯式扩容，匹配真实负载
                 if pending_count == 0:
                     target_count = settings.WORKER_MIN_CONCURRENCY
                 else:
                     # 按照积压量级分档
                     if pending_count > 10000:
-                        # 极端积压：允许达到最大值的一半或 15 (取较大值)，而不是直接拉满
-                        limit = max(settings.WORKER_MAX_CONCURRENCY // 2, 15)
-                        target_count = min(settings.WORKER_MAX_CONCURRENCY, limit)
+                        # 极端积压：允许达到最大值
+                        target_count = settings.WORKER_MAX_CONCURRENCY
                     elif pending_count > 1000:
-                        # 中等积压：每 500 个任务加 1 个 worker
-                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 500)
+                        # 大量积压：每 200 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 200)
+                    elif pending_count > 100:
+                        # 中等积压：每 50 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 50)
                     else:
-                        # 轻微积压：每 100 个任务加 1 个 worker
-                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 100)
+                        # 轻微积压：每 10 个任务加 1 个 worker (原先是 100，太保守)
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 10)
 
                 # 约束目标值
                 target_count = max(settings.WORKER_MIN_CONCURRENCY, min(settings.WORKER_MAX_CONCURRENCY, target_count))
@@ -170,11 +172,14 @@ class WorkerService:
                     logger.info(f"📊 [WorkerService] 系统负载: CPU={cpu_usage}%, Load={load_ratio:.2f}, RAM={memory_mb:.1f}MB | 积压={pending_count}, Workers={current_workers}/{target_count}")
 
                 if current_workers < target_count:
-                    # 扩容守卫：如果系统已经高负载，严禁进一步扩容
-                    # CPU > 80% 或 LoadRatio > 1.2 (说明 1.2 倍 CPU 核心正在排队)
+                    # 扩容守卫：资源检查按优先级排列，任何一个触发都阻止扩容
+                    scale_blocked = False
+                    
                     if cpu_usage > 80 or load_ratio > 1.2:
                         if log_diagnostic:
                             logger.warning(f"⚠️ [WorkerService] 系统高负载，已暂停扩容计划 (CPU={cpu_usage}%, Load={load_ratio:.2f})")
+                        scale_blocked = True
+                    
                     if memory_mb > self.mem_critical:
                         logger.error(f"🚨 [ResourceGuard] 内存危机会话 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，执行同步熔断：暂停分发并强制全量 GC")
                         if self.dispatcher: await self.dispatcher.stop()
@@ -182,18 +187,22 @@ class WorkerService:
                         gc.collect()
                         await asyncio.sleep(5) 
                         if self.running and self.dispatcher: await self.dispatcher.start()
+                        scale_blocked = True
                     elif memory_mb > self.mem_warning: 
                         if log_diagnostic:
                             logger.warning(f"⚠️ [ResourceGuard] 内存占用较高 ({memory_mb:.1f}MB > {self.mem_warning}MB)，暂停扩容并触发轻量级 GC")
                         import gc
                         gc.collect(1)
-                    else:
+                        scale_blocked = True
+                    
+                    if not scale_blocked:
                         diff = target_count - current_workers
-                        # 扩容步长更保守：一次最多增加 3 个 (原来是 5)
+                        # 扩容步长更保守：一次最多增加 3 个
                         step = min(diff, 3) 
                         logger.info(f"📈 [WorkerService] 扩容中: +{step} workers (负载正常)")
                         for _ in range(step):
                             self._spawn_worker()
+
                     idle_cycles = 0 
                 
                 elif current_workers > target_count:
