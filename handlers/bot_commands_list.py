@@ -65,6 +65,9 @@ BOT_COMMANDS = [
     BotCommand(command="forward_stats", description="转发数据统计"),
     BotCommand(command="forward_search", description="搜索转发记录"),
     BotCommand(command="dedup", description="开关去重功能"),
+    BotCommand(command="dedup_center", description="智能去重中心 (GUI)"),
+    BotCommand(command="smart_dedup", description="智能去重高级设置 (GUI)"),
+    BotCommand(command="clear_dedup_cache", description="一键清除去重缓存集"),
     BotCommand(command="dedup_scan", description="扫描当前会话重复消息"),
 
     # --- UFB (统一转发绑定) ---

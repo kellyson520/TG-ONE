@@ -1,6 +1,7 @@
 from services.rule_service import RuleQueryService
 from services.rule_management_service import rule_management_service
 from core.helpers.auto_delete import async_delete_user_message, reply_and_delete
+from controllers.menu_controller import menu_controller
 
 async def handle_dedup_enable_command(event, parts):
     """开启/关闭去重 - 使用 RuleManagementService"""
@@ -37,3 +38,15 @@ async def handle_dedup_scan_command(event, parts):
 
 async def handle_dedup_command(event):
     await handle_dedup_enable_command(event, None)
+
+async def handle_dedup_center_command(event):
+    """显示智能去重中心"""
+    await menu_controller.show_dedup_hub(event)
+
+async def handle_smart_dedup_command(event):
+    """显示智能去重设置"""
+    await menu_controller.view.show_smart_dedup_settings(event)
+
+async def handle_clear_dedup_cache_command(event):
+    """清除去重缓存"""
+    await menu_controller.clear_dedup_cache(event)

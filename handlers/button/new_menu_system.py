@@ -40,10 +40,8 @@ class NewMenuSystem(BaseMenu):
 
     @property
     def session_menu(self):
-        if not self._session_menu:
-            from .modules.session_menu import session_menu
-            self._session_menu = session_menu
-        return self._session_menu
+        # [Legacy Redirect] 现已迁移至 MediaController 和 SessionRenderer
+        return self
 
     @property
     def filter_menu(self):
@@ -61,10 +59,8 @@ class NewMenuSystem(BaseMenu):
 
     @property
     def smart_dedup_menu(self):
-        if not self._smart_dedup_menu:
-            from .modules.smart_dedup_menu import smart_dedup_menu
-            self._smart_dedup_menu = smart_dedup_menu
-        return self._smart_dedup_menu
+        # [Legacy Redirect] 现已迁移至 menu_controller 和 dedup_renderer
+        return self
 
     @property
     def picker_menu(self):
@@ -162,32 +158,121 @@ class NewMenuSystem(BaseMenu):
     async def export_report(self, event): await self.analytics_menu.export_report(event)
     async def show_anomaly_detection(self, event): await self.analytics_menu.show_anomaly_detection(event)
 
-    # 6. 智能去重 (Smart Dedup)
-    async def show_smart_dedup_settings(self, event): await self.smart_dedup_menu.show_smart_dedup_settings(event)
-    async def show_dedup_similarity(self, event): await self.smart_dedup_menu.show_dedup_similarity(event)
-    async def show_dedup_content_hash(self, event): await self.smart_dedup_menu.show_dedup_content_hash(event)
-    async def show_dedup_video(self, event): await self.smart_dedup_menu.show_dedup_video(event)
-    async def show_dedup_time_window(self, event): await self.smart_dedup_menu.show_dedup_time_window(event)
-    async def show_dedup_statistics(self, event): await self.smart_dedup_menu.show_dedup_statistics(event)
-    async def show_dedup_advanced(self, event): await self.smart_dedup_menu.show_dedup_advanced(event)
-    async def show_dedup_sticker(self, event): await self.smart_dedup_menu.show_dedup_sticker(event)
-    async def show_dedup_global(self, event): await self.smart_dedup_menu.show_dedup_global(event)
-    async def show_dedup_album(self, event): await self.smart_dedup_menu.show_dedup_album(event)
-    async def show_dedup_hash_examples(self, event): await self.smart_dedup_menu.show_dedup_hash_examples(event)
+    # 6. 智能去重 (Smart Dedup - Refactored to Controller)
+    async def show_smart_dedup_settings(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_smart_dedup_settings(event)
+
+    async def show_dedup_similarity(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_similarity(event)
+
+    async def show_dedup_content_hash(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_content_hash(event)
+
+    async def show_dedup_video(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_video(event)
+
+    async def show_dedup_time_window(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_time_window(event)
+
+    async def show_dedup_statistics(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_statistics(event)
+
+    async def show_dedup_advanced(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_advanced(event)
+
+    async def show_dedup_sticker(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_sticker(event)
+
+    async def show_dedup_global(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_global(event)
+
+    async def show_dedup_album(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_album(event)
+
+    async def show_dedup_hash_examples(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_hash_examples(event)
     async def show_dedup_cache_management(self, event):
          await self._render_from_text(event, "🧹 **去重缓存管理**\n\n[开发中] 此处将显示各规则的活跃缓存命中率、过期条数，并支持手动清理特定规则的哈希集。", [[Button.inline("👈 返回", "new_menu:smart_dedup_settings")]])
 
-    # 7. 会话管理 (Session Ops)
-    async def show_session_management(self, event): await self.session_menu.show_session_management(event)
-    async def show_session_dedup_menu(self, event): await self.session_menu.show_session_dedup_menu(event)
-    async def show_dedup_results(self, event): await self.session_menu.show_dedup_results(event)
-    async def start_dedup_scan(self, event): await self.session_menu.start_dedup_scan(event)
-    async def confirm_delete_all_duplicates(self, event): await self.session_menu.confirm_delete_all_duplicates(event)
-    async def execute_delete_all_duplicates(self, event): await self.session_menu.execute_delete_all_duplicates(event)
-    async def show_select_delete_menu(self, event): await self.session_menu.show_select_delete_menu(event)
-    async def show_delete_session_messages_menu(self, event): await self.session_menu.show_delete_session_messages_menu(event)
-    async def show_preview_delete(self, event): await self.session_menu.show_preview_delete(event)
-    async def show_message_filter_menu(self, event): await self.session_menu.show_message_filter_menu(event)
+    # 7. 会话管理 (Session Ops - Refactored to Controller)
+    async def show_session_management(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_session_management(event)
+
+    async def show_session_dedup_menu(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_session_dedup_menu(event)
+
+    async def show_dedup_results(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_dedup_results(event)
+
+    async def start_dedup_scan(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.start_session_scan(event)
+
+    async def confirm_delete_all_duplicates(self, event):
+        from telethon import Button
+        text = "❓ **危险操作确认**\n\n确定要删除所有发现的重复消息吗？\n此操作不可撤销！"
+        buttons = [
+            [Button.inline("✅ 确认删除", "new_menu:execute_delete_all")],
+            [Button.inline("❌ 取消", "new_menu:dedup_results")],
+        ]
+        await self._render_from_text(event, text, buttons)
+
+    async def execute_delete_all_duplicates(self, event):
+        from controllers.menu_controller import menu_controller
+        success, message = await menu_controller.container.session_service.delete_duplicate_messages(event, mode="all")
+        if success:
+            await event.answer("✅ 删除任务已后台启动")
+            await self.show_session_dedup_menu(event)
+        else:
+            await event.answer(f"❌ 启动失败: {message}", alert=True)
+
+    async def show_select_delete_menu(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_select_delete_menu(event)
+
+    async def toggle_select(self, event, extra_data):
+        from controllers.menu_controller import menu_controller
+        signature = ":".join(extra_data) if extra_data else ""
+        await menu_controller.container.media_controller.toggle_select_signature(event, signature)
+
+    async def execute_batch_delete(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.execute_batch_delete(event)
+
+    async def show_delete_session_messages_menu(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_delete_session_messages_menu(event)
+
+    async def show_preview_delete(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.container.media_controller.show_delete_preview(event)
+
+    async def confirm_batch_delete(self, event):
+        from telethon import Button
+        text = "❓ **批量删除确认**\n\n确定要删除当前时间范围内的所有消息吗？\n此操作不可撤销！"
+        buttons = [
+            [Button.inline("✅ 确认清理", "new_menu:execute_batch_delete")],
+            [Button.inline("❌ 取消", "new_menu:delete_session_messages")],
+        ]
+        await self._render_from_text(event, text, buttons)
+
+    async def show_message_filter_menu(self, event):
+        from .modules.filter_menu import filter_menu
+        await filter_menu.show_filter_settings(event)
 
     # 8. 历史消息转发 (History)
     async def show_history_messages(self, event):

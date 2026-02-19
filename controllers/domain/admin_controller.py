@@ -246,7 +246,7 @@ class AdminController(BaseController):
         try:
             # 获取详细统计数据 (7天)
             from services.analytics_service import analytics_service
-            stats = await analytics_service.get_detailed_stats(days=7)
+            stats = await analytics_service.get_detailed_analytics(days=7)
             from ui.menu_renderer import menu_renderer
             render_data = menu_renderer.render_forward_analytics(stats)
             

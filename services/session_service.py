@@ -1100,6 +1100,62 @@ class SessionService:
     async def set_auto_refresh(self, chat_id, enabled, message_id):
         pass
 
+    async def preview_session_messages_by_filter(self, event, limit=10):
+        """预览符合当前筛选条件的会话消息 (UIRE-2.0)"""
+        chat_id = event.chat_id
+        user_id = event.sender_id
+        time_config = self.get_time_range(user_id)
+        begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
+        
+        client = container.user_client
+        samples = []
+        count = 0
+        try:
+            async for message in client.iter_messages(chat_id, offset_date=begin_date, reverse=True):
+                if end_date and message.date > end_date.replace(tzinfo=timezone.utc):
+                    break
+                count += 1
+                if len(samples) < limit:
+                    samples.append(message)
+            return count, samples
+        except Exception as e:
+            logger.error(f"Preview session messages failed: {e}")
+            return 0, []
+
+    async def delete_session_messages_by_filter(self, event):
+        """批量删除符合筛选条件的会话消息 (UIRE-2.0)"""
+        chat_id = event.chat_id
+        user_id = event.sender_id
+        time_config = self.get_time_range(user_id)
+        begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
+        
+        client = container.user_client
+        msg_ids = []
+        try:
+            async for message in client.iter_messages(chat_id, offset_date=begin_date, reverse=True):
+                if end_date and message.date > end_date.replace(tzinfo=timezone.utc):
+                    break
+                msg_ids.append(message.id)
+            
+            if not msg_ids:
+                return True, "没有匹配的消息"
+            
+            # 记录到进度
+            session = self._get_user_session(user_id)
+            session['delete_task'] = {
+                "deleted": 0,
+                "total": len(msg_ids),
+                "status": "running",
+                "cancel_event": asyncio.Event()
+            }
+                
+            # 启动后台删除任务
+            asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids))
+            return True, "已启动后台清理任务"
+        except Exception as e:
+            logger.error(f"Batch delete failed: {e}")
+            return False, str(e)
+
     async def get_selection_state(self, chat_id):
         """获取选中状态"""
         return self._get_user_session(chat_id).get('selected_signatures', [])

@@ -405,17 +405,228 @@ class MediaController(BaseController):
         await callback_reset_rule_dedup(event, rule_id, message)
 
     async def show_dedup_hub(self, event):
-        """显示智能去重中心"""
+        """显示智能去重中心 (Refactored)"""
         try:
-            from core.helpers.realtime_stats import realtime_stats_cache
-            stats = await realtime_stats_cache.get_dedup_stats()
+            # 获取完整数据
+            data = await self.container.dedup_service.get_details()
             
-            # 使用 Renderer 渲染
-            from ui.menu_renderer import menu_renderer
-            render_data = menu_renderer.render_dedup_hub(stats)
+            # 使用 DedupRenderer
+            view_result = self.container.ui.dedup.render_settings_main(data)
             
             from handlers.button.new_menu_system import new_menu_system
-            await new_menu_system.display_view(event, render_data)
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_smart_dedup_settings(self, event):
+        """显示去重主设置 (Alias for show_dedup_hub)"""
+        await self.show_dedup_hub(event)
+
+    async def show_dedup_similarity(self, event):
+        """显示相似度设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_similarity_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_content_hash(self, event):
+        """显示内容哈希设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_content_hash_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_video(self, event):
+        """显示视频去重设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_video_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_time_window(self, event):
+        """显示时间窗口设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_time_window_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_statistics(self, event):
+        """显示统计详情"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_statistics(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_advanced(self, event):
+        """显示高级设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_advanced_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_sticker(self, event):
+        """显示表情包去重设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_sticker_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_global(self, event):
+        """显示全局共振设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_global_resonance_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_album(self, event):
+        """显示相册去重设置"""
+        data = await self.container.dedup_service.get_details()
+        view_result = self.container.ui.dedup.render_album_settings(data)
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_hash_examples(self, event):
+        """显示哈希特征示例"""
+        # 简单显示一个渲染后的文本即可
+        from telethon import Button
+        text = "📋 **哈希特征示例**\n\n"
+        text += "去重系统会提取消息的以下特征：\n"
+        text += "1. **文本**: 移除链接、提及、表情后的核心内容\n"
+        text += "2. **视频**: 基于 file_id 或首尾固定分块的 MD5\n"
+        text += "3. **图片**: 基于分辨率和文件大小的复合签名\n"
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system._render_from_text(event, text, [[Button.inline("👈 返回高级设置", "new_menu:dedup_advanced")]])
+
+    async def show_session_management(self, event):
+        """显示会话管理中心"""
+        view_result = self.container.ui.session.render_session_hub({})
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_session_dedup_menu(self, event):
+        """显示会话去重扫描主页"""
+        view_result = self.container.ui.session.render_session_dedup_menu({})
+        from handlers.button.new_menu_system import new_menu_system
+        await new_menu_system.display_view(event, view_result)
+
+    async def show_dedup_results(self, event):
+        """显示会话扫描结果详情"""
+        try:
+            chat_id = event.chat_id
+            # 直接从服务获取缓存结果
+            results_map = self.container.session_service.current_scan_results.get(chat_id, {})
+            
+            # 转换为显示名称映射
+            display_results = {}
+            for sig, ids in results_map.items():
+                name = self.container.session_service._signature_to_display_name(sig)
+                display_results[name] = len(ids)
+            
+            view_result = self.container.ui.session.render_scan_results({'results': display_results})
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def start_session_scan(self, event):
+        """执行会话扫描任务"""
+        try:
+            # 1. 显示启动状态
+            from telethon import Button
+            start_text = (
+                "🚀 **智能扫描启动中...**\n\n"
+                "正在遍历会话历史并提取内容指纹...\n"
+                "⏳ 这可能需要几分钟时间，请稍候。"
+            )
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system._render_from_text(event, start_text, [[Button.inline("❌ 取消扫描", "new_menu:session_dedup")]])
+
+            # 2. 进度回调
+            last_update_msg = 0
+            async def progress_cb(proc, found):
+                nonlocal last_update_msg
+                import time
+                now = time.time()
+                if now - last_update_msg > 3: # 3秒更新一次UI避免卡顿
+                    try:
+                        await event.edit(f"🚀 **扫描进行中...**\n\n📊 已遍历: **{proc:,}** 条\n🔍 已发现: **{found:,}** 组重复", buttons=[[Button.inline("❌ 取消", "new_menu:session_dedup")]])
+                        last_update_msg = now
+                    except: pass
+            
+            # 3. 调用服务执行
+            results = await self.container.session_service.scan_duplicate_messages(event, progress_callback=progress_cb)
+            
+            # 4. 显示完成并跳转
+            await self.show_dedup_results(event)
+            
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_delete_session_messages_menu(self, event):
+        """显示批量删除管理"""
+        try:
+            chat_id = event.chat_id
+            user_id = event.sender_id
+            time_range = await self.container.session_service.get_time_range_display(user_id)
+            progress = await self.container.session_service.get_delete_progress(user_id)
+            
+            data = {
+                'time_range': time_range,
+                'status': progress.get('status', 'ready'),
+                'progress': progress
+            }
+            
+            view_result = self.container.ui.session.render_delete_management(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_select_delete_menu(self, event):
+        """显示重复项手动挑选菜单 (UIRE-2.0)"""
+        try:
+            chat_id = event.chat_id
+            scan_counts = await self.container.session_service.scan_duplicate_messages(event)
+            selected = await self.container.session_service.get_selection_state(chat_id)
+            
+            view_result = self.container.ui.session.render_selection_menu({
+                'scan_counts': scan_counts,
+                'selected': selected
+            })
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def toggle_select_signature(self, event, signature: str):
+        """切换特定签名的选中状态"""
+        try:
+            chat_id = event.chat_id
+            await self.container.session_service.toggle_select_signature(chat_id, signature)
+            await self.show_select_delete_menu(event)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def execute_batch_delete(self, event):
+        """执行批量删除确认后的逻辑"""
+        try:
+            success, msg = await self.container.session_service.delete_session_messages_by_filter(event)
+            if hasattr(event, 'answer'):
+                 await event.answer(msg, alert=not success)
+            await self.show_delete_session_messages_menu(event)
+        except Exception as e:
+             return self.handle_exception(e)
+
+    async def show_delete_preview(self, event):
+        """显示删除预览"""
+        try:
+            count, samples = await self.container.session_service.preview_session_messages_by_filter(event)
+            # 转换为简单字典列表供 Renderer 使用
+            sample_data = [{'id': m.id, 'text': m.text or "[媒体内容]"} for m in samples]
+            
+            view_result = self.container.ui.session.render_delete_preview({'count': count, 'samples': sample_data})
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
         except Exception as e:
             return self.handle_exception(e)
 

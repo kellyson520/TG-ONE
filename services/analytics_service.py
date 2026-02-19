@@ -330,8 +330,8 @@ class AnalyticsService:
             """
             res = await self.bridge.query_aggregate("rule_logs", sql, [date_str])
             row = res[0] if res else {}
-            total = row.get('total', 0)
-            errors = row.get('errors', 0)
+            total = row.get('total') or 0
+            errors = row.get('errors') or 0
 
             # 2. 统计活跃聊天 (从 chat_statistics 跨层)
             # 注意: ChatStatistics 也是按天分的
@@ -371,12 +371,13 @@ class AnalyticsService:
             stats_sql = """
                 SELECT rule_id, SUM(success_count) as success_count, SUM(error_count) as error_count
                 FROM {table}
-                WHERE date = ?
+                WHERE date >= ?
                 GROUP BY rule_id
                 ORDER BY success_count DESC
                 LIMIT 5
             """
-            stats_res = await self.bridge.query_aggregate("rule_statistics", stats_sql, [today_str])
+            cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            stats_res = await self.bridge.query_aggregate("rule_statistics", stats_sql, [cutoff_date])
             
             top_rules = []
             if stats_res:
@@ -404,15 +405,17 @@ class AnalyticsService:
                 type_sql = """
                     SELECT message_type, COUNT(*) as count
                     FROM {table}
-                    WHERE strftime('%Y-%m-%d', CAST(created_at AS TIMESTAMP)) = ?
+                    WHERE strftime('%Y-%m-%d', CAST(created_at AS TIMESTAMP)) >= ?
                     GROUP BY message_type
                 """
-                type_res = await self.bridge.query_aggregate("rule_logs", type_sql, [today_str])
+                type_res = await self.bridge.query_aggregate("rule_logs", type_sql, [cutoff_date])
                 
                 total_count = sum([r['count'] for r in type_res])
                 for r in type_res:
-                    m_type = (r['message_type'] or "Text").capitalize()
+                    m_type_raw = r['message_type'] or "text"
+                    m_type = m_type_raw.capitalize()
                     type_dist.append({
+                        "type": m_type,
                         "name": m_type,
                         "count": r['count'],
                         "percentage": round((r['count'] / total_count * 100), 1) if total_count > 0 else 0
@@ -424,6 +427,41 @@ class AnalyticsService:
                  # 回退方案 - 既然用户通过真实数据反馈，则不再生成虚假分布
                  pass
             
+
+            # 5. 获取 Top 频道 (从 chat_statistics 聚合)
+            top_chats = []
+            try:
+                # 先聚合统计
+                chat_sql = """
+                    SELECT chat_id, SUM(forward_count) as count
+                    FROM {table}
+                    WHERE date >= ?
+                    GROUP BY chat_id
+                    ORDER BY count DESC
+                    LIMIT 5
+                """
+                chat_res = await self.bridge.query_aggregate("chat_statistics", chat_sql, [cutoff_date])
+                
+                if chat_res:
+                    chat_ids = [r['chat_id'] for r in chat_res]
+                    # 再查详细信息
+                    from models.models import Chat
+                    from sqlalchemy import select
+                    async with self.container.db.get_session() as session:
+                        stmt = select(Chat).where(Chat.id.in_(chat_ids))
+                        res = await session.execute(stmt)
+                        chat_map = {c.id: c for c in res.scalars().all()}
+                        
+                        for r in chat_res:
+                            chat = chat_map.get(r['chat_id'])
+                            top_chats.append({
+                                "chat_id": str(chat.telegram_chat_id) if chat else str(r['chat_id']),
+                                "name": chat.name or chat.title or str(chat.telegram_chat_id) if chat else str(r['chat_id']),
+                                "count": r['count']
+                            })
+            except Exception as e:
+                logger.warning(f"获取热门频道失败: {e}")
+
             return {
                 "daily_trends": [
                     {
@@ -433,10 +471,7 @@ class AnalyticsService:
                     }
                 ],
                 "type_distribution": type_dist,
-                "top_chats": [
-                    {"chat_id": cid, "name": await self._resolve_chat_name(cid), "count": count} 
-                    for cid, count in list(today_summary.get("chats", {}).items())[:5]
-                ],
+                "top_chats": top_chats,
                 "top_rules": top_rules,
                 "time_analysis": {
                     "peak_hours": [row['hour'] for row in sorted(hourly_trend, key=lambda x: x['count'], reverse=True)[:3]],
@@ -565,73 +600,41 @@ class AnalyticsService:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
             
-            async with self.container.db.get_session() as session:
-                # 1. 按日期统计转发数
-                daily_stats = []
-                for i in range(days):
-                    date = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
-                    summary = await self.get_daily_summary(date)
-                    daily_stats.append({
-                        'date': date,
-                        'total_forwards': summary.get('total_forwards', 0),
-                        'error_count': summary.get('error_count', 0),
-                        'active_chats': summary.get('active_chats', 0),
-                        'saved_traffic_bytes': summary.get('saved_traffic_bytes', 0)
-                    })
+            # 1. 按日期统计转发数
+            daily_stats = []
+            for i in range(days + 1):
+                date = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
+                summary = await self.get_daily_summary(date)
+                daily_stats.append({
+                    'date': date,
+                    'total_forwards': summary.get('total_forwards', 0),
+                    'error_count': summary.get('error_count', 0),
+                    'active_chats': summary.get('active_chats', 0),
+                    'saved_traffic_bytes': summary.get('saved_traffic_bytes', 0)
+                })
                 
-                # 2. 规则统计
-                from models.models import ForwardRule
-                stmt = (
-                    select(RuleStatistics, ForwardRule)
-                    .join(ForwardRule, RuleStatistics.rule_id == ForwardRule.id)
-                    .order_by(RuleStatistics.success_count.desc())
-                    .limit(10)
-                )
-                result = await session.execute(stmt)
-                
-                top_rules = []
-                for row in result:
-                    rs, fr = row
-                    top_rules.append({
-                        'rule_id': rs.rule_id,
-                        'name': getattr(fr, 'description', f"Rule {rs.rule_id}"),
-                        'success_count': rs.success_count,
-                        'error_count': rs.error_count,
-                        'date': rs.date
-                    })
-                
-                # 3. 聊天统计
-                stmt = select(ChatStatistics).order_by(ChatStatistics.message_count.desc()).limit(10)
-                result = await session.execute(stmt)
-                chat_stats = result.scalars().all()
-                
-                top_chats = [{
-                    'chat_id': cs.chat_id,
-                    'message_count': cs.message_count,
-                    'forward_count': cs.forward_count,
-                    'date': cs.date
-                } for cs in chat_stats]
-                
-                # 4. 类型分布 (组合自详细统计)
-                detailed_stats = await self.get_detailed_stats(days=days)
-                type_dist = detailed_stats.get('type_distribution', [])
-                
-                return {
-                    'period': {
-                        'start_date': start_date.strftime('%Y-%m-%d'),
-                        'end_date': end_date.strftime('%Y-%m-%d'),
-                        'days': days
-                    },
-                    'daily_stats': daily_stats,
-                    'top_rules': top_rules,
-                    'top_chats': top_chats,
-                    'type_distribution': type_dist,
-                    'summary': {
-                        'total_forwards': sum(d['total_forwards'] for d in daily_stats),
-                        'total_errors': sum(d['error_count'] for d in daily_stats),
-                        'avg_daily_forwards': sum(d['total_forwards'] for d in daily_stats) / days if days > 0 else 0
-                    }
+            # 2. 获取聚合详情 (包含 top_rules, type_distribution, top_chats)
+            detailed_stats = await self.get_detailed_stats(days=days)
+            top_rules = detailed_stats.get('top_rules', [])
+            top_chats = detailed_stats.get('top_chats', [])
+            type_dist = detailed_stats.get('type_distribution', [])
+            
+            return {
+                'period': {
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d'),
+                    'days': days
+                },
+                'daily_stats': daily_stats,
+                'top_rules': top_rules,
+                'top_chats': top_chats,
+                'type_distribution': type_dist,
+                'summary': {
+                    'total_forwards': sum(d['total_forwards'] for d in daily_stats),
+                    'total_errors': sum(d['error_count'] for d in daily_stats),
+                    'avg_daily_forwards': sum(d['total_forwards'] for d in daily_stats) / days if days > 0 else 0
                 }
+            }
         except Exception as e:
             logger.error(f"get_detailed_analytics 失败: {e}\n{traceback.format_exc()}")
             return {

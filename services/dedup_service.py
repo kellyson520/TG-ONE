@@ -49,20 +49,8 @@ class DeduplicationService:
             stats = smart_deduplicator.get_stats()
             
             return {
-                'config': {
-                    'enable_time_window': config.get('enable_time_window', True),
-                    'time_window_hours': config.get('time_window_hours', 24),
-                    'enable_content_hash': config.get('enable_content_hash', True),
-                    'enable_smart_similarity': config.get('enable_smart_similarity', True),
-                    'similarity_threshold': config.get('similarity_threshold', 0.85),
-                    'cache_cleanup_interval': config.get('cache_cleanup_interval', 3600)
-                },
-                'stats': {
-                    'cached_signatures': stats.get('cached_signatures', 0),
-                    'cached_content_hashes': stats.get('cached_content_hashes', 0),
-                    'tracked_chats': stats.get('tracked_chats', 0),
-                    'last_cleanup': stats.get('last_cleanup', 0)
-                },
+                'config': config,
+                'stats': stats,
                 'enabled_features': self._get_enabled_features(config)
             }
             
@@ -204,6 +192,85 @@ class DeduplicationService:
         except Exception as e:
             logger.error(f"重置配置失败: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
+
+    async def get_stats(self) -> Dict[str, Any]:
+        """获取去重统计数据"""
+        return smart_deduplicator.get_stats()
+
+    async def get_details(self) -> Dict[str, Any]:
+        """获取完整详情数据供渲染使用"""
+        config = smart_deduplicator.config
+        if not smart_deduplicator._config_loaded:
+            await smart_deduplicator.load_config()
+            config = smart_deduplicator.config
+
+        return {
+            'config': config,
+            'stats': smart_deduplicator.get_stats(),
+            'enabled_features': self._get_enabled_features(config)
+        }
+
+    async def dispatch_config_update(self, action: str, extra_data: List[str] = None) -> Tuple[bool, str]:
+        """统一配置更新调度器 (核心逻辑下沉)"""
+        try:
+            key = None
+            value = None
+            msg = "✅ 配置已更新"
+            
+            # Action Mapping
+            if action == "toggle_similarity":
+                key = "enable_smart_similarity"
+                value = extra_data[0] == "True"
+            elif action == "set_similarity":
+                key = "similarity_threshold"
+                value = float(extra_data[0])
+            elif action == "toggle_content_hash":
+                key = "enable_content_hash"
+                value = extra_data[0] == "True"
+            elif action == "toggle_video_file_id":
+                key = "enable_video_file_id_check"
+                value = extra_data[0] == "True"
+            elif action == "toggle_video_partial":
+                key = "enable_video_partial_hash_check"
+                value = extra_data[0] == "True"
+            elif action == "toggle_time_window":
+                key = "enable_time_window"
+                value = extra_data[0] == "True"
+            elif action == "set_time_window":
+                key = "time_window_hours"
+                value = int(extra_data[0])
+            elif action == "toggle_sticker_filter":
+                key = "enable_sticker_filter"
+                value = extra_data[0] == "True"
+            elif action == "toggle_sticker_strict":
+                key = "sticker_strict_mode"
+                value = extra_data[0] == "True"
+            elif action == "toggle_global_search":
+                key = "enable_global_search"
+                value = extra_data[0] == "True"
+            elif action == "toggle_album_dedup":
+                key = "enable_album_dedup"
+                value = extra_data[0] == "True"
+            elif action == "set_album_threshold":
+                key = "album_duplicate_threshold"
+                value = float(extra_data[0])
+            elif action == "manual_cleanup":
+                await smart_deduplicator._flush_buffer()
+                smart_deduplicator.time_window_cache.clear()
+                smart_deduplicator.content_hash_cache.clear()
+                return True, "✅ 缓存已手动清理"
+            elif action == "reset_dedup_config":
+                await smart_deduplicator.reset_to_defaults()
+                return True, "✅ 已重置为默认配置"
+
+            if key:
+                await smart_deduplicator.update_config({key: value})
+                return True, msg
+                
+            return False, "⚠️ 未知动作"
+        except Exception as e:
+            logger.error(f"Dispatch config update failed: {e}")
+            return False, f"❌ 更新失败: {str(e)}"
     
     async def get_hash_examples(self) -> Dict[str, Any]:
         """获取哈希示例"""

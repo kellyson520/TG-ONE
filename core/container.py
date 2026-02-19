@@ -574,6 +574,16 @@ class UIContainer:
         from ui.renderers.media_renderer import MediaRenderer
         return MediaRenderer()
 
+    @property
+    def dedup(self):
+        from ui.renderers.dedup_renderer import DedupRenderer
+        return DedupRenderer()
+
+    @property
+    def session(self):
+        from ui.renderers.session_renderer import SessionRenderer
+        return SessionRenderer()
+
     def render_error(self, message: str, back_target: str = "main_menu"):
         return self.base.render_error(message, back_target)
 

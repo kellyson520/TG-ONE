@@ -50,7 +50,12 @@ from .commands.admin_commands import handle_admin_panel_command
 from .commands.stats_commands import (
     handle_forward_stats_command, handle_forward_search_command
 )
-from .commands.dedup_commands import handle_dedup_enable_command
+from .commands.dedup_commands import (
+    handle_dedup_enable_command,
+    handle_dedup_center_command,
+    handle_smart_dedup_command,
+    handle_clear_dedup_cache_command
+)
 
 # [Phase 4] Priority Queue Handlers
 from .priority_handler import set_priority_handler, queue_status_handler
@@ -220,6 +225,12 @@ async def handle_command(client, event):
             "delete_rss_user": lambda: handle_delete_rss_user_command(event, command, parts),
             "dru": lambda: handle_delete_rss_user_command(event, command, parts),
             "dedup": lambda: handle_dedup_enable_command(event, parts),
+            "dedup_center": lambda: handle_dedup_center_command(event),
+            "dc": lambda: handle_dedup_center_command(event),
+            "smart_dedup": lambda: handle_smart_dedup_command(event),
+            "sd": lambda: handle_smart_dedup_command(event),
+            "clear_dedup_cache": lambda: handle_clear_dedup_cache_command(event),
+            "cdc": lambda: handle_clear_dedup_cache_command(event),
             "dedup_scan": lambda: handle_dedup_scan_command(event, parts),
             "db_info": lambda: handle_db_info_command(event),
             "db_backup": lambda: handle_db_backup_command(event),

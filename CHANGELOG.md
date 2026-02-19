@@ -1,6 +1,22 @@
 ## 📅 2026-02-19 更新摘要
 
-### � [Hotfix] SQLite 锁竞争根因消除与全链路只读优化 (Database Lock Contention Root-Cause Fix)
+### 🚀 v1.2.6.6: 转发详细统计修复与数据链路优化 (Forward Stats & DuckDB Bridge Fix)
+- **统计面板修复 (Fix Forward Stats)**:
+    - **周期与类型修复**: 修复了“转发详细统计”面板中周期显示为问号 (`? days`) 及内容类型分布显示为 `Unknown` 的问题。
+    - **数据完整性**: `AdminController` 现切换至更完整的 `get_detailed_analytics` 接口，确保 `summary` (总量、错误数) 和 `period` (日期范围) 字段准确传递至前端渲染器。
+    - **类型识别回退**: 优化了 `AnalyticsService` 的类型解析逻辑，当数据库中 `message_type` 为 `NULL` 时自动回退为 `"Text"`，消除了误导性的 `Unknown` 分类。
+- **DuckDB 桥接死锁修复 (Bridge Deadlock Fix)**:
+    - **死锁根因消除**: 移除了 `get_detailed_analytics` 中不必要的外层 SQLAlchemy Session 事务锁。此锁曾导致 DuckDB (`UnifiedQueryBridge`) 在尝试读取 SQLite 文件时与外层 Python 事务发生 Read-Write 冲突，引发查询挂起。
+    - **无锁聚合查询**: 验证了在无外层事务包裹的情况下，DuckDB 能够安全、高效地对 `chat_statistics` 和 `rule_logs` 表进行高性能 OLAP 聚合查询。
+- **Top 维度增强**:
+    - **Top Chats 修复**: 修正了热门频道统计逻辑，从专门的 `chat_statistics` 表（支持归档数据）查询，而非依赖不包含 `source_chat_id` 索引的 `rule_logs` 表，极大提升了查询效率与准确性。
+    - **跨天聚合**: 确保所有 Top 榜单（规则、频道、类型）均严格按照用户选择的时间范围（如 7 天）进行聚合，而非仅展示当日数据。
+- **验证**:
+    - **模拟测试**: 通过 `test_analytics.py` 验证了 API 的响应结构完整性及高并发下的无死锁表现。
+
+## 📅 2026-02-19 更新摘要
+
+###  [Hotfix] SQLite 锁竞争根因消除与全链路只读优化 (Database Lock Contention Root-Cause Fix)
 - **写事务原子化重构 (Write Transaction Atomization)**:
     - **纯 UPDATE 模式**: 将 `TaskRepository` 的 `complete()` / `fail()` / `reschedule()` 从「SELECT 验证状态 → UPDATE 更新」两步操作重构为**纯 `UPDATE ... WHERE status IN(...)` 单步操作**（乐观锁模式）。
     - **效果**: 每个写事务的锁持有时间从 ~2次数据库往返缩短至 ~1次，直接将写锁窗口减半。
@@ -21,7 +37,7 @@
 - **busy_timeout 扩容**:
     - SQLite `PRAGMA busy_timeout` 从 `30s` 扩容至 `60s`，在驱动层提供更充足的锁等待窗口。
 
-### �🚀 [Hotfix] VPS 高负载 (300%) 修复与并发优化 (VPS High Load Fix & Concurrency Optimization)
+### 🚀 [Hotfix] VPS 高负载 (300%) 修复与并发优化 (VPS High Load Fix & Concurrency Optimization)
 - **WorkerService 伸缩逻辑重构**:
     - **资源哨兵**: 扩容前强制校验 CPU (<80%)、系统负载 (LoadAvg) 与内存占用，防止过载扩容。
     - **并发纠偏**: 将每个 Worker 的任务拉取限制从 10 降至 **1**，确保数据库 `running` 数与实际 Worker 数严格对齐。
