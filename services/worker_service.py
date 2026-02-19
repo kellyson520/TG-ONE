@@ -140,7 +140,7 @@ class WorkerService:
                     load_ratio = 0
 
                 # --- 第二步：计算目标 Worker 数 (Target Logic) ---
-                # 策略：更积极的阶梯式扩容，匹配真实负载
+                # 策略：只要有积压就积极扩容，充分利用空闲资源
                 if pending_count == 0:
                     target_count = settings.WORKER_MIN_CONCURRENCY
                 else:
@@ -149,14 +149,14 @@ class WorkerService:
                         # 极端积压：允许达到最大值
                         target_count = settings.WORKER_MAX_CONCURRENCY
                     elif pending_count > 1000:
-                        # 大量积压：每 200 个任务加 1 个 worker
-                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 200)
+                        # 大量积压：每 100 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 100)
                     elif pending_count > 100:
-                        # 中等积压：每 50 个任务加 1 个 worker
-                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 50)
+                        # 中等积压：每 20 个任务加 1 个 worker
+                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 20)
                     else:
-                        # 轻微积压：每 10 个任务加 1 个 worker (原先是 100，太保守)
-                        target_count = settings.WORKER_MIN_CONCURRENCY + (pending_count // 10)
+                        # 轻微积压 (1~100)：每 3 个任务加 1 个 worker，至少 +1
+                        target_count = settings.WORKER_MIN_CONCURRENCY + max(1, pending_count // 3)
 
                 # 约束目标值
                 target_count = max(settings.WORKER_MIN_CONCURRENCY, min(settings.WORKER_MAX_CONCURRENCY, target_count))
