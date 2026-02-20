@@ -37,7 +37,11 @@ class SystemMenuStrategy(BaseMenuHandler):
         "db_performance_trends", "db_alert_management",
         "run_db_optimization_check", "db_reindex",
         "db_archive_center", "db_optimization_config",
-        "clear_dedup_cache"
+        "clear_dedup_cache", "run_archive_once", "run_archive_force",
+        "rebuild_bloom", "compact_archive",
+        "db_index_analysis", "db_cache_management",
+        "detailed_analytics", "performance_analysis", "anomaly_detection",
+        "export_csv", "failure_analysis"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -72,6 +76,21 @@ class SystemMenuStrategy(BaseMenuHandler):
         
         elif action == "system_hub":
             await menu_controller.show_system_hub(event)
+
+        elif action == "detailed_analytics":
+            await menu_controller.show_detailed_analytics(event)
+
+        elif action == "performance_analysis":
+            await menu_controller.show_performance_analysis(event)
+
+        elif action == "anomaly_detection":
+            await menu_controller.show_anomaly_detection(event)
+
+        elif action == "export_csv":
+            await menu_controller.export_csv_report(event)
+
+        elif action == "failure_analysis":
+            await menu_controller.show_failure_analysis(event)
 
         # 2. Help & Support
         elif action == "help_guide":
@@ -123,8 +142,8 @@ class SystemMenuStrategy(BaseMenuHandler):
             await menu_controller.run_db_archive_once(event)
 
         elif action == "db_archive_center":
-            # 内部暂无专用 Archive Hub，先引导至优化中心或执行一次性归档
-            await menu_controller.show_db_optimization_center(event)
+            # 引导至专用 Archive Hub
+            await menu_controller.show_db_archive_center(event)
         
         elif action == "session_management":
             await menu_controller.show_session_management(event)
@@ -159,6 +178,24 @@ class SystemMenuStrategy(BaseMenuHandler):
         
         elif action == "clear_dedup_cache":
             await menu_controller.clear_dedup_cache(event)
+
+        elif action == "run_archive_once":
+            await new_menu_system.run_archive_once(event)
+
+        elif action == "run_archive_force":
+            await new_menu_system.run_archive_force(event)
+
+        elif action == "rebuild_bloom":
+            await new_menu_system.rebuild_bloom(event)
+
+        elif action == "compact_archive":
+            await new_menu_system.compact_archive(event)
+
+        elif action == "db_index_analysis":
+            await menu_controller.show_db_index_analysis(event)
+
+        elif action == "db_cache_management":
+            await menu_controller.show_db_cache_management(event)
 
         # 5. Backup & Restore
         elif action == "db_backup":

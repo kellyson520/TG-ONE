@@ -126,18 +126,36 @@ class GroupCommitCoordinator:
         
         try:
             # Create a new session for this transaction
-            # Assuming db_session_factory context manager or callable
-            # We need to adapt based on actual container usage. 
-            # Looking at code, container.db_session() returns an async generator or context manager.
-            
-            # Since we are in a service method, usually we get session passed in, 
-            # but here we are a background task, so we need to create one.
+            from sqlalchemy.exc import IntegrityError
             async with self._db_session_factory() as session:
                 session.add_all(items)
                 await session.commit()
                 
             duration = (time.time() - start_time) * 1000
             logger.info(f"Group Commit: 已刷入 {count} 条数据，耗时 {duration:.2f}ms")
+            
+        except IntegrityError as ie:
+            logger.warning(f"Group Commit batch failed due to IntegrityError, falling back to individual processing: {ie}")
+            # Fallback strategy: Process items one by one to ensure successful ones are committed
+            # and duplicates are gracefully ignored.
+            success_count = 0
+            for item in items:
+                try:
+                    async with self._db_session_factory() as session:
+                        # Use merge() if the object has been seen by another session, or add() for new objects.
+                        # For objects with unique constraints but no PK set, add() will still fail on duplicate,
+                        # but our catch block will handle it.
+                        session.add(item)
+                        await session.commit()
+                        success_count += 1
+                except IntegrityError:
+                    # This is likely a known duplicate (e.g. MediaSignature already exists)
+                    logger.debug(f"Skipping duplicate item in Group Commit fallback: {item}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Failed to process item in fallback: {e}")
+            
+            logger.info(f"Group Commit Fallback: 已成功刷入 {success_count}/{count} 条数据")
             
         except Exception as e:
             logger.error(f"Failed to flush {count} items to DB: {e}", exc_info=True)

@@ -7,10 +7,15 @@ from models.models import Chat
 @pytest.fixture
 def mock_db():
     db = MagicMock()
-    session = AsyncMock()
-    # Mock context manager behavior for db.session()
-    db.session.return_value.__aenter__.return_value = session
-    db.session.return_value.__aexit__.return_value = None
+    session = MagicMock() # Use MagicMock as base
+    session.execute = AsyncMock() # Only execute is async
+    session.commit = AsyncMock()
+    
+    # Mock context manager behavior for db.get_session()
+    context_manager = MagicMock()
+    context_manager.__aenter__ = AsyncMock(return_value=session)
+    context_manager.__aexit__ = AsyncMock(return_value=None)
+    db.get_session.return_value = context_manager
     return db
 
 @pytest.fixture
@@ -30,7 +35,7 @@ async def test_update_chat_in_db_creates_new_chat(service, mock_db):
     service._get_chat_type = MagicMock(return_value="group")
     
     # Mock DB execution to return no result first (so it creates new)
-    session = mock_db.session.return_value.__aenter__.return_value
+    session = mock_db.get_session.return_value.__aenter__.return_value
     result = MagicMock()
     # 模拟 scalars().first() 返回 None (未命中)
     result.scalars.return_value.first.return_value = None
@@ -73,7 +78,7 @@ async def test_update_chat_in_db_updates_existing_chat(service, mock_db):
     name = "Updated Name"
     entity = MagicMock()
     
-    session = mock_db.session.return_value.__aenter__.return_value
+    session = mock_db.get_session.return_value.__aenter__.return_value
     
     # Mock existing chat
     existing_chat = MagicMock(spec=Chat)

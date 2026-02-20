@@ -410,12 +410,19 @@ class DeduplicationService:
                     
                     if self.coordinator:
                         # [Group Commit] 使用缓冲区异步写入
+                        from datetime import datetime
+                        now = datetime.utcnow().isoformat()
+                        
                         new_signature = MediaSignature(
                             chat_id=str(chat_id),
                             signature=sig,
                             file_id=str(file_id.id),
                             content_hash=content_hash,
-                            media_type=media_type
+                            media_type=media_type,
+                            count=1,
+                            created_at=now,
+                            updated_at=now,
+                            last_seen=now
                         )
                         await self.coordinator.buffer.add(new_signature)
                         logger.debug(f"Buffered signature for DB: {sig} in {chat_id}")

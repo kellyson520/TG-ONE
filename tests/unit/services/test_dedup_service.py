@@ -20,25 +20,25 @@ class TestDedupService:
         config = await dedup_service.get_dedup_config()
         assert "config" in config
         assert "stats" in config
-        assert config["config"]["enable_time_window"] is True
+        assert config["config"].enable_time_window is True
 
     async def test_update_config(self):
         result = await dedup_service.update_config({"time_window_hours": 48})
         assert result["success"] is True
         config = await dedup_service.get_dedup_config()
-        assert config["config"]["time_window_hours"] == 48
+        assert config["config"].time_window_hours == 48
 
     async def test_toggle_feature(self):
         # 切换开关
         await dedup_service.toggle_feature("time_window", False)
         config = await dedup_service.get_dedup_config()
-        assert config["config"]["enable_time_window"] is False
+        assert config["config"].enable_time_window is False
 
     async def test_set_time_window(self):
         # 测试合法值
         await dedup_service.set_time_window(10)
         config = await dedup_service.get_dedup_config()
-        assert config["config"]["time_window_hours"] == 10
+        assert config["config"].time_window_hours == 10
 
         # 测试异常值
         result = await dedup_service.set_time_window(200)

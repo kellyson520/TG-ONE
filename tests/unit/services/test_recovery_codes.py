@@ -74,16 +74,24 @@ class TestRecoveryCodes:
     async def test_generate_recovery_codes_integration(self, auth_service):
         """测试完整的备份码生成流程"""
         mock_user = MagicMock(id=1, backup_codes=None)
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         mock_session.commit = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             codes = await auth_service.generate_recovery_codes(user_id=1)
@@ -113,16 +121,23 @@ class TestRecoveryCodes:
             ])
         )
         
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         mock_session.commit = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             result = await auth_service.verify_recovery_code(user_id=1, code=code)
@@ -147,15 +162,22 @@ class TestRecoveryCodes:
             ])
         )
         
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             result = await auth_service.verify_recovery_code(user_id=1, code=code)
@@ -172,15 +194,22 @@ class TestRecoveryCodes:
             ])
         )
         
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             result = await auth_service.verify_recovery_code(user_id=1, code="WRONG-CODE")
@@ -201,15 +230,22 @@ class TestRecoveryCodes:
             ])
         )
         
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             status = await auth_service.get_recovery_codes_status(user_id=1)
@@ -224,15 +260,22 @@ class TestRecoveryCodes:
         """测试获取备份码状态 (无备份码)"""
         mock_user = MagicMock(id=1, backup_codes=None)
         
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_user)))
+        # Setup Mock Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
         
-        mock_db_context = AsyncMock()
+        # Setup Result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_session.execute.return_value = mock_result
+        
+        # Mock DB context manager
+        mock_db_context = MagicMock()
         mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         
         mock_container = MagicMock()
-        mock_container.db.session = MagicMock(return_value=mock_db_context)
+        mock_container.db.get_session = MagicMock(return_value=mock_db_context)
         
         with patch("core.container.container", mock_container):
             status = await auth_service.get_recovery_codes_status(user_id=1)

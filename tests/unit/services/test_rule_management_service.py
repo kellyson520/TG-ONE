@@ -39,8 +39,9 @@ class TestRuleManagementService:
         
         # 验证缓存失效调用
         with patch.object(container.rule_repo, 'clear_cache') as mock_clear:
-            await rule_management_service.update_rule(result["rule_id"], enable_rule=False)
-            assert mock_clear.called
+            update_res = await rule_management_service.update_rule(result["rule_id"], enable_rule=False)
+            assert update_res.get("success"), f"Update rule failed: {update_res.get('error')}"
+            assert mock_clear.called, "rule_repo.clear_cache was not called"
 
     async def test_bind_chat(self, db):
         # Mock container client
@@ -128,8 +129,9 @@ class TestRuleManagementService:
         
         # Mock Repo cache clearing instead of internal service method
         with patch.object(container.rule_repo, 'clear_cache') as mock_clear:
-            await rule_management_service.copy_rule(src_rule.id, dst_rule.id)
-            assert mock_clear.called
+            res = await rule_management_service.copy_rule(src_rule.id, dst_rule.id)
+            assert res.get("success"), f"Rule copy failed: {res.get('error')}"
+            assert mock_clear.called, "rule_repo.clear_cache was not called"
             
         await db.refresh(dst_rule)
         assert dst_rule.enable_dedup is True 

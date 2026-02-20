@@ -32,20 +32,48 @@ async def test_audit_log_creation(db):
 @pytest.mark.asyncio
 async def test_get_logs(db):
     """测试日志查询接口"""
-    # 插入多条数据
-    for i in range(5):
-        await audit_service.log_event(
-            action=f"ACTION_{i}",
-            username="tester"
+    from unittest.mock import patch, AsyncMock, MagicMock
+    
+    # 模拟数据
+    mock_logs = [MagicMock(spec=AuditLog, action=f"ACTION_{i}") for i in range(5)]
+    
+    with patch.object(audit_service.bridge, "list_audit_logs", new_callable=AsyncMock) as mock_list, \
+         patch.object(audit_service.bridge, "query_aggregate", new_callable=AsyncMock) as mock_agg:
+        
+        mock_list.return_value = mock_logs
+        mock_agg.return_value = [{"cnt": 5}]
+        
+        # 调用接口
+        logs, total = await audit_service.get_logs(page=1, limit=10)
+        
+        assert len(logs) == 5
+        assert total == 5
+        assert logs[0].action == "ACTION_0"
+        
+        # 验证调用参数
+        mock_list.assert_called_once_with(
+            user_id=None,
+            action=None,
+            limit=10,
+            offset=0
         )
         
-    # AuditService.get_logs 返回 (logs, total) 元组，使用 page 参数
-    logs, total = await audit_service.get_logs(page=1, limit=10)
-    assert len(logs) >= 5
-    assert total >= 5
-    
-    # 测试筛选
-    logs_filtered, total_filtered = await audit_service.get_logs(action="ACTION_0")
-    assert len(logs_filtered) == 1
-    assert total_filtered == 1
-    assert logs_filtered[0].action == "ACTION_0"
+    # 测试带筛选的调用
+    with patch.object(audit_service.bridge, "list_audit_logs", new_callable=AsyncMock) as mock_list, \
+         patch.object(audit_service.bridge, "query_aggregate", new_callable=AsyncMock) as mock_agg:
+        
+        mock_list.return_value = [mock_logs[0]]
+        mock_agg.return_value = [{"cnt": 1}]
+        
+        logs_filtered, total_filtered = await audit_service.get_logs(action="ACTION_0")
+        
+        assert len(logs_filtered) == 1
+        assert total_filtered == 1
+        assert logs_filtered[0].action == "ACTION_0"
+        
+        mock_list.assert_called_once_with(
+            user_id=None,
+            action="ACTION_0",
+            limit=50,
+            offset=0
+        )

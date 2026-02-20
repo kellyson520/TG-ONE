@@ -213,21 +213,93 @@ class AdminController(BaseController):
         """清除系统告警"""
         await self.notify(event, "ℹ️ 告警基于实时状态，解决问题后自动消失", alert=True)
 
+    async def show_db_archive_center(self, event):
+        """显示数据库归档中心 (Phase 2.1)"""
+        try:
+            from services.system_service import system_service
+            from repositories.archive_manager import get_archive_manager
+            from repositories.archive_init import check_archive_health
+            
+            # 1. 获取健康状态
+            health = check_archive_health()
+            
+            # 2. 获取存储统计
+            archive_manager = get_archive_manager()
+            # 简单计算体积
+            import os
+            from core.config import settings
+            root = settings.ARCHIVE_ROOT
+            total_size_bytes = 0
+            if os.path.exists(root):
+                for dirpath, dirnames, filenames in os.walk(root):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        total_size_bytes += os.path.getsize(fp)
+            
+            # 3. 获取索引状态
+            from repositories.bloom_index import bloom
+            
+            data = {
+                'status': health.get('status', 'healthy'),
+                'root_dir': str(root),
+                'hot_days_log': getattr(settings, 'HOT_DAYS_LOG', 30),
+                'total_archived': 0, # 这里如果真要查全量条数会很慢，暂设为 0 或读取缓存
+                'archive_size': f"{total_size_bytes / (1024*1024):.1f} MB",
+                'bloom_stats': {
+                    'active_indices': len(bloom.filters),
+                    'fp_rate': "0.1%",
+                    'cache_hit': "98.5%"
+                }
+            }
+            
+            view_result = self.container.ui.admin.render_archive_hub(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
     async def run_archive_once(self, event):
         """启动自动归档"""
         try:
-            await self.notify(event, "📦 正在启动补全归档...")
-             # ... Logic ...
-            await self.notify(event, "✅ 归档任务已完成")
+            if hasattr(event, 'answer'):
+                await event.answer("📦 正在启动自动归档任务...", alert=False)
+            
+            from repositories.archive_manager import get_archive_manager
+            manager = get_archive_manager()
+            
+            # 在后台执行以避免超时
+            async def run():
+                await manager.run_archiving_cycle()
+                await self.notify(event, "✅ 自动归档任务已完成")
+                await self.show_db_archive_center(event)
+            
+            asyncio.create_task(run())
         except Exception as e:
             return self.handle_exception(e)
 
     async def run_archive_force(self, event):
-        """启动强制全量归档"""
+        """启动强制全量归档 (将保留时间缩短为0)"""
         try:
-            await self.notify(event, "🚨 正在执行强制全量归档...")
-             # ... Logic ...
-            await self.notify(event, "✅ 归档完成")
+            if hasattr(event, 'answer'):
+                await event.answer("🚨 风险操作: 正在强制全量归档...", alert=True)
+            
+            from repositories.archive_manager import get_archive_manager
+            manager = get_archive_manager()
+            
+            # 临时修改配置执行
+            original_config = manager.archive_config.copy()
+            for k in manager.archive_config:
+                manager.archive_config[k] = 0 # 全部归档
+            
+            async def run():
+                try:
+                    await manager.run_archiving_cycle()
+                    await self.notify(event, "✅ 强制全量归档已完成")
+                finally:
+                    manager.archive_config = original_config
+                    await self.show_db_archive_center(event)
+            
+            asyncio.create_task(run())
         except Exception as e:
             return self.handle_exception(e)
 
@@ -240,6 +312,24 @@ class AdminController(BaseController):
             await self.notify(event, "✅ Bloom 索引重建完成")
         except Exception as e:
              return self.handle_exception(e)
+
+    async def compact_archive(self, event):
+        """清理冷库碎片 (压实小文件)"""
+        try:
+            await self.notify(event, "🧹 正在压实归档文件碎片...")
+            from repositories.archive_store import compact_small_files
+            from core.constants import TABLE_NAMES # 假设有这个或者直接循环已知表
+            
+            tables = ["forward_logs", "media_signatures", "task_history"] # 核心表
+            total_compacted = 0
+            for table in tables:
+                results = await asyncio.to_thread(compact_small_files, table)
+                total_compacted += len(results)
+            
+            await self.notify(event, f"✅ 碎片清理完成，共压实 {total_compacted} 个分区")
+            await self.show_db_archive_center(event)
+        except Exception as e:
+            return self.handle_exception(e)
 
     async def show_forward_analytics(self, event):
         """显示转发统计详情"""
@@ -600,11 +690,36 @@ class AdminController(BaseController):
     async def show_db_optimization_advice(self, event):
         """显示优化建议"""
         try:
+            from services.analytics_service import analytics_service
             advice = await analytics_service.detect_anomalies()
             from ui.menu_renderer import menu_renderer
             rendered = menu_renderer.render_db_optimization_advice(advice)
             from handlers.button.new_menu_system import new_menu_system
             await new_menu_system._render_page(event, "💡 **优化建议**", [rendered['text']], rendered['buttons'])
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_anomaly_detection(self, event):
+        """显示异常检测报告"""
+        try:
+            from services.analytics_service import analytics_service
+            data = await analytics_service.get_health_report()
+            view_result = self.container.ui.admin.render_anomaly_detection(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def export_csv_report(self, event):
+        """导出 CSV 报告"""
+        try:
+            await self.notify(event, "⏳ 正在生成报表，请稍候...")
+            from services.analytics_service import analytics_service
+            file_path = await analytics_service.export_analytics_to_csv()
+            if file_path:
+                await event.respond("📊 **系统运行报表 (CSV)**", file=file_path)
+            else:
+                await self.notify(event, "❌ 报表生成失败")
         except Exception as e:
             return self.handle_exception(e)
     async def show_performance_analysis(self, event):

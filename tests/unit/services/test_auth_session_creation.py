@@ -15,14 +15,21 @@ async def test_create_session_success(auth_service):
     
     with patch("core.container.container") as mock_container:
         # Mock DB Session
-        mock_session = AsyncMock()
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.delete = MagicMock()
-        mock_container.db.session.return_value.__aenter__.return_value = mock_session
+        
+        # Mock context manager behavior for db.get_session()
+        context_manager = MagicMock()
+        context_manager.__aenter__ = AsyncMock(return_value=mock_session)
+        context_manager.__aexit__ = AsyncMock(return_value=None)
+        mock_container.db.get_session.return_value = context_manager
         
         # Mock existing sessions (empty)
         mock_result = MagicMock()
-        mock_result.scalars().all.return_value = []
+        mock_result.scalars.return_value.all.return_value = []
         mock_session.execute.return_value = mock_result
 
         # Call method
@@ -55,25 +62,29 @@ async def test_create_session_max_limit_enforced(auth_service):
     
     with patch("core.container.container") as mock_container, \
          patch("services.authentication_service.settings.MAX_ACTIVE_SESSIONS", MAX_SESSIONS):
-        mock_session = AsyncMock()
+        # Mock DB Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.delete = MagicMock()
-        mock_container.db.session.return_value.__aenter__.return_value = mock_session
         
-        # Mock 5 existing sessions (limit reached -> should remove 1 to make room? Or 5 is limit, so if 5 exist, adding 1 makes 6, so create 1 delete 1?)
-        # Logic: if len >= MAX (5) -> remove len - MAX + 1.
-        # If 5 exist, remove 5 - 5 + 1 = 1.
+        # Mock context manager behavior for db.get_session()
+        context_manager = MagicMock()
+        context_manager.__aenter__ = AsyncMock(return_value=mock_session)
+        context_manager.__aexit__ = AsyncMock(return_value=None)
+        mock_container.db.get_session.return_value = context_manager
         
+        # Mock 5 existing sessions
         existing_sessions = [MagicMock(spec=ActiveSession, id=i) for i in range(5)]
         mock_result = MagicMock()
-        mock_result.scalars().all.return_value = existing_sessions
+        mock_result.scalars.return_value.all.return_value = existing_sessions
         mock_session.execute.return_value = mock_result
 
         # Call method
         await auth_service.create_session(user_id, ip, ua)
         
         # Verify deletion
-        # existing_sessions[0] is oldest (mock order)
         mock_session.delete.assert_called_once_with(existing_sessions[0])
         
         # Verify addition
@@ -90,14 +101,22 @@ async def test_create_session_cleanup_multiple(auth_service):
     
     with patch("core.container.container") as mock_container, \
          patch("services.authentication_service.settings.MAX_ACTIVE_SESSIONS", MAX_SESSIONS):
-        mock_session = AsyncMock()
+        # Mock DB Session
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.delete = MagicMock()
-        mock_container.db.session.return_value.__aenter__.return_value = mock_session
+        
+        # Mock context manager behavior for db.get_session()
+        context_manager = MagicMock()
+        context_manager.__aenter__ = AsyncMock(return_value=mock_session)
+        context_manager.__aexit__ = AsyncMock(return_value=None)
+        mock_container.db.get_session.return_value = context_manager
         
         existing_sessions = [MagicMock(spec=ActiveSession, id=i) for i in range(EXISTING_COUNT)]
         mock_result = MagicMock()
-        mock_result.scalars().all.return_value = existing_sessions
+        mock_result.scalars.return_value.all.return_value = existing_sessions
         mock_session.execute.return_value = mock_result
 
         # Call method
@@ -105,10 +124,6 @@ async def test_create_session_cleanup_multiple(auth_service):
         
         # Logic: len(10) >= 5. Remove 10 - 5 + 1 = 6.
         assert mock_session.delete.call_count == 6
-        # Verify strictly oldest 6 are deleted
-        # calls are async, order matters in implementation loop
-        # Check call args list
         deleted_args = [c[0][0] for c in mock_session.delete.call_args_list]
         expected_deleted = existing_sessions[:6]
         assert deleted_args == expected_deleted
-

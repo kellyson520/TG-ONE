@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stats", tags=["Stats"])
 
+
 @router.get("/overview", response_model=ResponseSchema)
 async def api_stats_overview(request: Request, user = Depends(login_required)):
     """获取统计总览 (统一入口)"""

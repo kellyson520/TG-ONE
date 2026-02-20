@@ -84,8 +84,11 @@ class RuleLogicService:
             if sync.sync_rule_id != target_rule.id:
                 target_rule.rule_syncs.append(RuleSync(sync_rule_id=sync.sync_rule_id))
             
+        source_chat_id = int(target_rule.source_chat.telegram_chat_id) if target_rule.source_chat else None
         await self.container.rule_repo.save_rule(target_rule)
-        self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
+        
+        if source_chat_id:
+            self.container.rule_repo.clear_cache(source_chat_id)
         
         return {'success': True, 'message': 'Rule copied successfully'}
 

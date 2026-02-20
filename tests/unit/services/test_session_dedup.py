@@ -23,6 +23,7 @@ async def test_scan_duplicate_messages(session_service, mock_container):
     chat_id = 12345
     mock_event = MagicMock()
     mock_event.chat_id = chat_id
+    mock_event.sender_id = 999
     
     # Mock iter_messages with duplicates
     async def mock_iter(*args, **kwargs):
@@ -30,8 +31,11 @@ async def test_scan_duplicate_messages(session_service, mock_container):
         m1 = MagicMock()
         m1.id = 101
         m1.date = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        m1.grouped_id = None # Crucial: prevent entering group hash logic
+        m1.grouped_id = None
+        m1.message = ""
+        m1.text = ""
         photo1 = MagicMock()
+        photo1.id = 555  # ID should be same for duplicates
         size1 = MagicMock()
         size1.w = 100
         size1.h = 100
@@ -49,7 +53,10 @@ async def test_scan_duplicate_messages(session_service, mock_container):
         m2.id = 102
         m2.date = datetime(2026, 1, 2, tzinfo=timezone.utc)
         m2.grouped_id = None
+        m2.message = ""
+        m2.text = ""
         photo2 = MagicMock()
+        photo2.id = 555  # Same ID
         size2 = MagicMock()
         size2.w = 100
         size2.h = 100
@@ -67,7 +74,10 @@ async def test_scan_duplicate_messages(session_service, mock_container):
         m3.id = 103
         m3.date = datetime(2026, 1, 3, tzinfo=timezone.utc)
         m3.grouped_id = None
+        m3.message = ""
+        m3.text = ""
         photo3 = MagicMock()
+        photo3.id = 777  # Different ID
         size3 = MagicMock()
         size3.w = 200
         size3.h = 200

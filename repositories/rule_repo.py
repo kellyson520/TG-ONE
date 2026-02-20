@@ -34,6 +34,7 @@ class RuleRepository:
             selectinload(ForwardRule.replace_rules),
             selectinload(ForwardRule.media_types),
             selectinload(ForwardRule.media_extensions),
+            selectinload(ForwardRule.rule_syncs),
             selectinload(ForwardRule.rss_config),
             selectinload(ForwardRule.push_config)
         ]

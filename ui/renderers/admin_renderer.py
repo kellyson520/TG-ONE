@@ -70,6 +70,8 @@ class AdminRenderer(BaseRenderer):
             .add_section("专家建议", data.get('recommendations', ['暂无显著优化建议，系统运行良好。']), icon="💡")
             .add_button("启动巡检", action="new_menu:run_db_optimization_check", icon=UIStatus.ADD)
             .add_button("重建索引", action="new_menu:db_reindex", icon=UIStatus.SYNC)
+            .add_button("索引分析", action="new_menu:db_index_analysis", icon=UIStatus.SEARCH)
+            .add_button("缓存管理", action="new_menu:db_cache_management", icon=UIStatus.TRASH)
             .add_button("归档中心", action="new_menu:db_archive_center", icon=UIStatus.FILTER)
             .add_button("优化配置", action="new_menu:db_optimization_config", icon=UIStatus.SETTINGS)
             .add_button("返回系统中心", action="new_menu:system_hub", icon=UIStatus.BACK)
@@ -236,5 +238,42 @@ class AdminRenderer(BaseRenderer):
             
         builder.add_button("刷新", "new_menu:failure_analysis", icon=UIStatus.SYNC)
         builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        
+        return builder.build()
+
+    def render_archive_hub(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染归档管理中心中心 (Phase 2.1)"""
+        status = data.get('status', 'healthy')
+        stats = data.get('stats', {})
+        bloom_stats = data.get('bloom_stats', {})
+        
+        builder = self.new_builder()
+        builder.set_title("数据库归档中心", icon="📦")
+        builder.add_breadcrumb(["首页", "系统", "归档"])
+        
+        icon = "✅" if status == "healthy" else "⚠️"
+        builder.add_section("归档系统状态", [
+            f"{icon} 系统状态: {status.upper()}",
+            f"冷库引擎: DuckDB (Parquet)",
+            f"存储根目录: `{data.get('root_dir', '/data/archive')}`"
+        ], icon="🛡️")
+        
+        builder.add_status_grid({
+            "热库保留": f"{data.get('hot_days_log', 30)}d",
+            "已归档记录": f"{data.get('total_archived', 0):,}条",
+            "冷库体积": data.get('archive_size', '0B')
+        })
+        
+        builder.add_section("Bloom 索引状态", [
+            f"活跃索引: {bloom_stats.get('active_indices', 0)} 个",
+            f"假阳性率: {bloom_stats.get('fp_rate', '0.1%')}",
+            f"缓存命中: {bloom_stats.get('cache_hit', '0%')}"
+        ], icon="🌸")
+        
+        builder.add_button("启动自动归档", action="new_menu:run_archive_once", icon="🚀")
+        builder.add_button("强制全量归档", action="new_menu:run_archive_force", icon="🚨")
+        builder.add_button("重建 Bloom 索引", action="new_menu:rebuild_bloom", icon="🔄")
+        builder.add_button("清理冷库碎片", action="new_menu:compact_archive", icon="🧹")
+        builder.add_button("返回维护中心", action="new_menu:db_optimization_center", icon=UIStatus.BACK)
         
         return builder.build()

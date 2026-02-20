@@ -148,7 +148,9 @@ class NewMenuSystem(BaseMenu):
     async def show_log_viewer(self, event): await self.system_menu.show_log_viewer(event)
     async def show_version_info(self, event): await self.system_menu.show_version_info(event)
     async def do_restore(self, event, index): await self.system_menu.do_restore(event, index)
-    async def show_dedup_config(self, event): await self.session_menu.show_dedup_config(event)
+    async def show_dedup_config(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_dedup_config(event)
 
     # 5. 数据分析 (Analytics)
     async def show_forward_analytics(self, event): await self.analytics_menu.show_forward_analytics(event)
@@ -208,7 +210,7 @@ class NewMenuSystem(BaseMenu):
     # 7. 会话管理 (Session Ops - Refactored to Controller)
     async def show_session_management(self, event):
         from controllers.menu_controller import menu_controller
-        await menu_controller.container.media_controller.show_session_management(event)
+        await menu_controller.show_session_management(event)
 
     async def show_session_dedup_menu(self, event):
         from controllers.menu_controller import menu_controller
@@ -303,5 +305,62 @@ class NewMenuSystem(BaseMenu):
     async def show_session_numeric_picker(self, event, side, field): await self.picker_menu.show_session_numeric_picker(event, side, field)
     async def show_duration_range_picker(self, event, side): await self.picker_menu.show_duration_range_picker(event, side)
     async def show_wheel_date_picker(self, event, side): await self.picker_menu.show_wheel_date_picker(event, side)
+
+    # 10. 全局与高级 (Advanced)
+    async def show_db_archive_center(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_db_archive_center(event)
+
+    async def show_media_filter_config(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_media_filter_config(event)
+
+    async def toggle_global_media(self, event, media_type: str):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.toggle_global_media(event, media_type)
+
+    async def show_media_extension_hub(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_media_extension_hub(event)
+
+    async def toggle_global_extension(self, event, extension: str):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.toggle_global_extension(event, extension)
+
+    async def show_ai_global_settings(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_ai_global_settings(event)
+
+    async def show_ai_global_model(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_ai_global_model(event)
+
+    async def select_global_ai_model(self, event, model: str):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.select_global_ai_model(event, model)
+
+    async def show_ai_global_concurrency(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.show_ai_global_concurrency(event)
+
+    async def set_global_ai_concurrency(self, event, val: int):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.set_global_ai_concurrency(event, val)
+
+    async def run_archive_once(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.run_db_archive_once(event)
+
+    async def run_archive_force(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.run_db_archive_force(event)
+
+    async def rebuild_bloom(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.rebuild_bloom(event)
+
+    async def compact_archive(self, event):
+        from controllers.menu_controller import menu_controller
+        await menu_controller.compact_archive(event)
 
 new_menu_system = NewMenuSystem()

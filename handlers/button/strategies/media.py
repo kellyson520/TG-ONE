@@ -17,7 +17,8 @@ class MediaMenuStrategy(BaseMenuHandler):
         "set_media_types", "toggle_media_type",
         "set_media_extensions", "media_extensions_page", "toggle_media_extension",
         "toggle_media_allow_text",
-        "media_filter_config"
+        "media_filter_config", "toggle_global_media",
+        "media_extension_hub", "toggle_global_extension"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -37,8 +38,20 @@ class MediaMenuStrategy(BaseMenuHandler):
                 rule_id = int(parts[1])
 
         # Global actions validation (no rule_id needed)
+        from handlers.button.new_menu_system import new_menu_system
         if action == "media_filter_config":
-            return await menu_controller.container.media_controller.show_media_filter_config(event)
+            return await new_menu_system.show_media_filter_config(event)
+        
+        elif action == "toggle_global_media":
+            media_type = extra_data[0] if extra_data else None
+            return await new_menu_system.toggle_global_media(event, media_type)
+
+        elif action == "media_extension_hub":
+            return await new_menu_system.show_media_extension_hub(event)
+
+        elif action == "toggle_global_extension":
+            extension = extra_data[0] if extra_data else None
+            return await new_menu_system.toggle_global_extension(event, extension)
 
         if not rule_id:
             logger.warning(f"MediaStrategy: No rule_id for action {action}")

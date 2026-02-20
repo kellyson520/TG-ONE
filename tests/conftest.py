@@ -342,7 +342,7 @@ async def db(setup_database):
     依赖 setup_database，确保数据库已初始化
     """
     container = get_container()
-    async with container.db.session_factory() as session:
+    async with container.db.session() as session:
         yield session
 
 

@@ -297,9 +297,11 @@ async def async_vacuum_database() -> bool:
     """Run VACUUM on the database (async)"""
     try:
         engine = DbFactory.get_async_engine()
+        # VACUUM cannot be run inside a transaction.
+        # Use execution_options(isolation_level="AUTOCOMMIT") for aiosqlite/SQLAlchemy.
         async with engine.connect() as conn:
-            # For async, we try executing it directly.
-            # Note: some drivers/configurations might still struggle with VACUUM.
+            # We must set isolation_level to AUTOCOMMIT before execution
+            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
             await conn.execute(text("VACUUM"))
         return True
     except Exception as e:

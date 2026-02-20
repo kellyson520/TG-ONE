@@ -90,7 +90,7 @@ async def test_pipeline_flow(mock_client, mock_message, mock_rule):
         # Assertions
         mock_rule_repo.get_rules_for_source_chat.assert_called_with(111)
         # Dedup check should be called for target 222
-        mock_dedup_service.check_and_lock.assert_called_with(222, mock_message, rule_config={})
+        mock_dedup_service.check_and_lock.assert_called_with(222, mock_message, rule_config={}, rule_id=1)
         
         # Sender should send
         # Since logic in SenderMiddleware uses forward_messages_queued or send_message/file

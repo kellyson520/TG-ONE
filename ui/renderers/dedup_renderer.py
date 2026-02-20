@@ -183,6 +183,26 @@ class DedupRenderer(BaseRenderer):
             .add_button("👈 返回", "new_menu:dedup_advanced", icon=UIStatus.BACK)
             .build())
 
+    async def render_hash_examples(self, data: Dict[str, Any] = None) -> ViewResult:
+        """渲染哈希特征示例 (Phase 4.5)"""
+        return (self.new_builder()
+            .set_title("哈希指纹提取示例", icon="🧩")
+            .add_breadcrumb(["首页", "高级设置", "特征示例"])
+            .add_section("媒体文件 (Media)", [
+                "• 逻辑: 提取自 FileID 或文件开头/结尾的 64KB 哈希。",
+                "• 示例: `vid:hash:a1b2c3d4...`"
+            ], icon="🎞️")
+            .add_section("文本内容 (Text)", [
+                "• 逻辑: 经过正则脱敏后的纯文本指纹 (SimHash)。",
+                "• 示例: `txt:sim:88e2f10c...`"
+            ], icon="📝")
+            .add_section("表情符号 (Sticker)", [
+                "• 逻辑: 直接聚合表情包唯一标识符。",
+                "• 示例: `stk:id:51928374...`"
+            ], icon="🎭")
+            .add_button("👈 返回高级设置", "new_menu:dedup_advanced", icon=UIStatus.BACK)
+            .build())
+
     def render_statistics(self, data: Dict[str, Any]) -> ViewResult:
         """渲染统计详情"""
         stats = data.get('stats', {})

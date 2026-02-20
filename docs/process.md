@@ -12,7 +12,10 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260220_Fix_Test_Failures_CI | 修复测试失败 (RuleManagement & SessionDedup) | 2026-02-20 | 2026-02-20 | 100% | [[report.md]](./Workstream_Maintenance/20260220_Fix_Test_Failures_CI/report.md) |
+| 20260220_Fix_UIStatus_Attribute_Error | 修复 UIStatus.DELETE 属性缺失错误 | 2026-02-20 | 2026-02-20 | 100% | [[report.md]](./Workstream_Maintenance/20260220_Fix_UIStatus_Attribute_Error/report.md) |
 | 20260219_Fix_Database_Locked_Deep_Fix | 修复 SQLite 数据库锁定错误 (深度治理 & BEGIN IMMEDIATE) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Bugfix/20260219_Fix_Database_Locked_Error/report.md) |
+| 20260220_Fix_Database_Transaction_and_Integrity_Errors | 修复数据库事务与唯一约束错误 (VACUUM/Unique) | 2026-02-20 | 2026-02-20 | 100% | [[report.md]](./Workstream_Database_Optimization/20260220_Fix_Database_Transaction_and_Integrity_Errors/report.md) |
 | 20260219_Fix_DuckDB_Timestamp_Cast | 修复 DuckDB Timestamp 与 VARCHAR 比较错误 | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Bugfix/20260219_Fix_DuckDB_Timestamp_Cast/report.md) |
 | 20260219_Worker_Memory_Crisis_Fix | Worker 内存熔断倒置与告警降噪修复 | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Optimization/20260219_Worker_Memory_Crisis_Fix/report.md) |
 | 20260216_Refactor_MenuController_CVM_Standardization | MenuController 及领域控制器架构标准化重构 | 2026-02-16 | 2026-02-16 | 100% | [[report.md]](./Workstream_MenuSystem/20260216_Refactor_MenuController_CVM_Standardization/report.md) |

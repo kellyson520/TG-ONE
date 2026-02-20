@@ -234,7 +234,8 @@ class RuleCRUDService:
             await session.commit()
             
             # Cache Invalidation
-            if source_id: self.container.rule_repo.clear_cache(source_id)
+            if source_id: 
+                self.container.rule_repo.clear_cache(source_id)
             if target_id: self.container.rule_repo.clear_cache(target_id)
             
             # [QoS Fix] 发送更新事件，触发监听器刷新优先级映射

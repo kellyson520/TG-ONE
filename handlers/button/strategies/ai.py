@@ -13,7 +13,9 @@ class AIMenuStrategy(BaseMenuHandler):
     Handles AI-related settings actions.
     """
     ACTIONS = {
-        "ai_settings",
+        "ai_settings", "ai_global_settings",
+        "ai_global_model", "ai_global_concurrency",
+        "select_global_ai_model", "set_global_ai_concurrency",
         "set_summary_time", "set_summary_prompt", "set_ai_prompt",
         "time_page", "select_time",
         "select_model", "model_page", "change_model",
@@ -35,6 +37,24 @@ class AIMenuStrategy(BaseMenuHandler):
             parts = data.split(":")
             if len(parts) > 1 and parts[1].isdigit():
                 rule_id = int(parts[1])
+
+        from handlers.button.new_menu_system import new_menu_system
+        if action == "ai_global_settings":
+            return await new_menu_system.show_ai_global_settings(event)
+
+        elif action == "ai_global_model":
+            return await new_menu_system.show_ai_global_model(event)
+
+        elif action == "ai_global_concurrency":
+            return await new_menu_system.show_ai_global_concurrency(event)
+
+        elif action == "select_global_ai_model":
+            model = extra_data[0] if extra_data else ""
+            return await new_menu_system.select_global_ai_model(event, model)
+
+        elif action == "set_global_ai_concurrency":
+            val = int(extra_data[0]) if extra_data else 5
+            return await new_menu_system.set_global_ai_concurrency(event, val)
 
         if action == "ai_settings":
             await menu_controller.show_ai_settings(event, rule_id)

@@ -1,6 +1,6 @@
 # TG ONE Project Structure
 
-> Updated: 2026-02-16 08:19
+> Updated: 2026-02-20 09:29
 
 ---
 
@@ -20,8 +20,6 @@ TG ONE/
 ├── 📁 alembic              # Directory
 ├── 📄 alembic.ini          # File
 ├── 📁 api                  # Directory
-├── 📄 ci_output.txt        # File
-├── 📄 ci_output_2.txt      # File
 ├── 📁 controllers          # Directory
 ├── 📁 core                 # Core Business Logic
 ├── 📁 data                 # Directory
@@ -30,9 +28,11 @@ TG ONE/
 ├── 📁 enums                # Enumerations
 ├── 📁 filters              # Message Filters
 ├── 📁 handlers             # Command & Event Handlers
+├── 📄 inspect_queue.py     # File
 ├── 📁 listeners            # Event Listeners
 ├── 📁 logs                 # Directory
 ├── 📄 main.py              # Application Entry
+├── 📄 manage_update.py     # File
 ├── 📁 middlewares          # Middleware Layer
 ├── 📁 migrations           # Directory
 ├── 📁 models               # Data Models
@@ -44,16 +44,12 @@ TG ONE/
 ├── 📁 schemas              # Directory
 ├── 📁 scripts              # Utility Scripts
 ├── 📁 services             # Service Layer
-├── 📄 telegram-forwarder-opt-20260215102004.log # File
-├── 📄 telegram-forwarder-opt-20260215103715.log # File
-├── 📄 telegram-forwarder-opt-20260215105004.log # File
 ├── 📁 temp                 # Directory
 ├── 📁 temp_test_db         # Directory
 ├── 📁 tests                # Test Suite
 ├── 📁 ui                   # Bot UI Renderer
 ├── 📄 version.py           # Version Info
 ├── 📁 web_admin            # FastAPI Admin Backend
-├── 📁 zhuanfaji            # Directory
 ```
 
 ---
@@ -85,6 +81,9 @@ TG ONE/
 │   ├── lsh_forest.py
 │   └── simhash.py
 ├── aop.py
+├── archive
+│   ├── bridge.py
+│   └── engine.py
 ├── bootstrap.py
 ├── cache
 │   ├── persistent_cache.py
@@ -150,6 +149,7 @@ TG ONE/
 │   ├── search_system.py
 │   ├── sleep_manager.py
 │   ├── smart_retry.py
+│   ├── sqlite_config.py
 │   ├── time_range.py
 │   ├── tombstone.py
 │   ├── trace_analyzer.py
@@ -175,6 +175,12 @@ TG ONE/
 ├── Frontend_Backend_Integration_Plan.md
 ├── Frontend_Backend_Integration_Summary.md
 ├── Standard_Whitepaper.md
+├── Workstream_Analytics
+│   └── 20260219_Fix_Forward_Stats_Display
+│       ├── report.md
+│       ├── spec.md
+│       ├── task.json
+│       └── todo.md
 ├── Workstream_Architecture_Refactor
 │   ├── 20260125_Core_Infrastructure_Cleanup_Phase2
 │   │   ├── spec.md
@@ -230,6 +236,18 @@ TG ONE/
 │   ├── 20260215_Fix_WebTimeDiffAndAccessLog
 │   │   └── todo.md
 │   ├── 20260216_Fix_Forward_Stats_Empty_Display
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260218_Fix_Analytics_Buttons
+│   │   └── todo.md
+│   ├── 20260218_Fix_Analytics_Worker_Registry
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260219_Fix_Database_Locked_Error
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260219_Fix_DuckDB_Timestamp_Cast
 │   │   ├── report.md
 │   │   └── todo.md
 │   └── Menu_Quality_Improvements_Report.md
@@ -339,6 +357,15 @@ TG ONE/
 ├── Workstream_Database
 │   └── 20260210_Fix_AccessControlList_AlreadyExists_Error
 │       └── todo.md
+├── Workstream_Database_Optimization
+│   ├── 20260218_Fix_SQLite_Locked_TaskQueue
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260218_Hot_Cold_Tiering_Universal
+│   │   ├── spec.md
+│   │   └── todo.md
+│   └── 20260220_Fix_Database_Transaction_and_Integrity_Errors
+│       └── todo.md
 ├── Workstream_Deduplication
 │   └── 20260207_Upgrade_Deduplication_Engine_v4
 │       ├── report.md
@@ -408,12 +435,29 @@ TG ONE/
 │   │   └── todo.md
 │   ├── 20260208_LogAnalysis_P1
 │   │   └── todo.md
+│   ├── 20260219_Fix_Archive_and_Cleanup_Paths
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260220_Fix_UIStatus_Attribute_Error
+│   │   ├── constants.py.bak
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
 │   └── Task_Bind_Web_Port
 │       └── todo.md
 ├── Workstream_MenuSystem
-│   └── 20260214_Menu_Callback_and_API_Consistency_Audit
-│       ├── audit_report.md
-│       ├── spec.md
+│   ├── 20260214_Menu_Callback_and_API_Consistency_Audit
+│   │   ├── audit_report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260216_Refactor_Analytics_Menu_Architecture
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260216_Refactor_History_Task_List_Architecture
+│   │   ├── report.md
+│   │   └── todo.md
+│   └── 20260216_Refactor_MenuController_CVM_Standardization
+│       ├── report.md
 │       └── todo.md
 ├── Workstream_Ops
 │   ├── 20260210_Upgrade_Update_Service_NonGit
@@ -422,7 +466,18 @@ TG ONE/
 │   │   └── todo.md
 │   └── Fix_Non_Git_Update
 ├── Workstream_Optimization
-│   └── 20260213_Task_Queue_Throughput_and_Failure_Optimization
+│   ├── 20260213_Task_Queue_Throughput_and_Failure_Optimization
+│   │   ├── spec.md
+│   │   └── todo.md
+│   ├── 20260219_VPS_High_Load_Fix
+│   │   ├── report.md
+│   │   └── todo.md
+│   ├── 20260219_Worker_Memory_Crisis_Fix
+│   │   ├── report.md
+│   │   ├── spec.md
+│   │   └── todo.md
+│   └── 20260219_Worker_Performance_Boost
+│       ├── report.md
 │       ├── spec.md
 │       └── todo.md
 ├── Workstream_Refactor
@@ -435,6 +490,10 @@ TG ONE/
 │   └── Task_Integration_Mixed_Media
 │       ├── report.md
 │       ├── spec.md
+│       └── todo.md
+├── Workstream_TimeFlow
+│   └── 20260216_TimeFlow_Init
+│       ├── roadmap.md
 │       └── todo.md
 ├── Workstream_UI
 │   ├── 20260207_FixBackNavigation
@@ -766,17 +825,19 @@ TG ONE/
 │   │       ├── report.md
 │   │       ├── spec.md
 │   │       └── todo.md
-│   └── Workstream_UI_UX
-│       └── 20260205_Upgrade_Date_Picker
-│           ├── report.md
-│           ├── spec.md
-│           └── todo.md
+│   ├── Workstream_UI_UX
+│   │   └── 20260205_Upgrade_Date_Picker
+│   │       ├── report.md
+│   │       ├── spec.md
+│   │       └── todo.md
+│   └── session_menu_deprecated.py
 ├── file_list.txt
 ├── finish
 ├── fixes
 │   ├── DEPLOYMENT_CHECKLIST.md
 │   ├── SUMMARY_dedup_fix.md
-│   └── dedup_critical_fix_20260205.md
+│   ├── dedup_critical_fix_20260205.md
+│   └── fix_analytics_and_media_strategy.md
 ├── process.md
 ├── setup_guide.md
 └── tree.md
@@ -822,8 +883,6 @@ TG ONE/
 │   │   ├── history.py
 │   │   ├── picker_menu.py
 │   │   ├── rules_menu.py
-│   │   ├── session_menu.py
-│   │   ├── smart_dedup_menu.py
 │   │   └── system_menu.py
 │   ├── new_menu_system.py
 │   ├── settings_manager.py
@@ -873,6 +932,7 @@ TG ONE/
 ├── analytics_service.py
 ├── audit_service.py
 ├── authentication_service.py
+├── backup_service.py
 ├── batch_user_service.py
 ├── bloom_filter.py
 ├── cache_service.py
@@ -901,6 +961,7 @@ TG ONE/
 ├── forward_log_writer.py
 ├── forward_service.py
 ├── forward_settings_service.py
+├── legacy_backup_bridge.py
 ├── media_hydration_service.py
 ├── media_service.py
 ├── menu_service.py
@@ -944,6 +1005,7 @@ TG ONE/
 ├── smart_buffer.py
 ├── state_service.py
 ├── system_service.py
+├── task_dispatcher.py
 ├── task_service.py
 ├── update_service.py
 ├── user_service.py
@@ -961,9 +1023,11 @@ TG ONE/
 └── renderers
     ├── admin_renderer.py
     ├── base_renderer.py
+    ├── dedup_renderer.py
     ├── main_menu_renderer.py
     ├── media_renderer.py
     ├── rule_renderer.py
+    ├── session_renderer.py
     ├── settings_renderer.py
     └── task_renderer.py
 ```

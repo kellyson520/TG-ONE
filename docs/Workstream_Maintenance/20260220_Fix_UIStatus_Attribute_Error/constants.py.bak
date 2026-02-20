@@ -22,7 +22,6 @@ class UIStatus:
     KEY = "🔑"
     STAR = "⭐"
     TRASH = "🗑️"
-    DELETE = "🗑️"
     EDIT = "📝"
     SEARCH = "🔍"
     FILTER = "🧹"

@@ -191,10 +191,126 @@ class MediaController(BaseController):
             return self.handle_exception(e)
 
     async def show_media_filter_config(self, event):
-        """显示媒体过滤配置"""
-        view_result = self.container.ui.media.render_media_filter_config({})
-        from handlers.button.new_menu_system import new_menu_system
-        await new_menu_system._render_page(event, "🎬 **媒体过滤配置**", [view_result.text], view_result.buttons)
+        """显示媒体过滤配置 (Phase 2.2)"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            # 获取全局热设置
+            global_settings = await forward_settings_service.get_global_media_settings()
+            
+            # 由于存储结构是 {'media_types': {...}}, 这里需要提取
+            media_types = global_settings.get('media_types', {})
+            data = {
+                'settings': {
+                    f"allow_{k}": v for k, v in media_types.items()
+                }
+            }
+            
+            view_result = self.container.ui.media.render_media_filter_config(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_media_extension_hub(self, event):
+        """显示高级扩展名过滤中心 (Phase 2.2)"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            settings = await forward_settings_service.get_global_media_settings()
+            options = await forward_settings_service.get_media_extensions_options()
+            
+            data = {
+                'selected': settings.get('media_extensions', []),
+                'options': options
+            }
+            
+            view_result = self.container.ui.media.render_media_extension_hub(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def toggle_global_extension(self, event, extension: str):
+        """切换全局扩展名过滤"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            await forward_settings_service.toggle_media_extension(extension)
+            await self.show_media_extension_hub(event)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_ai_global_settings(self, event):
+        """显示 AI 全局设置 (Phase 2.2)"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            settings = await forward_settings_service.get_global_media_settings()
+            
+            data = {
+                'settings': {
+                    'default_model': settings.get('ai_default_model', 'GPT-4o'),
+                    'ai_concurrency': settings.get('ai_concurrency', 5),
+                    'ai_retries': settings.get('ai_retries', 3),
+                    'ai_fallback': settings.get('ai_fallback', 'raw'),
+                    'enable_safety': settings.get('enable_ai_safety', True)
+                }
+            }
+            
+            view_result = self.container.ui.media.render_ai_global_settings(data)
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_ai_global_model(self, event):
+        """显示全局默认模型选择"""
+        try:
+            from core.config.settings_loader import load_ai_models
+            from services.forward_settings_service import forward_settings_service
+            
+            models = load_ai_models()
+            settings = await forward_settings_service.get_global_media_settings()
+            
+            view_result = self.container.ui.media.render_ai_global_model_selection({
+                'models': models,
+                'current_model': settings.get('ai_default_model', 'GPT-4o')
+            })
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def select_global_ai_model(self, event, model: str):
+        """设置全局默认 AI 模型"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            await forward_settings_service.update_global_media_setting('ai_default_model', model)
+            await self.notify(event, f"✅ 全局默认模型已设置为: {model}")
+            await self.show_ai_global_settings(event)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def show_ai_global_concurrency(self, event):
+        """显示全局并发设置"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            settings = await forward_settings_service.get_global_media_settings()
+            
+            view_result = self.container.ui.media.render_ai_global_concurrency_settings({
+                'current_concurrency': settings.get('ai_concurrency', 5)
+            })
+            from handlers.button.new_menu_system import new_menu_system
+            await new_menu_system.display_view(event, view_result)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def set_global_ai_concurrency(self, event, val: int):
+        """设置全局并发配额"""
+        try:
+            from services.forward_settings_service import forward_settings_service
+            await forward_settings_service.update_global_media_setting('ai_concurrency', int(val))
+            await self.notify(event, f"✅ 全局并发配额已设置为: {val} 条/秒")
+            await self.show_ai_global_settings(event)
+        except Exception as e:
+            return self.handle_exception(e)
 
     async def show_ai_settings(self, event, rule_id: int):
         """显示单条规则的 AI 设置页面 (Refactored to UIRE-2.0)"""

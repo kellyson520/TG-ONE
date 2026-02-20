@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock, PropertyMock
 from services.analytics_service import AnalyticsService
+from datetime import datetime
 from core.helpers.realtime_stats import realtime_stats_cache
 
 @pytest.fixture
@@ -118,18 +119,11 @@ async def test_get_performance_metrics(analytics_service):
 
 @pytest.mark.asyncio
 async def test_search_records(analytics_service):
-    from models.models import RuleLog
-    # Mocking RuleLog with spec to ensure AttributeError is raised for missing attributes
-    mock_log = MagicMock(spec=RuleLog)
-    mock_log.id = 1
-    mock_log.rule_id = 101
-    mock_log.action = 'forwarded'
-    mock_log.message_text = 'Hello World'
-    mock_log.created_at = '2026-02-15 12:00:00'
+    from models.models import RuleLog, ForwardRule
     
-    mock_rule = MagicMock()
-    mock_rule.source_chat_id = 12345
-    mock_rule.target_chat_id = 67890
+    # 1. Setup Mock Rule
+    mock_rule = MagicMock(spec=ForwardRule)
+    mock_rule.id = 101
     
     mock_source_chat = MagicMock()
     mock_source_chat.title = "Source Chat Name"
@@ -143,24 +137,35 @@ async def test_search_records(analytics_service):
     
     mock_rule.source_chat = mock_source_chat
     mock_rule.target_chat = mock_target_chat
-    mock_log.rule = mock_rule
     
-    # Mocking database session and result
-    mock_session = AsyncMock()
+    # 2. Mock DB Session
+    mock_session = MagicMock()
+    mock_session.execute = AsyncMock()
+    
     mock_result = MagicMock()
-    mock_result.scalars().all.return_value = [mock_log]
+    mock_result.scalars.return_value.all.return_value = [mock_rule]
     mock_session.execute.return_value = mock_result
     
     mock_container = MagicMock()
     mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
     
-    with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop:
+    # 3. Patch and execute
+    with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop, \
+         patch.object(analytics_service.bridge, 'query_unified', new_callable=AsyncMock) as mock_query_unified:
+        
         mock_container_prop.return_value = mock_container
+        mock_query_unified.return_value = [{
+            'id': 1,
+            'rule_id': 101,
+            'action': 'forwarded',
+            'message_text': 'Hello World',
+            'created_at': datetime.now()
+        }]
         
         result = await analytics_service.search_records(query='Hello')
+        
         assert 'records' in result
         assert len(result['records']) == 1
         assert result['records'][0]['source_chat'] == "Source Chat Name"
         assert result['records'][0]['target_chat'] == "Target Chat Name"
-        # 兼容性字段也应包含该名称
         assert result['records'][0]['source_chat_id'] == "Source Chat Name"
