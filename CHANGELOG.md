@@ -1,4 +1,21 @@
+## 📅 2026-02-21 更新摘要
+
+### 🚀 v1.2.6.7: 任务队列详情透视与处理链可视化 (Task Queue Detail & Pipeline Visualization)
+- **任务详情弹窗重构 (Task Detail Modal)**:
+    - **交互升级**: 抛弃旧版通知单，实现全量 `Dialog` 对话框响应式弹窗，支持点击任务 ID 或详情图标一键直达。
+    - **元数据透视**: 支持在弹窗中实时查看任务的原始 JSON 参数 (`task_data`)、执行进度 (`done_count`/`total_count`) 及各项统计指标（转发、过滤、失败数）。
+- **可视化处理链 (Visual Processing Chain)**:
+    - **全链路追踪**: 为消息处理任务引入可视化步骤条，涵盖 `准备` -> `规则匹配` -> `去重检查` -> `内容过滤` -> `执行转发` 全流程。
+    - **异常感应诊断**: 前端根据错误日志关键字（如 `rule`, `dedup`, `filter`）自动定位并标红失败环节，极大缩短了运维排查时间。
+- **后端 API 与仓库优化**:
+    - **仓库层增强**: `TaskRepository` 新增 `get_task_by_id` 物理查询方法，确保只读事务下高性能获取完整任务快照。
+    - **API 扩展**: 扩展了 `/api/system/tasks/{task_id}` 接口，补全了 `error_log` (异常堆栈)、`started_at`、`completed_at` 等关键治理字段。
+- **前端工程稳健性**:
+    - **加载状态细化**: 引入 `loadingTaskId` 状态锁，将 Loading 动画精准锁定在触发任务行，消除全局 UI 闪烁。
+    - **构建同步**: 完成了 React 编译产物的增量更新，确保远程仓库中的 `dist` 目录与最新功能逻辑完全同步。
+
 ## 📅 2026-02-19 更新摘要
+
 
 ### 🚀 v1.2.6.6: 转发详细统计修复与数据链路优化 (Forward Stats & DuckDB Bridge Fix)
 - **统计面板修复 (Fix Forward Stats)**:
