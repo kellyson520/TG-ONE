@@ -328,3 +328,38 @@ class RuleController(BaseController):
             await self.show_sync_rule_picker(event, rule_id, page)
         except Exception as e:
             return self.handle_exception(e)
+
+    async def export_rule_logs(self, event, rule_id: int):
+        """导出规则日志"""
+        try:
+            from services.analytics_service import analytics_service
+            import os
+            import asyncio
+            
+            await self.notify(event, f"⏳ 正在生成规则 `{rule_id}` 的日志报表...")
+            file_path = await analytics_service.export_logs_to_csv(rule_id=rule_id, days=30)
+            
+            if file_path and os.path.exists(file_path):
+                await self.container.bot_client.send_file(
+                    event.chat_id, 
+                    file=str(file_path), 
+                    caption=f"📝 **规则 {rule_id} 转发流水 (最近 30 天)**"
+                )
+                await event.answer("✅ 导出成功")
+                # 异步清理
+                asyncio.create_task(self._cleanup_file(file_path))
+            else:
+                await event.answer("📭 暂无日志数据可导出", alert=True)
+        except Exception as e:
+            return self.handle_exception(e)
+
+    async def _cleanup_file(self, file_path):
+        """异步清理文件"""
+        import os
+        import asyncio
+        await asyncio.sleep(60)
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass

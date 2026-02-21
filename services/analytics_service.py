@@ -734,5 +734,59 @@ class AnalyticsService:
             }
 
 
+    async def export_logs_to_csv(self, rule_id: Optional[int] = None, days: int = 7) -> Optional[Path]:
+        """导出转发日志到 CSV (跨热冷)"""
+        try:
+            import csv
+            import os
+            import time
+            from core.config import settings
+            
+            os.makedirs(settings.TEMP_DIR, exist_ok=True)
+            suffix = f"rule_{rule_id}" if rule_id else "all"
+            export_path = settings.TEMP_DIR / f"export_{suffix}_{int(time.time())}.csv"
+            
+            cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+            where_sql = "created_at >= CAST(? AS TIMESTAMP)"
+            params = [cutoff]
+            
+            if rule_id:
+                where_sql += " AND rule_id = ?"
+                params.append(rule_id)
+            
+            # 使用 bridge 跨热冷查询
+            logs = await self.bridge.query_unified(
+                "rule_logs",
+                where_sql=where_sql,
+                params=params,
+                limit=10000, # 限制 10000 条导出
+                order_by="created_at DESC"
+            )
+            
+            if not logs:
+                return None
+                
+            headers = ["ID", "Time", "RuleID", "Type", "Action", "Latency", "Message"]
+            with open(export_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for log in logs:
+                    created_at = log.get('created_at')
+                    time_str = created_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(created_at, 'strftime') else str(created_at)
+                    writer.writerow([
+                        log.get('id'),
+                        time_str,
+                        log.get('rule_id'),
+                        log.get('message_type'),
+                        log.get('action'),
+                        f"{log.get('processing_time', 0)/1000:.3f}s",
+                        (log.get('message_text') or '')[:200]
+                    ])
+            
+            return export_path
+        except Exception as e:
+            logger.error(f"Export logs to CSV failed: {e}\n{traceback.format_exc()}")
+            return None
+
 # 创建单例实例
 analytics_service = AnalyticsService()

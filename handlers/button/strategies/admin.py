@@ -52,16 +52,25 @@ class AdminMenuStrategy(BaseMenuHandler):
         
         elif action == "admin_cleanup":
             days = int(extra_data[0]) if extra_data else 7
-            await menu_controller.execute_admin_cleanup(event, days)
+            await menu_controller.execute_admin_cleanup_logs(event, days)
         
         elif action == "admin_cleanup_temp":
-            await menu_controller.execute_admin_cleanup_temp(event)
+            await menu_controller.execute_cleanup_temp(event)
+            
+        elif action == "admin_vacuum_db":
+            await menu_controller.run_db_reindex(event)
+            
+        elif action == "admin_analyze_db":
+            await menu_controller.show_db_detailed_report(event)
+            
+        elif action == "admin_full_optimize":
+            await menu_controller.run_db_optimization_check(event)
             
         elif action == "admin_stats":
             await menu_controller.show_admin_stats(event)
         
         elif action == "admin_config":
-            await menu_controller.show_admin_config(event)
+            await menu_controller.show_config(event)
             
         elif action == "admin_restart":
             await menu_controller.show_restart_confirm(event)

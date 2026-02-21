@@ -562,6 +562,10 @@ class MenuController:
         """实时滚动查询运行日志"""
         await self.container.admin_controller.show_system_logs(event)
 
+    async def show_admin_logs(self, event):
+        """管理员日志面板 (别名)"""
+        await self.show_system_logs(event)
+
     async def show_cache_cleanup(self, event):
         """文件系统临时文件清理界面"""
         await self.container.admin_controller.show_cache_cleanup(event)
@@ -581,6 +585,26 @@ class MenuController:
     async def execute_restart(self, event):
         """执行主进程优雅重启"""
         await self.container.admin_controller.execute_restart(event)
+
+    async def execute_admin_cleanup_logs(self, event, days: int):
+        """执行日志清理"""
+        await self.container.admin_controller.execute_admin_cleanup_logs(event, days)
+
+    async def execute_cleanup_temp(self, event):
+        """清理临时文件"""
+        await self.container.admin_controller.execute_cleanup_temp(event)
+
+    async def show_admin_stats(self, event):
+        """显示管理员统计面板"""
+        await self.container.admin_controller.show_stats(event)
+
+    async def show_config(self, event):
+        """显示系统配置"""
+        await self.container.admin_controller.show_config(event)
+
+    async def export_error_logs(self, event):
+        """导出错误日志"""
+        await self.container.admin_controller.export_error_logs(event)
 
     # --- 7. History & Task Operations ---
 
@@ -623,6 +647,10 @@ class MenuController:
     async def cancel_history_task(self, event):
         """终止并撤销历史任务"""
         await self.container.media_controller.cancel_task(event)
+        
+    async def export_rule_logs(self, event, rule_id: int):
+        """导出规则日志"""
+        await self.container.rule_controller.export_rule_logs(event, rule_id)
 
     async def start_dry_run(self, event):
         """不产生实际转发的行为模拟验证"""

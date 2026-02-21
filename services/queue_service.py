@@ -288,7 +288,9 @@ class TelegramQueueService:
                     return result
                 except Exception as e:
                     last_exc = e
-                    from telethon.errors import FloodWaitError
+                    from telethon.errors import FloodWaitError, MessageIdInvalidError, PeerIdInvalidError, ChatAdminRequiredError
+                    
+                    # 1. 处理 FloodWait (需要等待并重试)
                     seconds = None
                     if isinstance(e, FloodWaitError):
                         seconds = e.seconds
@@ -303,6 +305,13 @@ class TelegramQueueService:
                     if seconds is not None:
                         self._handle_flood_wait(target_key, pair_key, seconds)
                         raise FloodWaitException(seconds)
+                    
+                    # 2. 处理终端错误 (不应重试)
+                    if isinstance(e, (MessageIdInvalidError, PeerIdInvalidError, ChatAdminRequiredError)):
+                        logger.warning(f"Terminal Telegram error in {operation_name}: {e}. Skipping retries.")
+                        raise e
+
+                    # 3. 其他错误则继续重试（根据 backoff 策略）
                     continue
             if last_exc:
                 raise last_exc

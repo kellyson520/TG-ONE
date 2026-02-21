@@ -22,6 +22,7 @@ class AdminRenderer(BaseRenderer):
             .add_button("备份管理", action="new_menu:db_backup", icon=UIStatus.ADD)
             .add_button("垃圾清理", action="new_menu:cache_cleanup", icon=UIStatus.TRASH)
             .add_button("会话管理", action="new_menu:session_management", icon=UIStatus.DOT)
+            .add_button("归档中心", action="new_menu:db_archive_center", icon=UIStatus.FILTER)
             .add_button("系统日志", action="new_menu:system_logs", icon=UIStatus.INFO)
             .add_button("返回主菜单", action="new_menu:main_menu", icon=UIStatus.BACK)
             .build())
@@ -159,11 +160,11 @@ class AdminRenderer(BaseRenderer):
                 f"占比: {top_type.get('percentage', 0):.1f}%"
             ], icon="🎯")
             
-        builder.add_button("详细统计", "new_menu:detailed_analytics", icon="📊")
-        builder.add_button("性能分析", "new_menu:performance_analysis", icon="📈")
-        builder.add_button("异常检测", "new_menu:anomaly_detection", icon="🚨")
-        builder.add_button("导出报告", "new_menu:export_csv", icon="📤")
-        builder.add_button("返回主菜单", "new_menu:main_menu", icon=UIStatus.BACK)
+        builder.add_button("详细分时统计", action="new_menu:detailed_analytics", icon="📊")
+        builder.add_button("核心性能指标", action="new_menu:performance_analysis", icon="📈")
+        builder.add_button("系统风险扫描", action="new_menu:anomaly_detection", icon="🚨")
+        builder.add_button("导出 CSV 报表", action="new_menu:export_csv_report", icon="📤")
+        builder.add_button("返回主菜单中心", action="new_menu:main_menu", icon=UIStatus.BACK)
         
         return builder.build()
 
@@ -196,7 +197,7 @@ class AdminRenderer(BaseRenderer):
         ], icon="📥")
         
         builder.add_button("刷新面板", "new_menu:performance_analysis", icon=UIStatus.SYNC)
-        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        builder.add_button("返回分析中心", action="new_menu:analytics_hub", icon=UIStatus.BACK)
         
         return builder.build()
     def render_anomaly_detection(self, data: Dict[str, Any]) -> ViewResult:
@@ -217,8 +218,8 @@ class AdminRenderer(BaseRenderer):
             "• 确认 API 限制(FloodWait)是否触发"
         ], icon="💡")
         
-        builder.add_button("重新扫描", "new_menu:anomaly_detection", icon=UIStatus.SYNC)
-        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        builder.add_button("刷新诊断", action="new_menu:anomaly_detection", icon="🔄")
+        builder.add_button("返回分析中心", action="new_menu:analytics_hub", icon=UIStatus.BACK)
         
         return builder.build()
 
@@ -237,7 +238,7 @@ class AdminRenderer(BaseRenderer):
             ], icon="❌")
             
         builder.add_button("刷新", "new_menu:failure_analysis", icon=UIStatus.SYNC)
-        builder.add_button("返回分析中心", "new_menu:forward_analytics", icon=UIStatus.BACK)
+        builder.add_button("返回分析中心", action="new_menu:analytics_hub", icon=UIStatus.BACK)
         
         return builder.build()
 
@@ -273,7 +274,7 @@ class AdminRenderer(BaseRenderer):
         builder.add_button("启动自动归档", action="new_menu:run_archive_once", icon="🚀")
         builder.add_button("强制全量归档", action="new_menu:run_archive_force", icon="🚨")
         builder.add_button("重建 Bloom 索引", action="new_menu:rebuild_bloom", icon="🔄")
-        builder.add_button("清理冷库碎片", action="new_menu:compact_archive", icon="🧹")
+        builder.add_button("物理回收碎片", action="new_menu:compact_archive", icon="🧹")
         builder.add_button("返回维护中心", action="new_menu:db_optimization_center", icon=UIStatus.BACK)
         
         return builder.build()

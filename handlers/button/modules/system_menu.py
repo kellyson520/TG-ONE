@@ -24,6 +24,7 @@ class SystemMenu(BaseMenu):
         """显示系统设置菜单"""
         buttons = [
             [Button.inline("💾 数据库备份", "new_menu:db_backup")],
+            [Button.inline("📦 数据库归档", "new_menu:db_archive_center")],
             [Button.inline("📊 系统概况", "new_menu:system_overview")],
             [Button.inline("🗑️ 缓存清理", "new_menu:cache_cleanup")],
             [Button.inline("👈 返回上一级", "new_menu:system_hub")],

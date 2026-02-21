@@ -12,6 +12,14 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260221_Fix_LogRouter_AuditLog_AttributeError | 修复审计日志 Attribute Error (dict vs object) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_LogRouter_AuditLog_AttributeError/report.md) |
+| 20260221_Enrich_Forward_Action_Types | 强化转发记录动作类型与国际化 (已转发/失败/已过滤) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Web_UI/20260221_Enrich_Forward_Action_Types/report.md) |
+| 20260221_Fix_Authentication_Coroutine_Bug | 修复 AuthenticationService 协程未等待导致的系统崩溃 (Bus Error) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_Authentication_Coroutine_Bug/report.md) |
+| 20260219_Fix_Forward_Stats_Display | 修复转发详细统计显示异常 (Period/UnknownType) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Analytics/20260219_Fix_Forward_Stats_Display/report.md) |
+| 20260221_Fix_Archive_Button_And_Missing_Admin_Actions | 修复归档按钮缺失与后台管理动作失效 | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_Archive_Button_And_Missing_Admin_Actions/report.md) |
+| 20260221_Fix_Archive_Manager_Deprecated_Session | 修复归档管理器同步 session 废弃导致的异常 | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_Archive_Manager_Deprecated_Session/report.md) |
+| 20260221_Fix_Sqlite3_Vacuum_Transaction | 修复 SQLite3 VACUUM 事务冲突错误 | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_Sqlite3_Vacuum_Transaction/report.md) |
+| 20260221_Fix_AdminLogs_And_MessageInvalid | 修复 AdminLogs 缺失与 Invalid Message ID 错误 | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_AdminLogs_And_MessageInvalid/report.md) |
 | 20260220_Fix_Test_Failures_CI | 修复测试失败 (RuleManagement & SessionDedup) | 2026-02-20 | 2026-02-20 | 100% | [[report.md]](./Workstream_Maintenance/20260220_Fix_Test_Failures_CI/report.md) |
 | 20260220_Fix_UIStatus_Attribute_Error | 修复 UIStatus.DELETE 属性缺失错误 | 2026-02-20 | 2026-02-20 | 100% | [[report.md]](./Workstream_Maintenance/20260220_Fix_UIStatus_Attribute_Error/report.md) |
 | 20260219_Fix_Database_Locked_Deep_Fix | 修复 SQLite 数据库锁定错误 (深度治理 & BEGIN IMMEDIATE) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Bugfix/20260219_Fix_Database_Locked_Error/report.md) |
@@ -47,7 +55,6 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
-| 20260219_Fix_Forward_Stats_Display | 修复转发详细统计显示异常 (Period/UnknownType) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Analytics/20260219_Fix_Forward_Stats_Display/report.md) |
 | 20260219_VPS_High_Load_Fix | VPS 高负载 (300%) 修复及并发优化 | 2026-02-19 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260219_VPS_High_Load_Fix/todo.md) |
 
 | 20260213_Task_Queue_Optimization | 任务队列吞吐量优化与失败治理 (积压 8.8w 处理) | 2026-02-13 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260213_Task_Queue_Throughput_and_Failure_Optimization/todo.md) |

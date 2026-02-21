@@ -62,10 +62,10 @@ class MenuHandlerRegistry:
                     if await handler.match(action, **kwargs):
                         handler_name = handler.__class__.__name__
                         logger.debug(f"Action '{action}' matched by {handler_name}")
+                        matched = True
                         
                         # Execute handler
                         await handler.handle(event, action, **kwargs)
-                        matched = True
                         break
                 except Exception as e:
                     logger.error(

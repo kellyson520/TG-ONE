@@ -41,7 +41,7 @@ class SystemMenuStrategy(BaseMenuHandler):
         "rebuild_bloom", "compact_archive",
         "db_index_analysis", "db_cache_management",
         "detailed_analytics", "performance_analysis", "anomaly_detection",
-        "export_csv", "failure_analysis"
+        "export_csv", "export_csv_report", "failure_analysis", "export_error_logs"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -86,8 +86,11 @@ class SystemMenuStrategy(BaseMenuHandler):
         elif action == "anomaly_detection":
             await menu_controller.show_anomaly_detection(event)
 
-        elif action == "export_csv":
+        elif action in ["export_csv", "export_csv_report"]:
             await menu_controller.export_csv_report(event)
+            
+        elif action == "export_error_logs":
+            await menu_controller.export_error_logs(event)
 
         elif action == "failure_analysis":
             await menu_controller.show_failure_analysis(event)

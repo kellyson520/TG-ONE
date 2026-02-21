@@ -375,18 +375,39 @@ class AdminController(BaseController):
             return self.handle_exception(e)
 
     async def export_analytics_csv(self, event):
-        """导出分析 CSV"""
+        """导出分析 CSV (最近 7 天)"""
         try:
-            from services.system_service import system_service
-            file_path = await system_service.export_analytics_csv()
-            if file_path and file_path.exists():
-                from services.network.telegram_utils import safe_edit
-                await safe_edit(event, f"✅ 分析报告已生成，正在发送文件...\n路径: `{file_path.name}`", [])
-                await event.client.send_file(event.chat_id, str(file_path), caption=f"📊 TG ONE 转发分析报告 ({datetime.now().strftime('%Y-%m-%d')})")
+            import os
+            import asyncio
+            from services.analytics_service import analytics_service
+            file_path = await analytics_service.export_logs_to_csv(days=7)
+            
+            if file_path and os.path.exists(file_path):
+                await self.container.bot_client.send_file(
+                    event.chat_id, 
+                    file=str(file_path), 
+                    caption="📊 **系统全量分析报告 (最近 7 天)**\n数据已跨越冷热库层聚合。"
+                )
+                await event.answer("✅ 报告已发送")
+                # 异步删除临时文件
+                asyncio.create_task(self._cleanup_file(file_path))
             else:
-                await event.answer("❌ 导出失败：没有可导出的数据", alert=True)
+                await event.answer("📭 暂无数据可导出", alert=True)
         except Exception as e:
             return self.handle_exception(e)
+
+    async def _cleanup_file(self, file_path):
+        """异步清理文件"""
+        import os
+        import asyncio
+        await asyncio.sleep(60) # 等待一段时间确保文件发送完成
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                # self.logger.info(f"Cleaned up temporary file: {file_path}")
+        except Exception as e:
+            # self.logger.error(f"Error cleaning up file {file_path}: {e}")
+            pass
 
     async def show_session_management(self, event):
         """显示会话管理"""
@@ -543,6 +564,7 @@ class AdminController(BaseController):
     async def show_realtime_monitor(self, event):
         """显示系统实时监控"""
         try:
+            from services.analytics_service import analytics_service # Added this import
             metrics = await analytics_service.get_performance_metrics()
             sys_res = metrics.get('system_resources', {})
             qs = metrics.get('queue_status', {})
@@ -657,6 +679,7 @@ class AdminController(BaseController):
     async def show_db_query_analysis(self, event):
         """显示数据库查询分析"""
         try:
+            from services.analytics_service import analytics_service # Added this import
             stats = await analytics_service.get_detailed_stats(days=1)
             from ui.menu_renderer import menu_renderer
             rendered = menu_renderer.render_db_query_analysis(stats)
@@ -668,6 +691,7 @@ class AdminController(BaseController):
     async def show_db_performance_trends(self, event):
         """显示数据库性能趋势"""
         try:
+            from services.analytics_service import analytics_service # Added this import
             stats = await analytics_service.get_detailed_analytics(days=7)
             from ui.menu_renderer import menu_renderer
             rendered = menu_renderer.render_db_performance_trends(stats)
@@ -679,6 +703,7 @@ class AdminController(BaseController):
     async def show_db_alert_management(self, event):
         """显示数据库告警管理"""
         try:
+            from services.analytics_service import analytics_service # Added this import
             anomalies = await analytics_service.detect_anomalies()
             from ui.menu_renderer import menu_renderer
             rendered = menu_renderer.render_db_alert_management(anomalies)
@@ -711,17 +736,26 @@ class AdminController(BaseController):
             return self.handle_exception(e)
 
     async def export_csv_report(self, event):
-        """导出 CSV 报告"""
+        """导出 CSV 报告 (别名，对齐策略)"""
+        await self.export_analytics_csv(event)
+
+    async def export_error_logs(self, event):
+        """导出错误日志"""
         try:
-            await self.notify(event, "⏳ 正在生成报表，请稍候...")
-            from services.analytics_service import analytics_service
-            file_path = await analytics_service.export_analytics_to_csv()
-            if file_path:
-                await event.respond("📊 **系统运行报表 (CSV)**", file=file_path)
+            from services.system_service import system_service
+            log_path = system_service.get_log_file_path(log_type="error")
+            if log_path and log_path.exists():
+                await self.container.bot_client.send_file(
+                    event.chat_id, 
+                    file=str(log_path), 
+                    caption=f"⚠️ **系统错误日志 (app.log)**\n导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                await event.answer("✅ 错误日志已发送")
             else:
-                await self.notify(event, "❌ 报表生成失败")
+                await event.answer("📭 未找到错误日志文件", alert=True)
         except Exception as e:
             return self.handle_exception(e)
+
     async def show_performance_analysis(self, event):
         """显示系统性能分析"""
         try:

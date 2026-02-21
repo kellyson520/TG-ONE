@@ -233,7 +233,7 @@ def get_archive_manager(session_factory=None):
     if _instance is None:
         if session_factory is None:
             # 尝试从 db_context 获取或由外部注入
-            from repositories.db_context import db_session
-            session_factory = db_session
+            from repositories.db_context import async_db_session
+            session_factory = async_db_session
         _instance = ArchiveManager(session_factory)
     return _instance

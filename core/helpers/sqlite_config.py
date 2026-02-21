@@ -31,7 +31,9 @@ def setup_sqlite_performance(engine, enable_immediate: bool = True):
     if enable_immediate:
         @event.listens_for(target_engine, "begin")
         def do_begin_immediate(conn):
-            # logger.debug(f"[SQLiteConfig] Starting transaction with BEGIN IMMEDIATE on {conn}")
+            # 如果是 AUTOCOMMIT 模式，不发送 BEGIN IMMEDIATE，否则会破坏 VACUUM 等指令
+            if conn.get_isolation_level() == "AUTOCOMMIT":
+                return
             conn.exec_driver_sql("BEGIN IMMEDIATE")
         logger.info(f"[SQLiteConfig] 已为引擎 {engine.url} 配置高性能 WAL & BEGIN IMMEDIATE 策略")
     else:

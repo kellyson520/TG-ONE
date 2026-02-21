@@ -284,9 +284,19 @@ def vacuum_database() -> bool:
     """Run VACUUM on the database"""
     try:
         engine = DbFactory.get_engine()
-        # VACUUM cannot be run inside a transaction
-        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            conn.execute(text("VACUUM"))
+        # Use a raw connection to bypass SQLAlchemy's transaction management entirely
+        # This is the most reliable way to run VACUUM in SQLite + SQLAlchemy
+        raw_conn = engine.raw_connection()
+        try:
+            # Set isolation_level to None (autocommit in sqlite3)
+            raw_conn.isolation_level = None
+            cursor = raw_conn.cursor()
+            try:
+                cursor.execute("VACUUM")
+            finally:
+                cursor.close()
+        finally:
+            raw_conn.close()
         return True
     except Exception as e:
         logger.error(f"VACUUM failed: {e}")
@@ -297,12 +307,25 @@ async def async_vacuum_database() -> bool:
     """Run VACUUM on the database (async)"""
     try:
         engine = DbFactory.get_async_engine()
-        # VACUUM cannot be run inside a transaction.
-        # Use execution_options(isolation_level="AUTOCOMMIT") for aiosqlite/SQLAlchemy.
+        # For async, we can use run_sync on the connection to set isolation_level and VACUUM
         async with engine.connect() as conn:
-            # We must set isolation_level to AUTOCOMMIT before execution
-            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-            await conn.execute(text("VACUUM"))
+            # IMPORTANT: We must ensure no transaction is open.
+            # Even with AUTOCOMMIT, some listeners might have started one.
+            # Using run_sync allows us to interact with the raw aiosqlite/sqlite3 connection.
+            def _do_vacuum(sync_conn):
+                # sync_conn 是一个同步的 sqlalchemy.engine.Connection 对象
+                # 我们需要获取底层的 raw dbapi connection (sqlite3.Connection)
+                raw_conn = sync_conn.connection.dbapi_connection
+                
+                old_level = getattr(raw_conn, 'isolation_level', None)
+                try:
+                    # 对于 sqlite3，isolation_level = None 表示 AUTOCOMMIT
+                    raw_conn.isolation_level = None
+                    raw_conn.execute("VACUUM")
+                finally:
+                    raw_conn.isolation_level = old_level
+
+            await conn.run_sync(_do_vacuum)
         return True
     except Exception as e:
         logger.error(f"Async VACUUM failed: {e}")

@@ -28,7 +28,7 @@ class RuleMenuStrategy(BaseMenuHandler):
         "forward_management", "rule_management",
         "multi_source_management", "multi_source_page", "manage_multi_source",
         "history_messages", "forward_stats_detailed", "global_forward_settings",
-        "forward_performance"
+        "forward_performance", "export_rule_logs"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -183,3 +183,7 @@ class RuleMenuStrategy(BaseMenuHandler):
         
         elif action == "forward_performance":
             await new_menu_system.show_performance_analysis(event)
+            
+        elif action == "export_rule_logs":
+            rule_id = arg1
+            await menu_controller.export_rule_logs(event, rule_id)

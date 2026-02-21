@@ -467,7 +467,7 @@ class Container:
             await asyncio.gather(
                 self.stats_repo.log_action(
                     data['rule_id'], data['msg_id'], "success", 
-                    result=f"转发成功 (模式: {data.get('mode', '未知')})",
+                    result=f"已转发 (模式: {data.get('mode', '未知')})",
                     msg_text=data.get('msg_text'),
                     msg_type=data.get('msg_type'),
                     processing_time=data.get('duration')
@@ -508,9 +508,10 @@ class Container:
             await asyncio.gather(
                 self.stats_repo.log_action(
                     rule_id, data.get('msg_id', 0), "filtered", 
-                    result=data.get('reason', 'Filtered by rules'),
+                    result=data.get('reason', '按规则过滤'),
                     msg_text=data.get('msg_text'),
-                    msg_type=data.get('msg_type')
+                    msg_type=data.get('msg_type'),
+                    processing_time=data.get('duration')
                 ),
                 self.stats_repo.increment_rule_stats(rule_id, "filtered")
             )

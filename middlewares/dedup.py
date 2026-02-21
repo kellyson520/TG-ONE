@@ -48,6 +48,28 @@ class DedupMiddleware(Middleware):
                 
                 if is_dup:
                     logger.info(f"🚫 [Pipeline-Dedup] 发现重复消息，跳过规则: 规则ID={rule.id}, 原因={reason}")
+                    
+                    # 发布过滤事件，用于统计上报
+                    from core.helpers.msg_utils import detect_message_type
+                    import time
+                    duration = (time.time() - ctx.start_time) * 1000 if hasattr(ctx, 'start_time') else 0
+                    
+                    # 尝试通过事件总线发布 (这里需要从某处获取 Bus，通常在 Container 中)
+                    # 由于 Middleware 通常不直接持有 Bus，我们检查 ctx 是否有 client 绑定的 bus 或者全局单例
+                    # [Refactor] 统一通过 ctx 携带的 bus 或全局 container 发布
+                    try:
+                        from core.container import container
+                        await container.bus.publish("FORWARD_FILTERED", {
+                            "rule_id": rule.id,
+                            "msg_id": ctx.message_id,
+                            "reason": f"智能去重: {reason}",
+                            "msg_text": ctx.message_obj.text if hasattr(ctx.message_obj, 'text') else "",
+                            "msg_type": detect_message_type(ctx.message_obj),
+                            "duration": duration
+                        })
+                    except Exception as bus_e:
+                        logger.warning(f"Failed to publish dedup filtered event: {bus_e}")
+                        
                     continue # 跳过此规则
                 
                 # 记录以便回滚

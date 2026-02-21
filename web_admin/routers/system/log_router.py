@@ -302,18 +302,24 @@ async def get_audit_logs(
         # 序列化
         serialized_logs = []
         for log in logs:
+            ts = log.get("timestamp")
+            if ts and isinstance(ts, datetime):
+                ts_str = ts.replace(tzinfo=timezone.utc).isoformat()
+            else:
+                ts_str = str(ts) if ts else None
+
             serialized_logs.append({
-                "id": log.id,
-                "user_id": log.user_id,
-                "username": log.username,
-                "action": log.action,
-                "resource_type": log.resource_type,
-                "resource_id": log.resource_id,
-                "ip_address": log.ip_address,
-                "user_agent": log.user_agent,
-                "details": _parse_audit_details(log.details),
-                "status": log.status,
-                "timestamp": log.timestamp.replace(tzinfo=timezone.utc).isoformat() if log.timestamp else None
+                "id": log.get("id"),
+                "user_id": log.get("user_id"),
+                "username": log.get("username"),
+                "action": log.get("action"),
+                "resource_type": log.get("resource_type"),
+                "resource_id": log.get("resource_id"),
+                "ip_address": log.get("ip_address"),
+                "user_agent": log.get("user_agent"),
+                "details": _parse_audit_details(log.get("details")),
+                "status": log.get("status"),
+                "timestamp": ts_str
             })
 
         return ResponseSchema(

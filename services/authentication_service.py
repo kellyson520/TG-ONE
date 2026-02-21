@@ -102,7 +102,7 @@ class AuthenticationService:
                     # Remove oldest to make room
                     excess_count = len(existing_sessions) - MAX_SESSIONS + 1
                     for i in range(excess_count):
-                         session.delete(existing_sessions[i])
+                         await session.delete(existing_sessions[i])
                     logger.info(f"🧹 [Auth] 清理旧会话: 用户ID={user_id}, 数量={excess_count}")
 
                 # 2. Store SHA256 hash of refresh token
