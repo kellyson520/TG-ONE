@@ -474,3 +474,10 @@ class TaskRepository:
             tasks = result.scalars().all()
             
             return tasks, total
+
+    async def get_task_by_id(self, task_id: int):
+        """获取单个任务详情 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
+            stmt = select(TaskQueue).where(TaskQueue.id == task_id)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()

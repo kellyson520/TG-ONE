@@ -112,6 +112,49 @@ async def get_tasks_list(
         logger.error(f"Error fetching tasks: {e}")
         return ResponseSchema(success=False, error=str(e))
 
+@router.get("/tasks/{task_id}", response_model=ResponseSchema)
+async def get_task_detail(
+    task_id: int,
+    user=Depends(admin_required),
+    task_repo=Depends(deps.get_task_repo)
+):
+    """获取任务详情"""
+    try:
+        task = await task_repo.get_task_by_id(task_id)
+        if not task:
+            return ResponseSchema(success=False, error="任务不存在")
+            
+        # 序列化详细数据
+        data = {
+            'id': task.id,
+            'type': task.task_type,
+            'status': task.status,
+            'priority': task.priority,
+            'unique_key': task.unique_key,
+            'grouped_id': task.grouped_id,
+            'retry_count': task.attempts,
+            'error_message': task.error_message,
+            'error_log': task.error_log,
+            'progress': getattr(task, 'progress', 0),
+            'speed': getattr(task, 'speed', None),
+            'done_count': getattr(task, 'done_count', 0),
+            'total_count': getattr(task, 'total_count', 0),
+            'forwarded_count': getattr(task, 'forwarded_count', 0),
+            'filtered_count': getattr(task, 'filtered_count', 0),
+            'failed_count': getattr(task, 'failed_count', 0),
+            'task_data': task.task_data,
+            'created_at': task.created_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(task.created_at, datetime) else str(task.created_at),
+            'updated_at': task.updated_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(task.updated_at, datetime) else str(task.updated_at),
+            'scheduled_at': task.scheduled_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(task.scheduled_at, datetime) else str(task.scheduled_at) if task.scheduled_at else None,
+            'started_at': task.started_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(task.started_at, datetime) else str(task.started_at) if task.started_at else None,
+            'completed_at': task.completed_at.replace(tzinfo=timezone.utc).isoformat() if isinstance(task.completed_at, datetime) else str(task.completed_at) if task.completed_at else None,
+        }
+        
+        return ResponseSchema(success=True, data=data)
+    except Exception as e:
+        logger.error(f"Error getting task detail: {e}")
+        return ResponseSchema(success=False, error=str(e))
+
 @router.post("/tasks/{task_id}/pause", response_model=ResponseSchema)
 async def pause_task(
     task_id: int,
