@@ -1,7 +1,14 @@
-VERSION = "1.2.6.5"
+VERSION = "1.2.6.8"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.6.8: 归档系统优化与 WebUI 增强 (Archive System Update)
+  - 功能增强：Web Admin 后台新增强制全量归档开关，允许强制覆盖天数限制
+  - 接口扩展：`/api/system/archive/trigger` 新增 force 参数
+- v1.2.6.7: 任务队列详情透视与处理链可视化
+  - 实现全链路追踪与可视化步骤条，增强错误诊断
+- v1.2.6.6: 转发详细统计修复与数据链路优化
+  - 修复统计面板显示异常，优化 DuckDB 桥接查询死锁问题
 - [Hotfix] 2026-02-19: VPS 高负载与架构优化
   - 伸缩重构：WorkerService 引入 CPU/LoadAvg 哨兵，扩容步长受限，支持紧急快速缩容
   - 逻辑对齐：将 fetch_next 限制由 10 降为 1，确保数据库 running 状态与 Worker 数量真实对应

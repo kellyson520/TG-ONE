@@ -1,3 +1,11 @@
+## 📅 2026-03-01 更新摘要
+
+### 🚀 v1.2.6.8: 归档系统优化与 WebUI 增强 (Archive System Update)
+- **强制归档功能 (Force Archive)**:
+    - **API 增强**: 后端 `/api/system/archive/trigger` 接口新增 `force` 参数，允许在必要时绕过数据保护天数限制（如 `HOT_DAYS_LOG` 等），直接清空 SQLite 热表并将所有数据写入 Parquet 对象层。
+    - **UI 重构**: Web Admin 控制台的归档页面进行了重构，拆分出“常规归档”与“强制归档”两组操作，并附带了二次确认告警，增强了运维交互的安全性与便携性。
+- **构建同步**: 更新了前端静态产物并打包部署，对齐了全栈功能链路。
+
 ## 📅 2026-02-21 更新摘要
 
 ### 🚀 v1.2.6.7: 任务队列详情透视与处理链可视化 (Task Queue Detail & Pipeline Visualization)

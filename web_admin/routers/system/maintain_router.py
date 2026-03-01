@@ -202,14 +202,31 @@ async def get_archive_status(
 
 @router.post("/archive/trigger", response_model=ResponseSchema)
 async def trigger_archive(
+    force: bool = False,
     user = Depends(admin_required),
-    manager = Depends(deps.get_archive_manager)
+    manager = Depends(deps.get_archive_manager),
+    db = Depends(deps.get_db)
 ):
-    """手动触发全量归档任务"""
+    """手动触发归档任务 (支持强制全量归档)"""
     try:
-        asyncio.create_task(manager.run_archiving_cycle())
-        return ResponseSchema(success=True, message='归档任务已在后台启动')
+        if force:
+            logger.info(f"[Web-API] 用户 {user.username} 触发强制全量归档")
+            async def _force_task():
+                original_config = manager.archive_config.copy()
+                try:
+                    for model in manager.archive_config:
+                        manager.archive_config[model] = -1 
+                    await manager.run_archiving_cycle()
+                finally:
+                    manager.archive_config = original_config
+            asyncio.create_task(_force_task())
+            return ResponseSchema(success=True, message='强制全量归档任务已在后台启动')
+        else:
+            logger.info(f"[Web-API] 用户 {user.username} 触发常规归档")
+            asyncio.create_task(manager.run_archiving_cycle())
+            return ResponseSchema(success=True, message='常规归档任务已在后台启动')
     except Exception as e:
+        logger.error(f"[Web-API] 归档触发异常: {e}")
         return ResponseSchema(success=False, error=str(e))
 
 @router.get("/resources", response_model=ResponseSchema)
