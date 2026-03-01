@@ -143,7 +143,12 @@ class SmartDeduplicator:
             "content_hash_cache": self.content_hash_cache,
             "text_fp_cache": text_fp_cache_str,
             "lsh_forests": {
-                cid: {"trees": forest.trees, "num_trees": forest.num_trees, "k": forest.prefix_length}
+                cid: {
+                    # Convert to lists for JSON-safe serialization
+                    "trees": [[list(item) for item in tree] for tree in forest.trees], 
+                    "num_trees": forest.num_trees, 
+                    "k": forest.prefix_length
+                }
                 for cid, forest in self.lsh_forests.items()
             },
         }
@@ -184,7 +189,14 @@ class SmartDeduplicator:
             try:
                 from core.algorithms.lsh_forest import LSHForest
                 f = LSHForest(num_trees=data.get("num_trees", 4), prefix_length=data.get("k", 64))
-                f.trees = data.get("trees", [])
+                raw_trees = data.get("trees", [])
+                
+                # Robust conversion back to tuples
+                restored_trees = []
+                for tree in raw_trees:
+                    restored_trees.append([tuple(item) for item in tree if isinstance(item, (list, tuple))])
+                
+                f.trees = restored_trees
                 self.lsh_forests[cid] = f
             except Exception as e:
                 logger.warning(f"从墓碑恢复 LSH 索引失败 ({cid}): {e}")
@@ -377,6 +389,7 @@ class SmartDeduplicator:
 
             # 5. 加入数据库写缓冲 (带丰富元数据支持以后续复核)
             doc = getattr(msg, 'video', None) or getattr(msg, 'photo', None) or getattr(msg, 'document', None)
+            now_iso = datetime.utcnow().isoformat()
             payload = {
                 "chat_id": cid,
                 "signature": sig,
@@ -384,12 +397,15 @@ class SmartDeduplicator:
                 "file_id": str(getattr(msg, 'id', '0')),
                 "media_type": str(getattr(msg, 'type', 'unknown')),
                 "file_size": int(getattr(doc, 'size', 0) or 0) if doc else 0,
+                "file_name": getattr(doc, 'file_name', None) if doc else None,
+                "mime_type": getattr(doc, 'mime_type', None) if doc else None,
                 "duration": int(getattr(doc, 'duration', 0) or 0) if doc else 0,
                 "width": int(getattr(doc, 'w', 0) or 0) if doc else 0,
                 "height": int(getattr(doc, 'h', 0) or 0) if doc else 0,
                 "count": 1,
-                "created_at": datetime.utcnow().isoformat(),
-                "last_seen": datetime.utcnow().isoformat()
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "last_seen": now_iso
             }
             # 5. 表情包索引
             if tools.is_sticker(msg):

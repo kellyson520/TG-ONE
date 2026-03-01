@@ -206,16 +206,13 @@ class EventDrivenMonitor:
                     if api_optimizer:
                         # 获取活跃聊天列表（从数据库）
                         from models.models import Chat
-                        from core.db_factory import get_session
+                        from sqlalchemy import select
+                        from core.container import container
 
-                        session = get_session()
-                        try:
-                            active_chats = (
-                                session.query(Chat.telegram_chat_id)
-                                .filter(Chat.is_active == True)
-                                .limit(20)
-                                .all()
-                            )
+                        async with container.db.get_session(readonly=True) as session:
+                            stmt = select(Chat.telegram_chat_id).filter(Chat.is_active == True).limit(20)
+                            result = await session.execute(stmt)
+                            active_chats = result.all()
 
                             if active_chats:
                                 chat_ids = [chat[0] for chat in active_chats if chat[0]]
@@ -224,8 +221,6 @@ class EventDrivenMonitor:
                                     api_optimizer.get_multiple_chat_statistics(chat_ids)
                                 )
                                 logger.info(f"定期统计更新: {len(chat_ids)} 个聊天")
-                        finally:
-                            session.close()
 
                 except Exception as e:
                     logger.error(f"定期统计任务失败: {str(e)}")

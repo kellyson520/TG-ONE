@@ -149,17 +149,32 @@ class DedupRepository:
                         existing["count"] = (existing.get("count") or 1) + (filtered_rec.get("count") or 1)
                         if filtered_rec.get("last_seen", "") > existing.get("last_seen", ""):
                             existing["last_seen"] = filtered_rec["last_seen"]
+                            # 使用 filtered_rec 的时间更新
                             existing["updated_at"] = filtered_rec.get("updated_at") or filtered_rec["last_seen"]
+                        # 尝试合并其它元数据
+                        for k, v in filtered_rec.items():
+                            if v and not existing.get(k):
+                                existing[k] = v
                     else:
                         merged_records[key] = filtered_rec
 
-                final_records = list(merged_records.values())
-                if not final_records:
+                # 2.5 核心对齐：确保所有记录包含模型定义的全部键 (防止 SQLAlchemy 批量插入报错)
+                # 这个步骤修复了 "INSERT value for column ... is explicitly rendered as a boundparameter" 编译错误
+                all_model_columns = {c.name for c in MediaSignature.__table__.columns if c.name != "id"}
+                uniform_records = []
+                for rec in merged_records.values():
+                    # 为缺失字段补齐 None
+                    for col in all_model_columns:
+                        if col not in rec:
+                            rec[col] = None
+                    uniform_records.append(rec)
+
+                if not uniform_records:
                     return True
 
                 # 3. 执行 SQLite Upsert (处理与数据库已有数据的冲突)
                 def do_upsert(sync_session):
-                    stmt = sqlite_insert(MediaSignature).values(final_records)
+                    stmt = sqlite_insert(MediaSignature).values(uniform_records)
                     
                     # 冲突处理：如果 chat_id + signature 已存在，则累加 count 并更新时间
                     upsert_stmt = stmt.on_conflict_do_update(
@@ -190,7 +205,7 @@ class DedupRepository:
                 await session.run_sync(do_upsert)
                 await session.commit()
                 
-                logger.debug(f"批量插入/更新 {len(final_records)} 条媒体签名成功 (原始批次: {len(records)})")
+                logger.debug(f"批量插入/更新 {len(uniform_records)} 条媒体签名成功 (原始批次: {len(records)})")
                 return True
             except Exception as e:
                 logger.error(f"批量插入媒体签名失败: {e}", exc_info=True)

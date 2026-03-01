@@ -10,6 +10,15 @@ class MediaSignature(Base):
     content_hash = Column(String, nullable=True) # Perceptual hash or other hash
     media_type = Column(String, nullable=True)
     count = Column(Integer, default=1)
+    
+    # Metadata
+    file_size = Column(Integer, nullable=True)
+    file_name = Column(String, nullable=True)
+    mime_type = Column(String, nullable=True)
+    duration = Column(Integer, nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    
     created_at = Column(String, nullable=True)
     updated_at = Column(String, nullable=True)
     last_seen = Column(String, nullable=True)

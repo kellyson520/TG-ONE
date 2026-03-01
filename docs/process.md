@@ -12,7 +12,9 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260301_Fix_Event_Optimization_DB_Locked | 修复事件优化器同步 DB 锁死 | 2026-03-01 | 2026-03-01 | 100% | [[report.md]](./Workstream_Database_Optimization/20260301_Fix_Event_Optimization_DB_Locked/report.md) |
 | 20260221_Fix_LogRouter_AuditLog_AttributeError | 修复审计日志 Attribute Error (dict vs object) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_LogRouter_AuditLog_AttributeError/report.md) |
+| 20260301_Fix_Batch_Write_Failure | 修复去重引擎批量写入失败 | 2026-03-01 | 2026-03-01 | 100% | [[report.md]](./Workstream_Deduplication/20260301_Fix_Batch_Write_Failure/report.md) |
 | 20260221_Enrich_Forward_Action_Types | 强化转发记录动作类型与国际化 (已转发/失败/已过滤) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Web_UI/20260221_Enrich_Forward_Action_Types/report.md) |
 | 20260221_Fix_Authentication_Coroutine_Bug | 修复 AuthenticationService 协程未等待导致的系统崩溃 (Bus Error) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_Authentication_Coroutine_Bug/report.md) |
 | 20260219_Fix_Forward_Stats_Display | 修复转发详细统计显示异常 (Period/UnknownType) | 2026-02-19 | 2026-02-19 | 100% | [[report.md]](./Workstream_Analytics/20260219_Fix_Forward_Stats_Display/report.md) |

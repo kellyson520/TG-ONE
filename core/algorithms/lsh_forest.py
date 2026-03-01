@@ -75,111 +75,72 @@ class LSHForest:
     def add(self, doc_id: str, simhash: int) -> None:
         """
         Add a document to the index.
-        Note: This is O(L * log N) if using insort, or O(L) + lazy sort.
+        Note: Ensures tuple type to avoid comparison errors with serialized data.
         """
         for i in range(self.num_trees):
             permuted = self._permute(simhash, i)
-            # We keep it as tuple (permuted_hash, doc_id)
-            # Using standard list and sorting later is often faster for batch loads.
-            # For online updates, bisect.insort is ok.
-            bisect.insort(self.trees[i], (permuted, doc_id))
+            # FORCE tuple to prevent TypeError during bisect if mixed with lists
+            bisect.insort(self.trees[i], (int(permuted), str(doc_id)))
         self.is_dirty = True
 
     def query(self, simhash: int, top_k: int = 10, max_search: int = 100) -> List[str]:
         """
-        Query for nearest neighbors.
-        
-        Strategy:
-        1. For each tree, find the insertion point of query hash.
-        2. Expand left and right from insertion point.
-        3. Check Hamming distance.
-        4. Stop early if we inspected `max_search` candidates.
+        Query for nearest neighbors using LSH Forest.
+        Consolidated and fixed for type safety.
         """
-        candidates = set()
-        
-        # To strictly follow LSH Forest, we should look for longest common prefix.
-        # In a sorted list, elements with long common prefix are adjacent.
-        
-        for i in range(self.num_trees):
-            permuted_query = self._permute(simhash, i)
-            tree = self.trees[i]
-            N = len(tree)
-            
-            # Binary search
-            idx = bisect.bisect_left(tree, (permuted_query, ""))
-            
-            # Check neighbors (bidirectional expansion)
-            # E.g., check idx, idx-1, idx+1, idx-2...
-            
-            # Limit check count per tree
-            checked_in_tree = 0
-            
-            left, right = idx - 1, idx
-            
-            while checked_in_tree < (max_search // self.num_trees) + 2:
-                # Try right
-                if right < N:
-                    p_hash, doc_id = tree[right]
-                    # Optimization: If prefix mismatch is too large, stop?
-                    # For now just collect candidates
-                    candidates.add(doc_id)
-                    right += 1
-                    checked_in_tree += 1
-                
-                # Try left
-                if left >= 0:
-                    p_hash, doc_id = tree[left]
-                    candidates.add(doc_id)
-                    left -= 1
-                    checked_in_tree += 1
-                    
-                if left < 0 and right >= N:
-                    break
-        
-        # Now verify candidates using actual Hamming distance
-        # NOTE: We need the ORIGINAL hashes of candidates to compute distance.
-        # The index stores (permuted, doc_id). We can re-compute original from permuted.
-        
-        final_results: List[str] = []
-        # We need to retrieve original hash. 
-        # Option A: Store (permuted, original, doc_id) -> More memory.
-        # Option B: Re-unpermute. -> CPU cost. 
-        # Option C: Look up external DB. -> IO cost.
-        
-        # Let's try to pass 'candidates' to a verifier function if data is external.
-        # But if we want self-contained index... let's Unpermute.
-        
-        # Wait, if we use the set `candidates` which only has doc_id, we can't unpermute.
-        # We need to capture (permuted, doc_id, tree_idx) to unpermute.
-        
-        # Let's change candidates to map: doc_id -> simhash
         candidate_hashes = {}
-        
+        limit_per_tree = (max_search // self.num_trees) + 2
+
         for i in range(self.num_trees):
             permuted_query = self._permute(simhash, i)
             tree = self.trees[i]
+            if not tree:
+                continue
+
             N = len(tree)
-            idx = bisect.bisect_left(tree, (permuted_query, ""))
             
+            # --- TYPE SAFETY GUARD ---
+            # Handles cases where serialization (JSON/Orjson) converted tuples to lists.
+            # We must use a search key that matches the type of elements in the tree.
+            search_key = (permuted_query, "")
+            try:
+                if N > 0:
+                    # Check first element to decide key type
+                    first_item = tree[0]
+                    if isinstance(first_item, list):
+                        search_key = [permuted_query, ""]
+                
+                idx = bisect.bisect_left(tree, search_key)
+            except (TypeError, IndexError):
+                # Fallback for mixed or empty trees
+                continue
+            
+            # Bidirectional expansion
             left, right = idx - 1, idx
             count = 0
-            limit = (max_search // self.num_trees) + 2
-            
-            while count < limit:
+            while count < limit_per_tree:
                 valid_step = False
                 if right < N:
-                    p_val, d_id = tree[right]
-                    if d_id not in candidate_hashes:
-                        # Recover original
-                        candidate_hashes[d_id] = self._unpermute(p_val, i)
+                    item = tree[right]
+                    # Robust unpacking (works for [p, d] and (p, d))
+                    try:
+                        p_val, d_id = item[0], item[1]
+                        if d_id not in candidate_hashes:
+                            candidate_hashes[d_id] = self._unpermute(p_val, i)
+                    except (TypeError, IndexError):
+                        pass
                     right += 1
                     count += 1
                     valid_step = True
                 
-                if left >= 0 and count < limit:
-                    p_val, d_id = tree[left]
-                    if d_id not in candidate_hashes:
-                        candidate_hashes[d_id] = self._unpermute(p_val, i)
+                if left >= 0 and count < limit_per_tree:
+                    item = tree[left]
+                    try:
+                        p_val, d_id = item[0], item[1]
+                        if d_id not in candidate_hashes:
+                            candidate_hashes[d_id] = self._unpermute(p_val, i)
+                    except (TypeError, IndexError):
+                        pass
                     left -= 1
                     count += 1
                     valid_step = True
@@ -187,7 +148,7 @@ class LSHForest:
                 if not valid_step:
                     break
 
-        # Compute distances
+        # Compute distances and rank
         dist_list = []
         for d_id, d_hash in candidate_hashes.items():
             dist = self._hamming_distance(simhash, d_hash)

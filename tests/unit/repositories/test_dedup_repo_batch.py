@@ -9,7 +9,7 @@ class TestDedupRepoBatch:
     def mock_db(self):
         db = MagicMock()
         session = AsyncMock()
-        db.session.return_value.__aenter__.return_value = session
+        db.get_session.return_value.__aenter__.return_value = session
         return db, session
 
     async def test_batch_add_media_signatures_filtering(self, mock_db):
