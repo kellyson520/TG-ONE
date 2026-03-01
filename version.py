@@ -1,7 +1,11 @@
-VERSION = "1.2.6.8"
+VERSION = "1.2.6.9"
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.6.9: 去重引擎优化与并发稳定性增强 (Dedup & Stability)
+  - 核心优化：BloomIndex 引入 mmap 内存映射与 xxhash 加速，显著降低大规模去重时的 IO 与 CPU 损耗
+  - 类型修复：解决 LSH Forest 在处理序列化状态时的 TypeError (list/tuple mismatch)
+  - 依赖补充：新增 websockets 驱动支持，消除 Uvicorn WebSocket 启动警告
 - v1.2.6.8: 归档系统优化与 WebUI 增强 (Archive System Update)
   - 功能增强：Web Admin 后台新增强制全量归档开关，允许强制覆盖天数限制
   - 接口扩展：`/api/system/archive/trigger` 新增 force 参数

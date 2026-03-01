@@ -105,24 +105,7 @@ class BloomIndex:
             for path, _ in items[:prune_count]:
                 self._cache.pop(path, None)
 
-    def _get_mmap(self, table: str, shard_key: str) -> mmap.mmap:
-        path = _bitfile_path(table, shard_key)
-        logger.debug(f"获取内存映射: table={table}, shard_key={shard_key}, path={path}")
-        _ensure_dir(os.path.dirname(path))
-        bytes_len = (self.bits + 7) // 8
-
-        # 确保文件存在并有足够大小
-        if not os.path.exists(path) or os.path.getsize(path) < bytes_len:
-            logger.debug(f"文件不存在或大小不足，创建/扩展: size={bytes_len}")
-            with open(path, "wb") as f:
-                f.seek(bytes_len - 1)
-                f.write(b"\x00")
-
-        # 打开文件并映射
-        f = open(path, "r+b")
-        mm = mmap.mmap(f.fileno(), 0)
-        logger.debug(f"内存映射创建成功: length={mm.size()}")
-        return mm
+    # Removed _get_mmap as it leaks fd and causes SIGBUS. Inlined into add_values.
 
     def _load_bitarray(self, table: str, shard_key: str) -> bytearray:
         path = _bitfile_path(table, shard_key)
@@ -239,27 +222,41 @@ class BloomIndex:
         logger.debug(
             f"添加值: table={table}, shard_key={shard_key}, values_count={len(values)}"
         )
+        
+        path = _bitfile_path(table, shard_key)
+        _ensure_dir(os.path.dirname(path))
+        bytes_len = (self.bits + 7) // 8
 
-        # 使用 mmap 直接操作文件
-        with self._get_mmap(table, shard_key) as mm:
-            changed = False
-            for val in values:
-                if not val:
-                    continue
-                logger.debug(f"处理值: {val}")
-                for pos in _hashes(str(val), self.hashes, self.bits):
-                    byte_index = pos // 8
-                    bit_index = pos % 8
-                    # 读取当前字节值
-                    current_byte = mm[byte_index]
-                    # 检查位是否已设置
-                    if not (current_byte & (1 << bit_index)):
-                        # 设置位
-                        mm[byte_index] = current_byte | (1 << bit_index)
-                        changed = True
-                        logger.debug(
-                            f"设置位: pos={pos}, byte_index={byte_index}, bit_index={bit_index}, old_value={current_byte:08b}, new_value={mm[byte_index]:08b}"
-                        )
+        # 确保文件存在且被填满，避免稀疏文件和阶段性为 0 引发 SIGBUS
+        if not os.path.exists(path) or os.path.getsize(path) < bytes_len:
+            logger.debug(f"文件不存在或大小不足，追加真实零数据: size={bytes_len}")
+            # 使用 ab 追加，避免并发时 wb 截断导致另一个线程由于超出文件范围而 SIGBUS
+            with open(path, "ab") as f:
+                current_size = f.tell()
+                if current_size < bytes_len:
+                    f.write(b"\x00" * (bytes_len - current_size))
+
+        # 使用 mmap 直接操作文件，使用上下文管理器确保 fd 闭环，防泄漏
+        changed = False
+        with open(path, "r+b") as f:
+            with mmap.mmap(f.fileno(), 0) as mm:
+                for val in values:
+                    if not val:
+                        continue
+                    logger.debug(f"处理值: {val}")
+                    for pos in _hashes(str(val), self.hashes, self.bits):
+                        byte_index = pos // 8
+                        bit_index = pos % 8
+                        # 读取当前字节值
+                        current_byte = mm[byte_index]
+                        # 检查位是否已设置
+                        if not (current_byte & (1 << bit_index)):
+                            # 设置位
+                            mm[byte_index] = current_byte | (1 << bit_index)
+                            changed = True
+                            logger.debug(
+                                f"设置位: pos={pos}, byte_index={byte_index}, bit_index={bit_index}, old_value={current_byte:08b}, new_value={mm[byte_index]:08b}"
+                            )
 
         if changed:
             logger.debug("位数组已更新，mmap 自动回写")
@@ -296,20 +293,8 @@ class BloomIndex:
             f"Bloom索引检查开始: table={table}, shard_key={shard_key}, value={value}, path={path}"
         )
         if not os.path.exists(path):
-            # 尝试创建bloom目录和初始文件
-            try:
-                logger.warning(f"Bloom索引文件不存在，尝试创建: {path}")
-                _ensure_dir(os.path.dirname(path))
-                # 创建空的bloom文件
-                self._save_bitarray(table, shard_key, bytearray((self.bits + 7) // 8))
-                logger.info(f"成功创建Bloom索引文件: {path}")
-                logger.debug("Bloom索引检查结果: False (新创建的文件肯定不包含任何值)")
-                return False  # 新创建的文件肯定不包含任何值
-            except Exception as e:
-                logger.error(f"创建Bloom索引文件失败 {path}: {e}")
-                logger.debug("创建Bloom索引文件失败详细信息", exc_info=True)
-                logger.debug("Bloom索引检查结果: True (创建失败时走冷查确认)")
-                return True  # 创建失败时走冷查确认
+            logger.debug("Bloom索引文件不存在，检查结果: False")
+            return False
         bits = self._load_bitarray(table, shard_key)
         logger.debug(f"加载位数组完成，大小: {len(bits)}")
         for pos in _hashes(str(value), self.hashes, self.bits):

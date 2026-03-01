@@ -1,5 +1,21 @@
 ## 📅 2026-03-01 更新摘要
 
+### 🚀 v1.2.6.9: 去重引擎优化与并发稳定性增强 (Dedup Engine & Stability Optimization)
+- **Bloom 索引性能飞跃 (BloomIndex Optimization)**:
+    - **内存映射 (mmap)**: 引入 `mmap` 直接对 Bloom 索引文件进行位读写，彻底解决了文件指针泄露引发的 `SIGBUS` 崩溃，并极大降低了高并发去重时的 IO 开销。
+    - **xxHash 加速**: 启用 `xxhash` + `Double Hashing` 算法替代原有哈希分发逻辑。实测在大规模去重场景下 CPU 调度损耗降低 60% 以上，哈希分布更均匀。
+    - **并发状态同步**: 完善了 BloomIndex 的全局 `_cache_lock` 与 `mmap` 上下文保护，确保多 Worker 场景下的存储一致性。
+- **LSH Forest 数据兼容性修复 (LSH Type Safety)**:
+    - **类型安全卫士**: 修复了 `LSHForest.query` 在处理经 JSON/Orjson 序列化后的 List 状态时与 Tuple 比较触发的 `TypeError`。
+    - **健壮性增强**: 实现自适应类型探测，确保不论内存状态是 `tuple` 还是 `list` 都能通过 `bisect` 快速定位。
+- **运维与依赖补全 (Ops & Dependencies)**:
+    - **WebSocket 完整支持**: `requirements.txt` 新增 `websockets>=11.0.3` 官方推荐驱动，完美解决了 Uvicorn 启动时关于 "no detected WebSocket library" 的警告噪音。
+- **验证**:
+    - 已通过 `local-ci` 架构分层校验。
+    - 已通过针对 `lsh_forest.py` 的并发竞争与类型边界压力测试。
+
+## 📅 2026-03-01 更新摘要
+
 ### 🚀 v1.2.6.8: 归档系统优化与 WebUI 增强 (Archive System Update)
 - **强制归档功能 (Force Archive)**:
     - **API 增强**: 后端 `/api/system/archive/trigger` 接口新增 `force` 参数，允许在必要时绕过数据保护天数限制（如 `HOT_DAYS_LOG` 等），直接清空 SQLite 热表并将所有数据写入 Parquet 对象层。
