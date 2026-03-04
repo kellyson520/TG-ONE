@@ -2,6 +2,8 @@ from typing import Dict, Any, List
 from telethon.tl.custom import Button
 from .base_renderer import BaseRenderer, ViewResult
 from ui.constants import UIStatus
+from enums.enums import AddMode, ForwardMode, MessageMode, PreviewMode, HandleMode
+
 
 class RuleRenderer(BaseRenderer):
     """规则列表与详情渲染器 (UIRE-2.0)"""
@@ -111,7 +113,11 @@ class RuleRenderer(BaseRenderer):
             'blacklist': '仅黑名单',
             'whitelist': '仅白名单',
             'blacklist_then_whitelist': '先黑后白',
-            'whitelist_then_blacklist': '先白后黑'
+            'whitelist_then_blacklist': '先白后黑',
+            ForwardMode.BLACKLIST: '仅黑名单',
+            ForwardMode.WHITELIST: '仅白名单',
+            ForwardMode.BLACKLIST_THEN_WHITELIST: '先黑后白',
+            ForwardMode.WHITELIST_THEN_BLACKLIST: '先白后黑'
         }
         
         return (self.new_builder()
@@ -120,7 +126,7 @@ class RuleRenderer(BaseRenderer):
             .add_section("核心配置", "调整转发的核心流转模式属性。")
             .add_button(f"转发方式: {'🤖 机器人' if rule.get('use_bot') else '👤 个人账号'}", f"new_menu:toggle_rule_set:{rid}:use_bot")
             .add_button(f"过滤模式: {forward_mode_map.get(rule.get('forward_mode'), '未知')}", f"new_menu:toggle_rule_set:{rid}:forward_mode")
-            .add_button(f"处理方式: {'✍️ 编辑' if rule.get('handle_mode') == 'edit' else '📤 转发'}", f"new_menu:toggle_rule_set:{rid}:handle_mode")
+            .add_button(f"处理方式: {'✍️ 编辑' if str(rule.get('handle_mode', '')).lower() == 'edit' else '📤 转发'}", f"new_menu:toggle_rule_set:{rid}:handle_mode")
             .add_button(f"删除原消息: {'✅ 是' if rule.get('is_delete_original') else '❌ 否'}", f"new_menu:toggle_rule_set:{rid}:is_delete_original")
             .add_button("返回详情", f"new_menu:rule_detail:{rid}", icon=UIStatus.BACK)
             .build())
@@ -135,7 +141,7 @@ class RuleRenderer(BaseRenderer):
             .add_breadcrumb(["首页", "规则库", rid, "显示设置"])
             .add_section("外观选项", "配置转发消息的样式、链接及水印显示。")
             .add_button(f"消息格式: {str(rule.get('message_mode', 'HTML')).upper()}", f"new_menu:toggle_rule_set:{rid}:message_mode")
-            .add_button(f"预览链接: {'开启' if rule.get('is_preview') else '关闭'}", f"new_menu:toggle_rule_set:{rid}:is_preview")
+            .add_button(f"预览链接: {'开启' if (rule.get('is_preview') == 'on' or rule.get('is_preview') == PreviewMode.ON) else '关闭' if (rule.get('is_preview') == 'off' or rule.get('is_preview') == PreviewMode.OFF) else '跟随原消息'}", f"new_menu:toggle_rule_set:{rid}:is_preview")
             .add_button(f"原始发送者: {'显示' if rule.get('is_original_sender') else '隐藏'}", f"new_menu:toggle_rule_set:{rid}:is_original_sender")
             .add_button(f"发送时间: {'显示' if rule.get('is_original_time') else '隐藏'}", f"new_menu:toggle_rule_set:{rid}:is_original_time")
             .add_button(f"原始链接: {'附带' if rule.get('is_original_link') else '不附带'}", f"new_menu:toggle_rule_set:{rid}:is_original_link")

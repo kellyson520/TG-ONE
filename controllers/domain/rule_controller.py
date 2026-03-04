@@ -53,9 +53,30 @@ class RuleController(BaseController):
             return self.handle_exception(e)
 
     async def toggle_setting(self, event, rule_id: int, field: str):
-        """通用布尔设置切换"""
+        """通用设置切换 (支持布尔值与 Enum)"""
         try:
-            await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+            from handlers.button.settings_manager import RULE_SETTINGS, MEDIA_SETTINGS, AI_SETTINGS, OTHER_SETTINGS
+            
+            # 找到对应的配置
+            config = None
+            for d in [RULE_SETTINGS, MEDIA_SETTINGS, AI_SETTINGS, OTHER_SETTINGS]:
+                if field in d:
+                    config = d[field]
+                    break
+            
+            if not config:
+                # 尝试布尔切换作为兜底
+                await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+            elif "toggle_func" in config and config["toggle_func"]:
+                # 获取当前值并计算新值
+                data = await rule_management_service.get_rule_detail(rule_id)
+                current_val = data.get(field)
+                new_val = config["toggle_func"](current_val)
+                await rule_management_service.toggle_rule_setting(rule_id, field, value=new_val)
+            else:
+                # 默认布尔切换
+                await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+
             await self.notify(event, "✅ 设置已更新")
             
             # 返回对应的设置子页面

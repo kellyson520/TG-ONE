@@ -1,7 +1,13 @@
-VERSION = "1.2.6.9"
+VERSION = "1.2.7.0"
+
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.7.0: 规则设置 Enum 兼容性修复与切换逻辑增强 (Enum Compatibility Fix)
+  - 核心修复：全面消除 `settings_manager.py` 中所有模式字段（`add_mode`, `forward_mode`, `message_mode`, `is_preview`, `handle_mode`）的 `KeyError` 回归 —同时将 Enum 对象和字符串均需加入默认字典键映射
+  - 切换逻辑增强：`update_rule_setting` 现在显式调用 `toggle_func` 计算下一个状态，并通过 `value=` 传递给 Service 层，而非依赖布尔自动反转
+  - Controller 增强：`RuleController.toggle_setting` 现在支持查找配置字典并使用 `toggle_func`，实现非布尔字段的正确循环切换逻辑
+  - UI 渲染器对齐：`rule_renderer.py` 中的映射字典同步支持 Enum 键，避免显示“未知”
 - v1.2.6.9: 去重引擎优化与并发稳定性增强 (Dedup & Stability)
   - 核心优化：BloomIndex 引入 mmap 内存映射与 xxhash 加速，显著降低大规模去重时的 IO 与 CPU 损耗
   - 类型修复：解决 LSH Forest 在处理序列化状态时的 TypeError (list/tuple mismatch)

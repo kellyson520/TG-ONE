@@ -95,8 +95,24 @@ async def update_rule_setting(
     logger.info(f"找到匹配的设置项: {field_name}")
 
     try:
+        # 获取当前规则 DTO 用于计算新值 (如果是布尔值可以跳过，但为了通用性这里统一获取)
+        rule = await container.rule_repo.get_by_id(int(rule_id))
+        
+        # 计算新值
+        new_val = None
+        if config and "toggle_func" in config:
+            current_val = getattr(rule, field_name)
+            # 如果是布尔值，且 toggle_func 只是简单的 not current，可以让 logic 层处理
+            # 但为了保持逻辑在配置中，这里显式计算
+            try:
+                new_val = config["toggle_func"](current_val)
+                logger.info(f"计算新设置值: {field_name}: {current_val} -> {new_val}")
+            except Exception as e:
+                logger.error(f"计算新值失败: {e}")
+                # Fallback to default toggle in service
+
         # 使用 Service 层的统一切换逻辑 (自动处理同步、提交、缓存失效)
-        res = await container.rule_service.toggle_rule_setting(int(rule_id), field_name)
+        res = await container.rule_service.toggle_rule_setting(int(rule_id), field_name, value=new_val)
         
         if not res.get('success'):
             await event.answer(f"❌ 更新失败: {res.get('error')}")
