@@ -112,7 +112,7 @@ async def update_rule_setting(
                 # Fallback to default toggle in service
 
         # 使用 Service 层的统一切换逻辑 (自动处理同步、提交、缓存失效)
-        res = await container.rule_service.toggle_rule_setting(int(rule_id), field_name, value=new_val)
+        res = await container.rule_management_service.toggle_rule_setting(int(rule_id), field_name, value=new_val)
         
         if not res.get('success'):
             await event.answer(f"❌ 更新失败: {res.get('error')}")
