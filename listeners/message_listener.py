@@ -153,7 +153,6 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                 if msg_text:
                     # 直接丢给热词层处理，这是最高效的方式
                     try:
-                        from core.container import container
                         if hasattr(container, "hotword_service"):
                             channel_name = chat_display.replace("/", "_").replace("\\", "_")
                             from middlewares.hotword import get_hotword_collector

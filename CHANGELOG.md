@@ -1,4 +1,12 @@
 ## 📅 2026-03-06 更新摘要
+ 
+### 🚀 v1.2.8.5: 监听器 UnboundLocalError 修复 (MessageListener Hotfix)
+- **核心修复 (Core Fix)**:
+    - **UnboundLocalError 治理**: 修复了 `listeners/message_listener.py` 中由于局部导入遮蔽全局变量导致的 `UnboundLocalError: container`。
+    - **逻辑路径加固**: 彻底消除了在热词服务关闭或其他分支路径下，因局部 `container` 变量未被赋值而导致的引用异常，保障了消息分发 Pipeline 的高可用性。
+- **验证**:
+    - 经 `py_compile` 静态编译验证，确认无语法及导入冲突。
+    - 任务已闭环归档：`docs/Workstream_Bugfix/20260306_Fix_MessageListener_UnboundLocalError/`。
 
 ### 🚀 v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)
 - **核心修复 (Core Fix)**:

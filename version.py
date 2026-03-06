@@ -1,8 +1,10 @@
-VERSION = "1.2.8.4"
+VERSION = "1.2.8.5"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.5: 监听器 UnboundLocalError 修复 (MessageListener Hotfix)
+  - **核心修复**: 修复了 `listeners/message_listener.py` 中由于局部阴影导入 (Shadow Import) 导致的 `UnboundLocalError: container`。通过移除函数内部冗余的 `from core.container import container` 导入，确保系统在所有逻辑路径下均能正确访问全局 container 单例，显著提升了消息分发的稳定性。
 - v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)
   - **核心修复**: 修复了 `/list_rule` 命令在常规页码下无响应的严重 Bug。解决了由于缩进错误导致的逻辑块嵌套问题。
   - **稳定性增强**: 为 `message_listener.py` 引入了 `LogLimiter` 机制。对高频事件中的错误日志（如发送者预加载失败、热词提取失败）实施频率限制（每60秒一次），大幅降低日志噪音并减缓磁盘 IO 压力。
