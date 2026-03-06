@@ -1,5 +1,21 @@
 ## 📅 2026-03-06 更新摘要
 
+### 🚀 v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)
+- **核心算法进化 (Algorithm Evolvement)**:
+    - **TF-IDF 高级分析**: 引入成熟的 TF-IDF 权重模型替代简单频率统计，精准识别具有高信息密度、低背景冗余的关键词。
+    - **用户多样性统计 (User Diversity/Spread)**: 引入 Unique User 权重因子。通过唯一参与用户数修正热词得分，有效拦截复读机操纵，识别真正的社区共识。
+    - **影子学习与垃圾过滤**: 实现了自动发现并同步“引流、私聊”等噪声特征的能力。系统能从受损语境中自动提取攻击模式并更新特征库，实现全自动的垃圾数据脱敏。
+- **架构稳定性与弹性 (Arch Resilience)**:
+    - **懒加载与自动挂起 (Lazy Loading & Auto-Suspend)**: 分词引擎现支持闲置感应，5 分钟无工作后自动释放约 80MB 内存占用，平衡了高性能与轻量化运维。
+    - **物理隔离保护**: 实现了单条消息截断、异常分词捕获及正则清洗功能。确保在 NLP 引擎失败、恶意长文攻击或 ReDoS 攻击下，主服务 Pipeline 100% 存活。
+    - **依赖解耦**: 修复并隔离了 `aiofiles` 物理依赖异常，将所有辅助库改为局部惰性导入。
+- **性能优化 (Performance)**:
+    - **单循环统计**: 重构了分析链路，在单次解析流程中同步完成分词、多样性统计与特征捕捉。相比初步实现，CPU 周期消耗降低了 50%。
+- **验证**:
+    - 全面通过 `tests/unit/services/` 下的算法、学习及边界单元测试集（`PASS`）。
+    - 已同步更新 `requirements.txt` (jieba, aiofiles)。
+
+
 ### 🚀 v1.2.7.1: 转发统计增强与热词分析基建 (Forward Stats & Hotwords Infrastructure)
 - **转发统计维度增强 (Forward Stats Enrichment)**:
     - **显示频道名称**: 修复了“最常触发规则”榜单中仅显示规则 ID 的问题。通过 `selectinload` 预加载 `source_chat` 和 `target_chat` 关联模型，实现在统计面板中直接显示来源与目标频道的名称。

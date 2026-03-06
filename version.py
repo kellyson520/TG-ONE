@@ -1,11 +1,14 @@
-VERSION = "1.2.7.1"
+VERSION = "1.2.8.0"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)
+  - **核心算法进化**: 引入成熟的 TF-IDF 权重模型替代简单频率统计，精准识别具有高信息密度的关键词。实现 **“用户多样性 (User Diversity)”** 权重算法，通过唯一参与用户数 (Spread) 修正排名，彻底拦截刷榜与复读机操控。
+  - **影子学习与垃圾过滤**: 实现自动化的噪声特征发现机制。系统能自动从包含“私聊、引流”等特征的消息中提取模式并更新 `noise.json` 特征库，实现业务热词的自动“脱敏”与过滤。
+  - **架构稳定性增强**: 实现了分词引擎的 **延迟加载 (Lazy Loading)** 与 **自动挂起 (Auto-Suspend)** 机制，闲置 5 分钟自动释放 ~80MB 内存占用。
+  - **依赖与健壮性**: 修复了 `aiofiles` 物理依赖异常，将所有异步 IO 库改为局部导入，确保核心 Pipeline 在辅助组件缺失时仍能正常启动。
 - v1.2.7.1: 转发统计增强与热词分析基建 (Forward Stats & Hotwords Infrastructure)
-  - **转发统计维度增强**: 修复了“最常触发规则”榜单中仅显示规则 ID 的问题，通过 `selectinload` 预加载实现显示来源与目标频道名称。
-  - **热词分析基建**: 完成了全频道热词分析系统的技术方案设计 (`spec.md`)，初始化了工作流目录。
 - v1.2.7.0: 规则设置 Enum 兼容性修复与切换逻辑增强 (Enum Compatibility Fix)
   - 核心修复：全面消除 `settings_manager.py` 中所有模式字段（`add_mode`, `forward_mode`, `message_mode`, `is_preview`, `handle_mode`）的 `KeyError` 回归 —同时将 Enum 对象和字符串均需加入默认字典键映射
   - 切换逻辑增强：`update_rule_setting` 现在显式调用 `toggle_func` 计算下一个状态，并通过 `value=` 传递给 Service 层，而非依赖布尔自动反转

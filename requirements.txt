@@ -98,3 +98,5 @@ uvloop==0.17.0
 websocket-client==1.9.0
 Werkzeug==3.1.4
 xxhash==3.5.0  # Ultra-fast hashing
+jieba==0.42.1  # Chinese word segmentation for hotwords
+aiofiles==24.1.0  # Async file I/O for hotword repository
