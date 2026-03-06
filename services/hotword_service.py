@@ -79,8 +79,8 @@ class HotwordAnalyzer:
 
             if not raw_text: continue
             
-            # 异常处理 1：超长文本截断，防止正则或分词引发内存或 CPU 爆炸 (ReDoS)
-            text = raw_text[:2000]
+            # 异常处理 1：超长文本截断，但放宽至10000个字符，完全覆盖 Telegram 单条消息的最大长度 (4096字符)
+            text = raw_text[:10000]
             
             # 边界处理 2：清除非业务相关的系统/格式干扰字符串
             text = self.url_pattern.sub('', text)
@@ -139,7 +139,7 @@ class HotwordAnalyzer:
                         if n_word in self.white_list: continue
                         noise_candidates[n_word] = noise_candidates.get(n_word, 0) + 1
             except Exception as e:
-                logger.debug(f"Jieba TF-IDF extraction error on text (skipped): {e}")
+                logger.error(f"Jieba TF-IDF extraction error on text: {e}", exc_info=True)
                 continue
         
         return {

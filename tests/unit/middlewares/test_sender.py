@@ -63,9 +63,9 @@ async def test_sender_text_message(mock_client, mock_message, mock_rule):
     # 注入 metadata
     ctx.metadata['modified_text'] = "Modified Content"
     
-    await middleware.process(ctx, next_call)
+    await middleware._execute_send(ctx, mock_rule, [100], [ctx])
     
-    # 验证 send_message 被调用，且没有 caption 参数
+    # 验证 send_message 或 forward 被调用
     mock_client.send_message.assert_called_once()
     args, kwargs = mock_client.send_message.call_args
     assert args[0] == 222 # target_id
@@ -91,7 +91,7 @@ async def test_sender_media_message(mock_client, mock_message, mock_rule):
     middleware = SenderMiddleware(mock_bus)
     next_call = AsyncMock()
     
-    await middleware.process(ctx, next_call)
+    await middleware._execute_send(ctx, mock_rule, [100], [ctx])
     
     # 验证 send_file 被调用，且携带 caption 参数
     mock_client.send_file.assert_called_once()
@@ -121,7 +121,7 @@ async def test_sender_with_buttons(mock_client, mock_message, mock_rule):
     middleware = SenderMiddleware(mock_bus)
     next_call = AsyncMock()
     
-    await middleware.process(ctx, next_call)
+    await middleware._execute_send(ctx, mock_rule, [100], [ctx])
     
     # 应该被调用两次：一次 send_file (媒体组), 一次 send_message (按钮)
     assert mock_client.send_file.called

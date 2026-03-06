@@ -370,11 +370,14 @@ async def forward_messages_queued(client, source_chat_id, target_chat_id, messag
             # Fallback to individual
             results = []
             for msg_id in ids:
-                res = await telegram_queue_service.run_guarded_operation(
-                    target_chat_id, source_chat_id, "ForwardSingle", 
-                    lambda: client.forward_messages(target_chat_id, msg_id, from_peer=source_chat_id, **kwargs)
-                )
-                results.append(res)
+                try:
+                    res = await telegram_queue_service.run_guarded_operation(
+                        target_chat_id, source_chat_id, "ForwardSingle", 
+                        lambda m=msg_id: client.forward_messages(target_chat_id, m, from_peer=source_chat_id, **kwargs)
+                    )
+                    results.append(res)
+                except Exception as ex:
+                    logger.warning(f"Failed to forward message {msg_id} during fallback: {ex}")
             return results
 
     # 单条转发或不启用批量

@@ -110,10 +110,11 @@ class RuleQueryService:
             # 1. 节点: 聊天
             chat_map = {}
             for chat in chats:
-                chat_map[chat.id] = chat.name or f"Chat {chat.telegram_chat_id}"
+                display_name = chat.title or chat.name or f"Chat {chat.telegram_chat_id}"
+                chat_map[chat.id] = display_name
                 nodes.append({
                     "id": str(chat.id),
-                    "name": chat.name or f"Chat {chat.telegram_chat_id}",
+                    "name": display_name,
                     "category": chat.type if hasattr(chat, 'type') else "unknown",
                     "value": str(chat.telegram_chat_id)
                 })

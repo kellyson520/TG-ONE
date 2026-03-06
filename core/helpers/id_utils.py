@@ -262,9 +262,16 @@ async def get_or_create_chat_async(client: Any, chat_input: str) -> Tuple[str, s
             await session.commit()
             await session.refresh(chat)
         else:
-            # 更新名称
+            # 更新名称和标题
+            updated = False
             if chat.name != display_name:
                 chat.name = display_name
+                updated = True
+            if chat.title != display_name:
+                chat.title = display_name
+                updated = True
+            
+            if updated:
                 await session.commit()
                 await session.refresh(chat)
         

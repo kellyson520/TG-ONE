@@ -30,7 +30,7 @@ class HotwordCollectorMiddleware(Middleware):
                 sender_id = getattr(ctx.message_obj, 'sender_id', None)
                 self.queue.put_nowait((channel_name, sender_id, text))
             except asyncio.QueueFull:
-                pass
+                logger.warning("Hotword queue full, dropping message.")
             except Exception as e:
                 logger.error(f"Hotword collection failed: {e}")
 
@@ -57,7 +57,8 @@ class HotwordCollectorMiddleware(Middleware):
                 while True:
                     await asyncio.sleep(settings.HOTWORD_SYNC_INTERVAL)
                     try: await self.hotword_service.flush_to_disk()
-                    except: pass
+                    except Exception as e:
+                        logger.error(f"Hotword disk heartbeat flush failed: {e}")
             asyncio.create_task(_disk_heartbeat())
 
             while True:

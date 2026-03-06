@@ -245,7 +245,7 @@ class HistoryModule(BaseMenu):
         rule_info = ""
         if res.get('has_selection'):
             rule = res.get('rule', {})
-            rule_info = f"\n✅ **当前已选规则**: {rule_id}\n   📤 {rule.get('source_chat', {}).get('title', '未知')}\n   📥 {rule.get('target_chat', {}).get('title', '未知')}\n"
+            rule_info = f"\n✅ **当前已选规则**: {rule_id}\n   📤 {rule.get('source_chat', {}).get('name') or rule.get('source_chat', {}).get('title', '未知')}\n   📥 {rule.get('target_chat', {}).get('name') or rule.get('target_chat', {}).get('title', '未知')}\n"
 
         buttons = [
             [Button.inline("🎯 选择/切换任务规则", "new_menu:select_history_task")],

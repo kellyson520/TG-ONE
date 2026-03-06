@@ -1,8 +1,11 @@
-VERSION = "1.2.8.2"
+VERSION = "1.2.8.3"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.3: 规则管理界面频道名称显示修复 (Rule Management UI Fix)
+  - **核心修复**: 解决了规则列表中部分频道显示为 `Chat ID` 而非真实名称的问题。增加了对数据库 `name` 字段的读取逻辑，并优化了 `RuleRenderer` 和 `TaskRenderer` 的显示回退机制。
+  - **代码卫生**: 同步重构并通过了 `test_rule_renderer.py` 的 UIRE-2.0 规格单元测试。
 - v1.2.8.2: SummaryScheduler 导入路径修复 (ImportError Hotfix)
   - **核心修复**: 修复了 `scheduler/summary_scheduler.py` 中由于错误的导入路径和对象名导致的 `ImportError`。将 `services.hotword` 修正为 `services.hotword_service`，并使用 `get_hotword_service()` 工厂函数获取实例。
 - v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)

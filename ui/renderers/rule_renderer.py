@@ -35,13 +35,17 @@ class RuleRenderer(BaseRenderer):
                 status_label = "运行" if is_enabled else "停用"
                 
                 # 兼容嵌套字典 {'title': ...} 和扁平字段 source_chat_title 两种数据格式
-                source_chat = rule.get('source_chat') or {}
+                source_chat = rule.get('source_chat') or {} # 获取显示名称
                 target_chat = rule.get('target_chat') or {}
+
                 source = (source_chat.get('title')
+                          or source_chat.get('name')
                           or rule.get('source_chat_title')
                           or f"Chat {source_chat.get('telegram_chat_id', '?')}"
                           or 'Unknown')
+
                 target = (target_chat.get('title')
+                          or target_chat.get('name')
                           or rule.get('target_chat_title')
                           or f"Chat {target_chat.get('telegram_chat_id', '?')}"
                           or 'Unknown')
@@ -84,9 +88,9 @@ class RuleRenderer(BaseRenderer):
         # 兼容嵌套字典 {'title': ...} 和扁平字段两种数据格式
         src_chat = rule.get('source_chat') or {}
         tgt_chat = rule.get('target_chat') or {}
-        src_title = (src_chat.get('title') or rule.get('source_chat_title')
+        src_title = (src_chat.get('name') or src_chat.get('title') or rule.get('source_chat_title')
                      or f"Chat {src_chat.get('telegram_chat_id', '?')}" or 'Unknown')
-        tgt_title = (tgt_chat.get('title') or rule.get('target_chat_title')
+        tgt_title = (tgt_chat.get('name') or tgt_chat.get('title') or rule.get('target_chat_title')
                      or f"Chat {tgt_chat.get('telegram_chat_id', '?')}" or 'Unknown')
         builder.add_status_grid({
             "源聊天": src_title,

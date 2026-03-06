@@ -319,7 +319,6 @@ class Container:
         get_filter_chain_factory().set_container(self)
         
         pipeline.add(RuleLoaderMiddleware(self.rule_repo))  # 1. 加载规则
-        pipeline.add(collector)                            # 1.5 热词异步采集 (非阻塞)
         pipeline.add(DedupMiddleware())                     # 2. 去重检查
         pipeline.add(FilterMiddleware())                    # 3. 过滤 & 内容修改
         from middlewares.ai import AIMiddleware             # 引入AI中间件

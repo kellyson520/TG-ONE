@@ -78,10 +78,10 @@ class RuleCRUDService:
                     'is_summary': dto.is_summary,
                     'priority': dto.priority,
                 }
-                # Sanitize Chat titles for view if needed (DTO already contains basic fields)
-                if rule_data['source_chat'].get('title') is None: rule_data['source_chat']['title'] = f"Chat {rule_data['source_chat'].get('telegram_chat_id')}"
-                if rule_data['target_chat'].get('title') is None: rule_data['target_chat']['title'] = f"Chat {rule_data['target_chat'].get('telegram_chat_id')}"
-                
+                if rule_data['source_chat'].get('title') is None:
+                    rule_data['source_chat']['title'] = rule_data['source_chat'].get('name') or f"Chat {rule_data['source_chat'].get('telegram_chat_id')}"
+                if rule_data['target_chat'].get('title') is None:
+                    rule_data['target_chat']['title'] = rule_data['target_chat'].get('name') or f"Chat {rule_data['target_chat'].get('telegram_chat_id')}"
                 rules_data.append(rule_data)
 
             return {
@@ -114,11 +114,19 @@ class RuleCRUDService:
         ]
         # Pydantic schema ReplaceRuleDTO might miss is_regex? Let's assume basic for now.
         
+        source_chat_data = rule_dto.source_chat.model_dump() if rule_dto.source_chat else {'title': 'Unknown'}
+        if source_chat_data.get('title') is None:
+            source_chat_data['title'] = source_chat_data.get('name') or (f"Chat {source_chat_data.get('telegram_chat_id')}" if source_chat_data.get('telegram_chat_id') else 'Unknown')
+            
+        target_chat_data = rule_dto.target_chat.model_dump() if rule_dto.target_chat else {'title': 'Unknown'}
+        if target_chat_data.get('title') is None:
+            target_chat_data['title'] = target_chat_data.get('name') or (f"Chat {target_chat_data.get('telegram_chat_id')}" if target_chat_data.get('telegram_chat_id') else 'Unknown')
+
         return {
             'success': True,
             'id': rule_dto.id,
-            'source_chat': rule_dto.source_chat.model_dump() if rule_dto.source_chat else {'title': 'Unknown'},
-            'target_chat': rule_dto.target_chat.model_dump() if rule_dto.target_chat else {'title': 'Unknown'},
+            'source_chat': source_chat_data,
+            'target_chat': target_chat_data,
             'enabled': rule_dto.enable_rule,
             'forward_mode': rule_dto.forward_mode,
             'keywords': keywords,

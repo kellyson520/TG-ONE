@@ -126,7 +126,21 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                          # 预热用户缓存 (使用异步任务，不阻塞主监听流程)
                          asyncio.create_task(api_optimizer.get_users_batch([event.sender_id]))
                 except Exception as e:
-                    logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                    logger.error(f"预加载发送者信息失败: {e}", exc_info=True)
+            
+            # [Hotword Auto-Collection]
+            if getattr(settings, "ENABLE_HOTWORD", True) and getattr(event, "message", None):
+                msg_text = getattr(event, "raw_text", getattr(event.message, "message", ""))
+                if msg_text:
+                    # 直接丢给热词层处理，这是最高效的方式
+                    try:
+                        from core.container import container
+                        if hasattr(container, "hotword_service"):
+                            channel_name = chat_display.replace("/", "_").replace("\\", "_")
+                            from middlewares.hotword import get_hotword_collector
+                            get_hotword_collector().queue.put_nowait((channel_name, event.sender_id, msg_text))
+                    except Exception as e:
+                        logger.error(f"❌ [监听器] 直接提取热词失败: {e}", exc_info=True)
             
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager

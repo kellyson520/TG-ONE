@@ -98,12 +98,14 @@ class ChatInfoService:
                 
                 if chat:
                     chat.name = name
+                    chat.title = name
                     # chat.updated_at does not exist in the model
                 else:
                     # 如果不存在，可能是因为还没有规则用到它，但既然查了就记下来
                     chat = Chat(
                         telegram_chat_id=norm_id,
                         name=name,
+                        title=name,
                         type=self._get_chat_type(entity)
                     )
                     session.add(chat)

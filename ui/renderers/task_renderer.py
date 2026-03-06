@@ -23,9 +23,11 @@ class TaskRenderer(BaseRenderer):
         else:
             if current_selection.get('has_selection'):
                 rule = current_selection.get('rule', {})
+                source = rule.get('source_chat', {}).get('name') or rule.get('source_chat', {}).get('title') or rule.get('source_chat_title') or f"Chat {rule.get('source_chat', {}).get('telegram_chat_id', '?')}"
+                target = rule.get('target_chat', {}).get('name') or rule.get('target_chat', {}).get('title') or rule.get('target_chat_title') or f"Chat {rule.get('target_chat', {}).get('telegram_chat_id', '?')}"
                 builder.add_section("当前选定规则", [
                     f"ID: `{current_selection.get('rule_id')}`",
-                    f"路径: `{rule.get('source_chat_title')}` ➔ `{rule.get('target_chat_title')}`"
+                    f"路径: `{source}` ➔ `{target}`"
                 ], icon=UIStatus.SUCCESS)
             
             builder.add_section(f"可用规则库 ({len(rules)})", [], icon="📋")
