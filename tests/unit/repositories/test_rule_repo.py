@@ -55,8 +55,7 @@ class TestRuleRepository:
         # 清除缓存
         repo.clear_cache()
         rules_fresh = await repo.get_rules_for_source_chat("-1001")
-        assert len(rules_fresh) == 1
-        assert rules_fresh[0].enable_rule is False
+        assert len(rules_fresh) == 0
 
     async def test_toggle_rule(self, repo, db):
         chat = Chat(telegram_chat_id="-1001", name="Src")

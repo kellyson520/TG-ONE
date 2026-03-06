@@ -113,7 +113,7 @@ class RuleRepository:
                         stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter(ForwardRule.id.in_(ids))
                         result = await session.execute(stmt)
                         orm_rules = result.scalars().all()
-                        rules = [RuleDTO.model_validate(r) for r in orm_rules]
+                        rules = [RuleDTO.model_validate(r) for r in orm_rules if r.enable_rule]
                         self._source_rules_cache[chat_id] = rules
                         return rules
         except Exception as e:
@@ -141,18 +141,23 @@ class RuleRepository:
                     # 批量获取 rule_id 列表
                     rule_ids = [m.rule_id for m in mappings if m.rule_id]
                     if rule_ids:
-                        stmt_batch = select(ForwardRule).options(*self._get_rule_select_options()).where(ForwardRule.id.in_(rule_ids))
+                        stmt_batch = select(ForwardRule).options(*self._get_rule_select_options()).where(
+                            ForwardRule.id.in_(rule_ids),
+                            ForwardRule.enable_rule == True
+                        )
                         res_batch = await session.execute(stmt_batch)
                         rules_orm.extend(res_batch.scalars().all())
                     
                     # 对于没有 rule_id 的 mapping，保持原样（通常这种情况很少）
                     for m in mappings:
                         if not m.rule_id:
-                            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id, target_chat_id=m.target_chat_id)
+                            stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(
+                                source_chat_id=source_chat.id, target_chat_id=m.target_chat_id, enable_rule=True
+                            )
                             r = (await session.execute(stmt)).scalars().first()
                             if r: rules_orm.append(r)
                 else:
-                    stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id)
+                    stmt = select(ForwardRule).options(*self._get_rule_select_options()).filter_by(source_chat_id=source_chat.id, enable_rule=True)
                     rules_orm = (await session.execute(stmt)).scalars().all()
         
         rules = [RuleDTO.model_validate(r) for r in rules_orm]
@@ -380,7 +385,6 @@ class RuleRepository:
             result = await session.execute(stmt)
             orm_rules = result.scalars().all()
             return [RuleDTO.model_validate(r) for r in orm_rules], total
-
     @retry_on_db_lock(retries=5)
     async def toggle_rule(self, rule_id: int, session=None) -> bool:
         """切换规则启用状态"""
@@ -390,8 +394,26 @@ class RuleRepository:
                 raise ValueError("Rule not found")
             rule.enable_rule = not rule.enable_rule
             new_status = rule.enable_rule
+            
+            # Identify all associated chat IDs to clear specific caches
+            chat_ids_to_clear = {rule.source_chat_id, rule.target_chat_id}
+            
+            stmt = select(ForwardMapping).filter_by(rule_id=rule.id)
+            mappings = (await session.execute(stmt)).scalars().all()
+            for m in mappings:
+                chat_ids_to_clear.add(m.source_chat_id)
+                chat_ids_to_clear.add(m.target_chat_id)
+
             await session.commit()
+            
+            # Clear specific caches for each chat involved
+            for cid in chat_ids_to_clear:
+                if cid is not None:
+                    self.clear_cache(chat_id=cid)
+                    
+            # Also clear the global memory cache & priority map
             self.clear_cache()
+            
             return new_status
 
     async def update_chat_current_add_id(self, chat_id: int, add_id: Optional[str], session=None):
