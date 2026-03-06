@@ -1,8 +1,11 @@
-VERSION = "1.2.7.0"
+VERSION = "1.2.7.1"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.7.1: 转发统计增强与热词分析基建 (Forward Stats & Hotwords Infrastructure)
+  - **转发统计维度增强**: 修复了“最常触发规则”榜单中仅显示规则 ID 的问题，通过 `selectinload` 预加载实现显示来源与目标频道名称。
+  - **热词分析基建**: 完成了全频道热词分析系统的技术方案设计 (`spec.md`)，初始化了工作流目录。
 - v1.2.7.0: 规则设置 Enum 兼容性修复与切换逻辑增强 (Enum Compatibility Fix)
   - 核心修复：全面消除 `settings_manager.py` 中所有模式字段（`add_mode`, `forward_mode`, `message_mode`, `is_preview`, `handle_mode`）的 `KeyError` 回归 —同时将 Enum 对象和字符串均需加入默认字典键映射
   - 切换逻辑增强：`update_rule_setting` 现在显式调用 `toggle_func` 计算下一个状态，并通过 `value=` 传递给 Service 层，而非依赖布尔自动反转

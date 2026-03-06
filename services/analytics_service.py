@@ -384,16 +384,30 @@ class AnalyticsService:
                 rule_ids = [r['rule_id'] for r in stats_res]
                 from models.models import ForwardRule
                 from sqlalchemy import select
+                from sqlalchemy.orm import selectinload
                 async with self.container.db.get_session() as session:
-                    stmt = select(ForwardRule).where(ForwardRule.id.in_(rule_ids))
+                    stmt = select(ForwardRule).options(
+                        selectinload(ForwardRule.source_chat),
+                        selectinload(ForwardRule.target_chat)
+                    ).where(ForwardRule.id.in_(rule_ids))
                     res = await session.execute(stmt)
                     rule_map = {r.id: r for r in res.scalars().all()}
                     
                     for s in stats_res:
                         rule_row = rule_map.get(s['rule_id'])
+                        
+                        rule_name = f"ID {s['rule_id']}"
+                        if rule_row:
+                            if rule_row.source_chat and rule_row.target_chat:
+                                src_name = rule_row.source_chat.title or rule_row.source_chat.name or str(rule_row.source_chat.telegram_chat_id)
+                                tgt_name = rule_row.target_chat.title or rule_row.target_chat.name or str(rule_row.target_chat.telegram_chat_id)
+                                rule_name = f"{src_name} ➔ {tgt_name}"
+                            elif hasattr(rule_row, 'description') and rule_row.description:
+                                rule_name = rule_row.description
+                                
                         top_rules.append({
                             'rule_id': s['rule_id'],
-                            'name': getattr(rule_row, 'description', f"Rule {s['rule_id']}") if rule_row else f"Rule {s['rule_id']}",
+                            'name': rule_name,
                             'count': s['success_count'],
                             'success_count': s['success_count'],
                             'error_count': s['error_count']
@@ -412,11 +426,10 @@ class AnalyticsService:
                 
                 total_count = sum([r['count'] for r in type_res])
                 for r in type_res:
-                    m_type_raw = r['message_type'] or "text"
-                    m_type = m_type_raw.capitalize()
+                    m_type_raw = str(r['message_type'] or "text").lower()
                     type_dist.append({
-                        "type": m_type,
-                        "name": m_type,
+                        "type": m_type_raw,
+                        "name": m_type_raw,
                         "count": r['count'],
                         "percentage": round((r['count'] / total_count * 100), 1) if total_count > 0 else 0
                     })

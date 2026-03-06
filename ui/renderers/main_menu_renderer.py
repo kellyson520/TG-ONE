@@ -160,15 +160,34 @@ class MainMenuRenderer(BaseRenderer):
         if top_rules:
             rule_lines = []
             for r in top_rules[:5]:
-                rule_lines.append(f"• ID {r.get('rule_id')}: {r.get('success_count', 0)} 条")
+                rule_name = r.get('name', f"ID {r.get('rule_id')}")
+                rule_lines.append(f"• {rule_name}: {r.get('success_count', 0)} 条")
             builder.add_section("热门转发规则", "\n".join(rule_lines))
         
         # 4. 内容类型分布
         type_dist = data.get('type_distribution', [])
         if type_dist:
             dist_lines = []
+            
+            # 类型中文化映射
+            type_mapping = {
+                'text': '文本',
+                'photo': '图片',
+                'video': '视频',
+                'document': '文件',
+                'audio': '音频',
+                'voice': '语音',
+                'sticker': '贴纸',
+                'animation': '动画 (GIF)',
+                'poll': '投票',
+            }
+            
             for t in type_dist[:5]: # 只显示前 5 名
-                dist_lines.append(f"• {t.get('type', 'Unknown')}: {t.get('count', 0)} ({t.get('percentage', 0):.1f}%)")
+                raw_type = str(t.get('type', 'Unknown')).lower()
+                clean_type = raw_type.replace('MessageMedia', '') # 可能有的类名前缀清理
+                display_name = type_mapping.get(clean_type, t.get('name', '未知类型'))
+                
+                dist_lines.append(f"• {display_name}: {t.get('count', 0)} 条 ({t.get('percentage', 0):.1f}%)")
             builder.add_section("内容类型分布", "\n".join(dist_lines))
 
         builder.add_button("🔄 刷新数据", "new_menu:forward_analytics")

@@ -1,3 +1,16 @@
+## 📅 2026-03-06 更新摘要
+
+### 🚀 v1.2.7.1: 转发统计增强与热词分析基建 (Forward Stats & Hotwords Infrastructure)
+- **转发统计维度增强 (Forward Stats Enrichment)**:
+    - **显示频道名称**: 修复了“最常触发规则”榜单中仅显示规则 ID 的问题。通过 `selectinload` 预加载 `source_chat` 和 `target_chat` 关联模型，实现在统计面板中直接显示来源与目标频道的名称。
+    - **数据链路优化**: 优化了 `AnalyticsService.get_detailed_analytics` 的查询逻辑，确保在高性能聚合的同时保持关联数据的完整性。
+- **热词分析基建 (Hotwords Infrastructure)**:
+    - **技术方案落盘**: 完成了「全频道热词检测与分析系统」的详细技术方案 (`spec.md`)，定义了从实时采集到多级聚合（日/月/年）的全链路架构。
+    - **工作流初始化**: 创建了 `Workstream_Analytics` 专用任务目录，为后续核心算法实现奠定了基础。
+- **验证**:
+    - 已通过 `local-ci` 架构分层校验。
+    - 已通过针对 `AnalyticsService` 的数据关联载入逻辑验证。
+
 ## 📅 2026-03-01 更新摘要
 
 ### 🚀 v1.2.6.9: 去重引擎优化与并发稳定性增强 (Dedup Engine & Stability Optimization)
