@@ -312,7 +312,7 @@ class Container:
         from middlewares.sender import SenderMiddleware
         from middlewares.filter import FilterMiddleware
         from middlewares.hotword import get_hotword_collector
-        collector = get_hotword_collector(self)
+        collector = get_hotword_collector()
         
         # [Filter Chain Factory Injection]
         from filters.factory import get_filter_chain_factory
@@ -374,7 +374,7 @@ class Container:
         
         # Start Hotword Collector Worker
         from middlewares.hotword import get_hotword_collector
-        self.services.append(asyncio.create_task(get_hotword_collector(self).start_worker(), name="HotwordCollector"))
+        self.services.append(asyncio.create_task(get_hotword_collector().start_worker(), name="HotwordCollector"))
 
         # 使用 asyncio.create_task 启动并由 Container 持有引用
         if self.worker:

@@ -12,9 +12,9 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260306_Fix_Hotword_Collector_Call | 修复 Hotword Collector 调用参数错误 (TypeError) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Infrastructure/20260306_Fix_Hotword_Collector_TypeError/report.md) |
 | 20260304_Fix_AddMode_Key_Regression | 修复规则设置 AddMode KeyError 再次出现 (Enum 兼容性) | 2026-03-04 | 2026-03-04 | 100% | [[report.md]](./Workstream_Handlers/20260304_Fix_AddMode_KeyError/report.md) |
 | 20260301_Fix_Event_Optimization_DB_Locked | 修复事件优化器同步 DB 锁死 | 2026-03-01 | 2026-03-01 | 100% | [[report.md]](./Workstream_Database_Optimization/20260301_Fix_Event_Optimization_DB_Locked/report.md) |
-
 | 20260221_Fix_LogRouter_AuditLog_AttributeError | 修复审计日志 Attribute Error (dict vs object) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Bugfix/20260221_Fix_LogRouter_AuditLog_AttributeError/report.md) |
 | 20260301_Fix_Batch_Write_Failure | 修复去重引擎批量写入失败 | 2026-03-01 | 2026-03-01 | 100% | [[report.md]](./Workstream_Deduplication/20260301_Fix_Batch_Write_Failure/report.md) |
 | 20260221_Enrich_Forward_Action_Types | 强化转发记录动作类型与国际化 (已转发/失败/已过滤) | 2026-02-21 | 2026-02-21 | 100% | [[report.md]](./Workstream_Web_UI/20260221_Enrich_Forward_Action_Types/report.md) |

@@ -1,8 +1,10 @@
-VERSION = "1.2.8.0"
+VERSION = "1.2.8.1"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)
+  - **核心修复**: 修正了 `core/container.py` 中 `get_hotword_collector` 的调用参数。原代码错误地传递了 `self` (Container) 实例，而该单例工厂函数不接收任何参数，导致系统启动崩溃 (TypeError)。
 - v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)
   - **核心算法进化**: 引入成熟的 TF-IDF 权重模型替代简单频率统计，精准识别具有高信息密度的关键词。实现 **“用户多样性 (User Diversity)”** 权重算法，通过唯一参与用户数 (Spread) 修正排名，彻底拦截刷榜与复读机操控。
   - **影子学习与垃圾过滤**: 实现自动化的噪声特征发现机制。系统能自动从包含“私聊、引流”等特征的消息中提取模式并更新 `noise.json` 特征库，实现业务热词的自动“脱敏”与过滤。

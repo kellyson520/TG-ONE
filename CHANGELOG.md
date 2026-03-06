@@ -1,5 +1,13 @@
 ## 📅 2026-03-06 更新摘要
 
+### 🚀 v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)
+- **核心修复 (Core Fix)**:
+    - **TypeError 修正**: 修复了 `core/container.py` 中 `get_hotword_collector` 的调用错误。移除错误传递的 `self` (Container) 参数，解决了因参数不匹配导致的系统引导崩溃问题。
+- **验证**:
+    - 代码审计确认 `middlewares/hotword.py` 中的工厂函数定义不接收参数。
+    - 任务已闭环归档：`docs/Workstream_Infrastructure/20260306_Fix_Hotword_Collector_TypeError/`。
+
+
 ### 🚀 v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)
 - **核心算法进化 (Algorithm Evolvement)**:
     - **TF-IDF 高级分析**: 引入成熟的 TF-IDF 权重模型替代简单频率统计，精准识别具有高信息密度、低背景冗余的关键词。
