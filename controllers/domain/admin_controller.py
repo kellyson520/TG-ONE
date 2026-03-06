@@ -237,6 +237,7 @@ class AdminController(BaseController):
                         total_size_bytes += os.path.getsize(fp)
             
             # 3. 获取索引状态
+            # BloomIndex 基于文件系统分片位图，使用 active_shard_count 获取活跃分片数
             from repositories.bloom_index import bloom
             
             data = {
@@ -246,7 +247,7 @@ class AdminController(BaseController):
                 'total_archived': 0, # 这里如果真要查全量条数会很慢，暂设为 0 或读取缓存
                 'archive_size': f"{total_size_bytes / (1024*1024):.1f} MB",
                 'bloom_stats': {
-                    'active_indices': len(bloom.filters),
+                    'active_indices': bloom.active_shard_count,
                     'fp_rate': "0.1%",
                     'cache_hit': "98.5%"
                 }
@@ -728,7 +729,7 @@ class AdminController(BaseController):
         """显示异常检测报告"""
         try:
             from services.analytics_service import analytics_service
-            data = await analytics_service.get_health_report()
+            data = await analytics_service.detect_anomalies()
             view_result = self.container.ui.admin.render_anomaly_detection(data)
             from handlers.button.new_menu_system import new_menu_system
             await new_menu_system.display_view(event, view_result)

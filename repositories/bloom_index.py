@@ -92,6 +92,17 @@ class BloomIndex:
             f"BloomIndex 初始化: root={self.root}, bits={self.bits}, hashes={self.hashes}, shard_by={self.shard_by}"
         )
 
+    @property
+    def active_shard_count(self) -> int:
+        """返回当前活跃的 Bloom 分片文件数量 (.bf 文件数)"""
+        try:
+            return sum(
+                1 for _, _, files in os.walk(self.root)
+                for f in files if f.endswith('.bf')
+            )
+        except Exception:
+            return 0
+
     def _prune_cache(self) -> None:
         with self._cache_lock:
             if len(self._cache) <= _CACHE_MAX_ENTRIES:

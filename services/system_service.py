@@ -84,7 +84,7 @@ class SystemService:
     async def get_error_logs(self, limit: int = 5):
         """获取最近的消息错误日志"""
         try:
-            from models.models import ErrorLog
+            from models.system import ErrorLog  # ErrorLog 定义在 models.system，非 models.models
             from sqlalchemy import select, desc
             async with self.container.db.get_session() as s:
                 result = await s.execute(

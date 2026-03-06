@@ -320,7 +320,8 @@ class DBMaintenanceService:
             # 简单的统计
             from core.container import container
             from sqlalchemy import func
-            from models.models import ErrorLog, RuleLog, Chat, ForwardRule
+            from models.models import RuleLog, Chat, ForwardRule
+            from models.system import ErrorLog  # ErrorLog 定义在 models.system
             
             tables = {}
             async with container.db.get_session() as session:

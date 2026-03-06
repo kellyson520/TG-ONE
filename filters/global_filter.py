@@ -131,18 +131,31 @@ class GlobalFilter(BaseFilter):
             attrs = getattr(doc, 'attributes', []) or []
             is_video = False
             is_audio = False
+            is_sticker_attr = False
             
             from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeAudio
-            # 检查文档属性
+            # 检查文档属性（sticker 优先识别）
             for a in attrs:
-                if isinstance(a, DocumentAttributeVideo):
+                if a.__class__.__name__ == 'DocumentAttributeSticker':
+                    is_sticker_attr = True
+                    break
+                elif isinstance(a, DocumentAttributeVideo):
                     is_video = True
                     break
                 elif isinstance(a, DocumentAttributeAudio):
                     is_audio = True
                     break
             
-            if is_video:
+            # sticker 类型：在全局过滤中归入 document 媒体类型检查
+            if is_sticker_attr:
+                if not media_types.get('document', True):
+                    logger.info('全局设置：表情包(sticker)类型被屏蔽(归 document)')
+                    if settings.get('allow_text', True):
+                        context.media_blocked = True
+                    else:
+                        context.should_forward = False
+                        return False
+            elif is_video:
                 if not media_types.get('video', True):
                     logger.info('全局设置：视频文档被屏蔽')
                     if settings.get('allow_text', True):

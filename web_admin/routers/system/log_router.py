@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select, desc, func
 
 from core.config import settings
-from models.models import ErrorLog
+from models.system import ErrorLog  # ErrorLog 定义在 models.system，非 models.models
 from web_admin.security.deps import admin_required
 from web_admin.schemas.response import ResponseSchema
 from web_admin.api import deps
@@ -72,16 +72,17 @@ async def get_error_logs(
             
             data = []
             for log in logs:
+                log_func = getattr(log, 'function', None)
+                log_ctx = getattr(log, 'context', None)
                 data.append({
                     'id': log.id,
                     'level': log.level,
                     'module': log.module,
-                    'function': log.function,
+                    'function': log_func,
                     'message': log.message[:200] + '...' if log.message and len(log.message) > 200 else log.message,
                     'created_at': (f"{log.created_at}Z" if log.created_at and 'T' in log.created_at and not log.created_at.endswith('Z') else log.created_at),
                     'traceback': log.traceback[:300] + '...' if log.traceback and len(log.traceback) > 300 else log.traceback,
-                    # Context usually small, but let's be safe
-                    'context': str(log.context)[:500] + '...' if log.context and len(str(log.context)) > 500 else log.context
+                    'context': str(log_ctx)[:500] + '...' if log_ctx and len(str(log_ctx)) > 500 else log_ctx
                 })
                 
             return ResponseSchema(
@@ -120,11 +121,11 @@ async def get_error_log_detail(
                     'id': log.id,
                     'level': log.level,
                     'module': log.module,
-                    'function': log.function,
+                    'function': getattr(log, 'function', None),
                     'message': log.message,
                     'created_at': (f"{log.created_at}Z" if log.created_at and 'T' in log.created_at and not log.created_at.endswith('Z') else log.created_at),
                     'traceback': log.traceback,
-                    'context': log.context,
+                    'context': getattr(log, 'context', None),
                     'rule_id': log.rule_id,
                     'chat_id': log.chat_id
                 }

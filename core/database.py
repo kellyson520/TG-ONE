@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class Database:
     async def session(self, readonly: bool = False) -> AsyncIterator[AsyncSession]:
         """获取数据库会话，支持只读模式"""
         session = None
+        cancelled = False
         try:
             factory = self._read_factory if readonly else self._write_factory
             session = factory()
@@ -82,6 +84,14 @@ class Database:
             if not readonly and session.in_transaction():
                 await session.commit()
                 logger.debug(f"[Database] 事务提交成功: {id(session)}")
+        except asyncio.CancelledError:
+            # CancelledError 是控制流信号 (BaseException 子类)，必须标记后在 finally 中重抛
+            cancelled = True
+            if session and session.in_transaction():
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass  # 关闭期间回滚失败可忽略
         except Exception as e:
             if session and session.in_transaction():
                 await session.rollback()
@@ -90,8 +100,14 @@ class Database:
             raise
         finally:
             if session:
-                await session.close()
-                logger.debug(f"[Database] 会话关闭成功: {id(session)}")
+                try:
+                    await session.close()
+                    logger.debug(f"[Database] 会话关闭成功: {id(session)}")
+                except Exception as close_err:
+                    # 关闭会话失败不应影响取消信号传播，仅记录日志
+                    logger.debug(f"[Database] 会话关闭时出现异常（可忽略）: {close_err}")
+            if cancelled:
+                raise asyncio.CancelledError()
 
     @asynccontextmanager
     async def get_session(self, existing_session: Optional[AsyncSession] = None, readonly: bool = False) -> AsyncIterator[AsyncSession]:
@@ -107,8 +123,9 @@ class Database:
 
     async def close(self) -> None:
         logger.info(f"[Database] 关闭数据库引擎")
-        await self.engine.dispose()
+        # 使用 shield 防止外部 CancelledError 在 aiosqlite greenlet_spawn 桥接期间中断 dispose
+        await asyncio.shield(self.engine.dispose())
         if self.read_engine and self.read_engine is not self.engine:
-            await self.read_engine.dispose()
+            await asyncio.shield(self.read_engine.dispose())
         logger.info(f"[Database] 数据库引擎已关闭")
 

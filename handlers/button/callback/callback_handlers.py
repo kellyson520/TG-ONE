@@ -285,6 +285,7 @@ callback_router.build_from_dict(CALLBACK_HANDLERS)
 # 添加带参数的高级路由支持
 callback_router.add_route("rule:{id}:settings", callback_rule_settings)
 callback_router.add_route("rule_settings:{id}", callback_rule_settings)
+callback_router.add_route("settings:{id}", callback_rule_settings)  # [Fix] AI设置返回按钮
 callback_router.add_route("delete:{id}", callback_delete)
 callback_router.add_route("switch:{id}", callback_switch)
 

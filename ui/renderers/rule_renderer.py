@@ -34,8 +34,17 @@ class RuleRenderer(BaseRenderer):
                 status_icon = UIStatus.SUCCESS if is_enabled else UIStatus.ERROR
                 status_label = "运行" if is_enabled else "停用"
                 
-                source = rule.get('source_chat_title', 'Unknown')
-                target = rule.get('target_chat_title', 'Unknown')
+                # 兼容嵌套字典 {'title': ...} 和扁平字段 source_chat_title 两种数据格式
+                source_chat = rule.get('source_chat') or {}
+                target_chat = rule.get('target_chat') or {}
+                source = (source_chat.get('title')
+                          or rule.get('source_chat_title')
+                          or f"Chat {source_chat.get('telegram_chat_id', '?')}"
+                          or 'Unknown')
+                target = (target_chat.get('title')
+                          or rule.get('target_chat_title')
+                          or f"Chat {target_chat.get('telegram_chat_id', '?')}"
+                          or 'Unknown')
                 
                 # 构造紧凑型卡片
                 builder.add_section(
@@ -72,9 +81,16 @@ class RuleRenderer(BaseRenderer):
         builder.add_breadcrumb(["首页", "规则库", f"规则 {rid}"])
         
         builder.add_section("基础路由", [], icon="📤")
+        # 兼容嵌套字典 {'title': ...} 和扁平字段两种数据格式
+        src_chat = rule.get('source_chat') or {}
+        tgt_chat = rule.get('target_chat') or {}
+        src_title = (src_chat.get('title') or rule.get('source_chat_title')
+                     or f"Chat {src_chat.get('telegram_chat_id', '?')}" or 'Unknown')
+        tgt_title = (tgt_chat.get('title') or rule.get('target_chat_title')
+                     or f"Chat {tgt_chat.get('telegram_chat_id', '?')}" or 'Unknown')
         builder.add_status_grid({
-            "源聊天": rule.get('source_chat_title', 'Unknown'),
-            "目标聊天": rule.get('target_chat_title', 'Unknown'),
+            "源聊天": src_title,
+            "目标聊天": tgt_title,
             "当前状态": ("运行中", UIStatus.SUCCESS) if is_enabled else ("已禁用", UIStatus.ERROR)
         })
         

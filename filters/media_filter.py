@@ -309,17 +309,30 @@ class MediaFilter(BaseFilter):
             attrs = getattr(doc, 'attributes', []) or []
             is_video = False
             is_audio = False
+            is_sticker_attr = False
             
-            # 检查文档属性
+            # 检查文档属性（sticker 优先识别，防止误归 document）
             for a in attrs:
-                if a.__class__.__name__ == 'DocumentAttributeVideo':
+                if a.__class__.__name__ == 'DocumentAttributeSticker':
+                    is_sticker_attr = True
+                    break
+                elif a.__class__.__name__ == 'DocumentAttributeVideo':
                     is_video = True
                     break
                 elif a.__class__.__name__ == 'DocumentAttributeAudio':
                     is_audio = True
                     break
             
-            if is_video and media_types.video:
+            # sticker 类型：优先检查 sticker 专用字段，无则降级为 document
+            if is_sticker_attr:
+                sticker_blocked = getattr(media_types, 'sticker', None)
+                if sticker_blocked is None:
+                    sticker_blocked = getattr(media_types, 'document', False)
+                if sticker_blocked:
+                    logger.info('媒体类型为表情包(sticker)，已被屏蔽')
+                    return True
+                return False  # sticker 已识别完毕，不走后续 document 分支
+            elif is_video and media_types.video:
                 logger.info('媒体类型为视频文档，已被屏蔽')
                 return True
             elif is_audio and media_types.audio:

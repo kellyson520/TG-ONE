@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager, contextmanager
@@ -35,14 +36,14 @@ async def dispose_all_engines() -> None:
             logger.info("[DbFactory] 同步数据库引擎已释放")
         except Exception as e:
             logger.error(f"[DbFactory] 释放同步引擎失败: {e}")
-            
+
     # 2. 处理异步读写引擎
     # 优先处理类变量中的引擎
     engines_to_dispose = []
     if hasattr(DbFactory, "_async_write_engine") and DbFactory._async_write_engine:
         engines_to_dispose.append(("Async Write", DbFactory._async_write_engine))
         DbFactory._async_write_engine = None
-        
+
     if hasattr(DbFactory, "_async_read_engine") and DbFactory._async_read_engine:
         engines_to_dispose.append(("Async Read", DbFactory._async_read_engine))
         DbFactory._async_read_engine = None
@@ -58,9 +59,17 @@ async def dispose_all_engines() -> None:
 
     for name, engine in engines_to_dispose:
         try:
-            await engine.dispose()
+            # 关键修复: 使用 asyncio.shield() 保护 dispose 操作不被外部 CancelledError/TimeoutError 中断。
+            # 当 ShutdownCoordinator 的 wait_for 超时取消时，aiosqlite 的 greenlet_spawn 桥接机制
+            # 会在协程取消状态下尝试 await aiosqlite.close()，导致 CancelledError 异常溢出。
+            # shield 确保 dispose 完成后才传播取消信号。
+            await asyncio.shield(engine.dispose())
             logger.info(f"[DbFactory] {name} 数据库引擎已释放")
-        except Exception as e:
+        except asyncio.CancelledError:
+            # dispose 本身必须完成；在 shield 内 CancelledError 被屏蔽。
+            # 此处理论上不会到达，但作为保险层保留。
+            logger.warning(f"[DbFactory] {name} 引擎释放被取消信号打断（已忽略，连接将由GC回收）")
+        except BaseException as e:
             logger.error(f"[DbFactory] 释放 {name} 引擎失败: {e}")
 
 
@@ -206,16 +215,30 @@ async def AsyncSessionManager(readonly: bool = False) -> AsyncGenerator[AsyncSes
     """Async session manager context manager"""
     factory = get_async_session_factory(readonly=readonly)
     async with factory() as session:
+        cancelled = False
         try:
             yield session
             if session.in_transaction() and not readonly:
                 await session.commit()
+        except asyncio.CancelledError:
+            # CancelledError 是 BaseException 子类，必须用标志位模式处理
+            cancelled = True
+            if session.in_transaction():
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
         except Exception:
             if session.in_transaction():
                 await session.rollback()
             raise
         finally:
-            await session.close()
+            try:
+                await session.close()
+            except Exception:
+                pass  # 关闭期间异常可忽略
+            if cancelled:
+                raise asyncio.CancelledError()
 
 
 @contextmanager

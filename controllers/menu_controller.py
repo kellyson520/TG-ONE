@@ -554,6 +554,10 @@ class MenuController:
         """物理紧缩归档库，回收磁盘空间"""
         await self.container.admin_controller.compact_archive(event)
 
+    async def run_admin_db_cmd(self, event, cmd_type: str):
+        """执行管理员数据库操作指令"""
+        await self.container.admin_controller.run_admin_db_cmd(event, cmd_type)
+
     async def show_admin_panel(self, event):
         """管理员超级权限面板"""
         await self.container.admin_controller.show_admin_panel(event)

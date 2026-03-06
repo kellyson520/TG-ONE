@@ -15,7 +15,8 @@ class StickerStrategy(BaseDedupStrategy):
     """
     async def process(self, ctx: DedupContext) -> Optional[DedupResult]:
         config = ctx.config
-        if not config.get('enable_sticker_filter', True):
+        # config 是 DedupConfig dataclass，必须用属性访问，不能用 .get()
+        if not getattr(config, 'enable_sticker_filter', True):
             return None
             
         message_obj = ctx.message_obj

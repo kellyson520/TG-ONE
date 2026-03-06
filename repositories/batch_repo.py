@@ -480,7 +480,7 @@ class AsyncBatchProcessor:
                 session.add_all(objects)
 
             elif table_name == "error_logs":
-                from models.models import ErrorLog
+                from models.system import ErrorLog  # ErrorLog 定义在 models.system
 
                 objects = [ErrorLog(**item) for item in data]
                 session.add_all(objects)
