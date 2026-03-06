@@ -1,5 +1,13 @@
 ## 📅 2026-03-06 更新摘要
 
+### 🚀 v1.2.8.2: SummaryScheduler 导入路径修复 (ImportError Hotfix)
+- **核心修复 (Core Fix)**:
+    - **ImportError 修正**: 修复了 `scheduler/summary_scheduler.py` 中错误的模块導入路径。将 `services.hotword` 修正为 `services.hotword_service`，并在定时聚合逻辑中统一使用 `get_hotword_service()` 工厂函数获取服务实例，解决了由于模块缺失和对象名称错误导致的调度器启动失败。
+- **验证**:
+    - 已通过 `local-ci` 代码质量与导入静态检查。
+    - 任务已闭环归档：`docs/Workstream_Infrastructure/20260306_Fix_Summary_Scheduler_ImportError/`。
+
+
 ### 🚀 v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)
 - **核心修复 (Core Fix)**:
     - **TypeError 修正**: 修复了 `core/container.py` 中 `get_hotword_collector` 的调用错误。移除错误传递的 `self` (Container) 参数，解决了因参数不匹配导致的系统引导崩溃问题。

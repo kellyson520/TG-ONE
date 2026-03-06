@@ -1,8 +1,10 @@
-VERSION = "1.2.8.1"
+VERSION = "1.2.8.2"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.2: SummaryScheduler 导入路径修复 (ImportError Hotfix)
+  - **核心修复**: 修复了 `scheduler/summary_scheduler.py` 中由于错误的导入路径和对象名导致的 `ImportError`。将 `services.hotword` 修正为 `services.hotword_service`，并使用 `get_hotword_service()` 工厂函数获取实例。
 - v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)
   - **核心修复**: 修正了 `core/container.py` 中 `get_hotword_collector` 的调用参数。原代码错误地传递了 `self` (Container) 实例，而该单例工厂函数不接收任何参数，导致系统启动崩溃 (TypeError)。
 - v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)

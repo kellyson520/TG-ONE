@@ -12,6 +12,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260306_Fix_Summary_Scheduler_ImportError | 修复 SummaryScheduler 热词服务导入错误 (ImportError) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Infrastructure/20260306_Fix_Summary_Scheduler_ImportError/report.md) |
 | 20260306_Fix_Hotword_Collector_Call | 修复 Hotword Collector 调用参数错误 (TypeError) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Infrastructure/20260306_Fix_Hotword_Collector_TypeError/report.md) |
 | 20260304_Fix_AddMode_Key_Regression | 修复规则设置 AddMode KeyError 再次出现 (Enum 兼容性) | 2026-03-04 | 2026-03-04 | 100% | [[report.md]](./Workstream_Handlers/20260304_Fix_AddMode_KeyError/report.md) |
 | 20260301_Fix_Event_Optimization_DB_Locked | 修复事件优化器同步 DB 锁死 | 2026-03-01 | 2026-03-01 | 100% | [[report.md]](./Workstream_Database_Optimization/20260301_Fix_Event_Optimization_DB_Locked/report.md) |

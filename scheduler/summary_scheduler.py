@@ -506,7 +506,8 @@ class SummaryScheduler:
             
             # 2. 注入热词分析定时聚合逻辑 (H.5)
             if settings.ENABLE_HOTWORD:
-                from services.hotword_service import hotword_service
+                from services.hotword_service import get_hotword_service
+                hotword_service = get_hotword_service()
                 
                 # 每日 00:00:10 聚合昨日数据
                 now = datetime.now(self.timezone)
@@ -597,7 +598,7 @@ class SummaryScheduler:
     async def _hotword_push_callback(self):
         """每日全局热词推送回调"""
         try:
-            from services.hotword import get_hotword_service
+            from services.hotword_service import get_hotword_service
             hotword_service = get_hotword_service()
             report = await hotword_service.get_global_push_data()
             
