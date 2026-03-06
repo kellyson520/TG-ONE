@@ -52,6 +52,7 @@ from .ai_callback import handle_ai_callback
 # 导入媒体设置回调
 from .media_callback import handle_media_callback
 from .menu_entrypoint import handle_new_menu_callback
+from .modules.hotword_callback import handle_hotword_callback
 
 # 导入其他通用设置回调
 from .other_callback import (
@@ -276,6 +277,11 @@ CALLBACK_HANDLERS = {
     "toggle_file_size_range_filter": callback_toggle_file_size_range_filter,
     "set_file_size_range": callback_set_file_size_range,
     "cancel_set_file_size_range": callback_cancel_set_file_size_range,
+    
+    # 热词模块回调
+    "hotword_global_refresh": handle_hotword_callback,
+    "hotword_main": handle_hotword_callback,
+    "hotword_search_prompt": handle_hotword_callback,
 }
 
 # 初始化全局路由器
@@ -353,6 +359,9 @@ callback_router.add_route("perform_copy_keyword:{rest}", handle_other_callback)
 callback_router.add_route("delete_rule:{rest}", handle_other_callback)
 callback_router.add_route("perform_delete_rule:{rest}", handle_other_callback)
 callback_router.add_route("ufb_item:{rest}", handle_other_callback)
+
+# 热词模块动态路由
+callback_router.add_route("hotword_view:{rest}", handle_hotword_callback)
 
 
 # 更新日志翻页

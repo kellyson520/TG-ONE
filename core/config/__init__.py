@@ -64,6 +64,10 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "temp",
         description="临时文件存储目录"
     )
+    HOT_DIR: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "hot",
+        description="热词分析数据存储目录"
+    )
     LOG_DIR: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "logs",
         description="日志文件存储目录"
@@ -438,6 +442,28 @@ class Settings(BaseSettings):
         description="拉取批次间的延迟（秒）"
     )
 
+    # === 热词分析 (Hotword Analysis) ===
+    ENABLE_HOTWORD: bool = Field(
+        default=True,
+        description="是否启用热词分析功能"
+    )
+    HOTWORD_SYNC_INTERVAL: float = Field(
+        default=60.0,
+        description="热词增量同步到磁盘的间隔 (秒)"
+    )
+    HOTWORD_BATCH_SIZE: int = Field(
+        default=50,
+        description="分词处理的消息批次大小"
+    )
+    HOTWORD_MIN_FREQ: int = Field(
+        default=3,
+        description="进入总榜的最小频次阈值"
+    )
+    HOTWORD_IDLE_TIMEOUT: float = Field(
+        default=300.0,
+        description="热词分析引擎空闲自动挂起时间 (秒)"
+    )
+
     # === 错误通知配置 ===
     ERROR_NOTIFY_THROTTLE_SECONDS: int = Field(
         default=30, 
@@ -687,7 +713,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "BASE_DIR", "DATA_ROOT", "DOWNLOAD_DIR", "SESSION_DIR", 
-        "TEMP_DIR", "LOG_DIR", "DB_DIR", "BACKUP_DIR", "FORWARD_RECORDER_DIR",
+        "TEMP_DIR", "HOT_DIR", "LOG_DIR", "DB_DIR", "BACKUP_DIR", "FORWARD_RECORDER_DIR",
         mode="after"
     )
     @classmethod

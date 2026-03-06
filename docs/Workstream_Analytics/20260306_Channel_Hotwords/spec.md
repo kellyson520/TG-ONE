@@ -21,9 +21,25 @@
 最大化复用当前的异步 `WorkerService` 模型与线程池：
 - 因为 `jieba` (分词算法) 与频分加权(TF-IDF/权频算子) 通常是 CPU 密集型的计算，**绝对禁止**直接在 Asyncio 的 Main Event Loop 中执行。
 - **复用 Worker**：我们将热词提取封装为 `HotwordAnalysisTask`，提交给 `WorkerService` 中基于 `run_in_executor` 的线程池处理。在系统低峰期或达到阀值（如缓冲 50 条文本）时，触发批量(Batch) 分词。
-- **频分加权算法**：过滤无意义动词/副词/英文符号（加载停用词表 `stopwords.txt`）。基于出现频率叠加时间衰减(如适用)统计核心名词，生成权重 `{"keyword": weight}`。
+- **精准度与降噪 (Accuracy & Noise Reduction)**:
+    1. **词性过滤 (POS Filtering)**: 仅提取名词 (n)、人名 (nr)、地名 (ns)、机构名 (nt)、专有名词 (nz) 以及动词 (v)。自动过滤代词、连词、介词等垃圾信息。
+    2. **三级停用词过滤 (Triple-Stopword Check)**:
+       - **基础库**: 加载预置的 2000+ 通用中文停词表。
+       - **自定义库**: 提供 `data/hot/user_stopwords.txt` 供用户手动屏蔽特定业务噪音词（如频道固定的小尾巴、广告词）。
+       - **长度过滤**: 自动忽略单字词（如“的”、“了”、“我”），保留 2 字及以上的核心语义词。
+    3. **热点发现与边界加权算法 (Advanced Hotspot Discovery)**:
+       - **TF-IDF 动态权重 (Relative Burst)**: 词语在当前频道频率(TF)极高，且在全局(Global)频率较低时，判定为特有热点。
+       - **突发脉冲增强 (Burst Boost)**: 在短时间内（如1小时内）词频增长率超过 300% 时，赋予该词 1.5x 的临时热度权重，确保瞬间爆发的新闻（如：突发地震、金融异动）能立即上榜，不受历史均值拖累。
+       - **低频死信处理 (Low-Frequency Cull)**: 出现次数低于阈值（如：日均低于3次）的词，在归纳时不计入 `all.json`，防止几百个频道产生数百万个低频无效 Key 刺穿 512MB RAM。
+       - **结构化特征降噪 (Structural Anti-Spam)**: 
+           - **重复度惩罚**: 同一条长消息内重复出现 5 次以上的词（如刷屏广告），按 1 次计算。
+           - **熵减过滤**: 词语如果仅在单一来源（如：同一个转发规则）出现，其全局热度权重按 0.5x 衰减，防止个别营销号自嗨式霸榜。
+       - **多维级联衰减 (Cascade Decay)**: 
+           - **日榜**: 权重 1.0。
+           - **月榜**: `score = sum(day_score * 0.95^(today - day))`。
+           - **年榜**: 采用半衰期算法，确保存量热词平滑淡出。
 
-### 2.3 分布式存储落盘层 (Storage Layer): `Local JSON Data Nodes`
+### 2.3 分布式存储落盘层 (Storage Layer) : `Local JSON Data Nodes`
 遵循需求：独立文件记录，日、月、年逐级自动折叠，存储架构如下：
 ```text
 /data
@@ -35,11 +51,11 @@
        global_month_{YYYYMM}.json (全局月榜)
        global_year_{YYYY}.json (全局年榜)
     /{频道名A}
-       {频道名A}_temp.json (每分钟增量同步)
-       {频道名A}_all.json
-       {频道名A}_day_{YYYYMMDD}.json
-       {频道名A}_month_{YYYYMM}.json
-       {频道名A}_year_{YYYY}.json
+       {频道名A}_temp.json (增量同步)
+       {频道名A}_all.json (全量累加)
+       {频道名A}_day_{YYYYMMDD}.json (独立日榜)
+       {频道名A}_month_{YYYYMM}.json (独立月榜，保留至年终)
+       {频道名A}_year_{YYYY}.json (年终归档)
     ...
 ```
 
@@ -51,25 +67,19 @@
 针对**好几百个频道**可能引发的“洪峰 IO”（例如1分钟内几百个文件全开写入），我们采取以下绝对防御：
 - `temp.json` 的更新不是每个频道单独触发 IO 定时器。而是采用**全局异步聚合心跳 (Global Async Heartbeat)**。
 - 维持一个大字典 `global_l1_cache: Dict[str, Counter]`。
-- **批量下刷 (Batch Flush)**: 心跳触发时，将这个全局字典中有更新的频道，一次性包装为多个 `aiofiles` 的异步写入 Tasks。这样能够把对数百个 `temp.json` 的修改并行交给操作系统的 VFS (虚拟文件系统)，而绝不存在上百个 Python 文件句柄互锁导致的卡死。由于是 `asyncio.gather` 并发写，总耗时会被压缩到极致的几十毫秒级别。
+- **批量下刷 (Batch Flush)**: 心跳触发时，直接在内存中异步、并行写入 Task。
 
 ### 3.2 自然日归纳 (Daily Rollup)
-- **触发器**: Scheduler 服务每天 `00:00:10` 执行。
-- **动作**: 
-  1. 将昨天积攒的 `{频道}_temp.json` 与 `global_temp.json` 重命名为 `{频道}_day_{昨天日期}.json`。
-  2. 清空重新生成当天的 `temp.json`。
-  3. 触发**全频道总榜聚合**，同时更新总榜和各个频道的 `all.json` 累加库。
+- **触发器**: 每天 `00:00:10`。
+- **动作**: 将昨日 `temp` 数据固化为独立的 `day_{YYYYMMDD}.json`。
 
 ### 3.3 自然月/年归纳 (Monthly/Yearly Rollup)
-- **触发器**: Scheduler 服务每月1号 / 每年1月1号 执行。
-- **慢熬策略 (Slow-Simmer Aggregation)**: 由于面对的是**几百个**频道的历史文件夹，绝不支持在一个函数里使用 `for folder in channels` 直接去扫！这会拉高 VPS 瞬间的 CPU 和内存占用。
-  1. 归纳动作被拆分为 Task，抛入后台队列慢慢消费。
-  2. 加入类似 300ms ~ 1000ms 的间歇。
-  3. 即使 500 个频道需要花半小时才折叠完，对系统也完全是一种“温柔流产”，VPS负载监控甚至感受不到波动。
-- **动作**:
-  1. 扫描上个月所有的 `day_{YYYYMMDD}.json`，流式迭代读取对应频道数据合并 `Counter`，加权生成 `month_{YYYYMM}.json`。
-  2. 同理自动将 12 个 `month` 合并生成 `year_{YYYY}.json`。
-  3. 执行存储瘦身：对于已经成功归纳的 `day` 文件，使用 `shutil.rmtree` 或打包归档剔除，阻止文件句柄超限及零散文件拖慢操作系统目录遍历速度。
+- **月度生成**: 每月1号，扫描上月所有 `day` 文件，生成独立的 `month_{YYYYMM}.json`。**此时不进行年归纳，月文件单独留在频道文件夹下。**
+- **年终密封 (Yearly Sealing)**:
+  - **触发器**: 每年 1 月 1 日凌晨。
+  - **动作**: 扫描过去 12 个月的 `month_*.json` 文件进行终极合并，生成 `year_{YYYY}.json`。
+  - **物理清理**: 年归纳完成后，将这 12 个 `month` 文件移入 `archive/` 目录或直接删除，以维持频道根目录的检索效率。
+- **慢熬策略 (Slow-Simmer Aggregation)**: 即使面对几百个频道，所有归纳动作均分拆为小任务，带 `1s` 间歇执行，确保 512MB RAM 无波动。
 
 ---
 

@@ -244,6 +244,13 @@ class Container:
         return self._rule_filter_service
 
     @property
+    def hotword_service(self) -> Any:
+        if not hasattr(self, '_hotword_service'):
+            from services.hotword_service import get_hotword_service
+            self._hotword_service = get_hotword_service()
+        return self._hotword_service
+
+    @property
     def system_service(self) -> Any:
         if not hasattr(self, '_system_service'):
             from services.system_service import SystemService
@@ -304,12 +311,15 @@ class Container:
         from middlewares.dedup import DedupMiddleware
         from middlewares.sender import SenderMiddleware
         from middlewares.filter import FilterMiddleware
+        from middlewares.hotword import get_hotword_collector
+        collector = get_hotword_collector(self)
         
         # [Filter Chain Factory Injection]
         from filters.factory import get_filter_chain_factory
         get_filter_chain_factory().set_container(self)
         
         pipeline.add(RuleLoaderMiddleware(self.rule_repo))  # 1. 加载规则
+        pipeline.add(collector)                            # 1.5 热词异步采集 (非阻塞)
         pipeline.add(DedupMiddleware())                     # 2. 去重检查
         pipeline.add(FilterMiddleware())                    # 3. 过滤 & 内容修改
         from middlewares.ai import AIMiddleware             # 引入AI中间件
@@ -362,6 +372,10 @@ class Container:
             self.http_session = aiohttp.ClientSession()
             logger.info("全局 HTTP 会话已初始化")
         
+        # Start Hotword Collector Worker
+        from middlewares.hotword import get_hotword_collector
+        self.services.append(asyncio.create_task(get_hotword_collector(self).start_worker(), name="HotwordCollector"))
+
         # 使用 asyncio.create_task 启动并由 Container 持有引用
         if self.worker:
             self.services.append(asyncio.create_task(self.worker.start(), name="Worker"))

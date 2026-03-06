@@ -491,9 +491,8 @@ class SummaryScheduler:
     async def start(self):
         """启动总结调度器：扫描规则并创建定时任务"""
         try:
-            # 使用注入的数据库会话
+            # 1. 扫描 AI 总结规则
             async with self.db.get_session() as session:
-                # 异步预加载所有关联信息
                 from sqlalchemy.orm import selectinload
                 stmt = select(ForwardRule).options(
                     selectinload(ForwardRule.source_chat),
@@ -504,13 +503,117 @@ class SummaryScheduler:
                 
                 for rule in rules:
                     await self.schedule_rule(rule)
+            
+            # 2. 注入热词分析定时聚合逻辑 (H.5)
+            if settings.ENABLE_HOTWORD:
+                from services.hotword_service import hotword_service
                 
-                # 启动时间轮
-                await self.timing_wheel.start()
+                # 每日 00:00:10 聚合昨日数据
+                now = datetime.now(self.timezone)
+                daily_target = now.replace(hour=0, minute=0, second=10, microsecond=0)
+                if daily_target <= now: daily_target += timedelta(days=1)
+                daily_delay = (daily_target - now).total_seconds()
+                
+                self.timing_wheel.add_task(
+                    "hotword_aggregate_daily", 
+                    daily_delay, 
+                    self._hotword_daily_callback
+                )
+                
+                # 每月 1 号 01:00:00 聚合上月数据
+                monthly_target = now.replace(day=1, hour=1, minute=0, second=0, microsecond=0)
+                if monthly_target <= now:
+                    # Move to next month
+                    if monthly_target.month == 12:
+                        monthly_target = monthly_target.replace(year=monthly_target.year+1, month=1)
+                    else:
+                        monthly_target = monthly_target.replace(month=monthly_target.month+1)
+                
+                monthly_delay = (monthly_target - now).total_seconds()
+                self.timing_wheel.add_task(
+                    "hotword_aggregate_monthly", 
+                    monthly_delay, 
+                    self._hotword_monthly_callback
+                )
+
+                # 每年 1 月 1 日 02:00:00 年终大决算
+                yearly_target = now.replace(month=1, day=1, hour=2, minute=0, second=0, microsecond=0)
+                if yearly_target <= now: yearly_target = yearly_target.replace(year=yearly_target.year + 1)
+                yearly_delay = (yearly_target - now).total_seconds()
+                self.timing_wheel.add_task(
+                    "hotword_aggregate_yearly",
+                    yearly_delay,
+                    self._hotword_yearly_callback
+                )
+
+                # 每日 08:30:00 全局热词推送 (H.5.C3)
+                push_target = now.replace(hour=8, minute=30, second=0, microsecond=0)
+                if push_target <= now: push_target += timedelta(days=1)
+                push_delay = (push_target - now).total_seconds()
+                self.timing_wheel.add_task(
+                    "hotword_global_push",
+                    push_delay,
+                    self._hotword_push_callback
+                )
+
+                logger.info("🔥 热词分析定时聚合与每日推送已挂载到时间轮")
+
+            # 3. 启动时间轮
+            await self.timing_wheel.start()
                     
             logger.log_system_state("总结调度器", "已启动 (TimingWheel 模式)", {"tasks": len(self.tasks)})
         except Exception as e:
             logger.log_error("启动总结调度器", e)
+
+    async def _hotword_daily_callback(self):
+        """每日热词聚合回调"""
+        try:
+            from services.hotword_service import get_hotword_service
+            hotword_service = get_hotword_service()
+            await hotword_service.aggregate_daily()
+        finally:
+            # 安排下一天
+            self.timing_wheel.add_task("hotword_aggregate_daily", 86400, self._hotword_daily_callback)
+
+    async def _hotword_monthly_callback(self):
+        """每月热词聚合回调"""
+        try:
+            from services.hotword_service import get_hotword_service
+            hotword_service = get_hotword_service()
+            await hotword_service.aggregate_monthly()
+        finally:
+            # 安排下个月 (简化处理：31天后触发，callback内会重新对齐月1号)
+            self.timing_wheel.add_task("hotword_aggregate_monthly", 31*86400, self._hotword_monthly_callback)
+
+    async def _hotword_yearly_callback(self):
+        """每年热词聚合回调"""
+        try:
+            from services.hotword_service import get_hotword_service
+            hotword_service = get_hotword_service()
+            await hotword_service.aggregate_yearly()
+        finally:
+            self.timing_wheel.add_task("hotword_aggregate_yearly", 365*86400, self._hotword_yearly_callback)
+
+    async def _hotword_push_callback(self):
+        """每日全局热词推送回调"""
+        try:
+            from services.hotword import get_hotword_service
+            hotword_service = get_hotword_service()
+            report = await hotword_service.get_global_push_data()
+            
+            # 发送给管理员 (USER_ID)
+            if settings.USER_ID:
+                await self.message_handler.safe_send(
+                    settings.USER_ID,
+                    report,
+                    parse_mode='markdown'
+                )
+                logger.info("✅ 每日全局热词报告已推送。")
+        except Exception as e:
+            logger.error(f"每日热词推送失败: {e}")
+        finally:
+            self.timing_wheel.add_task("hotword_global_push", 86400, self._hotword_push_callback)
+
 
     def stop(self):
         """停止总结调度器：取消所有定时任务"""

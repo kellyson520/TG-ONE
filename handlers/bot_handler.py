@@ -56,6 +56,8 @@ from .commands.dedup_commands import (
     handle_smart_dedup_command,
     handle_clear_dedup_cache_command
 )
+from .commands.hotword_commands import handle_hotword_command
+
 
 # [Phase 4] Priority Queue Handlers
 from .priority_handler import set_priority_handler, queue_status_handler
@@ -167,7 +169,10 @@ async def handle_command(client, event):
             "ca": lambda: handle_clear_all_command(event),
             "start": lambda: handle_start_command(event),
             "help": lambda: handle_help_command(event, "help"),
-            "h": lambda: handle_help_command(event, "help"),
+            "hot": lambda: handle_hotword_command(event, message.text),
+            "h": lambda: handle_help_command(event, "help"), # Existing h is for help
+            "hotword": lambda: handle_hotword_command(event, message.text),
+            "hw": lambda: handle_hotword_command(event, message.text),
             "export_keyword": lambda: handle_export_keyword_command(event, command),
             "ek": lambda: handle_export_keyword_command(event, command),
             "export_replace": lambda: handle_export_replace_command(event, client),
