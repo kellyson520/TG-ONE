@@ -157,7 +157,7 @@ class Bootstrap:
             logger.info("数据库表初始化完成")
             
             # [Added] 初始化热词专用数据库
-            from services.hotword_db_init import init_hotword_db
+            from core.db_init import init_hotword_db
             await init_hotword_db()
         except Exception as e:
             logger.error(f"数据库初始化失败: {e}")

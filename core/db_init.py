@@ -56,6 +56,22 @@ async def init_db_tables(db_url: str) -> None:
         logger.error(f"Async table creation failed: {e}")
         raise e  # 创建表失败是致命的
 
+async def init_hotword_db() -> None:
+    """初始化热词独占数据库 hotwords.db"""
+    logger.info("Initializing hotword database tables...")
+    from core.db_factory import DbFactory
+    from models.hotword import Base as HotwordBase
+    
+    engine = DbFactory.get_hotword_async_engine()
+    try:
+        async with engine.begin() as conn:
+            # 创建所有表 (PRAGMA 已通过 DbFactory 配置)
+            await conn.run_sync(HotwordBase.metadata.create_all, checkfirst=True)
+        logger.info("Hotword database tables created successfully.")
+    except Exception as e:
+        logger.error(f"Hotword database initialization failed: {e}")
+        raise e
+
 if __name__ == "__main__":
     import asyncio
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
