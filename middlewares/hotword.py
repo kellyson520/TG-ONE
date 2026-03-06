@@ -26,7 +26,9 @@ class HotwordCollectorMiddleware(Middleware):
                 channel_name = await get_display_name_async(ctx.chat_id)
                 channel_name = channel_name.replace("/", "_").replace("\\", "_")
                 # 记录用户 ID，用于可信度计算 (去重)
-                self.queue.put_nowait((channel_name, ctx.user_id, text))
+                # 从消息对象中获取发送者 ID（频道消息可能为 None）
+                sender_id = getattr(ctx.message_obj, 'sender_id', None)
+                self.queue.put_nowait((channel_name, sender_id, text))
             except asyncio.QueueFull:
                 pass
             except Exception as e:

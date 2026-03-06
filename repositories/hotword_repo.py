@@ -53,7 +53,7 @@ class HotwordRepository:
                     if content:
                         existing = json_loads(content)
             except Exception as e:
-                logger.warning(f"Failed to read temp file for {channel}: {e}")
+                logger.log_error(f"读取热词临时文件 {channel}", e, details=f"Path: {temp_file}")
         
         for word, meta in counts.items():
             current = existing.get(word, {"f": 0, "u": 0})
@@ -64,9 +64,12 @@ class HotwordRepository:
                 "f": current.get("f", 0) + meta.get("f", 0),
                 "u": current.get("u", 0) + meta.get("u", 0)
             }
-            
-        async with aiofiles.open(temp_file, 'w', encoding='utf-8') as f:
-            await f.write(json_dumps(existing))
+        
+        try:
+            async with aiofiles.open(temp_file, 'w', encoding='utf-8') as f:
+                await f.write(json_dumps(existing))
+        except Exception as e:
+             logger.log_error(f"保存热词临时文件 {channel}", e, details=f"Path: {temp_file}")
 
     def load_rankings(self, channel: str, filename: str) -> Dict[str, int]:
         """读取榜单数据"""
@@ -79,7 +82,7 @@ class HotwordRepository:
                 content = f.read()
                 return json_loads(content) if content else {}
         except Exception as e:
-            logger.error(f"Error loading rankings from {file_path}: {e}")
+            logger.log_error("加载热词榜单", e, details=f"Path: {file_path}")
             return {}
 
     def get_channel_dirs(self) -> List[str]:
@@ -104,7 +107,7 @@ class HotwordRepository:
                     return {k: 1.0 for k in data}
                 return {k: float(v) for k, v in data.get("terms", {}).items()}
         except Exception as e:
-            logger.error(f"Failed to load hotword config {name}: {e}")
+            logger.log_error(f"加载热词配置 {name}", e, details=f"Path: {file_path}")
             return {}
 
     async def save_config(self, name: str, data: Any):
@@ -120,7 +123,7 @@ class HotwordRepository:
                     await f.write(json_dumps({"terms": data}))
             return True
         except Exception as e:
-            logger.error(f"Failed to save config {name}: {e}")
+            logger.log_error(f"保存热词配置 {name}", e, details=f"Path: {file_path}")
             return False
 
     async def atomic_rename(self, src: Path, dst: Path):
@@ -130,5 +133,5 @@ class HotwordRepository:
                 src.rename(dst)
                 return True
         except Exception as e:
-            logger.error(f"Atomic rename failed: {e}")
+            logger.log_error("热词文件原子重命名失败", e, details=f"Src: {src} -> Dst: {dst}")
         return False

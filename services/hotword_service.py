@@ -10,6 +10,7 @@ from core.config import settings
 from core.logging import get_logger, log_performance
 from core.helpers.json_utils import json_loads, json_dumps
 from core.helpers.lazy_import import LazyImport
+import aiofiles
 from repositories.hotword_repo import HotwordRepository
 
 logger = get_logger(__name__)
@@ -44,7 +45,7 @@ class HotwordAnalyzer:
             pseg = LazyImport("jieba.posseg")
             analyse = LazyImport("jieba.analyse")
             jieba_core = LazyImport("jieba")
-            logger.info("Hotword NLP Engine: Initializing high-precision TF-IDF mode...")
+            logger.log_system_state("Hotword NLP Engine", "Initializing high-precision TF-IDF mode...")
             jieba_core.initialize()
             self._jieba = pseg
             self._jieba_tf_idf = analyse
@@ -209,7 +210,7 @@ class HotwordService:
         try:
             results = await loop.run_in_executor(None, self.analyzer.analyze, items)
         except Exception as e:
-            logger.error(f"Hotword batch processing error: {e}")
+            logger.log_error(f"热词批次处理 {channel_name}", e, details=f"Items: {len(items)}")
             return
             
         scores = results.get("scores", {})
@@ -229,6 +230,8 @@ class HotwordService:
             # 更新噪声发现池
             for word, count in noise_candidates.items():
                 self.noise_discovery_l1[word] = self.noise_discovery_l1.get(word, 0) + count
+        
+        logger.log_data_flow("热词批次处理完成", len(items), details={"channel": channel_name, "keywords": len(scores)})
 
     @log_performance("刷写热词数据")
     async def flush_to_disk(self):
@@ -276,11 +279,13 @@ class HotwordService:
                 if new_noise_found:
                     self.analyzer.noise_markers = current_noise
                     # 异步保存到磁盘
-                    await self.repo.save_config("noise", list(current_noise))
+                    if await self.repo.save_config("noise", list(current_noise)):
+                         logger.log_operation("自动学习噪声词", details=f"New noise markers saved: {len(current_noise)}")
                 
                 self.noise_discovery_l1.clear()
-
-            gc.collect()
+        
+        logger.log_operation("热词数据落盘完成")
+        gc.collect()
 
     def get_rankings(self, channel_name: str = "global", period: str = "day") -> List[tuple]:
         """
@@ -376,8 +381,13 @@ class HotwordService:
                         merged[w]["u"] += v.get("u", 0)
             
             if merged:
-                with open(chan_dir / target_filename, 'w', encoding='utf-8') as f:
-                    f.write(json_dumps(merged))
+                target_path = chan_dir / target_filename
+                try:
+                    async with aiofiles.open(target_path, 'w', encoding='utf-8') as f:
+                        await f.write(json_dumps(merged))
+                    logger.log_operation(f"热词周期归纳 {period_name}", details=f"Channel: {channel}, File: {target_filename}, Words: {len(merged)}")
+                except Exception as e:
+                    logger.log_error(f"热词周期归纳写入失败 {period_name}", e, details=f"Path: {target_path}")
             gc.collect()
             await asyncio.sleep(0.5)
 
@@ -409,7 +419,7 @@ class HotwordService:
         if self._analyzer:
             self._analyzer.suspend()
             self.is_suspended = True
-        logger.info("HotwordService 挂起并释放内存")
+        logger.log_system_state("HotwordService", "Suspended", metrics={"memory_released": "NLP engine"})
 
     async def ensure_active(self):
         if self.is_suspended:
