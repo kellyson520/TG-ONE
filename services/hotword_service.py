@@ -1,4 +1,3 @@
-import os
 import asyncio
 import gc
 import math
@@ -8,9 +7,7 @@ from datetime import datetime, timedelta
 
 from core.config import settings
 from core.logging import get_logger, log_performance
-from core.helpers.json_utils import json_loads, json_dumps
 from core.helpers.lazy_import import LazyImport
-import aiofiles
 from repositories.hotword_repo import HotwordRepository
 
 logger = get_logger(__name__)
@@ -166,19 +163,19 @@ class HotwordService:
         # L1 噪声发现池：{ word: count_in_noise }
         self.noise_discovery_l1: Dict[str, int] = {} 
         self._lock = asyncio.Lock()
+        self.io_semaphore = asyncio.Semaphore(10) # IO 削峰信号量
         
         self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
         self._monitor_task: Optional[asyncio.Task] = None
 
-    @property
-    def analyzer(self) -> HotwordAnalyzer:
+    async def ensure_analyzer(self) -> HotwordAnalyzer:
         if self._analyzer is None:
-            white = self.repo.load_config("white")
-            black = self.repo.load_config("black")
+            white = await self.repo.load_config("white")
+            black = await self.repo.load_config("black")
             
             # 加载动态噪声特征库
-            noise_config = self.repo.load_config("noise")
+            noise_config = await self.repo.load_config("noise")
             noise_markers = set(noise_config.keys()) if noise_config else None
             
             self._analyzer = HotwordAnalyzer(
@@ -204,11 +201,12 @@ class HotwordService:
         """
         if not items: return
         self.last_activity = asyncio.get_event_loop().time()
-        await self.analyzer.ensure_engine()
+        analyzer = await self.ensure_analyzer()
+        await analyzer.ensure_engine()
         
         loop = asyncio.get_running_loop()
         try:
-            results = await loop.run_in_executor(None, self.analyzer.analyze, items)
+            results = await loop.run_in_executor(None, analyzer.analyze, items)
         except Exception as e:
             logger.log_error(f"热词批次处理 {channel_name}", e, details=f"Items: {len(items)}")
             return
@@ -252,15 +250,16 @@ class HotwordService:
             # 2. 自动学习：处理噪声候选词
             if self.noise_discovery_l1:
                 # 获取当前全局总榜数据作为对比
-                global_data = self._load_period_data("global", "day")
+                global_data = await self._load_period_data("global", "day")
                 
                 new_noise_found = False
-                current_noise = set(self.analyzer.noise_markers)
+                analyzer = await self.ensure_analyzer()
+                current_noise = set(analyzer.noise_markers)
                 
                 for word, noise_count in self.noise_discovery_l1.items():
                     if word in current_noise: continue # 已经是噪声词
                     # 核心关系协调 4: 系统永远不会将白名单或黑名单中的词自动识别为噪声特征
-                    if word in self.analyzer.white_list or word in self.analyzer.black_list: continue
+                    if word in analyzer.white_list or word in analyzer.black_list: continue
                     
                     g_val = global_data.get(word, 0.0)
                     g_freq = g_val.get("f", 0.0) if isinstance(g_val, dict) else float(g_val)
@@ -277,28 +276,28 @@ class HotwordService:
                         new_noise_found = True
                 
                 if new_noise_found:
-                    self.analyzer.noise_markers = current_noise
+                    analyzer.noise_markers = current_noise
                     # 异步保存到磁盘
                     if await self.repo.save_config("noise", list(current_noise)):
                          logger.log_operation("自动学习噪声词", details=f"New noise markers saved: {len(current_noise)}")
                 
-                self.noise_discovery_l1.clear()
+            self.noise_discovery_l1.clear()
         
         logger.log_operation("热词数据落盘完成")
         gc.collect()
 
-    def get_rankings(self, channel_name: str = "global", period: str = "day") -> List[tuple]:
+    async def get_rankings(self, channel_name: str = "global", period: str = "day") -> List[tuple]:
         """
         获取结果榜单：不再只是简单的频率计数，而是寻找“真正的热点”。
         采用动态 IDF 概念：如果一个词在历史中一直很高，它可能只是常用词而非“热点”。
         """
         # 1. 获取当前周期数据
-        current_data = self._load_period_data(channel_name, period)
+        current_data = await self._load_period_data(channel_name, period)
         if not current_data: return []
 
         # 2. 如果是“今日”，加载“月度背景”作为基准线进行突发性校准 (Burst Calibration)
         if period == "day":
-            background_data = self._load_period_data(channel_name, "month")
+            background_data = await self._load_period_data(channel_name, "month")
             calibrated_ranks = []
             for word, freq_meta in current_data.items():
                 if isinstance(freq_meta, (int, float)): # 兼容
@@ -334,62 +333,47 @@ class HotwordService:
         sorted_data = sorted(current_data.items(), key=_sort_key, reverse=True)[:25]
         return [(w, int(v["f"] if isinstance(v, dict) else v)) for w, v in sorted_data]
 
-    def _load_period_data(self, channel_name: str, period: str) -> Dict[str, Any]:
+    async def _load_period_data(self, channel_name: str, period: str) -> Dict[str, Any]:
         """内部辅助：加载特定周期数据"""
         if period == "day":
             date_str = datetime.now().strftime("%Y%m%d")
-            fname = f"{channel_name}_day_{date_str}.json"
-            data = self.repo.load_rankings(channel_name, fname) or self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
+            fname = f"{channel_name}_day_{date_str}.json" # 保持文件名兼容，Repo 会解析
+            data = await self.repo.load_rankings(channel_name, fname) or await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
         elif period == "month":
             fname = f"{channel_name}_month_{datetime.now().strftime('%Y%m')}.json"
-            data = self.repo.load_rankings(channel_name, fname)
+            data = await self.repo.load_rankings(channel_name, fname)
         elif period == "year":
             fname = f"{channel_name}_year_{str(datetime.now().year)}.json"
-            data = self.repo.load_rankings(channel_name, fname)
+            data = await self.repo.load_rankings(channel_name, fname)
         else:
-            data = self.repo.load_rankings(channel_name, f"{channel_name}_all.json")
+            data = await self.repo.load_rankings(channel_name, f"{channel_name}_all.json")
             
         # 统一返回 Any 映射，由调用方解析 {"f": score, "u": users}
         return data
-
+ 
     async def aggregate_daily(self):
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-        channels = self.repo.get_channel_dirs()
-        for channel in channels:
-            src = self.repo.base_dir / channel / f"{channel}_temp.json"
-            dst = self.repo.base_dir / channel / f"{channel}_day_{yesterday}.json"
-            await self.repo.atomic_rename(src, dst)
-            await asyncio.sleep(0.1)
-
+        # 直接调用 Repo 的 DB 聚合逻辑，内置信号量控频
+        await self.repo.move_temp_to_daily(yesterday, self.io_semaphore)
+        logger.info(f"Daily aggregation completed for {yesterday}")
+ 
     async def aggregate_period(self, period_name: str, source_pattern: str, target_filename: str):
-        channels = self.repo.get_channel_dirs()
-        for channel in channels:
-            chan_dir = self.repo.base_dir / channel
-            source_files = [f for f in os.listdir(chan_dir) if f.startswith(f"{channel}_{source_pattern}") and f.endswith(".json")]
-            if not source_files: continue
-            
-            merged = {}
-            for fname in source_files:
-                data = self.repo.load_rankings(channel, fname)
-                for w, v in data.items():
-                    if w not in merged: merged[w] = {"f": 0.0, "u": 0}
-                    if isinstance(v, (int, float)):
-                        merged[w]["f"] += v
-                        merged[w]["u"] += 1
-                    else:
-                        merged[w]["f"] += v.get("f", 0.0)
-                        merged[w]["u"] += v.get("u", 0)
-            
-            if merged:
-                target_path = chan_dir / target_filename
-                try:
-                    async with aiofiles.open(target_path, 'w', encoding='utf-8') as f:
-                        await f.write(json_dumps(merged))
-                    logger.log_operation(f"热词周期归纳 {period_name}", details=f"Channel: {channel}, File: {target_filename}, Words: {len(merged)}")
-                except Exception as e:
-                    logger.log_error(f"热词周期归纳写入失败 {period_name}", e, details=f"Path: {target_path}")
-            gc.collect()
-            await asyncio.sleep(0.5)
+        """兼容旧接口的跨周期聚合"""
+        # 解析周期属性
+        source_period = "day" if "day" in target_filename else "month"
+        target_period = "month" if "month" in target_filename else "year"
+        # 提取目标日期 key
+        import re
+        date_match = re.search(r'\d{4,6}', target_filename)
+        target_date_key = date_match.group(0) if date_match else "unknown"
+        
+        await self.repo.summarize_period(
+            source_period=source_period,
+            target_period=target_period,
+            source_date_pattern=source_pattern.replace(f"{source_period}_", ""), # 去掉前缀
+            target_date_key=target_date_key,
+            semaphore=self.io_semaphore
+        )
 
     async def aggregate_monthly(self):
         last_month = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
@@ -399,15 +383,15 @@ class HotwordService:
         last_year = str(datetime.now().year - 1)
         await self.aggregate_period("Yearly", f"month_{last_year}", f"year_{last_year}.json")
 
-    def fuzzy_match_channel(self, query: str) -> List[str]:
+    async def fuzzy_match_channel(self, query: str) -> List[str]:
         if not query: return []
-        channels = self.repo.get_channel_dirs()
+        channels = await self.repo.get_channel_dirs()
         query = query.lower()
         matches = [c for c in channels if query in c.lower()]
         return sorted(matches, key=lambda x: (not x.lower().startswith(query), len(x)))
 
     async def get_global_push_data(self) -> str:
-        ranks = self.get_rankings(channel_name="global", period="day")
+        ranks = await self.get_rankings(channel_name="global", period="day")
         if not ranks: return "📅 统计中：今日暂无热词趋势。"
         lines = ["🔥 **TG ONE 热词日报 (今日实况)**", ""]
         for i, (word, count) in enumerate(ranks[:15], 1):
@@ -423,7 +407,7 @@ class HotwordService:
 
     async def ensure_active(self):
         if self.is_suspended:
-            await self.analyzer.ensure_engine()
+            await self.ensure_analyzer()
             self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
 

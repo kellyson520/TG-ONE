@@ -1058,48 +1058,48 @@ async def handle_list_rule_command(event, command, parts):
             page = total_pages
             rules, total_rules = await container.rule_repo.get_all(page, per_page)
 
-            # 3. 构建消息
-            message_parts = [f"📋 转发规则列表 (第{page}/{total_pages}页)：\n"]
+        # 3. 构建消息
+        message_parts = [f"📋 转发规则列表 (第{page}/{total_pages}页)：\n"]
 
-            for rule in rules:
-                # 因为使用了 selectinload，这里访问 source_chat 不会阻塞或报错
-                source_name = rule.source_chat.name if rule.source_chat else "Unknown"
-                source_tid = (
-                    rule.source_chat.telegram_chat_id if rule.source_chat else "N/A"
-                )
-                target_name = rule.target_chat.name if rule.target_chat else "Unknown"
-                target_tid = (
-                    rule.target_chat.telegram_chat_id if rule.target_chat else "N/A"
-                )
-
-                rule_desc = (
-                    f"<b>ID: {rule.id}</b>\n"
-                    f"<blockquote>来源: {source_name} ({source_tid})\n"
-                    f"目标: {target_name} ({target_tid})\n"
-                    "</blockquote>"
-                )
-                message_parts.append(rule_desc)
-
-            # 4. 构建按钮
-            buttons = []
-            nav_row = []
-            if page > 1:
-                nav_row.append(Button.inline("⬅️ 上一页", f"page_rule:{page-1}"))
-            else:
-                nav_row.append(Button.inline("⬅️", "noop"))
-            nav_row.append(Button.inline(f"{page}/{total_pages}", "noop"))
-            if page < total_pages:
-                nav_row.append(Button.inline("下一页 ➡️", f"page_rule:{page+1}"))
-            else:
-                nav_row.append(Button.inline("➡️", "noop"))
-            buttons.append(nav_row)
-
-            await async_delete_user_message(
-                event.client, event.message.chat_id, event.message.id, 0
+        for rule in rules:
+            # 因为使用了 selectinload，这里访问 source_chat 不会阻塞或报错
+            source_name = rule.source_chat.name if rule.source_chat else "Unknown"
+            source_tid = (
+                rule.source_chat.telegram_chat_id if rule.source_chat else "N/A"
             )
-            await reply_and_delete(
-                event, "\n".join(message_parts), buttons=buttons, parse_mode="html"
+            target_name = rule.target_chat.name if rule.target_chat else "Unknown"
+            target_tid = (
+                rule.target_chat.telegram_chat_id if rule.target_chat else "N/A"
             )
+
+            rule_desc = (
+                f"<b>ID: {rule.id}</b>\n"
+                f"<blockquote>来源: {source_name} ({source_tid})\n"
+                f"目标: {target_name} ({target_tid})\n"
+                "</blockquote>"
+            )
+            message_parts.append(rule_desc)
+
+        # 4. 构建按钮
+        buttons = []
+        nav_row = []
+        if page > 1:
+            nav_row.append(Button.inline("⬅️ 上一页", f"page_rule:{page-1}"))
+        else:
+            nav_row.append(Button.inline("⬅️", "noop"))
+        nav_row.append(Button.inline(f"{page}/{total_pages}", "noop"))
+        if page < total_pages:
+            nav_row.append(Button.inline("下一页 ➡️", f"page_rule:{page+1}"))
+        else:
+            nav_row.append(Button.inline("➡️", "noop"))
+        buttons.append(nav_row)
+
+        await async_delete_user_message(
+            event.client, event.message.chat_id, event.message.id, 0
+        )
+        await reply_and_delete(
+            event, "\n".join(message_parts), buttons=buttons, parse_mode="html"
+        )
 
     except Exception as e:
         logger.error(f"列出规则时出错: {str(e)}", exc_info=True)

@@ -68,6 +68,10 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "hot",
         description="热词分析数据存储目录"
     )
+    HOT_DB_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "db" / "hotwords.db",
+        description="热词数据库文件路径"
+    )
     LOG_DIR: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "logs",
         description="日志文件存储目录"
@@ -141,6 +145,10 @@ class Settings(BaseSettings):
     DB_PATH: str = Field(
         default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "db" / "forward.db"),
         description="SQLite 数据库文件路径"
+    )
+    HOT_DATABASE_URL: str = Field(
+        default_factory=lambda: f"sqlite+aiosqlite:///{(Path(__file__).resolve().parent.parent.parent / 'data' / 'db' / 'hotwords.db').as_posix()}",
+        description="热词数据库连接URL"
     )
 
     # === Web Admin Defaults ===

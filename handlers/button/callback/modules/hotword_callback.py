@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 async def callback_hotword_global(event):
     hotword_service = get_hotword_service()
     today = datetime.now().strftime("%Y-%m-%d")
-    ranks = hotword_service.get_rankings(period="day")
+    ranks = await hotword_service.get_rankings(period="day")
     result = hotword_renderer.render_global_rankings(ranks, today)
     await event.edit(result.text, buttons=result.buttons)
     await event.answer("数据已更新")
 
 async def callback_hotword_view(event, channel_id: str, period: str = "day"):
     hotword_service = get_hotword_service()
-    ranks = hotword_service.get_rankings(channel_id, period=period)
+    ranks = await hotword_service.get_rankings(channel_id, period=period)
     result = hotword_renderer.render_channel_rankings(channel_id, ranks, period)
     await event.edit(result.text, buttons=result.buttons)
     await event.answer()

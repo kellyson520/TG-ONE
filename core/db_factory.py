@@ -21,8 +21,10 @@ _engine: Optional[Engine] = None
 _session_factory: Optional[scoped_session[Session]] = None
 _async_write_engine: Optional[AsyncEngine] = None
 _async_read_engine: Optional[AsyncEngine] = None
-_write_factory: Optional[async_sessionmaker[AsyncSession]] = None
-_read_factory: Optional[async_sessionmaker[AsyncSession]] = None
+_async_write_factory: Optional[async_sessionmaker[AsyncSession]] = None
+_async_read_factory: Optional[async_sessionmaker[AsyncSession]] = None
+_hot_async_engine: Optional[AsyncEngine] = None
+_hot_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
 # 导出清理函数
 async def dispose_all_engines() -> None:
@@ -56,6 +58,11 @@ async def dispose_all_engines() -> None:
     if _async_read_engine:
         engines_to_dispose.append(("Global Async Read", _async_read_engine))
         _async_read_engine = None
+    
+    global _hot_async_engine
+    if _hot_async_engine:
+        engines_to_dispose.append(("Hotword Async", _hot_async_engine))
+        _hot_async_engine = None
 
     for name, engine in engines_to_dispose:
         try:
@@ -76,10 +83,10 @@ async def dispose_all_engines() -> None:
 
 class DbFactory:
     """Database Factory for creating Engines and Sessions"""
-    _async_read_engine: Optional[AsyncEngine] = None
-    _async_write_engine: Optional[AsyncEngine] = None
     _read_factory: Optional[async_sessionmaker[AsyncSession]] = None
     _write_factory: Optional[async_sessionmaker[AsyncSession]] = None
+    _hot_async_engine: Optional[AsyncEngine] = None
+    _hot_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
     @staticmethod
     def _get_db_url() -> str:
@@ -175,6 +182,32 @@ class DbFactory:
                     engine, expire_on_commit=False, class_=AsyncSession
                 )
             return cls._write_factory
+
+    @classmethod
+    def get_hotword_async_engine(cls) -> AsyncEngine:
+        if cls._hot_async_engine is None:
+            # 确保目录存在
+            settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            
+            cls._hot_async_engine = create_async_engine(
+                settings.HOT_DATABASE_URL,
+                pool_size=settings.DB_POOL_SIZE,
+                max_overflow=settings.DB_MAX_OVERFLOW,
+                connect_args={"check_same_thread": False, "timeout": 60}
+            )
+            from core.helpers.sqlite_config import setup_sqlite_performance
+            # 热词库由于聚合压力大，强制开启高性能 WAL 模式
+            setup_sqlite_performance(cls._hot_async_engine)
+        return cls._hot_async_engine
+
+    @classmethod
+    def get_hotword_session_factory(cls) -> async_sessionmaker[AsyncSession]:
+        if cls._hot_session_factory is None:
+            engine = cls.get_hotword_async_engine()
+            cls._hot_session_factory = async_sessionmaker(
+                engine, expire_on_commit=False, class_=AsyncSession
+            )
+        return cls._hot_session_factory
 
 
 # Legacy function aliases for compatibility (now expected to be imported from here)

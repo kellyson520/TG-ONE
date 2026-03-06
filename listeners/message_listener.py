@@ -21,6 +21,24 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
+class LogLimiter:
+    """日志频率限制器，防止在循环或高频事件中刷屏"""
+    def __init__(self, interval: int = 60):
+        self.interval = interval
+        self._last_times = {}
+
+    def should_log(self, key: str) -> bool:
+        now = time.time()
+        if key not in self._last_times or (now - self._last_times[key]) >= self.interval:
+            self._last_times[key] = now
+            return True
+        return False
+
+
+# 实例化限制器 (60秒内同类错误只报一次)
+error_limiter = LogLimiter(60)
+
+
 async def setup_listeners(user_client: Any, bot_client: Any) -> None:
     """
     设置统一的消息监听器
@@ -126,7 +144,8 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                          # 预热用户缓存 (使用异步任务，不阻塞主监听流程)
                          asyncio.create_task(api_optimizer.get_users_batch([event.sender_id]))
                 except Exception as e:
-                    logger.error(f"预加载发送者信息失败: {e}", exc_info=True)
+                    if error_limiter.should_log("sender_preload"):
+                        logger.error(f"预加载发送者信息失败: {e}", exc_info=True)
             
             # [Hotword Auto-Collection]
             if getattr(settings, "ENABLE_HOTWORD", True) and getattr(event, "message", None):
@@ -140,7 +159,8 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                             from middlewares.hotword import get_hotword_collector
                             get_hotword_collector().queue.put_nowait((channel_name, event.sender_id, msg_text))
                     except Exception as e:
-                        logger.error(f"❌ [监听器] 直接提取热词失败: {e}", exc_info=True)
+                        if error_limiter.should_log("hotword_extract"):
+                            logger.error(f"❌ [监听器] 直接提取热词失败: {e}", exc_info=True)
             
             # 检查用户状态：是否处于下载模式？
             # 使用 session_service 替代已废弃的 state_manager

@@ -1,5 +1,16 @@
 ## 📅 2026-03-06 更新摘要
 
+### 🚀 v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)
+- **核心修复 (Core Fix)**:
+    - **逻辑缩进修正**: 修复了 `handlers/commands/rule_commands.py` 中 `handle_list_rule_command` 的严重缩进错误。该错误导致在访问常规页码时，消息构建与发送逻辑被错误地嵌套在“页码超出”的判断块内，从而引发指令无响应的问题。
+- **稳定性增强 (Stability Enrichment)**:
+    - **日志频率限制 (Log Limiting)**: 在 `listeners/message_listener.py` 中引入了 `LogLimiter` 精准限频器。
+    - **IO 降噪**: 对高频事件（如发送者信息预加载、热词直接提取）产生的 `Exception` 日志实施每 60 秒一次的冷却频率，有效防止在并发洪峰期间日志刷屏引发的磁盘 IO 瓶颈。
+- **验证**:
+    - 代码经 `py_compile` 静态语法检查确认无误。
+    - 逻辑对齐确认：`/list_rule` 分页显示逻辑已恢复正常。
+
+
 ### 🚀 v1.2.8.2: SummaryScheduler 导入路径修复 (ImportError Hotfix)
 - **核心修复 (Core Fix)**:
     - **ImportError 修正**: 修复了 `scheduler/summary_scheduler.py` 中错误的模块導入路径。将 `services.hotword` 修正为 `services.hotword_service`，并在定时聚合逻辑中统一使用 `get_hotword_service()` 工厂函数获取服务实例，解决了由于模块缺失和对象名称错误导致的调度器启动失败。

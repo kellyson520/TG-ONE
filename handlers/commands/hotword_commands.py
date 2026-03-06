@@ -19,7 +19,7 @@ async def handle_hotword_command(event, command):
         if not args:
             from datetime import datetime
             today = datetime.now().strftime("%Y-%m-%d")
-            ranks = hotword_service.get_rankings(period="day")
+            ranks = await hotword_service.get_rankings(period="day")
             result = hotword_renderer.render_global_rankings(ranks, today)
             await respond_and_delete(event, result.text, buttons=result.buttons)
             return
@@ -30,7 +30,7 @@ async def handle_hotword_command(event, command):
             period = args[1].lower()
             if period not in ["day", "month", "year", "all"]: period = "day"
 
-        matches = hotword_service.fuzzy_match_channel(query)
+        matches = await hotword_service.fuzzy_match_channel(query)
         if not matches:
              await respond_and_delete(event, f"🔍 未找到与 '{query}' 相关的频道统计。", delete_after_seconds=5)
              return
@@ -41,7 +41,7 @@ async def handle_hotword_command(event, command):
             return
         
         target_channel = matches[0]
-        ranks = hotword_service.get_rankings(target_channel, period=period)
+        ranks = await hotword_service.get_rankings(target_channel, period=period)
         result = hotword_renderer.render_channel_rankings(target_channel, ranks, period)
         await respond_and_delete(event, result.text, buttons=result.buttons)
     except Exception as e:

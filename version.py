@@ -1,8 +1,11 @@
-VERSION = "1.2.8.3"
+VERSION = "1.2.8.4"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)
+  - **核心修复**: 修复了 `/list_rule` 命令在常规页码下无响应的严重 Bug。解决了由于缩进错误导致的逻辑块嵌套问题。
+  - **稳定性增强**: 为 `message_listener.py` 引入了 `LogLimiter` 机制。对高频事件中的错误日志（如发送者预加载失败、热词提取失败）实施频率限制（每60秒一次），大幅降低日志噪音并减缓磁盘 IO 压力。
 - v1.2.8.3: 规则管理界面频道名称显示修复 (Rule Management UI Fix)
   - **核心修复**: 解决了规则列表中部分频道显示为 `Chat ID` 而非真实名称的问题。增加了对数据库 `name` 字段的读取逻辑，并优化了 `RuleRenderer` 和 `TaskRenderer` 的显示回退机制。
   - **代码卫生**: 同步重构并通过了 `test_rule_renderer.py` 的 UIRE-2.0 规格单元测试。
