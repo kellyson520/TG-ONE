@@ -1,5 +1,11 @@
 ## 📅 2026-03-06 更新摘要
  
+### 🚀 v1.2.8.6: 热词回调策略模式迁移与 [UNMATCHED] 修复
+- **核心修复 (Core Fix)**:
+    - **策略模式迁移**: 实现了 `HotwordMenuStrategy` 并将其注册至菜单策略注册表。
+    - **Unmatched Action 治理**: 解决了 `hotword_global_refresh` 指令在审计日志中由于策略缺失导致的 `[UNMATCHED]` 警告报错。
+    - **模块解耦**: 将热词回调逻辑从 legacy 模式迁移至标准的 Strategy Pattern 架构，提升了代码的可维护性。
+ 
 ### 🚀 v1.2.8.5: 监听器 UnboundLocalError 修复 (MessageListener Hotfix)
 - **核心修复 (Core Fix)**:
     - **UnboundLocalError 治理**: 修复了 `listeners/message_listener.py` 中由于局部导入遮蔽全局变量导致的 `UnboundLocalError: container`。

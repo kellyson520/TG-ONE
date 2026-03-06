@@ -30,7 +30,8 @@ class MenuHandlerRegistry:
         "main_menu", "main_menu_refresh", "refresh_main_menu",
         "forward_hub", "refresh_forward_hub",
         "list_rules", "rule_detail",
-        "toggle_rule", "toggle_setting"
+        "toggle_rule", "toggle_setting",
+        "hotword_global_refresh"
     }
 
     @classmethod

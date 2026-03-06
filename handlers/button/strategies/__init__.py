@@ -16,5 +16,6 @@ from . import search
 from . import admin
 from . import push
 from . import analytics
+from . import hotword
 
 __all__ = ["BaseMenuHandler", "MenuHandlerRegistry"]

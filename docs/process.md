@@ -12,6 +12,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260306_Fix_Hotword_Unmatched_Action | 修复热词回调 Unmatched Action 错误 (策略模式迁移) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Bugfix/20260306_Fix_Hotword_Unmatched_Action/report.md) |
 | 20260306_Fix_MessageListener_UnboundLocalError | 修复 MessageListener UnboundLocalError: container | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Bugfix/20260306_Fix_MessageListener_UnboundLocalError/report.md) |
 | 20260306_Fix_Summary_Scheduler_ImportError | 修复 SummaryScheduler 热词服务导入错误 (ImportError) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Infrastructure/20260306_Fix_Summary_Scheduler_ImportError/report.md) |
 | 20260306_Fix_Hotword_Collector_Call | 修复 Hotword Collector 调用参数错误 (TypeError) | 2026-03-06 | 2026-03-06 | 100% | [[report.md]](./Workstream_Infrastructure/20260306_Fix_Hotword_Collector_TypeError/report.md) |

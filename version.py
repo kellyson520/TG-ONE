@@ -1,8 +1,11 @@
-VERSION = "1.2.8.5"
+VERSION = "1.2.8.6"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.6: 热词回调策略模式迁移与 [UNMATCHED] 修复
+  - **核心修复**: 实现了 `HotwordMenuStrategy` 并将其注册至菜单策略注册表。解决了 `hotword_global_refresh` 指令在审计日志中由于策略缺失导致的 `[UNMATCHED]` 警告报错。
+  - **架构对齐**: 热词模块回调逻辑已正式接入 Strategy Pattern 架构。
 - v1.2.8.5: 监听器 UnboundLocalError 修复 (MessageListener Hotfix)
   - **核心修复**: 修复了 `listeners/message_listener.py` 中由于局部阴影导入 (Shadow Import) 导致的 `UnboundLocalError: container`。通过移除函数内部冗余的 `from core.container import container` 导入，确保系统在所有逻辑路径下均能正确访问全局 container 单例，显著提升了消息分发的稳定性。
 - v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)

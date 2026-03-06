@@ -25,7 +25,16 @@ async def callback_hotword_search_prompt(event):
     await event.answer("请直接发送 /hot <关键词> 进行搜索", alert=True)
 
 async def handle_hotword_callback(event):
+    """处理热词相关回调 - 整合策略模式分发"""
     data = event.data.decode("utf-8")
+    action = data.split(":")[0]
+    
+    # 1. 尝试使用新菜单策略分发 (Strategy Pattern)
+    from handlers.button.strategies import MenuHandlerRegistry
+    if await MenuHandlerRegistry.dispatch(event, action, data=data):
+        return
+
+    # 2. [Fallback] 降级至旧版处理逻辑 (若策略未命中)
     if data == "hotword_global_refresh" or data == "hotword_main":
         await callback_hotword_global(event)
     elif data == "hotword_search_prompt":
@@ -36,4 +45,5 @@ async def handle_hotword_callback(event):
         period = parts[2] if len(parts) > 2 else "day"
         await callback_hotword_view(event, channel, period)
     else:
+        logger.warning(f"未知热词指令且策略未命中: {data}")
         await event.answer("未知热词指令", alert=True)
