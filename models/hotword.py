@@ -29,6 +29,7 @@ class HotPeriodStats(Base):
     __table_args__ = (
         Index('idx_hot_period_lookup', 'channel', 'period', 'date_key'),
         Index('idx_hot_period_date', 'period', 'date_key'),
+        Index('idx_hotword_date_word', 'date_key', 'word'),
     )
 
 class HotConfig(Base):

@@ -1160,73 +1160,41 @@ async def handle_delete_rss_user_command(event, command, parts):
 
 async def handle_help_command(event, command):
     """处理帮助命令"""
-    help_text = (
-        f"🤖 **Telegram 消息转发机器人 v{VERSION}**\n\n"
-        "**基础命令**\n"
-        "/start - 开始使用\n"
-        "/help(/h) - 显示此帮助信息\n\n"
-        "**绑定和设置**\n"
-        "/bind(/b) <源聊天链接或名称> [目标聊天链接或名称] - 绑定源聊天\n"
-        "/settings(/s) [规则ID] - 管理转发规则\n"
-        "/changelog(/cl) - 查看更新日志\n\n"
-        "**转发规则管理**\n"
-        "/copy_rule(/cr)  <源规则ID> [目标规则ID] - 复制指定规则的所有设置到当前规则或目标规则ID\n"
-        "/list_rule(/lr) - 列出所有转发规则\n"
-        "/delete_rule(/dr) <规则ID> [规则ID] [规则ID] ... - 删除指定规则\n\n"
-        "**关键字管理**\n"
-        "/add(/a) <关键字> [关键字] [\"关 键 字\"] ['关 键 字'] ... - 添加普通关键字\n"
-        "/add_regex(/ar) <正则表达式> [正则表达式] [正则表达式] ... - 添加正则表达式\n"
-        "/add_all(/aa) <关键字> [关键字] [关键字] ... - 添加普通关键字到当前频道绑定的所有规则\n"
-        "/add_regex_all(/ara) <正则表达式> [正则表达式] [正则表达式] ... - 添加正则表达式到所有规则\n"
-        "/list_keyword(/lk) - 列出所有关键字\n"
-        "/remove_keyword(/rk) <关键词1> [\"关 键 字\"] ['关 键 字'] ... - 删除关键字\n"
-        "/remove_keyword_by_id(/rkbi) <ID> [ID] [ID] ... - 按ID删除关键字\n"
-        "/remove_all_keyword(/rak) [关键字] [\"关 键 字\"] ['关 键 字'] ... - 删除当前频道绑定的所有规则的指定关键字\n"
-        "/clear_all_keywords(/cak) - 清除当前规则的所有关键字\n"
-        "/clear_all_keywords_regex(/cakr) - 清除当前规则的所有正则关键字\n"
-        "/copy_keywords(/ck) <规则ID> - 复制指定规则的关键字到当前规则\n"
-        "/copy_keywords_regex(/ckr) <规则ID> - 复制指定规则的正则关键字到当前规则\n\n"
-        "**替换规则管理**\n"
-        "/replace(/r) <正则表达式> [替换内容] - 添加替换规则\n"
-        "/replace_all(/ra) <正则表达式> [替换内容] - 添加替换规则到所有规则\n"
-        "/list_replace(/lrp) - 列出所有替换规则\n"
-        "/remove_replace(/rr) <序号> - 删除替换规则\n"
-        "/clear_all_replace(/car) - 清除当前规则的所有替换规则\n"
-        "/copy_replace(/crp) <规则ID> - 复制指定规则的替换规则到当前规则\n\n"
-        "**导入导出**\n"
-        "/export_keyword(/ek) - 导出当前规则的关键字\n"
-        "/export_replace(/er) - 导出当前规则的替换规则\n"
-        "/import_keyword(/ik) <同时发送文件> - 导入普通关键字\n"
-        "/import_regex_keyword(/irk) <同时发送文件> - 导入正则关键字\n"
-        "/import_replace(/ir) <同时发送文件> - 导入替换规则\n"
-        "/import_excel <同时发送xlsx文件> - 一次性导入关键字与替换规则\n\n"
-        "**转发记录查询**\n"
-        "/forward_stats(/fs) [日期] - 查看转发统计 (如: /fs 2024-01-15)\n"
-        "/forward_search(/fsr) [参数] - 搜索转发记录\n"
-        "  参数格式: chat:聊天ID user:用户ID type:消息类型 rule:规则ID date:日期 limit:数量\n"
-        "  例: /fsr chat:-1001234567 type:video limit:5\n\n"
-        "**RSS相关**\n"
-        "/delete_rss_user(/dru) [用户名] - 删除RSS用户\n"
-        "**去重相关**\n"
-        "/dedup - 切换当前规则的去重开关\n"
-        "/dedup_center(/dc) - 智能去重中心 (GUI 概览)\n"
-        "/smart_dedup(/sd) - 智能去重高级策略设置\n"
-        "/clear_dedup_cache(/cdc) - 一键清除去重缓存集\n"
-        "/dedup_scan - 扫描当前目标会话的重复媒体\n\n"
-        "**数据库管理**\n"
-        "/db_info - 查看数据库信息\n"
-        "/db_backup - 备份数据库\n"
-        "/db_optimize - 优化数据库\n"
-        "/db_health - 数据库健康检查\n\n"
-        "**系统管理**\n"
-        "/system_status - 查看系统状态\n"
-        "/admin - 系统管理面板\n"
-        "/logs - 查看系统日志 (支持 error 参数查看错误日志)\n"
-        "/download_logs - 下载完整系统日志\n\n"
-        "**UFB相关**\n"
-        "/ufb_bind(/ub) <域名> - 绑定UFB域名\n"
-        "/ufb_unbind(/uu) - 解绑UFB域名\n"
-        "/ufb_item_change(/uic) - 切换UFB同步配置类型\n\n"
+    message_text = (event.message.text or "").strip().lower()
+    parts = message_text.split()
+    module = parts[1] if len(parts) > 1 else None
+
+    # 帮助信息模块化
+    HELP_MODULES = {
+        "basic": "**基础命令**\n/start - 开始使用\n/help(/h) [模块] - 显示此帮助信息",
+        "bind": "**绑定和设置**\n/bind(/b) <源聊天链接或名称> [目标聊天链接或名称] - 绑定源聊天\n/settings(/s) [规则ID] - 管理转发规则\n/changelog(/cl) - 查看更新日志",
+        "rule": "**转发规则管理**\n/copy_rule(/cr)  <源规则ID> [目标规则ID] - 复制指定规则的所有设置到当前规则或目标规则ID\n/list_rule(/lr) - 列出所有转发规则\n/delete_rule(/dr) <规则ID> [规则ID] ... - 删除指定规则",
+        "keyword": "**关键字管理**\n/add(/a) <关键字> [关键字] [\"关 键 字\"] ... - 添加普通关键字\n/add_regex(/ar) <正则表达式> ... - 添加正则表达式\n/add_all(/aa) <关键字> ... - 添加普通关键字到当前频道绑定的所有规则\n/add_regex_all(/ara) <正则表达式> ... - 添加正则表达式到所有规则\n/list_keyword(/lk) - 列出所有关键字\n/remove_keyword(/rk) <关键词1> ... - 删除关键字\n/remove_keyword_by_id(/rkbi) <ID> ... - 按ID删除关键字\n/remove_all_keyword(/rak) [关键字] ... - 删除当前频道绑定的所有规则的指定关键字\n/clear_all_keywords(/cak) - 清除当前规则的所有关键字\n/clear_all_keywords_regex(/cakr) - 清除当前规则的所有正则关键字\n/copy_keywords(/ck) <规则ID> - 复制指定规则的关键字到当前规则\n/copy_keywords_regex(/ckr) <规则ID> - 复制指定规则的正则关键字到当前规则",
+        "replace": "**替换规则管理**\n/replace(/r) <正则表达式> [替换内容] - 添加替换规则\n/replace_all(/ra) <正则表达式> [替换内容] - 添加替换规则到所有规则\n/list_replace(/lrp) - 列出所有替换规则\n/remove_replace(/rr) <序号> - 删除替换规则\n/clear_all_replace(/car) - 清除当前规则的所有替换规则\n/copy_replace(/crp) <规则ID> - 复制指定规则的替换规则到当前规则",
+        "import": "**导入导出**\n/export_keyword(/ek) - 导出当前规则的关键字\n/export_replace(/er) - 导出当前规则的替换规则\n/import_keyword(/ik) <同时发送文件> - 导入普通关键字\n/import_regex_keyword(/irk) <同时发送文件> - 导入正则关键字\n/import_replace(/ir) <同时发送文件> - 导入替换规则\n/import_excel <同时发送xlsx文件> - 一次性导入关键字与替换规则",
+        "stats": "**转发记录查询**\n/forward_stats(/fs) [日期] - 查看转发统计 (如: /fs 2024-01-15)\n/forward_search(/fsr) [参数] - 搜索转发记录\n  参数格式: chat:聊天ID user:用户ID type:消息类型 rule:规则ID date:日期 limit:数量\n  例: /fsr chat:-1001234567 type:video limit:5",
+        "rss": "**RSS相关**\n/delete_rss_user(/dru) [用户名] - 删除RSS用户",
+        "dedup": "**去重相关**\n/dedup - 切换当前规则的去重开关\n/dedup_center(/dc) - 智能去重中心 (GUI 概览)\n/smart_dedup(/sd) - 智能去重高级策略设置\n/clear_dedup_cache(/cdc) - 一键清除去重缓存集\n/dedup_scan - 扫描当前目标会话的重复媒体",
+        "db": "**数据库管理**\n/db_info - 查看数据库信息\n/db_backup - 备份数据库\n/db_optimize - 优化数据库\n/db_health - 数据库健康检查",
+        "system": "**系统管理**\n/system_status - 查看系统状态\n/admin - 系统管理面板\n/logs - 查看系统日志 (支持 error 参数查看错误日志)\n/download_logs - 下载完整系统日志",
+        "ufb": "**UFB相关**\n/ufb_bind(/ub) <域名> - 绑定UFB域名\n/ufb_unbind(/uu) - 解绑UFB域名\n/ufb_item_change(/uic) - 切换UFB同步配置类型",
+        "hot": "🔥 **热词分析**\n/hot - 查看全平台热词日报\n/hot <频道名> - 查看指定频道的趋势榜单\n/hot add <词> - 将指定词汇加入垃圾库 (Spam Filter)\n/hot del <词> - 从垃圾库移除指定词汇\n/hot page <页码> - 直接跳转到垃圾库列表指定页\n/hot list - 查看垃圾库词汇列表 (支持分页)\n💡 提示: 垃圾库中的词汇会自动过滤，并且系统也会自动学习发现垃圾特征词。"
+    }
+
+    if module and module in HELP_MODULES:
+        await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+        await reply_and_delete(event, HELP_MODULES[module], parse_mode="markdown")
+        return
+    elif module and module not in HELP_MODULES and module != "all":
+        valid_modules = ", ".join(HELP_MODULES.keys())
+        await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+        await reply_and_delete(event, f"❌ 未知模块: `{module}`\n可选模块: {valid_modules}", parse_mode="markdown")
+        return
+
+    # 输出全部信息的拼接逻辑
+    header = f"🤖 **Telegram 消息转发机器人 v{VERSION}**\n\n💡 你可以使用 `/help <模块名>` 来查看特定模块的详细指令 (例如: `/help rule`)"
+    
+    footer = (
         "💡 **提示**\n"
         "• 括号内为命令的简写形式\n"
         "• 尖括号 <> 表示必填参数\n"
@@ -1234,14 +1202,11 @@ async def handle_help_command(event, command):
         "• 导入命令需要同时发送文件"
     )
 
-    await async_delete_user_message(
-        event.client, event.message.chat_id, event.message.id, 0
-    )
+    help_blocks = [header] + list(HELP_MODULES.values()) + [footer]
+    full_help_text = "\n\n".join(help_blocks)
 
-    await async_delete_user_message(
-        event.client, event.message.chat_id, event.message.id, 0
-    )
-    await reply_and_delete(event, help_text, parse_mode="markdown")
+    await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
+    await reply_and_delete(event, full_help_text, parse_mode="markdown")
 
 
 # =================== 去重命令实现 ===================

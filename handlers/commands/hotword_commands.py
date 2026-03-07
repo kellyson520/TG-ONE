@@ -24,6 +24,48 @@ async def handle_hotword_command(event, command):
             await respond_and_delete(event, result.text, buttons=result.buttons)
             return
 
+        subcommand = args[0].lower()
+        
+        # --- 子命令处理 ---
+        
+        if subcommand == "add":
+            if len(args) < 2:
+                await respond_and_delete(event, "❌ 用法: /hot add <词>", delete_after_seconds=5)
+                return
+            word = args[1].strip()
+            success = await hotword_service.add_noise_word(word)
+            if success:
+                await respond_and_delete(event, f"✅ 已将 '{word}' 加入垃圾库。", delete_after_seconds=5)
+            else:
+                await respond_and_delete(event, "❌ 添加失败，请检查日志。", delete_after_seconds=5)
+            return
+
+        if subcommand in ["del", "delete", "remove"]:
+            if len(args) < 2:
+                await respond_and_delete(event, "❌ 用法: /hot del <词>", delete_after_seconds=5)
+                return
+            word = args[1].strip()
+            success = await hotword_service.remove_noise_word(word)
+            if success:
+                await respond_and_delete(event, f"✅ 已从垃圾库移除 '{word}'。", delete_after_seconds=5)
+            else:
+                await respond_and_delete(event, "❌ 移除失败（可能该词不在垃圾库中）。", delete_after_seconds=5)
+            return
+
+        if subcommand in ["page", "list"]:
+            page_num = 1
+            if len(args) > 1:
+                try:
+                    page_num = int(args[1])
+                except ValueError:
+                    page_num = 1
+            
+            data = await hotword_service.get_noise_list(page=page_num)
+            result = hotword_renderer.render_noise_list(data)
+            await respond_and_delete(event, result.text, buttons=result.buttons)
+            return
+
+        # --- 原有搜索逻辑 ---
         query = args[0]
         period = "day"
         if len(args) > 1:
@@ -45,5 +87,5 @@ async def handle_hotword_command(event, command):
         result = hotword_renderer.render_channel_rankings(target_channel, ranks, period)
         await respond_and_delete(event, result.text, buttons=result.buttons)
     except Exception as e:
-        logger.error(f"Hotword cmd error: {e}")
-        await respond_and_delete(event, "❌ 热词查询出错。", delete_after_seconds=5)
+        logger.error(f"Hotword cmd error: {e}", exc_info=True)
+        await respond_and_delete(event, f"❌ 热词操作出错: {str(e)}", delete_after_seconds=5)

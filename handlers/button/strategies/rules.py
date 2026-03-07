@@ -25,7 +25,7 @@ class RuleMenuStrategy(BaseMenuHandler):
         "toggle_rule_set", "set_rule_val", "media_settings", "ai_settings",
         "rule_status", "sync_config", "rule_sync_push", "sync_rule_page", "toggle_rule_sync",
         "create_rule", "rule_statistics", "search_rules",
-        "forward_management", "rule_management",
+        "forward_management", "rule_management", "rule_management_page",
         "multi_source_management", "multi_source_page", "manage_multi_source",
         "history_messages", "forward_stats_detailed", "global_forward_settings",
         "forward_performance", "export_rule_logs"
@@ -48,8 +48,9 @@ class RuleMenuStrategy(BaseMenuHandler):
             page = arg1
             await menu_controller.show_rule_list(event, page=page)
         
-        elif action in ["forward_management", "rule_management"]:
-            await new_menu_system.show_rule_management(event)
+        elif action in ["forward_management", "rule_management", "rule_management_page"]:
+            page = arg1 if action == "rule_management_page" else 0
+            await new_menu_system.show_rule_management(event, page=page)
 
         elif action in ["rule_detail", "edit_rule"]:
             rule_id = arg1

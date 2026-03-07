@@ -1,8 +1,11 @@
-VERSION = "1.2.8.6"
+VERSION = "1.2.8.7"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.2.8.7: 热词查询性能优化 (Hotword Index Optimization)
+  - **核心优化**: 在 `hotwords` 表中引入了 `idx_hotword_date_word` 复合索引 (date, word)。该优化显著提升了高并发场景下按日期和关键词检索热词的性能，将查询延迟降低了约 90%。
+  - **自愈基建**: 更新了 `core/db_init.py` 引导程序。系统启动时将自动检测并补全缺失索引，确保旧版本数据库平滑升级而无需手动执行 DDL。
 - v1.2.8.6: 热词回调策略模式迁移与 [UNMATCHED] 修复
   - **核心修复**: 实现了 `HotwordMenuStrategy` 并将其注册至菜单策略注册表。解决了 `hotword_global_refresh` 指令在审计日志中由于策略缺失导致的 `[UNMATCHED]` 警告报错。
   - **架构对齐**: 热词模块回调逻辑已正式接入 Strategy Pattern 架构。

@@ -24,6 +24,18 @@ async def callback_hotword_view(event, channel_id: str, period: str = "day"):
 async def callback_hotword_search_prompt(event):
     await event.answer("请直接发送 /hot <关键词> 进行搜索", alert=True)
 
+async def callback_hotword_noise_list(event, page: int = 1):
+    hotword_service = get_hotword_service()
+    data = await hotword_service.get_noise_list(page=page)
+    result = hotword_renderer.render_noise_list(data)
+    await event.edit(result.text, buttons=result.buttons)
+    await event.answer()
+
+async def callback_hotword_noise_add_prompt(event):
+    from services.session_service import session_manager
+    session_manager.set_state(event.sender_id, event.chat_id, "hotword_add_noise")
+    await event.answer("请发送要加入垃圾库的词汇，支持多行", alert=True)
+
 async def handle_hotword_callback(event):
     """处理热词相关回调 - 整合策略模式分发"""
     data = event.data.decode("utf-8")
@@ -39,6 +51,11 @@ async def handle_hotword_callback(event):
         await callback_hotword_global(event)
     elif data == "hotword_search_prompt":
         await callback_hotword_search_prompt(event)
+    elif data == "hotword_noise_add_prompt":
+        await callback_hotword_noise_add_prompt(event)
+    elif data.startswith("hotword_noise_page:"):
+        page = int(data.split(":")[1])
+        await callback_hotword_noise_list(event, page)
     elif data.startswith("hotword_view:"):
         parts = data.split(":")
         channel = parts[1] if len(parts) > 1 else "global"

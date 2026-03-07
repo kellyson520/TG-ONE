@@ -1,8 +1,9 @@
 from .base import BaseMenuHandler
 from .registry import MenuHandlerRegistry
 from core.container import container
-import logging
+from telethon.errors import MessageNotModifiedError
 from datetime import datetime
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,12 @@ class HotwordMenuStrategy(BaseMenuHandler):
             today = datetime.now().strftime("%Y-%m-%d")
             ranks = await hotword_service.get_rankings(period="day")
             result = hotword_renderer.render_global_rankings(ranks, today)
-            await event.edit(result.text, buttons=result.buttons)
+            try:
+                await event.edit(result.text, buttons=result.buttons)
+            except MessageNotModifiedError:
+                pass
             if action == "hotword_global_refresh":
-                await event.answer("🔄 数据已刷新")
+                await event.answer("🔄 数据已刷新 (若无变化则不更新)")
             else:
                 await event.answer()
 
@@ -65,5 +69,8 @@ class HotwordMenuStrategy(BaseMenuHandler):
             
             ranks = await hotword_service.get_rankings(channel, period=period)
             result = hotword_renderer.render_channel_rankings(channel, ranks, period)
-            await event.edit(result.text, buttons=result.buttons)
+            try:
+                await event.edit(result.text, buttons=result.buttons)
+            except MessageNotModifiedError:
+                pass
             await event.answer()

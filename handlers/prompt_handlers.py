@@ -263,6 +263,35 @@ async def handle_prompt_setting(
             logger.error(f"通用更新失败: {e}")
             await event.reply(f"❌ 系统错误: {str(e)}")
             return True
+    elif current_state == "hotword_add_noise":
+        # 逐行添加热词垃圾库
+        try:
+            lines = [ln.strip() for ln in (event.message.text or "").splitlines() if ln.strip()]
+            if not lines: return True
+            
+            from services.hotword_service import get_hotword_service
+            from ui.renderers.hotword_renderer import hotword_renderer
+            hotword_service = get_hotword_service()
+            
+            for ln in lines:
+                await hotword_service.add_noise_word(ln)
+                
+            # 清除状态
+            if sender_id in session_manager.user_sessions:
+                if chat_id in session_manager.user_sessions[sender_id]:
+                    del session_manager.user_sessions[sender_id][chat_id]
+            
+            await message.delete()
+            await send_message_and_delete(await get_bot_client(), chat_id, f"✅ 已添加 {len(lines)} 个词汇到垃圾库")
+            
+            # 返回并刷新垃圾库列表
+            data = await hotword_service.get_noise_list(page=1)
+            result = hotword_renderer.render_noise_list(data)
+            await client.send_message(chat_id, result.text, buttons=result.buttons)
+            return True
+        except Exception as e:
+            logger.error(f"添加热词垃圾失败: {e}")
+            return True
     else:
         logger.info(f"未知的状态类型:{current_state}")
         return False

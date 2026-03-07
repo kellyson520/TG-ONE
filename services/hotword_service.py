@@ -222,6 +222,64 @@ class HotwordService:
     def analyzer(self) -> Optional[HotwordAnalyzer]:
         return self._analyzer
 
+    async def add_noise_word(self, word: str) -> bool:
+        """添加噪声词到垃圾库"""
+        if not word: return False
+        analyzer = await self.ensure_analyzer()
+        if word in analyzer.noise_markers:
+            return True # 已存在
+            
+        analyzer.noise_markers.add(word)
+        # 清除 AC 自动机缓存
+        from core.algorithms.ac_automaton import ACManager
+        ACManager.clear()
+        
+        # 异步保存到磁盘
+        success = await self.repo.save_config("noise", list(analyzer.noise_markers))
+        if success:
+            logger.log_operation("手动添加噪声词成功", details=f"Word: {word}")
+        return success
+
+    async def remove_noise_word(self, word: str) -> bool:
+        """从垃圾库移除噪声词"""
+        if not word: return False
+        analyzer = await self.ensure_analyzer()
+        if word not in analyzer.noise_markers:
+            return False
+            
+        analyzer.noise_markers.remove(word)
+        # 清除 AC 自动机缓存
+        from core.algorithms.ac_automaton import ACManager
+        ACManager.clear()
+        
+        # 异步保存到磁盘
+        success = await self.repo.save_config("noise", list(analyzer.noise_markers))
+        if success:
+            logger.log_operation("手动移除噪声词成功", details=f"Word: {word}")
+        return success
+
+    async def get_noise_list(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """获取分页的噪声词列表"""
+        analyzer = await self.ensure_analyzer()
+        all_words = sorted(list(analyzer.noise_markers))
+        
+        total = len(all_words)
+        total_pages = math.ceil(total / page_size) if total > 0 else 1
+        
+        # 边界检查
+        if page < 1: page = 1
+        if page > total_pages: page = total_pages
+        
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        return {
+            "words": all_words[start:end],
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_count": total
+        }
+
     async def ensure_analyzer(self) -> HotwordAnalyzer:
         if self._analyzer is None:
             white = await self.repo.load_config("white")

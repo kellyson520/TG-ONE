@@ -72,7 +72,7 @@ class RulesMenu(BaseMenu):
         """显示规则管理菜单"""
         from ..forward_management import forward_manager
         rules = await forward_manager.get_channel_rules()
-        per_page = 10
+        per_page = 5
         total_pages = (len(rules) + per_page - 1) // per_page
         start, end = page * per_page, (page + 1) * per_page
         current_rules = rules[start:end]
@@ -84,9 +84,20 @@ class RulesMenu(BaseMenu):
             buttons.append([Button.inline(f"规则{r.id}: {s_name}➔{t_name}", f"new_menu:rule_detail:{r.id}")])
 
         nav = []
-        if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:rule_management_page:{page-1}"))
-        if end < len(rules): nav.append(Button.inline("下一页 ➡️", f"new_menu:rule_management_page:{page+1}"))
+        if total_pages > 1:
+            if page > 0:
+                nav.append(Button.inline("⬅️ 上一页", f"new_menu:rule_management_page:{page-1}"))
+            else:
+                nav.append(Button.inline("⬅️", "noop"))
+            
+            nav.append(Button.inline(f"{page+1}/{total_pages}", "noop"))
+            
+            if page + 1 < total_pages:
+                nav.append(Button.inline("下一页 ➡️", f"new_menu:rule_management_page:{page+1}"))
+            else:
+                nav.append(Button.inline("➡️", "noop"))
         if nav: buttons.append(nav)
+        
         buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_hub")])
         
         await self._render_from_text(event, "⚙️ **规则管理**\n\n选择要配置的规则：", buttons)
@@ -95,7 +106,7 @@ class RulesMenu(BaseMenu):
         """显示多源管理菜单 (快速开关)"""
         from ..forward_management import forward_manager
         rules = await forward_manager.get_channel_rules()
-        per_page = 8
+        per_page = 5
         page = int(page)
         total_pages = (len(rules) + per_page - 1) // per_page
         start, end = page * per_page, (page + 1) * per_page
@@ -113,8 +124,18 @@ class RulesMenu(BaseMenu):
             buttons.append([Button.inline(btn_text, f"new_menu:toggle_rule:{r.id}:multi:{page}")])
 
         nav = []
-        if page > 0: nav.append(Button.inline("⬅️ 上一页", f"new_menu:multi_source_page:{page-1}"))
-        if end < len(rules): nav.append(Button.inline("下一页 ➡️", f"new_menu:multi_source_page:{page+1}"))
+        if total_pages > 1:
+            if page > 0:
+                nav.append(Button.inline("⬅️ 上一页", f"new_menu:multi_source_page:{page-1}"))
+            else:
+                nav.append(Button.inline("⬅️", "noop"))
+            
+            nav.append(Button.inline(f"{page+1}/{total_pages}", "noop"))
+            
+            if page + 1 < total_pages:
+                nav.append(Button.inline("下一页 ➡️", f"new_menu:multi_source_page:{page+1}"))
+            else:
+                nav.append(Button.inline("➡️", "noop"))
         if nav: buttons.append(nav)
         
         buttons.append([Button.inline("👈 返回上一级", "new_menu:forward_hub")])

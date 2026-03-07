@@ -282,6 +282,7 @@ CALLBACK_HANDLERS = {
     "hotword_global_refresh": handle_hotword_callback,
     "hotword_main": handle_hotword_callback,
     "hotword_search_prompt": handle_hotword_callback,
+    "hotword_noise_add_prompt": handle_hotword_callback,
 }
 
 # 初始化全局路由器
@@ -362,6 +363,7 @@ callback_router.add_route("ufb_item:{rest}", handle_other_callback)
 
 # 热词模块动态路由
 callback_router.add_route("hotword_view:{rest}", handle_hotword_callback)
+callback_router.add_route("hotword_noise_page:{rest}", handle_hotword_callback)
 
 
 # 更新日志翻页

@@ -67,7 +67,12 @@ async def init_hotword_db() -> None:
         async with engine.begin() as conn:
             # 创建所有表 (PRAGMA 已通过 DbFactory 配置)
             await conn.run_sync(HotwordBase.metadata.create_all, checkfirst=True)
-        logger.info("Hotword database tables created successfully.")
+            
+            # [Migration] 确保热词表索引存在 (由于 create_all 不会自动补充缺失索引)
+            from sqlalchemy import text
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hotword_date_word ON hot_period_stats(date_key, word)"))
+            
+        logger.info("Hotword database tables and indexes verified/created successfully.")
     except Exception as e:
         logger.error(f"Hotword database initialization failed: {e}")
         raise e

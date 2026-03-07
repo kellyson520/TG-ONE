@@ -86,4 +86,43 @@ class HotwordRenderer(BaseRenderer):
         
         return builder.build()
 
+    def render_noise_list(self, data: Dict[str, Any]) -> ViewResult:
+        """渲染垃圾库词汇列表 (分页)"""
+        words = data.get("words", [])
+        current_page = data.get("current_page", 1)
+        total_pages = data.get("total_pages", 1)
+        total_count = data.get("total_count", 0)
+        
+        builder = self.new_builder()
+        builder.set_title("垃圾库 (Hotword Spam)", icon="🗑️")
+        builder.add_breadcrumb(["热词分析", "垃圾库", f"第 {current_page} 页"])
+        
+        if not words:
+            builder.add_section("词汇列表", "垃圾库目前为空。", icon="📄")
+        else:
+            items = []
+            for i, word in enumerate(words, 1):
+                idx = (current_page - 1) * 20 + i
+                items.append(f"`{idx:03d}.` **{word}**")
+            builder.add_section(f"已收录词汇 ({total_count})", items, icon="📋")
+            
+        # 分页按钮
+        pagination_btns = []
+        if current_page > 1:
+            pagination_btns.append(("◀️ 上一页", f"hotword_noise_page:{current_page - 1}"))
+        
+        pagination_btns.append((f"第 {current_page}/{total_pages} 页", "noop"))
+        
+        if current_page < total_pages:
+            pagination_btns.append(("下一页 ▶️", f"hotword_noise_page:{current_page + 1}"))
+            
+        if len(pagination_btns) > 1:
+            builder.add_button_row(pagination_btns)
+            
+        # 操作按钮
+        builder.add_button("添加词汇", "hotword_noise_add_prompt", icon="➕")
+        builder.add_button("返回热词主页", "hotword_main", icon=UIStatus.BACK)
+        
+        return builder.build()
+
 hotword_renderer = HotwordRenderer()
