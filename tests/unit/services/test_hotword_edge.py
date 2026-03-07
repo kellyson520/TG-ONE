@@ -45,7 +45,7 @@ async def test_hotword_edge_cases():
     # 刷写数据
     await service.flush_to_disk()
     
-    ranks = service.get_rankings(channel, period="day")
+    ranks = await service.get_rankings(channel, period="day")
     words = [r[0] for r in ranks]
     
     # 验证链接、提及、命令是否被成功清理
@@ -61,9 +61,10 @@ async def test_analyzer_exception_safety():
     service = HotwordService()
     
     # 采用一个恶意的分词器打入
-    await service.analyzer.ensure_engine()
+    analyzer = await service.ensure_analyzer()
+    await analyzer.ensure_engine()
     # 核心更新：现在使用 TF-IDF 提取，需要 Mock extract_tags
-    service.analyzer._jieba_tf_idf.extract_tags = MagicMock(side_effect=Exception("Simulated NLP Engine Crash"))
+    analyzer._jieba_tf_idf.extract_tags = MagicMock(side_effect=Exception("Simulated NLP Engine Crash"))
     
     # 处理数据
     await service.process_batch("crash_chan", [{"uid": 9, "text": "这是一条应该触发崩溃的测试文本"}])

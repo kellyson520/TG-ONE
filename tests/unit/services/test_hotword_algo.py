@@ -30,20 +30,17 @@ async def test_hotword_objectivity_and_burst():
     service = HotwordService()
     channel = "algo_test_chan"
     
-    # 模拟背景数据 (Month Data) -> 存在常用的无意义词
-    curr_month = datetime.now().strftime("%Y%m")
-    chan_dir = TEST_HOT_DIR / channel
-    chan_dir.mkdir(parents=True, exist_ok=True)
+    from models.hotword import HotPeriodStats
     
-    # 注意文件名格式：{channel}_month_{date}.json
-    month_file = chan_dir / f"{channel}_month_{curr_month}.json"
-    background = {
-        "消息": 3000, # 极高频常用词
-        "回复": 2000,
-        "苹果": 30     # 正常词
-    }
-    with open(month_file, 'w', encoding='utf-8') as f:
-        json.dump(background, f)
+    # 模拟背景数据 (Month Data) 插入 DB
+    curr_month = datetime.now().strftime("%Y%m")
+    
+    async with service.repo.session_factory() as session:
+        m1 = HotPeriodStats(channel=channel, word="消息", period="month", date_key=curr_month, score=3000.0, user_count=1)
+        m2 = HotPeriodStats(channel=channel, word="回复", period="month", date_key=curr_month, score=2000.0, user_count=1)
+        m3 = HotPeriodStats(channel=channel, word="苹果", period="month", date_key=curr_month, score=30.0, user_count=1)
+        session.add_all([m1, m2, m3])
+        await session.commit()
 
     # 1. 测试噪声过滤 (Objectivity)
     # 包含 "优惠", "联系" 等标记的消息应被降权
@@ -54,26 +51,20 @@ async def test_hotword_objectivity_and_burst():
     await service.process_batch(channel, garbage_items)
     await service.flush_to_disk()
     
-    ranks = service.get_rankings(channel, period="day")
+    ranks = await service.get_rankings(channel, period="day")
     # 验证逻辑不崩溃
     if ranks: pass
 
     # 2. 测试 Burst & Diversity Detection (真正的热词)
-    # 模拟今日数据： 
-    # - "消息" 出现了 100 次，但可能用户很少 (diversity=1)
-    # - "苹果" 也出现了 100 次，但用户很多 (diversity=100)
-    # 在可信度算法中，"苹果" 应该排在 "消息" 前面
+    # 注入今日数据文件到 db (HotRawStats)
     today_data = {
-        "消息": {"f": 100, "u": 1}, 
-        "苹果": {"f": 100, "u": 100}
+        "消息": {"f": 100.0, "u": 1}, 
+        "苹果": {"f": 100.0, "u": 100}
     }
-    # 注入今日数据文件 (temp)
-    temp_file = chan_dir / f"{channel}_temp.json"
-    with open(temp_file, 'w', encoding='utf-8') as f:
-        json.dump(today_data, f)
+    await service.repo.save_temp_counts(channel, today_data)
         
     # 执行查询
-    ranks = service.get_rankings(channel, period="day")
+    ranks = await service.get_rankings(channel, period="day")
     
     # 验证排序
     rank_words = [r[0] for r in ranks]
@@ -105,7 +96,7 @@ async def test_objectivity_penalization():
     await service.flush_to_disk()
     
     # 检查权重差异
-    ranks = service.get_rankings(channel, period="day")
+    ranks = await service.get_rankings(channel, period="day")
     rank_map = dict(ranks)
     
     # "苹果" 应该得分较高， "客服" 应该得分非常低 (因为垃圾消息被 0.2 降权且 TF-IDF 权重不同)

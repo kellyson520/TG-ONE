@@ -51,12 +51,10 @@ async def test_automatic_noise_learning():
     # 4. 验证：new_noise_word 是否已进入 analyzer 的 noise_markers
     assert new_noise_word in service.analyzer.noise_markers
     
-    # 5. 验证：磁盘文件 noise.json 是否已生成且包含该词
-    noise_file = TEST_HOT_DIR / "config" / "noise.json"
-    assert noise_file.exists()
-    with open(noise_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        assert new_noise_word in data
+    # 5. 验证：持久化是否成功（现在保存在 DB 中，不再是 JSON 文件）
+    saved_noise = await service.repo.load_config("noise")
+    # 由于 noise 记录的是 {"某词": 1.0} 字典
+    assert new_noise_word in saved_noise
 
 @pytest.mark.asyncio
 async def test_misidentification_protection():
