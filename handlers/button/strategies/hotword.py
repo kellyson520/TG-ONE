@@ -19,7 +19,8 @@ class HotwordMenuStrategy(BaseMenuHandler):
 
     ACTIONS = {
         "hotword_main", "hotword_global_refresh", 
-        "hotword_view", "hotword_search_prompt"
+        "hotword_view", "hotword_search_prompt",
+        "hotword_noise_page", "hotword_noise_add_prompt"
     }
 
     async def match(self, action: str, **kwargs) -> bool:
@@ -74,3 +75,25 @@ class HotwordMenuStrategy(BaseMenuHandler):
             except MessageNotModifiedError:
                 pass
             await event.answer()
+
+        elif action == "hotword_noise_page":
+            page = 1
+            if extra_data:
+                page = int(extra_data[0])
+            else:
+                parts = data.split(":")
+                if len(parts) > 1:
+                    page = int(parts[1])
+            
+            data_list = await hotword_service.get_noise_list(page=page)
+            result = hotword_renderer.render_noise_list(data_list)
+            try:
+                await event.edit(result.text, buttons=result.buttons)
+            except MessageNotModifiedError:
+                pass
+            await event.answer()
+
+        elif action == "hotword_noise_add_prompt":
+            from services.session_service import session_manager
+            session_manager.set_state(event.sender_id, event.chat_id, "hotword_add_noise")
+            await event.answer("请发送要加入垃圾库的词汇，支持多行", alert=True)

@@ -307,6 +307,13 @@ class _ConsolidatedFilter(logging.Filter):
             name = record.name or ""
             message = record.getMessage() or ""
 
+            # 屏蔽 sqlalchemy.pool.impl.AsyncAdaptedQueuePool 取消任务时的无效日志
+            if name == "sqlalchemy.pool.impl.AsyncAdaptedQueuePool" and "Exception during reset or similar" in message:
+                if record.exc_info and record.exc_info[0] is not None:
+                    import asyncio
+                    if issubclass(record.exc_info[0], asyncio.CancelledError):
+                        return False
+
             # 全局丢弃（任何级别）
             if self._is_telethon_noise(record) or self._match_any(self.global_drop_patterns, message):
                 return False
