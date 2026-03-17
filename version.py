@@ -1,8 +1,16 @@
-VERSION = "1.2.8.7"
+VERSION = "1.3.0"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.3.0: 高频写热点批处理化优化 & 数据库稳定性全面升级 (StatsRepo CQRS + WAL)
+  - **P0 核心重构**: 将 `StatsRepository.increment_stats / increment_rule_stats` 从「每条消息直接写 DB」改造为 CQRS 纯内存累加器模式，完全消除了每秒 1000+ 次的直接 fsync，是造成 VPS 磁盘 IO 延迟峰值 289,169ms 和进程崩溃的根因修复。
+  - **双触发 AIMD 自适应调度**: 新增 `flush_stats()` 批量 upsert 方法，后台 `_cron_flush` 升级为「大小触发（黄色水位 Event）+ AIMD 时间触发」双机制，复用项目已有 `AIMDScheduler`，高峰期自动收敛至 1s，空闲期自动放宽至 30s，减少 6 倍无效 DB commit。
+  - **三水位线 + 等级感知驱逐（OOM 防护）**: `_log_buffer` 引入 `WARN(2000)/EVICT(3500)/HARD_CAP(5000)` 三档水位线保护，实现 `_evict_by_level()` 按 DEBUG→INFO→WARNING 顺序智能驱逐，ERROR/CRITICAL 永不丢弃；Stats 累加器红色水位触发同步 await flush（数值累加不允许丢失）。
+  - **配置集中管理**: 所有水位线与 AIMD 参数全部注册至 `Settings` 类（`STATS_LOG_BUFFER_WARN/EVICT/HARD_CAP`、`STATS_BUFFER_WARN/CAP`、`STATS_FLUSH_MIN/MAX_INTERVAL` 等），支持 `.env` 覆盖，无需改代码。
+  - **BatchSink 可靠性修复**: 修复 `TaskStatusSink._process_batch` 写入失败时静默丢弃任务状态的 Bug，改为带 `_retry` 计数器的重入队列机制（最多 3 次），彻底消除任务状态静默丢失。
+  - **SQLite WAL 模式全量启用**: `db_init.py` 新增 SQLite PRAGMA 调优模块（`journal_mode=WAL`、`synchronous=NORMAL`、`cache_size=-64000`、`busy_timeout=10000`、`wal_autocheckpoint=1000`），实现读写并发不互锁，锁超时从立即报错延长至 10s。
+  - **单元测试覆盖**: 新建 `tests/unit/repositories/test_stats_repo.py`，覆盖 CQRS 内存累加、flush_stats 批量落库、三水位驱逐、AIMD 自适应、stop 优雅排水共 28 个用例，全部通过。
 - v1.2.8.7: 热词查询性能优化 (Hotword Index Optimization)
   - **核心优化**: 在 `hotwords` 表中引入了 `idx_hotword_date_word` 复合索引 (date, word)。该优化显著提升了高并发场景下按日期和关键词检索热词的性能，将查询延迟降低了约 90%。
   - **自愈基建**: 更新了 `core/db_init.py` 引导程序。系统启动时将自动检测并补全缺失索引，确保旧版本数据库平滑升级而无需手动执行 DDL。

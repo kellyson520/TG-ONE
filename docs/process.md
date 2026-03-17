@@ -64,6 +64,7 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260317_StatsRepo_Write_Optimization | StatsRepo 高频写热点批处理化 (CQRS 内存累加器 + WAL) | 2026-03-17 | 进行中 | 0% | [📂 查看](./Workstream_Performance_Optimization/20260317_StatsRepo_Write_Optimization/todo.md) |
 | 20260219_VPS_High_Load_Fix | VPS 高负载 (300%) 修复及并发优化 | 2026-02-19 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260219_VPS_High_Load_Fix/todo.md) |
 
 | 20260213_Task_Queue_Optimization | 任务队列吞吐量优化与失败治理 (积压 8.8w 处理) | 2026-02-13 | 进行中 | 10% | [📂 查看](./Workstream_Optimization/20260213_Task_Queue_Throughput_and_Failure_Optimization/todo.md) |

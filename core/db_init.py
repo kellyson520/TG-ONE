@@ -47,14 +47,29 @@ async def init_db_tables(db_url: str) -> None:
     try:
         db = Database(db_url)
         async with db.engine.begin() as conn:
-            # run_sync 允许在异步上下文中执行同步的 DDL 操作
-            # 显式指定 checkfirst=True (默认其实就是 True)
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         await db.close()
         logger.info("Database tables verified/created successfully.")
     except Exception as e:
         logger.error(f"Async table creation failed: {e}")
         raise e  # 创建表失败是致命的
+
+    # [WAL] SQLite 性能优化 PRAGMA（WAL 模式 + 调优参数）
+    if 'sqlite' in db_url:
+        try:
+            from sqlalchemy.ext.asyncio import create_async_engine
+            from sqlalchemy import text
+            pragma_engine = create_async_engine(db_url, echo=False)
+            async with pragma_engine.begin() as conn:
+                await conn.execute(text("PRAGMA journal_mode = WAL"))        # 读写并发不互锁
+                await conn.execute(text("PRAGMA synchronous = NORMAL"))      # FULL→NORMAL，性能提升 3~5x
+                await conn.execute(text("PRAGMA cache_size = -64000"))       # 64MB 共享页缓存
+                await conn.execute(text("PRAGMA busy_timeout = 10000"))      # 10s 超时而非立即报错
+                await conn.execute(text("PRAGMA wal_autocheckpoint = 1000")) # 每 1000 页自动 checkpoint
+            await pragma_engine.dispose()
+            logger.info("[WAL] SQLite PRAGMA 优化已应用 (WAL + NORMAL sync + 64MB cache + 10s timeout)")
+        except Exception as e:
+            logger.warning(f"[WAL] SQLite PRAGMA 配置失败（非致命）: {e}")
 
 async def init_hotword_db() -> None:
     """初始化热词独占数据库 hotwords.db"""

@@ -615,6 +615,47 @@ class Settings(BaseSettings):
     DEDUP_FLUSH_INTERVAL: float = Field(default=3.0)
     DEDUP_DATABASE_URL: Optional[str] = Field(default=None)
 
+    # === StatsRepo 写缓冲配置 ===
+    # 日志 Buffer 三水位线
+    STATS_LOG_BUFFER_WARN: int = Field(
+        default=2000,
+        description="日志 Buffer 黄色水位：触发紧急 flush，不丢弃数据"
+    )
+    STATS_LOG_BUFFER_EVICT: int = Field(
+        default=3500,
+        description="日志 Buffer 橙色水位：按等级驱逐低优日志并触发 flush"
+    )
+    STATS_LOG_BUFFER_HARD_CAP: int = Field(
+        default=5000,
+        description="日志 Buffer 红色水位：强制驱逐（ERROR/CRITICAL 永不丢弃）"
+    )
+    # Stats 数据累加器水位
+    STATS_BUFFER_WARN: int = Field(
+        default=5000,
+        description="Stats 内存累加器黄色水位：异步 flush"
+    )
+    STATS_BUFFER_CAP: int = Field(
+        default=10000,
+        description="Stats 内存累加器红色水位：同步阻塞 flush（不允许丢弃）"
+    )
+    # AIMD 自适应调度参数
+    STATS_FLUSH_MIN_INTERVAL: float = Field(
+        default=1.0,
+        description="Stats flush 最小间隔（秒），高峰期 AIMD 可收敛至此"
+    )
+    STATS_FLUSH_MAX_INTERVAL: float = Field(
+        default=30.0,
+        description="Stats flush 最大间隔（秒），空闲期 AIMD 可减至此"
+    )
+    STATS_FLUSH_AIMD_INCREMENT: float = Field(
+        default=5.0,
+        description="AIMD 加法增量（秒），空闲时每轮延长"
+    )
+    STATS_FLUSH_AIMD_MULTIPLIER: float = Field(
+        default=0.5,
+        description="AIMD 乘法因子，高峰时每轮缩短"
+    )
+
     UFB_ENABLED: bool = Field(default=False)
     
     # === 数据库健康检查 ===

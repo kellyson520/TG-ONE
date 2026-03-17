@@ -142,7 +142,23 @@ class TaskStatusSink:
                     logger.debug(f"[BatchSink] 批量消费任务状态完成: 提交 {len(items)} 条, 成功更新 {total_affected} 行")
                     
         except Exception as e:
-            logger.error(f"[BatchSink] 批量写入状态失败 (已丢失 {len(items)} 个内存状态更新): {e}")
+            logger.error(f"[BatchSink] 批量写入状态失败，尝试重入队列 ({len(items)} 条): {e}")
+            # 带 retry_count 重入队列，避免静默丢失数据
+            MAX_RETRY = 3
+            requeued, dropped = 0, 0
+            for item in items:
+                retry_count = item.get("_retry", 0)
+                if retry_count < MAX_RETRY:
+                    item["_retry"] = retry_count + 1
+                    await self._queue.put(item)
+                    requeued += 1
+                else:
+                    logger.warning(
+                        f"[BatchSink] 任务 {item.get('id')} 重试超 {MAX_RETRY} 次，永久丢弃"
+                    )
+                    dropped += 1
+            if requeued:
+                logger.info(f"[BatchSink] 已重入队列 {requeued} 条，丢弃 {dropped} 条")
 
 # 初始化暴露实例
 task_status_sink = TaskStatusSink()
