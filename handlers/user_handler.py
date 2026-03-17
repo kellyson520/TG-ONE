@@ -125,18 +125,13 @@ async def _fallback_process_forward_rule(client, event, chat_id, rule):
         entity_id=rule.id,
         details=f"模式: {getattr(rule.forward_mode, 'value', rule.forward_mode)}",
     )
-    print("DEBUG: Inside _fallback_process_forward_rule")
 
     # 准备消息文本
     message_text = event.message.text or ""
-    print(f"DEBUG: calling _prepare_message_text with {message_text}")
     check_message_text = await _prepare_message_text(event, rule, message_text)
-    print(f"DEBUG: returned from _prepare_message_text: {check_message_text}")
 
     # 检查关键词过滤
-    print("DEBUG: calling check_keywords")
     should_forward = await check_keywords(rule, check_message_text)
-    print(f"DEBUG: returned from check_keywords: {should_forward}")
 
     logger.log_operation(
         "关键词检查完成",
@@ -145,9 +140,8 @@ async def _fallback_process_forward_rule(client, event, chat_id, rule):
     )
 
     if should_forward:
-        print("DEBUG: calling _execute_forward")
         await _execute_forward(client, event, rule)
-        print("DEBUG: returned from _execute_forward")
+
 
 
 @handle_errors(default_return="")

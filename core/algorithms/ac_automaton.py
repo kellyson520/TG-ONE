@@ -103,27 +103,33 @@ class ACAutomaton:
                 return True
         return False
 
+import threading
+
 class ACManager:
-    """管理不同规则的 AC 自动机缓存"""
+    """管理不同规则的 AC 自动机缓存 (Thread-Safe)"""
+    _lock = threading.Lock()
     _instances: Dict[int, ACAutomaton] = {}
     _keywords_cache: Dict[int, List[str]] = {}
 
     @classmethod
     def get_automaton(cls, rule_id: int, keywords: List[str]) -> ACAutomaton:
         """获取或创建该规则的自动机"""
-        # 如果关键词有变化，则重新创建
-        if cls._keywords_cache.get(rule_id) != keywords:
-            ac = ACAutomaton()
-            for kw in keywords:
-                if kw: ac.add_keyword(kw)
-            ac.build()
-            cls._instances[rule_id] = ac
-            cls._keywords_cache[rule_id] = keywords
-            
-        return cls._instances[rule_id]
+        with cls._lock:
+            # 如果关键词有变化，则重新创建
+            if cls._keywords_cache.get(rule_id) != keywords:
+                ac = ACAutomaton()
+                for kw in keywords:
+                    if kw: ac.add_keyword(kw)
+                ac.build()
+                cls._instances[rule_id] = ac
+                cls._keywords_cache[rule_id] = keywords
+                
+            return cls._instances[rule_id]
 
     @classmethod
     def clear(cls) -> None:
         """清理所有实例"""
-        cls._instances = {}
-        cls._keywords_cache = {}
+        with cls._lock:
+            cls._instances = {}
+            cls._keywords_cache = {}
+

@@ -16,6 +16,8 @@ class SmartBufferService:
         # 存储机制: (rule_id, target_chat_id) -> { "messages": [], "timer": Task, "last_received": float, "config": dict }
         self._buffers: Dict[tuple, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
+        self._total_contexts = 0 # 监控总消息持荷
+
 
     async def push(self, rule_id: int, target_chat_id: int, context: Any, send_callback: Callable[[List[Any]], Awaitable[None]], **kwargs):
         """
@@ -37,7 +39,15 @@ class SmartBufferService:
             await send_callback([context])
             return
 
+        # 降级熔断防护 (Fast Pass-through) - 防止 OOM
+        if self._total_contexts >= getattr(settings, 'MAX_SMART_BUFFER_TOTAL', 2000):
+            # logger.warning 可能在高并发下太吵，可以只打印不刷写
+            await send_callback([context])
+            return
+
+
         async with self._lock:
+            self._total_contexts += 1
             if key not in self._buffers:
                 self._buffers[key] = {
                     "contexts": [context],
@@ -104,6 +114,8 @@ class SmartBufferService:
                 return
             
             contexts = buffer["contexts"]
+            self._total_contexts -= len(contexts)
+
             
         # 在锁外执行回调，避免阻塞新消息推入
         try:

@@ -211,10 +211,13 @@ class HotwordService:
         self._lock = asyncio.Lock()
         self.io_semaphore = asyncio.Semaphore(10) # IO 削峰信号量
         
-        # LSH 广告拦截树 (Sliding Memory)
-        self.spam_lsh = SimHashIndex(k=3, f=64)
-        self.simhash_engine = SimHash(f=64)
+        self.spam_lsh_current = SimHashIndex(k=3, f=64)
+        self.spam_lsh_backup: Optional[SimHashIndex] = None 
         self.spam_hash_count = 0
+        from core.algorithms.simhash import SimHash # 作为后备或者由于 init 依赖
+        self.simhash_engine = SimHash(f=64)
+
+
         
         self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
@@ -326,11 +329,16 @@ class HotwordService:
             text = str(raw_text) if raw_text is not None else ""
             if len(text) > 30:
                 sh = self.simhash_engine.build_fingerprint(text)
-                if self.spam_lsh.search(sh):
+                is_spam = self.spam_lsh_current.search(sh)
+                if not is_spam and self.spam_lsh_backup:
+                    is_spam = self.spam_lsh_backup.search(sh)
+                    
+                if is_spam:
                     # 拦截：该消息结构被判定为变种广告，直接丢弃
                     continue
                 if isinstance(item, dict):
                     item["_sh"] = sh
+
             filtered_items.append(item)
             
         if not filtered_items: return
@@ -349,11 +357,14 @@ class HotwordService:
         async with self._lock:
             # 更新 SimHash 拦截网 (滑动过期)
             for h in new_spam_hashes:
-                if self.spam_hash_count > 10000:
-                    self.spam_lsh = SimHashIndex(k=3, f=64) # 防止 OOM
+                if self.spam_hash_count >= 5000:
+                    # 爆仓熔断：滑动至 backup 前瞻缓存，保护防守不断档
+                    self.spam_lsh_backup = self.spam_lsh_current
+                    self.spam_lsh_current = SimHashIndex(k=3, f=64)
                     self.spam_hash_count = 0
-                self.spam_lsh.add("spam", h)
+                self.spam_lsh_current.add("spam", h)
                 self.spam_hash_count += 1
+
                 
             # 更新得分缓存 L1: { channel: { word: {"f": score, "u": unique_users} } }
             for target in [channel_name, "global"]:
