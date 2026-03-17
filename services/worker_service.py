@@ -142,6 +142,10 @@ class WorkerService:
                     cpu_usage = 0
                     memory_mb = 0
                     load_ratio = 0
+                    
+                # 计算内存增速 (用于 Adaptive GC)
+                mem_growth = memory_mb - getattr(self, 'last_memory_mb', 0)
+                self.last_memory_mb = memory_mb
 
                 # --- 第二步：计算目标 Worker 数 (Target Logic) ---
                 # 策略：只要有积压就积极扩容，充分利用空闲资源
@@ -185,43 +189,39 @@ class WorkerService:
                         scale_blocked = True
                     
                     if memory_mb > self.mem_critical:
-                        # 内存危急：触发熔断
+                        # 内存危急：触发动态水位线软熔断 (Soft-Start Throttling)
                         current_time = time.time()
-                        # 冷却时间：5分钟内只发送一次 ERROR 告警，其余时间为 WARNING
                         if current_time - self.last_critical_alert > 300:
-                            logger.error(f"🚨 [ResourceGuard] 内存危机会话 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，执行同步熔断：暂停分发并强制全量 GC")
+                            logger.warning(f"🚨 [ResourceGuard] 内存触及 Fatal 水位 (RSS={memory_mb:.1f}MB > {self.mem_critical}MB)，触发自适应背压降速。")
                             self.last_critical_alert = current_time
-                        else:
-                            logger.warning(f"⚠️ [ResourceGuard] 内存仍处于危机状态 (RSS={memory_mb:.1f}MB)，持续熔断中...")
 
-                        self.critical_mode = True
-                        if self.dispatcher: await self.dispatcher.stop()
+                        # 动态调大 Dispatcher 休眠时间，复用 _adaptive_sleep 退避机制
+                        if self.dispatcher:
+                            self.dispatcher.throttle()
                         
-                        gc.collect()
-                        # 尝试更深度的清理
-                        gc.collect(2) 
-                        
-                        await asyncio.sleep(5) 
-                        # 如果内存有所下降 (降至 90% 阈值以下)，尝试恢复
-                        if memory_mb < self.mem_critical * 0.9:
-                            if self.running and self.dispatcher: 
-                                await self.dispatcher.start()
-                                self.critical_mode = False
-                                logger.info(f"✅ [ResourceGuard] 内存已回落至安全范围 ({memory_mb:.1f}MB)，恢复分发")
+                        # 自适应分代回收 (Adaptive GC)
+                        if mem_growth > 50:
+                            gc.collect() # 增速过快时深度回收
+                        else:
+                            gc.collect(1) # 平缓时仅回收年轻代，避免 CPU 毛刺
                         
                         scale_blocked = True
                     elif memory_mb > self.mem_warning: 
                         if log_diagnostic:
-                            logger.warning(f"⚠️ [ResourceGuard] 内存占用较高 ({memory_mb:.1f}MB > {self.mem_warning}MB)，暂停扩容并触发轻量级 GC")
-                        gc.collect(1) # 只清理第一代和第二代
+                            logger.warning(f"⚠️ [ResourceGuard] 内存触及 Warning 水位 ({memory_mb:.1f}MB > {self.mem_warning}MB)，触发降速与轻量 GC")
+                        
+                        if self.dispatcher:
+                            # 轻度降速
+                            self.dispatcher.current_sleep = min(self.dispatcher.current_sleep * 1.5, self.dispatcher.max_sleep)
+                            
+                        # 轻量级 GC
+                        if mem_growth > 20:
+                            gc.collect(1)
+                            
                         scale_blocked = True
                     else:
-                        # 如果之前处于熔断模式且内存现在正常了，恢复分发
-                        if self.critical_mode:
-                            if self.running and self.dispatcher:
-                                await self.dispatcher.start()
-                                self.critical_mode = False
-                                logger.info(f"✅ [ResourceGuard] 内存危机解除 ({memory_mb:.1f}MB)，系统恢复正常运行")
+                        # 内存回落：不再瞬间拉满，而是随 Dispatcher self.current_sleep 的自然回落进行平滑重置
+                        pass
                     
                     if not scale_blocked:
                         diff = target_count - current_workers

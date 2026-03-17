@@ -56,7 +56,7 @@ class HotwordAnalyzer:
         return word in self._tg_stopwords
         
     async def ensure_engine(self):
-        if not self._jieba:
+        if not self._jieba or not self._jieba_tf_idf:
             pseg = LazyImport("jieba.posseg")
             analyse = LazyImport("jieba.analyse")
             jieba_core = LazyImport("jieba")
@@ -76,9 +76,11 @@ class HotwordAnalyzer:
             "user_hits": {word: set(uids)}
         }
         """
-        if not self._jieba:
+        if not self._jieba or not self._jieba_tf_idf:
              import jieba.posseg as pseg
+             import jieba.analyse as analyse
              self._jieba = pseg
+             self._jieba_tf_idf = analyse
 
         local_scores = {}
         noise_candidates = {} 
@@ -190,7 +192,7 @@ class HotwordAnalyzer:
         }
 
     def suspend(self):
-        if self._jieba:
+        if self._jieba or self._jieba_tf_idf:
             self._jieba = None
             self._jieba_tf_idf = None
             gc.collect()

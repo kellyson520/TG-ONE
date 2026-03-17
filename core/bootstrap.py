@@ -17,6 +17,7 @@ from core.helpers.tombstone import tombstone
 # from services.exception_handler import exception_handler (Moved to local)
 from services.update_service import update_service
 from core.helpers.metrics import set_ready, update_heartbeat
+from core.helpers.batch_sink import task_status_sink
 
 from typing import Optional, Callable, Any 
 
@@ -247,6 +248,9 @@ class Bootstrap:
         from scheduler.cron_service import cron_service
         cron_service.start()
         
+        # 启动全局异步缓冲池 (CQRS Batch Sink)
+        task_status_sink.start()
+        
         # 启动 Guards
         from services.system_service import guard_service
         from services.exception_handler import exception_handler
@@ -342,11 +346,12 @@ class Bootstrap:
             from services.update_service import update_service
             from core.helpers.sleep_manager import sleep_manager
             
-            logger.info("Stopping auxiliary services (Cron, Guards, Updates, SleepManager)...")
+            logger.info("Stopping auxiliary services (Cron, Guards, Updates, SleepManager, BatchSink)...")
             await cron_service.stop()
             guard_service.stop_guards()
             update_service.stop()
             sleep_manager.stop()
+            await task_status_sink.stop()
             await asyncio.sleep(0.1)
             
         self.coordinator.register_cleanup(_stop_auxiliary, priority=1, timeout=5.0, name="stop_auxiliary")

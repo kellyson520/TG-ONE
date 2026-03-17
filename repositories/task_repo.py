@@ -5,6 +5,7 @@ import logging
 from core.states import validate_transition
 from core.config import settings
 from core.helpers.db_utils import async_db_retry
+from core.helpers.batch_sink import task_status_sink
 
 logger = logging.getLogger(__name__)
 
@@ -203,57 +204,13 @@ class TaskRepository:
             
             return tasks
 
-    @async_db_retry(max_retries=5)
     async def complete(self, task_id: int):
-        """标记任务完成 (纯 UPDATE，最小化锁持有时间)"""
-        now = datetime.utcnow()
-        async with self.db.get_session() as session:
-            # [Optimization] 将状态验证内联到 WHERE 条件中，省去 SELECT 阶段
-            # 合法的前置状态: running -> completed
-            result = await session.execute(
-                update(TaskQueue)
-                .where(TaskQueue.id == task_id)
-                .where(TaskQueue.status.in_(['running', 'pending']))
-                .values(
-                    status='completed',
-                    completed_at=now,
-                    updated_at=now
-                )
-            )
-            await session.commit()
-            if result.rowcount > 0:
-                logger.info(f"任务完成: {task_id}")
-            else:
-                logger.warning(f"任务完成失败(状态不匹配或不存在): {task_id}")
+        """核心重构 (CQRS): 将任务完成消息投入单线程写缓冲池，彻底削峰 SQLite 的写压力"""
+        await task_status_sink.put(task_id, 'complete')
 
-    @async_db_retry(max_retries=5)
     async def fail(self, task_id: int, error: str):
-        """标记任务失败 (纯 UPDATE，最小化锁持有时间)"""
-        now = datetime.utcnow()
-        error_str = str(error)
-        async with self.db.get_session() as session:
-            # [Optimization] 将状态验证内联到 WHERE 条件中，省去 SELECT 阶段
-            # 合法的前置状态: running/pending -> failed
-            result = await session.execute(
-                update(TaskQueue)
-                .where(TaskQueue.id == task_id)
-                .where(TaskQueue.status.in_(['running', 'pending']))
-                .values(
-                    status='failed',
-                    error_message=error_str,
-                    updated_at=now
-                )
-            )
-            await session.commit()
-            
-            if result.rowcount > 0:
-                # 对于 "Source message not found" 这类预期内的业务情况,使用 DEBUG 级别
-                if "Source message not found" in error_str:
-                    logger.debug(f"任务失败: {task_id}, 错误: {error_str}")
-                else:
-                    logger.error(f"任务失败: {task_id}, 错误: {error_str}")
-            else:
-                logger.warning(f"任务失败标记跳过(状态不匹配或不存在): {task_id}")
+        """核心重构 (CQRS): 将任务失败消息投入单线程写缓冲池，彻底削峰 SQLite 的写压力"""
+        await task_status_sink.put(task_id, 'fail', str(error))
             
     @async_db_retry(max_retries=5)
     async def fail_or_retry(self, task_id: int, error: str, max_retries: int = settings.MAX_RETRIES):

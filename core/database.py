@@ -82,8 +82,25 @@ class Database:
             yield session
             
             if not readonly and session.in_transaction():
-                await session.commit()
-                logger.debug(f"[Database] 事务提交成功: {id(session)}")
+                # SQLite 锁竞态自适应重试 (Jitter Exponential Backoff)
+                max_retries = 3
+                current_sleep = 0.5
+                for attempt in range(max_retries):
+                    try:
+                        await session.commit()
+                        logger.debug(f"[Database] 事务提交成功: {id(session)}")
+                        break
+                    except Exception as commit_err:
+                        err_str = str(commit_err).lower()
+                        if 'database is locked' in err_str and attempt < max_retries - 1:
+                            import random
+                            jitter = random.uniform(0.8, 1.2)
+                            sleep_time = current_sleep * jitter
+                            logger.warning(f"⚠️ [Database] Write Lock Contention: SQLite 写入竞争，正在退避重发 ({attempt+1}/{max_retries}), sleep {sleep_time:.2f}s")
+                            await asyncio.sleep(sleep_time)
+                            current_sleep *= 2.0
+                        else:
+                            raise
         except asyncio.CancelledError:
             # CancelledError 是控制流信号 (BaseException 子类)，必须标记后在 finally 中重抛
             cancelled = True
@@ -93,10 +110,20 @@ class Database:
                 except Exception:
                     pass  # 关闭期间回滚失败可忽略
         except Exception as e:
+            is_locked = 'database is locked' in str(e).lower()
             if session and session.in_transaction():
-                await session.rollback()
-                logger.error(f"[Database] 事务回滚: {id(session)}，错误={e}")
-            logger.error(f"[Database] 会话处理失败: {id(session)}，错误={e}")
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
+                if not is_locked:
+                    logger.error(f"[Database] 事务回滚: {id(session)}，错误={e}")
+            
+            if is_locked:
+                # 动态降噪：锁竞争属于高并发下的常规退让，无需用 ERROR 刷屏
+                logger.warning(f"⚠️ [Database] 会话执行中发生锁竞争，被迫放弃: {id(session)}，错误={e}")
+            else:
+                logger.error(f"[Database] 会话处理失败: {id(session)}，错误={e}")
             raise
         finally:
             if session:

@@ -131,6 +131,10 @@ class TaskDispatcher:
         if self.current_sleep < self.max_sleep:
             self.current_sleep = min(self.current_sleep * 1.5, self.max_sleep)
 
+    def throttle(self):
+        """外部触发的降速背压，强制拉高休眠时间实现软熔断"""
+        self.current_sleep = min(self.current_sleep * 2.0, self.max_sleep)
+
     def _reset_sleep(self):
         """重置休眠"""
         self.current_sleep = self.min_sleep
