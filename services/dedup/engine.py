@@ -429,6 +429,11 @@ class SmartDeduplicator:
             if cid in self.content_hash_cache and len(self.content_hash_cache[cid]) > max_hash_size:
                 self.content_hash_cache[cid].popitem(last=False)
 
+            max_fp_size = config.get("max_text_fp_cache_size", 1000)
+            if cid in self.text_fp_cache and len(self.text_fp_cache[cid]) > max_fp_size:
+                self.text_fp_cache[cid].popitem(last=False)
+
+
             # 确保后台刷写任务启动
             if self._flush_task is None or self._flush_task.done():
                 self._flush_task = asyncio.create_task(self._buffer_flush_worker())

@@ -92,6 +92,12 @@ class TelegramAPIOptimizer:
 
             # 更新缓存
             self._search_cache[cache_key] = (messages, time.time())
+            
+            # 定期 GC 过期缓存，防止无界膨胀 (OOM)
+            if len(self._search_cache) > 500:
+                now = time.time()
+                self._search_cache = {k: v for k, v in self._search_cache.items() if now - v[1] < self._cache_ttl}
+
 
             logger.info(f"搜索完成: 找到 {len(messages)} 条消息")
             return messages
@@ -240,6 +246,12 @@ class TelegramAPIOptimizer:
 
             # 更新缓存
             self._media_info_cache[cache_key] = (info, time.time())
+            
+            # 定期 GC 过期缓存
+            if len(self._media_info_cache) > 1000:
+                now = time.time()
+                self._media_info_cache = {k: v for k, v in self._media_info_cache.items() if now - v[1] < self._cache_ttl}
+
 
             logger.debug(
                 f"快速获取媒体信息: {info['file_name']} ({info['size']} bytes)"
