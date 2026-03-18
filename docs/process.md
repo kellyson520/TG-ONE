@@ -12,6 +12,9 @@
 
 | 任务ID | 任务名称 | 开始日期 | 完成日期 | 完成率 | 文档路径 |
 |--------|----------|----------|----------|--------|----------|
+| 20260318_AppLog_Full_Fix | 应用日志漏洞全面修复 (智能自适应 + 负反馈熔断) | 2026-03-18 | 2026-03-18 | 100% | [[report.md]](./Workstream_Bugfix/20260318_AppLog_Full_Fix/report.md) |
+| 20260318_AppLog_Audit | 应用日志深度审计与风险治理 | 2026-03-18 | 2026-03-18 | 100% | [[report.md]](./Workstream_Audit/20260318_AppLog_Audit/report.md) |
+| 20260318_Archive_Database_Locked_Fix | 归档管理器数据库锁死修复 | 2026-03-18 | 2026-03-18 | 100% | [[report.md]](./Workstream_Bugfix/20260318_Archive_Database_Locked_Fix/report.md) |
 | 20260317_Extended_Resource_Optimization_Audit | 扩展全链路资源泄漏与代码冗余深度审计 | 2026-03-17 | 2026-03-17 | 100% | [[report.md]](./Workstream_Audit/20260317_Extended_Resource_Optimization_Audit/report.md) |
 | 20260317_Audit_Risk_Fixes | 审计发现的高危风险排查与背压隔离修复 (SmartBuffer/ACManager) | 2026-03-17 | 2026-03-17 | 100% | [[report.md]](./Workstream_Bugfix/20260317_Audit_Risk_Fixes/report.md) |
 | 20260317_Project_Deep_Audit | 项目深度架构、智能化与高可靠性组合审计 | 2026-03-17 | 2026-03-17 | 100% | [[report.md]](./Workstream_Audit/20260317_Project_Deep_Audit/report.md) |

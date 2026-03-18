@@ -25,10 +25,15 @@ ENABLE_API_DEBUG = settings.ENABLE_API_DEBUG
 class TelegramAPIOptimizer:
     """Telegram官方API优化器"""
 
+    # 负反馈缓存 TTL（秒）：超时 chat_id 冷却期，防止重复消耗信号量
+    _NEGATIVE_CACHE_TTL: float = 120.0
+
     def __init__(self, client: TelegramClient):
         self.client = client
         # 全局 API 并发信号量，限制同时进行的官方 API 请求数，防止惊群与触发 Flood Wait
         self._api_semaphore = asyncio.Semaphore(10)
+        # 负反馈缓存：{ str(chat_id): last_fail_timestamp }，超时/永久失效的 ID 进入此缓存
+        self._negative_cache: Dict[str, float] = {}
 
     @cached(cache_name="chat_statistics", ttl=300)  # 缓存5分钟
     @log_performance("获取聊天统计", threshold_seconds=5.0)
@@ -55,6 +60,17 @@ class TelegramAPIOptimizer:
                 logger.debug(f"跳过可能无效的聊天ID: {chat_id}")
             return {}
 
+        # ── 负反馈缓存检查：避免对已知超时 ID 重复消耗信号量 ──────────────
+        chat_id_key = str(chat_id)
+        neg_fail_time = self._negative_cache.get(chat_id_key)
+        if neg_fail_time is not None:
+            if time.time() - neg_fail_time < self._NEGATIVE_CACHE_TTL:
+                logger.debug(f"[NegCache] chat_id={chat_id} 在冷却期内，跳过")
+                return {}
+            else:
+                # 冷却期已过，清除旧记录重新尝试
+                del self._negative_cache[chat_id_key]
+
         # ... (checking logic remains)
 
         try:
@@ -63,7 +79,9 @@ class TelegramAPIOptimizer:
                 self.client.get_entity(chat_id), timeout=5.0
             )
         except asyncio.TimeoutError:
-            logger.warning(f"获取聊天实体超时: {chat_id}")
+            # 写入负反馈缓存，120s 内不再重试该 chat_id
+            self._negative_cache[chat_id_key] = time.time()
+            logger.warning(f"获取聊天实体超时: {chat_id}，已加入冷却缓存 {self._NEGATIVE_CACHE_TTL:.0f}s")
             return {}
         except Exception as e:
             # 分析错误类型
@@ -223,11 +241,18 @@ class TelegramAPIOptimizer:
                     if not entity_validator.is_valid_username(user_id):
                         failed_users += 1
                         continue
-                    entity = await self.client.get_entity(user_id)
+                    # 优先尝试 get_input_entity（利用本地缓存，无网络 IO）
+                    try:
+                        entity = await self.client.get_input_entity(user_id)
+                    except Exception:
+                        entity = await self.client.get_entity(user_id)
                     input_users.append(entity)
                 else:
-                    # 数字ID格式
-                    entity = await self.client.get_entity(int(user_id))
+                    # 数字ID格式：优先走 get_input_entity
+                    try:
+                        entity = await self.client.get_input_entity(int(user_id))
+                    except Exception:
+                        entity = await self.client.get_entity(int(user_id))
                     input_users.append(entity)
             except Exception as e:
                 # 分析错误类型并相应处理
@@ -238,11 +263,8 @@ class TelegramAPIOptimizer:
                 if ENABLE_API_DEBUG:
                     logger.debug(f"无法获取用户实体 {user_id}: {error_type} - {str(e)}")
                 elif not is_permanent:
-                    # 将警告降级为调试，避免高负载下刷屏
                     logger.debug(f"用户实体获取临时失败 {user_id}: {error_type}")
-                
-                # 在循环中稍微让出控制权，尤其是在获取实体这种网络操作后
-                await asyncio.sleep(0.01)
+
                 failed_users += 1
                 continue
 

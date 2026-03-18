@@ -1,8 +1,14 @@
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 
 UPDATE_INFO = """
 **更新日志**
+- v1.3.1: 应用日志审计性能漏洞全面修复 (自适应降噪自学习 + 负反馈限时熔断)
+  - **核心重构**: 针对 `app.log` 暴露的性能巨坑，实施了智能策略降级。
+  - **异步智能噪声自学习**: 将 `flush_to_disk` 中的全球 Day 大 JSON 同步加载解耦，改为三级阈值信号触发（Burst/HighVol/Timeout）的后台异步 `_noise_learning_job` 调度，落盘吞吐零等待。
+  - **API 超时负反馈熔断器**: 为 `TelegramAPIOptimizer` 引入 `_negative_cache` 冷却字典，触碰 5s 绝对超时的 `chat_id` 打入 120s 冷却短路，严防并发信号量耗竭。
+  - **get_users_batch 假批量消除**: 将循环内串行的 `get_entity` 完全切换至优先读取本地缓存池的 `get_input_entity`，数倍缩减拉取画像耗时。
+  - **验证及归档**: 单元测试和静态语法编译全部通过。
 - v1.3.0: 高频写热点批处理化优化 & 数据库稳定性全面升级 (StatsRepo CQRS + WAL)
   - **P0 核心重构**: 将 `StatsRepository.increment_stats / increment_rule_stats` 从「每条消息直接写 DB」改造为 CQRS 纯内存累加器模式，完全消除了每秒 1000+ 次的直接 fsync，是造成 VPS 磁盘 IO 延迟峰值 289,169ms 和进程崩溃的根因修复。
   - **双触发 AIMD 自适应调度**: 新增 `flush_stats()` 批量 upsert 方法，后台 `_cron_flush` 升级为「大小触发（黄色水位 Event）+ AIMD 时间触发」双机制，复用项目已有 `AIMDScheduler`，高峰期自动收敛至 1s，空闲期自动放宽至 30s，减少 6 倍无效 DB commit。

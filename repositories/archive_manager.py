@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from typing import Type, Any
 
 from sqlalchemy import select, delete, func
+from sqlalchemy.exc import OperationalError
+import asyncio
 
 from models.models import (
     RuleLog, RuleStatistics, ChatStatistics, 
@@ -85,12 +87,25 @@ class ArchiveManager:
                 logger.warning(f"表 {table_name} 没有时间列，无法归档")
                 return
 
-            # 查询旧数据量
-            count_stmt = select(func.count()).select_from(model).where(
-                time_column < cutoff_date
-            )
-            result = await session.execute(count_stmt)
-            count = result.scalar()
+            # 查询旧数据量，增加重试解决 database is locked
+            max_retries = 5
+            retry_delay = 1.0
+            count = 0
+            for attempt in range(max_retries):
+                try:
+                    count_stmt = select(func.count()).select_from(model).where(
+                        time_column < cutoff_date
+                    )
+                    result = await session.execute(count_stmt)
+                    count = result.scalar()
+                    break
+                except OperationalError as oe:
+                    if "locked" in str(oe).lower() and attempt < max_retries - 1:
+                        logger.warning(f"查询 {table_name} 待归档数量时遭遇数据库锁定 (尝试 {attempt+1}/{max_retries}): {oe}. 正在重试...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        raise
             
             logger.info(f"表 {table_name} 发现 {count} 条待归档记录 (截止日期: {cutoff_date})")
             if count == 0:
@@ -101,9 +116,6 @@ class ArchiveManager:
             # 分批处理以避免内存爆炸和长时间锁表
             # 使用较小的默认批次以减少 SQLite 锁定时间
             batch_size = getattr(settings, 'ARCHIVE_BATCH_SIZE', 5000)
-            
-            import asyncio
-            from sqlalchemy.exc import OperationalError
             
             for offset in range(0, count, batch_size):
                 logger.info(f"正在处理 {table_name} 分块: offset={offset}, batch_size={batch_size}")

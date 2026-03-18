@@ -202,26 +202,41 @@ class HotwordService:
     热词服务核心 (Domain Service)
     实现了基于 Burst Detection (突发检测) 的热词筛选算法。
     """
+    # ── 噪声自适应学习三级触发阈值 ────────────────────────────────────
+    # Burst: 单词在垃圾消息中累计出现次数超过此值 → 紧急触发
+    _NOISE_BURST_THRESHOLD: int = 30
+    # HighVol: 累积候选词数量(distinct words)超过此值 → 触发
+    _NOISE_HIGH_VOL_THRESHOLD: int = 40
+    # Timeout: 距上次学习超过此秒数且池非空 → 兜底触发
+    _NOISE_MAX_INTERVAL_SEC: float = 1800.0  # 30 分钟
+
     def __init__(self):
         self.repo = HotwordRepository()
         self._analyzer: Optional[HotwordAnalyzer] = None
         self.l1_cache: Dict[str, Dict[str, float]] = {}
-        # L1 噪声发现池：{ word: count_in_noise }
-        self.noise_discovery_l1: Dict[str, int] = {} 
+        # L1 噪声发现池：{ word: count_in_noise }，仅当次 flush 周期使用
+        self.noise_discovery_l1: Dict[str, int] = {}
+        # 持久跨 flush 周期累积候选噪声词池，供自适应学习消费
+        self._noise_accumulator: Dict[str, int] = {}
         self._lock = asyncio.Lock()
-        self.io_semaphore = asyncio.Semaphore(10) # IO 削峰信号量
-        
+        # 噪声学习任务专用锁（防止多个 create_task 并发执行学习逻辑）
+        self._learning_lock = asyncio.Lock()
+        self.io_semaphore = asyncio.Semaphore(10)  # IO 削峰信号量
+
         self.spam_lsh_current = SimHashIndex(k=3, f=64)
-        self.spam_lsh_backup: Optional[SimHashIndex] = None 
+        self.spam_lsh_backup: Optional[SimHashIndex] = None
         self.spam_hash_count = 0
-        from core.algorithms.simhash import SimHash # 作为后备或者由于 init 依赖
+        from core.algorithms.simhash import SimHash
         self.simhash_engine = SimHash(f=64)
 
-
-        
         self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
         self._monitor_task: Optional[asyncio.Task] = None
+        # 上次噪声学习发生时间（单调时钟）
+        self._last_noise_learn_time: float = 0.0
+        # global_day 数据读盘缓存，避免短时多次触发反复读盘 (data, cache_ts)
+        self._global_day_cache: Optional[tuple] = None
+        self._global_day_cache_ttl: float = 600.0  # 10 分钟
 
     @property
     def analyzer(self) -> Optional[HotwordAnalyzer]:
@@ -386,72 +401,147 @@ class HotwordService:
         # ── 阶段1：原子换指针（持锁时间 <1ms）──────────────────────────
         async with self._lock:
             if not self.l1_cache and not self.noise_discovery_l1: return
-            
+
             snapshot_cache = self.l1_cache
             snapshot_noise = self.noise_discovery_l1
-            
-            self.l1_cache = {}          # 立刻分配新对象，其他 process_batch 无阻塞
+
+            self.l1_cache = {}           # 立刻分配新对象，其他 process_batch 无阻塞
             self.noise_discovery_l1 = {}
-            
+
         # ── 锁已释放，以下全是无竞争的 IO ────────────────────────────────
-        
+
         # 1. 刷写热词得分 (含多样性元数据)
         for channel, stats in snapshot_cache.items():
-            # 转换格式并过滤
             disk_data = {
-                w: {"f": round(v["f"], 2), "u": v["u"]} 
+                w: {"f": round(v["f"], 2), "u": v["u"]}
                 for w, v in stats.items() if v["f"] >= 0.5
             }
             if disk_data:
                 await self.repo.save_temp_counts(channel, disk_data)
-                
-        # 2. 自动学习：处理噪声候选词
+
+        # 2. 噪声候选词：合并到持久累积池，不再同步读盘，改由 _noise_learning_job 信号驱动处理
         if snapshot_noise:
-            # 获取当前全局总榜数据作为对比
-            global_data = await self._load_period_data("global", "day")
-            
-            new_noise_found = False
-            analyzer = await self.ensure_analyzer()
-            current_noise = set(analyzer.noise_markers)
-            
-            for word, noise_count in snapshot_noise.items():
-                if word in current_noise: continue # 已经是噪声词
-                # 核心关系协调 4: 系统永远不会将白名单或黑名单中的词自动识别为噪声特征
-                if word in analyzer.white_list or word in analyzer.black_list: continue
-                if getattr(analyzer, '_is_tg_stopword', lambda w: False)(word): continue
-                
-                # 修复量纲问题：改为只使用次数比较，不与 TF-IDF 分数混算
-                # 从 snapshot_cache 中获取该词在非噪声消息里的出现情况
-                global_count_in_normal = sum(
-                    v.get("u", 0)  # 使用 unique_users 计数，量纲一致
-                    for ch_stats in snapshot_cache.values()
-                    for w, v in ch_stats.items()
-                    if w == word
-                )
-                
-                # 统一使用次数比较（独特用户数 + 垃圾消息次数）
-                total_count = global_count_in_normal + noise_count
-                if total_count < 5: continue # 降低门槛提升自学习灵敏度
-                
-                # 客观性发现算法：如果一个词在垃圾信息中出现的比例极高
-                noise_ratio = noise_count / total_count
-                if noise_ratio > 0.6: # 降低学习阈值至 60%
-                    logger.info(f"Auto-learned noise marker: '{word}' (ratio={noise_ratio:.2f}, noise={noise_count}, normal={global_count_in_normal})")
-                    current_noise.add(word)
-                    new_noise_found = True
-            
-            if new_noise_found:
-                analyzer.noise_markers = current_noise
-                # 让词库清空旧自动机的缓存以便重建
-                from core.algorithms.ac_automaton import ACManager
-                ACManager.clear()
-                
-                # 异步保存到磁盘
-                if await self.repo.save_config("noise", list(current_noise)):
-                     logger.log_operation("自动学习噪声词更新完成", details=f"Total noise markers: {len(current_noise)}")
-        
+            # 合并进累积池（持久跨多个 flush 周期）
+            for word, cnt in snapshot_noise.items():
+                self._noise_accumulator[word] = self._noise_accumulator.get(word, 0) + cnt
+
+            # 检查是否需要触发智能学习任务（异步后台，不阻塞 flush）
+            await self._check_and_trigger_noise_learning(snapshot_noise)
+
         logger.log_operation("热词数据落盘完成")
         gc.collect()
+
+    async def _check_and_trigger_noise_learning(self, latest_noise: Dict[str, int]) -> None:
+        """
+        三级信号触发器 —— 不读磁盘，仅检测内存中累积池的统计特征：
+
+        触发条件（满足任一即触发）：
+          Level 1 - Burst    : 任意单词本次以前累积次数 > _NOISE_BURST_THRESHOLD
+          Level 2 - HighVol  : 累积候选词 distinct 数量 > _NOISE_HIGH_VOL_THRESHOLD
+          Level 3 - Timeout  : 距上次学习 > _NOISE_MAX_INTERVAL_SEC 且累积池非空
+        """
+        if not self._noise_accumulator:
+            return
+
+        # 若学习任务正在运行，跳过重入
+        if self._learning_lock.locked():
+            return
+
+        now = asyncio.get_event_loop().time()
+        trigger_reason = None
+
+        # Level 1: Burst 检测（单词累积计数爆发）
+        max_count = max(self._noise_accumulator.values(), default=0)
+        if max_count >= self._NOISE_BURST_THRESHOLD:
+            trigger_reason = f"Burst(max_count={max_count})"
+
+        # Level 2: 高量候选词检测
+        elif len(self._noise_accumulator) >= self._NOISE_HIGH_VOL_THRESHOLD:
+            trigger_reason = f"HighVol(distinct={len(self._noise_accumulator)})"
+
+        # Level 3: 兜底超时检测
+        elif (now - self._last_noise_learn_time) >= self._NOISE_MAX_INTERVAL_SEC:
+            trigger_reason = f"Timeout({(now - self._last_noise_learn_time):.0f}s since last learn)"
+
+        if trigger_reason:
+            logger.info(f"[NoiseLearning] 触发后台学习任务，原因: {trigger_reason}")
+            asyncio.create_task(self._noise_learning_job())
+
+    async def _noise_learning_job(self) -> None:
+        """
+        智能噪声词自学习任务（后台异步执行）
+        - 使用独立 Lock 防止并发重入
+        - 全局 day JSON 读盘缓存 10 分钟，避免高频触发时重复 IO
+        """
+        if self._learning_lock.locked():
+            return
+
+        async with self._learning_lock:
+            try:
+                # 原子快照累积池，清空让新候选词继续积累
+                accumulator_snapshot = self._noise_accumulator.copy()
+                self._noise_accumulator.clear()
+
+                if not accumulator_snapshot:
+                    return
+
+                # ── 读盘缓存：10 分钟内复用上次加载结果 ──────────────────
+                now = asyncio.get_event_loop().time()
+                if (self._global_day_cache is None
+                        or (now - self._global_day_cache[1]) > self._global_day_cache_ttl):
+                    global_data = await self._load_period_data("global", "day") or {}
+                    self._global_day_cache = (global_data, now)
+                    logger.debug("[NoiseLearning] 重新加载 global_day 数据")
+                else:
+                    global_data = self._global_day_cache[0]
+                    logger.debug("[NoiseLearning] 复用 global_day 缓存")
+
+                analyzer = await self.ensure_analyzer()
+                current_noise = set(analyzer.noise_markers)
+                new_noise_found = False
+
+                for word, noise_count in accumulator_snapshot.items():
+                    if word in current_noise:
+                        continue  # 已经是噪声词，跳过
+                    if word in analyzer.white_list or word in analyzer.black_list:
+                        continue  # 白/黑名单保护
+                    if getattr(analyzer, '_is_tg_stopword', lambda w: False)(word):
+                        continue
+
+                    # 从 global_data 中获取该词在正常消息里的分布（unique_users 计数）
+                    global_entry = global_data.get(word)
+                    if isinstance(global_entry, dict):
+                        global_count_in_normal = global_entry.get("u", 0)
+                    else:
+                        global_count_in_normal = int(global_entry or 0)
+
+                    total_count = global_count_in_normal + noise_count
+                    if total_count < 5:
+                        continue  # 样本量不足，退回累积池等下次
+
+                    noise_ratio = noise_count / total_count
+                    if noise_ratio > 0.6:
+                        logger.info(
+                            f"[NoiseLearning] Auto-learned: '{word}' "
+                            f"(ratio={noise_ratio:.2f}, noise={noise_count}, normal={global_count_in_normal})"
+                        )
+                        current_noise.add(word)
+                        new_noise_found = True
+
+                if new_noise_found:
+                    analyzer.noise_markers = current_noise
+                    from core.algorithms.ac_automaton import ACManager
+                    ACManager.clear()
+                    if await self.repo.save_config("noise", list(current_noise)):
+                        logger.log_operation(
+                            "自适应学习噪声词更新完成",
+                            details=f"Total noise markers: {len(current_noise)}"
+                        )
+
+                self._last_noise_learn_time = asyncio.get_event_loop().time()
+
+            except Exception as e:
+                logger.error(f"[NoiseLearning] 噪声自学习任务异常: {e}", exc_info=True)
 
     async def get_rankings(self, channel_name: str = "global", period: str = "day") -> List[tuple]:
         """

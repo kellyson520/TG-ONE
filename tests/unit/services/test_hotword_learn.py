@@ -45,15 +45,21 @@ async def test_automatic_noise_learning():
     assert new_noise_word in service.noise_discovery_l1
     assert service.noise_discovery_l1[new_noise_word] >= 20
     
-    # 3. 第三步：执行持久化刷写，触发“自动学习”
+    # 3. 第三步：执行持久化刷写 —— 新机制下只会合并到累积池，不读磁盘
     await service.flush_to_disk()
     
-    # 4. 验证：new_noise_word 是否已进入 analyzer 的 noise_markers
+    # 3.1 验证：候选词已进入累积池
+    assert new_noise_word in service._noise_accumulator
+    assert service._noise_accumulator[new_noise_word] >= 20
+    
+    # 4. 强制触发后台学习任务（绕过阈值检查，直接执行）并等待完成
+    await service._noise_learning_job()
+    
+    # 5. 验证：new_noise_word 是否已进入 analyzer 的 noise_markers
     assert new_noise_word in service.analyzer.noise_markers
     
-    # 5. 验证：持久化是否成功（现在保存在 DB 中，不再是 JSON 文件）
+    # 6. 验证：持久化是否成功（现在保存在 DB 中，不再是 JSON 文件）
     saved_noise = await service.repo.load_config("noise")
-    # 由于 noise 记录的是 {"某词": 1.0} 字典
     assert new_noise_word in saved_noise
 
 @pytest.mark.asyncio
@@ -75,8 +81,9 @@ async def test_misidentification_protection():
     await service.process_batch(channel, noise_items)
     await service.process_batch(channel, normal_items)
     
-    # 刷写前检查
-    # noise_count = 5, total_count = 25 -> ratio = 0.2 < 0.7
+    # 先 flush 合并到累积池，再强制执行学习判定
+    # noise_count = 5, total_count = 25 -> ratio = 0.2 < 0.6，不应自动加入
     await service.flush_to_disk()
+    await service._noise_learning_job()
     
     assert common_word not in service.analyzer.noise_markers

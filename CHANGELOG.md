@@ -1,3 +1,14 @@
+## 📅 2026-03-18 更新摘要
+
+### 🚀 v1.3.1: 应用日志审计性能漏洞全面修复 (Adaptive Noise Learning & API Circuit Breaker)
+- **核心重构 (Core Optimization)**:
+    - **自适应降噪自学习解耦**: 重写 `HotwordService.flush_to_disk`。将加载 `global_day` 全量大 JSON 的噪声比对算法改由内存信号（Burst/HighVol/Timeout）异步非阻塞触发 (`_noise_learning_job`)，消除主事件循环的卡顿爆阻。
+    - **API 延迟负反馈断路器**: 给 `TelegramAPIOptimizer` 嫁接了 `_negative_cache` 冷却机制。当任一 `chat_id` 发生 超时，自动降级熔断 120s，阻遏对 Semaphore 闸极并发的死锁级传导。
+    - **假批处理串行 IO 降噪**: 调降 `get_users_batch` 前置单步开销，强制通过 `.get_input_entity` 榨取本地 client 缓存，将前置循环 IO 倍数向 0 逼紧。
+- **验证与归档 (Verify & Archive)**:
+    - 经静态语法与针对性自适应自学习单元测试 (`test_hotword_learn.py`) 覆盖通配，状态 **PASSED**。
+    - 任务已闭合归档：`docs/Workstream_Bugfix/20260318_AppLog_Full_Fix/`。
+
 ## 📅 2026-03-07 更新摘要
  
 ### 🚀 v1.2.8.7: 热词查询性能优化 (Hotword Index Optimization)
