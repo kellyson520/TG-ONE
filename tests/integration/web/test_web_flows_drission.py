@@ -1,16 +1,16 @@
-from DrissionPage import ChromiumPage
 import pytest
 import threading
-import uvicorn
 import time
-# Avoid heavy imports here, import inside test or fixture
-from web_admin.fastapi_app import app
-from DrissionPage import ChromiumOptions
+
+pytestmark = pytest.mark.slow
 
 # Define a fixture to start the server
 @pytest.fixture(scope="module")
 def web_server():
     """Starts the FastAPI server in a separate thread."""
+    import uvicorn
+    from web_admin.fastapi_app import app
+
     port = 8081 # Use a different port for testing
     
     def run_server():
@@ -25,6 +25,10 @@ def web_server():
 @pytest.fixture(scope="module")
 def browser():
     """Starts a DrissionPage browser in headless mode."""
+    drission = pytest.importorskip("DrissionPage")
+    ChromiumPage = drission.ChromiumPage
+    ChromiumOptions = drission.ChromiumOptions
+
     co = ChromiumOptions()
     try:
         # Try new API

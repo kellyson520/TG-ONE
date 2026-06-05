@@ -1,6 +1,7 @@
 black==25.11.0
 coverage==7.13.1
 flake8==7.3.0
+hypothesis==6.155.1
 iniconfig==2.3.0
 isort==7.0.0
 mccabe==0.7.0
