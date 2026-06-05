@@ -1,5 +1,6 @@
 
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from services.dedup.engine import SmartDeduplicator
 
@@ -13,6 +14,7 @@ def dedup():
     dedup._repo.check_content_hash_duplicate = AsyncMock(return_value=(False, ""))
     dedup._repo.load_config = AsyncMock(return_value={})
     dedup._repo.save_config = AsyncMock()
+    dedup._repo.batch_add_media_signatures = AsyncMock(return_value=True)
     
     dedup._pcache_repo = MagicMock()
     dedup._pcache_repo.get = AsyncMock(return_value=None)
@@ -97,3 +99,26 @@ async def test_build_config_cloning(dedup):
     
     # verified inheritance from global
     assert final_config.time_window_hours == 100
+
+@pytest.mark.asyncio
+async def test_record_message_flush_threshold_does_not_deadlock(dedup):
+    """Buffer threshold flush must not re-enter _buffer_lock and deadlock."""
+    dedup.strategies = []
+    msg = MagicMock()
+    msg.id = 1
+    msg.message = "hello world unique text"
+    msg.text = "hello world unique text"
+    msg.video = None
+    msg.photo = None
+    msg.document = None
+    msg.type = "text"
+
+    with patch("services.dedup.tools.generate_signature", return_value="sig:1"), \
+         patch("services.dedup.tools.generate_content_hash", return_value="hash:1"):
+        for _ in range(101):
+            await asyncio.wait_for(dedup._record_message(dedup._create_context(msg, 12345)), timeout=1.0)
+
+    assert dedup._repo.batch_add_media_signatures.await_count >= 1
+    if dedup._flush_task and not dedup._flush_task.done():
+        dedup._flush_task.cancel()
+        await asyncio.gather(dedup._flush_task, return_exceptions=True)

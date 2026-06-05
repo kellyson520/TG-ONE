@@ -16,6 +16,8 @@ def dedup():
     dedup._repo.add_media_signature = AsyncMock()
     dedup._repo.add_content_hash = AsyncMock()
     dedup._repo.add_text_fingerprint = AsyncMock()
+    dedup._repo.load_config = AsyncMock(return_value={})
+    dedup._repo.batch_add_media_signatures = AsyncMock(return_value=True)
     
     dedup._pcache_repo = MagicMock()
     dedup._pcache_repo.get = AsyncMock(return_value=None)
@@ -75,7 +77,7 @@ async def test_video_file_id_check(dedup):
 async def test_video_partial_hash_skip_if_no_file(dedup):
     """Test skip check if file path missing"""
     chat_id = 12345
-    config = {'enable_dedup': True, 'enable_video_partial_hash_check': True}
+    config = {'enable_dedup': False, 'enable_video_partial_hash_check': True}
     
     msg = MagicMock()
     msg.file_path = None

@@ -415,10 +415,13 @@ class SmartDeduplicator:
                     # 在 payload 中记录，用于记录到数据库
                     payload["signature"] = f"sticker:{stk_id}"
 
+            should_flush = False
             async with self._buffer_lock:
                 self._write_buffer.append(payload)
-                if len(self._write_buffer) > 100:
-                    await self._flush_buffer()
+                should_flush = len(self._write_buffer) > 100
+
+            if should_flush:
+                await self._flush_buffer()
             
             # 6. 内存 L1 滚动淘汰 (防止 OOM)
             max_sig_size = config.get("max_signature_cache_size", 5000)
