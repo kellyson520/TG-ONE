@@ -1,7 +1,6 @@
 import asyncio
 import json
 import time
-from datetime import datetime
 from core.config import settings
 from core.logging import get_logger
 
@@ -59,13 +58,14 @@ class TaskDispatcher:
         while self.running:
             try:
                 # 1. 背压控制 (Backpressure)
-                if self.queue.full():
+                available_slots = self._available_queue_slots()
+                if available_slots <= 0:
                     logger.debug("Dispatcher 触发背压停顿 (Queue Full)")
                     await asyncio.sleep(1.0)
                     continue
 
                 # 2. 批量拉取与原子锁定
-                batch_size = settings.TASK_DISPATCHER_BATCH_SIZE
+                batch_size = min(settings.TASK_DISPATCHER_BATCH_SIZE, available_slots)
                 tasks = await self.repo.fetch_next(limit=batch_size)
                 
                 if not tasks:
@@ -104,7 +104,14 @@ class TaskDispatcher:
 
                 for gid, group_list in task_groups.items():
                     # 入队 (作为 List[TaskQueue] 载荷)
-                    await self.queue.put(group_list)
+                    try:
+                        self.queue.put_nowait(group_list)
+                    except asyncio.QueueFull:
+                        logger.warning(
+                            "Dispatcher 队列容量估算失效，等待任务组入队: %s",
+                            gid,
+                        )
+                        await self.queue.put(group_list)
                     self.total_dispatched += len(group_list)
                     self.last_fetch_count = len(tasks)
                 
@@ -138,6 +145,13 @@ class TaskDispatcher:
     def _reset_sleep(self):
         """重置休眠"""
         self.current_sleep = self.min_sleep
+
+    def _available_queue_slots(self) -> int:
+        """返回当前内存队列可用槽位，未设置 maxsize 时按 dispatcher 批次上限处理。"""
+        maxsize = getattr(self.queue, "maxsize", 0)
+        if maxsize <= 0:
+            return settings.TASK_DISPATCHER_BATCH_SIZE
+        return max(maxsize - self.queue.qsize(), 0)
 
     async def _prefetch_entities(self, tasks):
         """预热 Telethon 实体缓存，防止 Worker 出现 Cache Miss 导致的 API 延迟"""

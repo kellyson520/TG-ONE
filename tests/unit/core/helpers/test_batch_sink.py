@@ -1,6 +1,7 @@
 import pytest
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
+from types import SimpleNamespace
+from unittest.mock import patch, AsyncMock
 
 from core.helpers.batch_sink import TaskStatusSink
 
@@ -14,8 +15,10 @@ async def sink_instance():
     # 因为是单例模式，清空一下之前可能残留的状态
     sink = TaskStatusSink()
     # 强制清理队列并停止运行态
-    while not sink._queue.empty():
-        sink._queue.get_nowait()
+    sink._queue = asyncio.Queue()
+    sink._processing_tasks = set()
+    sink._flush_lock = asyncio.Lock()
+    sink._process_lock = asyncio.Lock()
     sink._running = False
     if sink._daemon_task and not sink._daemon_task.done():
         sink._daemon_task.cancel()
@@ -69,6 +72,45 @@ async def test_flush_process_batch_segregation(sink_instance, mock_db_manager):
     assert sink_instance._queue.empty()
     assert mock_session.commit.called, "必须触发 session.commit()"
     assert mock_session.execute.call_count == 2, "应该触发2次执行，一次处理 complete 批次，一次处理失败"
+
+@pytest.mark.asyncio
+async def test_flush_serializes_db_writes(sink_instance, monkeypatch):
+    active_writes = 0
+    max_active_writes = 0
+    first_write_started = asyncio.Event()
+
+    class FakeSession:
+        async def execute(self, *args, **kwargs):
+            nonlocal active_writes, max_active_writes
+            active_writes += 1
+            max_active_writes = max(max_active_writes, active_writes)
+            first_write_started.set()
+            await asyncio.sleep(0.05)
+            active_writes -= 1
+            return SimpleNamespace(rowcount=1)
+
+        async def commit(self):
+            return None
+
+    class FakeSessionManager:
+        async def __aenter__(self):
+            return FakeSession()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr("core.db_factory.AsyncSessionManager", FakeSessionManager)
+
+    await sink_instance.put(301, "complete")
+    first_flush = asyncio.create_task(sink_instance.flush(wait=True))
+    await first_write_started.wait()
+
+    await sink_instance.put(302, "complete")
+    second_flush = asyncio.create_task(sink_instance.flush(wait=True))
+
+    await asyncio.gather(first_flush, second_flush)
+
+    assert max_active_writes == 1
 
 @pytest.mark.asyncio
 async def test_start_stop_lifecycle(sink_instance):

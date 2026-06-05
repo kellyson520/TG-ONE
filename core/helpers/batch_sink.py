@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -30,6 +29,8 @@ class TaskStatusSink:
     def _init(self):
         self._queue = asyncio.Queue()
         self._processing_tasks = set()
+        self._flush_lock = asyncio.Lock()
+        self._process_lock = asyncio.Lock()
         self._running = False
         
     def start(self):
@@ -77,20 +78,21 @@ class TaskStatusSink:
                 
     async def flush(self, wait: bool = False):
         """将缓存的所有命令抽干并执行一次性 DB 批量写入"""
-        if self._queue.empty():
-            return
-            
-        items = []
-        # 提取当前所有积压的请求
-        while not self._queue.empty():
-            try:
-                items.append(self._queue.get_nowait())
-            except asyncio.QueueEmpty:
-                break
-                
-        if not items:
-            return
-            
+        async with self._flush_lock:
+            if self._queue.empty():
+                return
+
+            items = []
+            # 提取当前所有积压的请求
+            while not self._queue.empty():
+                try:
+                    items.append(self._queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+
+            if not items:
+                return
+
         task = asyncio.create_task(self._process_batch(items), name="task_status_sink_process_batch")
         self._processing_tasks.add(task)
         task.add_done_callback(self._processing_tasks.discard)
@@ -117,40 +119,41 @@ class TaskStatusSink:
         from core.db_factory import AsyncSessionManager
 
         try:
-            async with AsyncSessionManager() as session:
-                if completed_ids:
-                    # 批量切割以防 IN 语句过长 (SQLite 有限制)
-                    chunk_size = 999
-                    for i in range(0, len(completed_ids), chunk_size):
-                        chunk = completed_ids[i:i + chunk_size]
-                        result = await session.execute(
-                            update(TaskQueue)
-                            .where(TaskQueue.id.in_(chunk))
-                            .where(TaskQueue.status.in_(['running', 'pending']))
-                            .values(status='completed', completed_at=now, updated_at=now)
-                        )
-                        total_affected += result.rowcount
-                        
-                # 2. 批量处理 Failed (由于附带不同的 error_message，虽然批量但是各自 UPDATE 比较安全，仍在同一事务内)
-                # 使用 executemany 的隐式支持（SQLAlchemy 2.0+支持字典列表绑定）
-                if failed_commands:
-                    update_params = [
-                        {"b_id": cmd["id"], "b_err": str(cmd["error_message"])}
-                        for cmd in failed_commands
-                    ]
-                    # 我们用独立循环，因为 SQLAlchemy 报错时，整批会失败。其实单独执行速度在一个事务里也很快。
-                    for params in update_params:
-                         result = await session.execute(
-                             update(TaskQueue)
-                             .where(TaskQueue.id == params["b_id"])
-                             .where(TaskQueue.status.in_(['running', 'pending']))
-                             .values(status='failed', error_message=params["b_err"], updated_at=now)
-                         )
-                         total_affected += result.rowcount
-                
-                await session.commit()
-                if total_affected > 0:
-                    logger.debug(f"[BatchSink] 批量消费任务状态完成: 提交 {len(items)} 条, 成功更新 {total_affected} 行")
+            async with self._process_lock:
+                async with AsyncSessionManager() as session:
+                    if completed_ids:
+                        # 批量切割以防 IN 语句过长 (SQLite 有限制)
+                        chunk_size = 999
+                        for i in range(0, len(completed_ids), chunk_size):
+                            chunk = completed_ids[i:i + chunk_size]
+                            result = await session.execute(
+                                update(TaskQueue)
+                                .where(TaskQueue.id.in_(chunk))
+                                .where(TaskQueue.status.in_(['running', 'pending']))
+                                .values(status='completed', completed_at=now, updated_at=now)
+                            )
+                            total_affected += result.rowcount
+
+                    # 2. 批量处理 Failed (由于附带不同的 error_message，虽然批量但是各自 UPDATE 比较安全，仍在同一事务内)
+                    # 使用 executemany 的隐式支持（SQLAlchemy 2.0+支持字典列表绑定）
+                    if failed_commands:
+                        update_params = [
+                            {"b_id": cmd["id"], "b_err": str(cmd["error_message"])}
+                            for cmd in failed_commands
+                        ]
+                        # 我们用独立循环，因为 SQLAlchemy 报错时，整批会失败。其实单独执行速度在一个事务里也很快。
+                        for params in update_params:
+                            result = await session.execute(
+                                update(TaskQueue)
+                                .where(TaskQueue.id == params["b_id"])
+                                .where(TaskQueue.status.in_(['running', 'pending']))
+                                .values(status='failed', error_message=params["b_err"], updated_at=now)
+                            )
+                            total_affected += result.rowcount
+
+                    await session.commit()
+                    if total_affected > 0:
+                        logger.debug(f"[BatchSink] 批量消费任务状态完成: 提交 {len(items)} 条, 成功更新 {total_affected} 行")
                     
         except Exception as e:
             logger.error(f"[BatchSink] 批量写入状态失败，尝试重入队列 ({len(items)} 条): {e}")
