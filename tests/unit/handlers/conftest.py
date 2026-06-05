@@ -49,6 +49,11 @@ mock_config_settings.DEFAULT_SUMMARY_TIME = "20:00"
 mock_config_settings.DB_POOL_SIZE = 5
 mock_config_settings.DB_MAX_OVERFLOW = 10
 mock_config_settings.DB_ECHO = False
+mock_config_settings.FORWARD_MAX_CONCURRENCY_GLOBAL = 5
+mock_config_settings.FORWARD_MAX_CONCURRENCY_PER_TARGET = 2
+mock_config_settings.FORWARD_MAX_CONCURRENCY_PER_PAIR = 1
+mock_config_settings.FORWARD_SEMAPHORE_CACHE_MAX = 100
+mock_config_settings.FLOOD_WAIT_CACHE_MAX = 100
 mock_config = MagicMock()
 mock_config.settings = mock_config_settings
 sys.modules["core.config"] = mock_config
@@ -90,8 +95,8 @@ sys.modules["core.container"] = MagicMock()
 sys.modules["core.container"].container = mock_container
 sys.modules["core.container"].get_container = lambda: mock_container
 
-# Mock web_admin 完全禁用 FastAPI 初始化
-sys.modules["web_admin"] = MagicMock()
+# Mock web_admin.fastapi_app 完全禁用 FastAPI 初始化，但保留真实 web_admin 包，
+# 避免污染其它测试模块的 web_admin.* 子包导入。
 sys.modules["web_admin.fastapi_app"] = MagicMock()
 sys.modules["web_admin.fastapi_app"].app = MagicMock()
 
