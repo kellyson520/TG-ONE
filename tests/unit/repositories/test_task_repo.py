@@ -3,6 +3,7 @@ from sqlalchemy import select, func
 from repositories.task_repo import TaskRepository
 from models.models import TaskQueue
 from core.container import container
+from core.helpers.maintenance_gate import try_maintenance
 from datetime import datetime, timedelta
 
 @pytest.mark.asyncio
@@ -110,3 +111,24 @@ class TestTaskRepository:
         await db.refresh(task)
         assert task.status == "pending"
         assert task.attempts == 1
+
+    async def test_rescue_stuck_tasks_skips_during_maintenance(self, repo, db):
+        old_time = datetime.utcnow() - timedelta(minutes=20)
+        task = TaskQueue(
+            task_type="stuck",
+            task_data="{}",
+            status="running",
+            updated_at=old_time,
+            attempts=0
+        )
+        db.add(task)
+        await db.commit()
+
+        with try_maintenance("test_maintenance") as acquired:
+            assert acquired is True
+            rescued = await repo.rescue_stuck_tasks(timeout_minutes=10)
+
+        assert rescued == 0
+        await db.refresh(task)
+        assert task.status == "running"
+        assert task.attempts == 0

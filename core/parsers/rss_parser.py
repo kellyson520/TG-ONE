@@ -1,5 +1,5 @@
 import logging
-import time
+import calendar
 from dataclasses import dataclass, field
 from typing import List, Optional
 from datetime import datetime
@@ -60,9 +60,9 @@ class RSSParser:
             # 尝试解析时间
             pub_date = None
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                pub_date = datetime.fromtimestamp(time.mktime(entry.published_parsed))
+                pub_date = datetime.fromtimestamp(calendar.timegm(entry.published_parsed))
             elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
-                pub_date = datetime.fromtimestamp(time.mktime(entry.updated_parsed))
+                pub_date = datetime.fromtimestamp(calendar.timegm(entry.updated_parsed))
 
             parsed_feed.entries.append(FeedEntry(
                 title=entry.get('title', ''),
@@ -73,8 +73,17 @@ class RSSParser:
                 author=entry.get('author', '')
             ))
         
-        parsed_feed.version = feed.version
+        parsed_feed.version = self._normalize_version(feed.version)
         return parsed_feed
+
+    @staticmethod
+    def _normalize_version(version: str) -> str:
+        version = (version or "unknown").lower()
+        if version.startswith("atom"):
+            return "atom"
+        if version in {"rss20", "rss2"}:
+            return "rss2.0"
+        return version
 
     def _parse_with_xml(self, content: str) -> ParsedFeed:
         """

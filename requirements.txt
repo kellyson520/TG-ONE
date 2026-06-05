@@ -24,6 +24,7 @@ et_xmlfile==2.0.0
 fastapi==0.128.0
 filelock==3.20.1
 fonttools==4.61.1
+feedparser>=6.0.11,<7
 greenlet==3.3.0
 h11==0.16.0
 httpcore==1.0.9

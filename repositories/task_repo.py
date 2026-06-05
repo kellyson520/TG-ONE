@@ -6,7 +6,7 @@ from core.states import validate_transition
 from core.config import settings
 from core.helpers.db_utils import async_db_retry
 from core.helpers.batch_sink import task_status_sink
-from core.helpers.maintenance_gate import is_maintenance_active, maintenance_owner
+from core.helpers.maintenance_gate import maintenance_owner, try_maintenance
 
 logger = logging.getLogger(__name__)
 
@@ -208,10 +208,14 @@ class TaskRepository:
     async def complete(self, task_id: int):
         """核心重构 (CQRS): 将任务完成消息投入单线程写缓冲池，彻底削峰 SQLite 的写压力"""
         await task_status_sink.put(task_id, 'complete')
+        if not task_status_sink.running:
+            await task_status_sink.flush(wait=True)
 
     async def fail(self, task_id: int, error: str):
         """核心重构 (CQRS): 将任务失败消息投入单线程写缓冲池，彻底削峰 SQLite 的写压力"""
         await task_status_sink.put(task_id, 'fail', str(error))
+        if not task_status_sink.running:
+            await task_status_sink.flush(wait=True)
             
     @async_db_retry(max_retries=5)
     async def fail_or_retry(self, task_id: int, error: str, max_retries: int = settings.MAX_RETRIES):
@@ -244,34 +248,35 @@ class TaskRepository:
     @async_db_retry(max_retries=5)
     async def rescue_stuck_tasks(self, timeout_minutes: int = 10):
         """僵尸任务救援 - 将处于 'running' 状态超过指定时间的任务重置为 'pending'"""
-        if is_maintenance_active():
-            logger.info(f"数据库维护中，跳过本轮僵尸任务救援: {maintenance_owner()}")
-            return 0
+        with try_maintenance("rescue_stuck_tasks") as acquired:
+            if not acquired:
+                logger.info(f"数据库维护中，跳过本轮僵尸任务救援: {maintenance_owner()}")
+                return 0
 
-        from core.db_factory import AsyncSessionManager
-        async with AsyncSessionManager() as session:
-            cutoff_time = datetime.utcnow() - timedelta(minutes=timeout_minutes)
-            now = datetime.utcnow()
-            
-            # 查找并重置僵尸任务
-            # 只对状态为running且更新时间超过cutoff_time的任务进行操作
-            stmt = update(TaskQueue).where(
-                TaskQueue.status == 'running',
-                TaskQueue.updated_at < cutoff_time
-            ).values(
-                status='pending',
-                attempts=TaskQueue.attempts + 1, # 增加重试计数
-                error_message=func.coalesce(TaskQueue.error_message, '') + ' [System] Task rescued from zombie state',
-                updated_at=now
-            )
-            
-            result = await session.execute(stmt)
-            await session.commit()
-            
-            if result.rowcount > 0:
-                logger.info(f"已救援 {result.rowcount} 个僵尸任务")
-            return result.rowcount
-            
+            from core.db_factory import AsyncSessionManager
+            async with AsyncSessionManager() as session:
+                cutoff_time = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+                now = datetime.utcnow()
+
+                # 查找并重置僵尸任务
+                # 只对状态为running且更新时间超过cutoff_time的任务进行操作
+                stmt = update(TaskQueue).where(
+                    TaskQueue.status == 'running',
+                    TaskQueue.updated_at < cutoff_time
+                ).values(
+                    status='pending',
+                    attempts=TaskQueue.attempts + 1, # 增加重试计数
+                    error_message=func.coalesce(TaskQueue.error_message, '') + ' [System] Task rescued from zombie state',
+                    updated_at=now
+                )
+
+                result = await session.execute(stmt)
+                await session.commit()
+
+                if result.rowcount > 0:
+                    logger.info(f"已救援 {result.rowcount} 个僵尸任务")
+                return result.rowcount
+
     @async_db_retry(max_retries=5)
     async def reschedule(self, task_id: int, next_run_time: datetime):
         """重新调度任务 (纯 UPDATE，最小化锁持有时间)"""

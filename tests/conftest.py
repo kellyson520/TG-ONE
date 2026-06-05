@@ -15,6 +15,9 @@ if _project_root not in sys.path:
 # ============================================================
 # PHASE 0: 预导入关键包 & Patch 核心基础设施
 # ============================================================
+_early_async_engines = []
+
+
 def _patch_database_engine_early():
     """迫使数据库引擎在任何业务代码导入前被 Patch"""
     try:
@@ -39,13 +42,19 @@ def _patch_database_engine_early():
         models.models.Base.metadata.create_all(sync_engine)
         
         def mock_get_engine(): return sync_engine
+        async_engines = {}
         def mock_get_async_engine(readonly=False):
-            return create_async_engine(
-                test_url_async, 
-                echo=False, 
-                connect_args={"check_same_thread": False}
-                # poolclass argument removed to use default (NullPool for SQLite/async)
-            )
+            key = bool(readonly)
+            if key not in async_engines:
+                engine = create_async_engine(
+                    test_url_async,
+                    echo=False,
+                    connect_args={"check_same_thread": False}
+                    # poolclass argument removed to use default (NullPool for SQLite/async)
+                )
+                async_engines[key] = engine
+                _early_async_engines.append(engine)
+            return async_engines[key]
         
         core.db_factory.get_engine = mock_get_engine
         core.db_factory.get_async_engine = mock_get_async_engine
@@ -293,6 +302,12 @@ async def cleanup_database_engines():
         await dispose_all_engines()
     except Exception as e:
         logging.warning(f"数据库引擎清理失败: {e}")
+    for engine in list(_early_async_engines):
+        try:
+            await engine.dispose()
+        except Exception as e:
+            logging.warning(f"测试异步数据库引擎清理失败: {e}")
+    _early_async_engines.clear()
     for suffix in ("", "-wal", "-shm"):
         try:
             Path(f"{hot_db_path}{suffix}").unlink(missing_ok=True)

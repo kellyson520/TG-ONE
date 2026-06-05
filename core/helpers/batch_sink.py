@@ -38,6 +38,10 @@ class TaskStatusSink:
             self._daemon_task = asyncio.create_task(self._daemon_loop(), name="task_status_sink_daemon")
             logger.info(f"🚀 TaskStatusSink 批处理缓冲池已启动 (Batch Size: {self._batch_size}, Interval: {self._flush_interval}s)")
 
+    @property
+    def running(self) -> bool:
+        return self._running
+
     async def stop(self):
         if self._running:
             self._running = False

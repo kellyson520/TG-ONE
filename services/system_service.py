@@ -511,6 +511,8 @@ class GuardService:
         self._temp_guard_path = settings.TEMP_DIR
         self._memory_limit_mb = settings.MEMORY_CRITICAL_THRESHOLD_MB
         self._memory_warning_mb = settings.MEMORY_WARNING_THRESHOLD_MB
+        self._last_memory_warning_at = 0.0
+        self._memory_warning_interval = 300.0
 
     def get_stats(self) -> Dict[str, Any]:
         """获取守护服务的当前统计状态"""
@@ -597,11 +599,20 @@ class GuardService:
                     rss_mb = process.memory_info().rss / 1024 / 1024
                     
                     if rss_mb > self._memory_limit_mb and not tombstone._is_frozen:
-                        logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
+                        unreachable = gc.collect()
+                        if unreachable > 0:
+                            logger.debug(f"[guard-mem] GC collected {unreachable} objects before freeze")
+                        tombstone.force_release_memory()
+                        if now - self._last_memory_warning_at >= self._memory_warning_interval:
+                            logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
+                            self._last_memory_warning_at = now
+                        else:
+                            logger.debug(f"[guard-mem] Memory threshold still exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
                         await tombstone.freeze()
                     elif rss_mb < (self._memory_limit_mb * 0.7) and tombstone._is_frozen:
                         # 内存降下来后尝试复苏
                         await tombstone.resurrect()
+                        self._last_memory_warning_at = 0.0
                 except Exception as e:
                     logger.error(f"[guard-mem] Memory check error: {e}")
                 
