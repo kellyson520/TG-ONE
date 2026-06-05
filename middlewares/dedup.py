@@ -32,7 +32,7 @@ class DedupMiddleware(Middleware):
                     valid_rules.append(rule)
                     continue
 
-                logger.info(f"🔎 [Pipeline-Dedup] 正在检查去重: 规则ID={rule.id}, 目标ChatID={target_id}")
+                logger.debug(f"🔎 [Pipeline-Dedup] 正在检查去重: 规则ID={rule.id}, 目标ChatID={target_id}")
                 
                 # 解析单条规则的自定义配置 (JSON)
                 rule_config = {}

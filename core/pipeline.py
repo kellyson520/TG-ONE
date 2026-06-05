@@ -92,7 +92,7 @@ class Pipeline:
             if ctx.is_terminated:
                 logger.debug(f"⚠️ [Pipeline] 流程终止，TraceID={trace_id}")
             else:
-                logger.info(f"✅ [Pipeline] 流程执行完成，TraceID={trace_id}")
+                logger.debug(f"✅ [Pipeline] 流程执行完成，TraceID={trace_id}")
                 
         except Exception as e:
             logger.error(f"❌ [Pipeline] 整体流程执行失败，TraceID={trace_id}，错误={e}", exc_info=True)

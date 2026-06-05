@@ -107,12 +107,12 @@ class FilterChain:
 
     async def process_context(self, context: MessageContext) -> bool:
         """执行过滤器链"""
-        logger.info(f"开始过滤器链处理 (Plan Nodes: {len(self.nodes)}) [TraceID: {getattr(context, 'trace_id', 'N/A')}]")
+        logger.debug(f"开始过滤器链处理 (Plan Nodes: {len(self.nodes)}) [TraceID: {getattr(context, 'trace_id', 'N/A')}]")
         
         for i, node in enumerate(self.nodes):
             if not await node.execute(context):
                 logger.info(f"节点 {i} ({type(node).__name__}) 拦截了执行")
                 return False
                 
-        logger.info("过滤器链处理完成")
+        logger.debug("过滤器链处理完成")
         return True

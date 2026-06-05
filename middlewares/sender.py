@@ -83,7 +83,7 @@ class SenderMiddleware(Middleware):
                 # === Copy Mode ===
                 if summary and getattr(rule, 'is_summary', False):
                     final_text = summary
-                    logger.info(f"Using AI summary for rule {rule.id}: {final_text[:50]}...")
+                    logger.debug(f"Using AI summary for rule {rule.id}: {final_text[:50]}...")
                 else:
                     final_text = modified_text or ctx.message_obj.text or ""
                 
@@ -113,7 +113,7 @@ class SenderMiddleware(Middleware):
                     media=media_to_send, 
                     **send_kwargs
                 )
-                logger.info(f"🚀 [发送器] 消息发送成功 (Unified): 目标={target_id}, 规则ID={rule.id}")
+                logger.debug(f"🚀 [发送器] 消息发送成功 (Unified): 目标={target_id}, 规则ID={rule.id}")
             else:
                 # === Forward Mode ===
                 messages_to_forward = list(set(message_ids))
@@ -140,7 +140,7 @@ class SenderMiddleware(Middleware):
                 from core.helpers.smart_retry import retry_manager
                 
                 chat_display = await get_display_name_async(ctx.chat_id)
-                logger.info(f"🚀 [发送器] 开始纯转发: 来源={chat_display}({ctx.chat_id}), 目标={target_id}, 消息ID列表={messages_to_forward}")
+                logger.debug(f"🚀 [发送器] 开始纯转发: 来源={chat_display}({ctx.chat_id}), 目标={target_id}, 消息ID列表={messages_to_forward}")
                 
                 # Execute with Smart Retry
                 await retry_manager.execute(
@@ -148,7 +148,7 @@ class SenderMiddleware(Middleware):
                     ctx.client,
                     **forward_kwargs
                 )
-                logger.info(f"🚀 [发送器] 纯转发执行成功: 目标={target_id}, 规则ID={rule.id}")
+                logger.debug(f"🚀 [发送器] 纯转发执行成功: 目标={target_id}, 规则ID={rule.id}")
 
             # 触发成功事件
             import time

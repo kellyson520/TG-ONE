@@ -140,7 +140,7 @@ class ForwardRecorder:
                 # 仅做统计汇总
                 await self._update_statistics(record, timestamp)
             
-            logger.info(f"转发记录已保存: {record_id}")
+            logger.debug(f"转发记录已保存: {record_id}")
             return record_id
             
         except Exception as e:

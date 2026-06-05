@@ -35,5 +35,5 @@ class RuleLoaderMiddleware(Middleware):
             ctx.is_terminated = True
             return
             
-        logger.info(f"✅ [加载器] 成功加载 {len(ctx.rules)} 条规则，准备进入过滤链")
+        logger.debug(f"✅ [加载器] 成功加载 {len(ctx.rules)} 条规则，准备进入过滤链")
         await next_call()
