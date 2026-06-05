@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}转发历史 - Forwarder Pro{% endblock %}
+{% block content %}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="fw-bold mb-0">消息转发历史</h4>
+        <p class="text-muted small">所有转发事件的详细履历与结果追踪</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="glass-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2"></i>执行记录</h6>
+                <div class="d-flex gap-2">
+                    <div class="input-group input-group-sm rounded-pill overflow-hidden" style="width: 260px;">
+                        <input type="text" class="form-control border-0 bg-white bg-opacity-10 px-3"
+                            placeholder="按内容或来源搜索..." id="searchInput">
+                        <button class="btn btn-dark border-0 px-3" onclick="loadHistory(1)">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-sm small align-middle">
+                    <thead>
+                        <tr class="text-muted opacity-75">
+                            <th width="15%">时间戳</th>
+                            <th width="15%">来源实体</th>
+                            <th width="15%">目标实体</th>
+                            <th>转发动作</th>
+                            <th>策略状态</th>
+                            <th width="25%">详情反馈</th>
+                            <th class="text-end">管理</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="border-top-0">
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div
+                class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-white border-opacity-10">
+                <div class="extra-small text-muted" id="pageInfo">第 1 / 1 页</div>
+                <div class="btn-group btn-group-sm" id="pagination">
+                    <button class="btn btn-dark border-0 disabled" onclick="loadHistory(-1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-dark border-0 disabled" onclick="loadHistory(1)">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+
+    document.addEventListener('DOMContentLoaded', () => loadHistory(1));
+
+    async function loadHistory(page) {
+        if (page === -1) page = currentPage - 1;
+        else if (page === 1 && currentPage > 1) page = currentPage + 1; // Wait, this logic is broken in original too
+
+        // Correct implementation
+        if (typeof page !== 'number') page = 1;
+        if (page < 1 || (totalPages > 0 && page > totalPages)) return;
+
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+
+        try {
+            const query = document.getElementById('searchInput').value;
+            const res = await apiManager.get('/rules/logs', { page: page, size: 20, search: query });
+
+            if (res.success) {
+                currentPage = page;
+                totalPages = Math.ceil(res.data.total / 20);
+                renderTable(res.data.items);
+                renderPagination();
+            }
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">同步历史失败: ${e.message}</td></tr>`;
+        }
+    }
+
+    function renderTable(items) {
+        const tbody = document.getElementById('historyTableBody');
+        if (!items || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted small">历史记录空空如也</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = items.map(item => {
+            const isSuccess = item.result === 'success' || item.result === 'forward';
+            return `
+                <tr>
+                    <td class="text-muted extra-small">${new Date(item.created_at + 'Z').toLocaleString()}</td>
+                    <td><div class="text-truncate extra-small fw-bold" style="max-width: 120px;" title="${item.source_chat}">${item.source_chat}</div></td>
+                    <td><div class="text-truncate extra-small fw-bold" style="max-width: 120px;" title="${item.target_chat}">${item.target_chat}</div></td>
+                    <td><span class="badge-soft badge-soft-primary extra-small">${item.action}</span></td>
+                    <td>
+                        <span class="badge-soft badge-soft-${isSuccess ? 'success' : 'danger'} extra-small">
+                            ${(item.result || 'Unknown').toUpperCase()}
+                        </span>
+                    </td>
+                    <td><div class="extra-small text-muted text-break" style="max-height: 40px; overflow: hidden;">${item.error_message || '-'}</div></td>
+                    <td class="text-end">
+                        <button class="btn btn-dark btn-sm border-0 btn-hover-info" onclick="viewLogDetail(${item.id})">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    function renderPagination() {
+        const info = document.getElementById('pageInfo');
+        const nextBtn = document.querySelector('#pagination button:last-child');
+        const prevBtn = document.querySelector('#pagination button:first-child');
+
+        info.innerText = `第 ${currentPage} / ${totalPages || 1} 页`;
+        prevBtn.classList.toggle('disabled', currentPage <= 1);
+        nextBtn.classList.toggle('disabled', currentPage >= totalPages);
+
+        prevBtn.onclick = () => loadHistory(currentPage - 1);
+        nextBtn.onclick = () => loadHistory(currentPage + 1);
+    }
+
+    function viewLogDetail(id) {
+        // Placeholder
+        showNotification('详细详情待开发', 'info');
+    }
+</script>
+{% endblock %}

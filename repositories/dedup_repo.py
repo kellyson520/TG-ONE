@@ -1,0 +1,335 @@
+from typing import List, Optional
+import logging
+from datetime import datetime
+from sqlalchemy import select, case
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from models.models import MediaSignature
+from schemas.media import MediaSignatureDTO
+
+from core.helpers.db_utils import async_db_retry
+logger = logging.getLogger(__name__)
+
+class DedupRepository:
+    """去重数据仓库"""
+    
+    def __init__(self, db):
+        self.db = db
+
+    async def archive_old_signatures(self, hot_days: int = 60, batch_size: int = 10000) -> dict:
+        """归档旧媒体签名记录。"""
+        from core.archive.engine import UniversalArchiver
+        from models.models import MediaSignature
+        
+        archiver = UniversalArchiver()
+        result = await archiver.archive_table(
+            model_class=MediaSignature,
+            hot_days=hot_days,
+            batch_size=batch_size,
+            time_column="created_at"
+        )
+        return result.to_dict()
+
+    async def find_by_signature(self, chat_id: Optional[str], signature: str) -> Optional[MediaSignatureDTO]:
+        """根据签名查找 (chat_id=None 表示全局) (只读)"""
+        async with self.db.get_session(readonly=True) as session:
+            filters = [MediaSignature.signature == signature]
+            if chat_id is not None:
+                filters.append(MediaSignature.chat_id == str(chat_id))
+            stmt = select(MediaSignature).filter(*filters).limit(1)
+            result = await session.execute(stmt)
+            obj = result.scalar_one_or_none()
+            return MediaSignatureDTO.model_validate(obj) if obj else None
+
+    async def find_by_file_id_or_hash(self, chat_id: Optional[str], file_id: str = None, content_hash: str = None) -> Optional[MediaSignatureDTO]:
+        """优先使用 file_id 查找，其次使用 content_hash (chat_id=None 为全局) (只读)"""
+        async with self.db.get_session(readonly=True) as session:
+            # 基础过滤器
+            base_filters = []
+            if chat_id is not None:
+                base_filters.append(MediaSignature.chat_id == str(chat_id))
+
+            if file_id:
+                stmt = select(MediaSignature).filter(
+                    *base_filters,
+                    MediaSignature.file_id == file_id
+                ).limit(1)
+                result = await session.execute(stmt)
+                rec = result.scalar_one_or_none()
+                if rec:
+                    return MediaSignatureDTO.model_validate(rec)
+            
+            if content_hash:
+                stmt = select(MediaSignature).filter(
+                    *base_filters,
+                    MediaSignature.content_hash == content_hash
+                ).limit(1)
+                result = await session.execute(stmt)
+                rec = result.scalar_one_or_none()
+                if rec:
+                    return MediaSignatureDTO.model_validate(rec)
+            
+            return None
+
+    @async_db_retry(max_retries=5)
+    async def add_or_update(self, chat_id: str, signature: str, **kwargs) -> bool:
+        """新增或更新媒体签名"""
+        async with self.db.get_session() as session:
+            stmt = select(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
+            
+            now = datetime.utcnow().isoformat()
+            
+            valid_columns = {c.name for c in MediaSignature.__table__.columns}
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_columns}
+            
+            if existing:
+                existing.count = (existing.count or 0) + 1
+                for key, value in filtered_kwargs.items():
+                    if value and not getattr(existing, key, None):
+                        setattr(existing, key, value)
+                existing.updated_at = now
+                existing.last_seen = now
+            else:
+                new_sig = MediaSignature(
+                    chat_id=str(chat_id),
+                    signature=signature,
+                    count=1,
+                    created_at=now,
+                    updated_at=now,
+                    last_seen=now,
+                    **filtered_kwargs
+                )
+                session.add(new_sig)
+            
+            await session.commit()
+            return True
+
+    async def get_duplicates(self, chat_id: str, limit: int = 100) -> List[MediaSignatureDTO]:
+        """获取重复媒体记录 (只读)"""
+        async with self.db.get_session(readonly=True) as session:
+            stmt = select(MediaSignature).filter(
+                MediaSignature.chat_id == str(chat_id),
+                MediaSignature.count > 1
+            ).order_by(MediaSignature.count.desc()).limit(limit)
+            
+            result = await session.execute(stmt)
+            objs = result.scalars().all()
+            return [MediaSignatureDTO.model_validate(o) for o in objs]
+
+    @async_db_retry(max_retries=5)
+    async def batch_add_media_signatures(self, records: List[dict]) -> bool:
+        """批量插入媒体签名记录 (支持 SmartDeduplicator v4)"""
+        if not records:
+            return True
+            
+        async with self.db.get_session() as session:
+            try:
+                # 1. 动态获取模型字段，过滤掉非法的字段
+                valid_columns = {c.name for c in MediaSignature.__table__.columns}
+                
+                # 2. 内存预分发与去重 (处理当前批次内的重复)
+                # 使用 (chat_id, signature) 作为复合主键进行归并
+                merged_records = {}
+                for rec in records:
+                    chat_id = str(rec.get("chat_id"))
+                    sig = rec.get("signature")
+                    if not sig:
+                        continue
+                        
+                    key = (chat_id, sig)
+                    # 仅保留数据库支持的字段
+                    filtered_rec = {k: v for k, v in rec.items() if k in valid_columns}
+                    # 确保类型一致
+                    filtered_rec["chat_id"] = chat_id
+                    
+                    if key in merged_records:
+                        # 合并统计：次数累加，时间取最新
+                        existing = merged_records[key]
+                        existing["count"] = (existing.get("count") or 1) + (filtered_rec.get("count") or 1)
+                        if filtered_rec.get("last_seen", "") > existing.get("last_seen", ""):
+                            existing["last_seen"] = filtered_rec["last_seen"]
+                            # 使用 filtered_rec 的时间更新
+                            existing["updated_at"] = filtered_rec.get("updated_at") or filtered_rec["last_seen"]
+                        # 尝试合并其它元数据
+                        for k, v in filtered_rec.items():
+                            if v and not existing.get(k):
+                                existing[k] = v
+                    else:
+                        merged_records[key] = filtered_rec
+
+                # 2.5 核心对齐：确保所有记录包含模型定义的全部键 (防止 SQLAlchemy 批量插入报错)
+                # 这个步骤修复了 "INSERT value for column ... is explicitly rendered as a boundparameter" 编译错误
+                all_model_columns = {c.name for c in MediaSignature.__table__.columns if c.name != "id"}
+                uniform_records = []
+                for rec in merged_records.values():
+                    # 为缺失字段补齐 None
+                    for col in all_model_columns:
+                        if col not in rec:
+                            rec[col] = None
+                    uniform_records.append(rec)
+
+                if not uniform_records:
+                    return True
+
+                # 3. 执行 SQLite Upsert (处理与数据库已有数据的冲突)
+                def do_upsert(sync_session):
+                    stmt = sqlite_insert(MediaSignature).values(uniform_records)
+                    
+                    # 冲突处理：如果 chat_id + signature 已存在，则累加 count 并更新时间
+                    upsert_stmt = stmt.on_conflict_do_update(
+                        index_elements=['chat_id', 'signature'],
+                        set_={
+                            'count': MediaSignature.count + stmt.excluded.count,
+                            'last_seen': case(
+                                (stmt.excluded.last_seen != None, stmt.excluded.last_seen),
+                                else_=MediaSignature.last_seen
+                            ),
+                            'updated_at': case(
+                                (stmt.excluded.updated_at != None, stmt.excluded.updated_at),
+                                else_=MediaSignature.updated_at
+                            ),
+                            # 同时也尝试补全可能缺失的其他元数据 (如 content_hash)
+                            'content_hash': case(
+                                (
+                                    (MediaSignature.content_hash == None) | 
+                                    (MediaSignature.content_hash == ""),
+                                    stmt.excluded.content_hash
+                                ),
+                                else_=MediaSignature.content_hash
+                            )
+                        }
+                    )
+                    sync_session.execute(upsert_stmt)
+
+                await session.run_sync(do_upsert)
+                await session.commit()
+                
+                logger.debug(f"批量插入/更新 {len(uniform_records)} 条媒体签名成功 (原始批次: {len(records)})")
+                return True
+            except Exception as e:
+                logger.error(f"批量插入媒体签名失败: {e}", exc_info=True)
+                await session.rollback()
+                return False
+
+    # 别名兼容
+    batch_add = batch_add_media_signatures
+
+    @async_db_retry(max_retries=5)
+    async def delete_by_chat(self, chat_id: str) -> int:
+        """删除特定聊天的所有去重记录"""
+        async with self.db.get_session() as session:
+            from sqlalchemy import delete
+            stmt = delete(MediaSignature).where(MediaSignature.chat_id == str(chat_id))
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount
+
+    # Compatibility Methods for DedupEngine
+
+    async def check_content_hash_duplicate(self, content_hash: str, chat_id: Optional[str], config: dict = None) -> (bool, str):
+        """检查内容哈希重复"""
+        rec = await self.find_by_file_id_or_hash(chat_id, content_hash=content_hash)
+        if rec:
+            origin = f"in chat {rec.chat_id}" if chat_id is None else "locally"
+            return True, f"内容哈希重复 ({origin}, Last seen: {rec.last_seen})"
+        return False, ""
+
+    async def exists_media_signature(self, chat_id: str, signature: str) -> bool:
+        """检查签名是否存在"""
+        rec = await self.find_by_signature(chat_id, signature)
+        return bool(rec)
+
+    async def exists_video_file_id(self, chat_id: str, file_id: str) -> bool:
+        """检查视频 FileID 是否存在"""
+        rec = await self.find_by_file_id_or_hash(chat_id, file_id=file_id)
+        return bool(rec)
+
+    async def add_media_signature(self, chat_id: str, signature: str, message_id: int, content_hash: str = None):
+        """添加媒体签名"""
+        await self.add_or_update(
+            chat_id, 
+            signature, 
+            # Note: mapping message_id to file_id for storage, verify if this collision is acceptable
+            file_id=str(message_id), 
+            content_hash=content_hash
+        )
+
+    async def add_content_hash(self, chat_id: str, content_hash: str, message_id: int):
+        """添加内容哈希记录"""
+        # We store content hash as a "signature" of type 'content_hash' or just update the main record?
+        # The model has 'content_hash' column.
+        # But uniqueness is on (chat_id, signature).
+        # We need a signature key.
+        # Use content_hash as signature key?
+        signature = f"content:{content_hash}"
+        await self.add_or_update(chat_id, signature, content_hash=content_hash)
+
+    async def add_text_fingerprint(self, chat_id: str, fingerprint: int, message_id: int):
+        """添加文本指纹"""
+        signature = f"text_fp:{fingerprint}"
+        await self.add_or_update(chat_id, signature)
+
+    @async_db_retry(max_retries=5)
+    async def delete_media_signature(self, chat_id: str, signature: str):
+        """删除签名"""
+        async with self.db.get_session() as session:
+            from sqlalchemy import delete
+            stmt = delete(MediaSignature).filter_by(chat_id=str(chat_id), signature=signature)
+            await session.execute(stmt)
+            await session.commit()
+
+    async def delete_content_hash(self, chat_id: str, content_hash: str):
+        """删除内容哈希"""
+        # Since we mapped it to "content:{hash}"
+        signature = f"content:{content_hash}"
+        await self.delete_media_signature(chat_id, signature)
+
+    @async_db_retry(max_retries=5)
+    async def save_config(self, config: dict):
+        """保存全局去重配置到 SystemConfiguration"""
+        try:
+            import json
+            from models.system import SystemConfiguration
+            
+            async with self.db.get_session() as session:
+                key = "dedup_global_config"
+                value = json.dumps(config)
+                
+                # Check existing
+                stmt = select(SystemConfiguration).filter_by(key=key)
+                result = await session.execute(stmt)
+                obj = result.scalar_one_or_none()
+                
+                if obj:
+                    obj.value = value
+                    obj.updated_at = datetime.utcnow().isoformat()
+                else:
+                    obj = SystemConfiguration(
+                        key=key,
+                        value=value,
+                        data_type="json",
+                        description="Global Deduplication Configuration"
+                    )
+                    session.add(obj)
+                await session.commit()
+                logger.debug("去重全局配置已保存")
+        except Exception as e:
+            logger.error(f"Save dedup config failed: {e}")
+
+    async def load_config(self) -> dict:
+        """从 SystemConfiguration 加载配置 (只读)"""
+        try:
+            import json
+            from models.system import SystemConfiguration
+            
+            async with self.db.get_session(readonly=True) as session:
+                stmt = select(SystemConfiguration).filter_by(key="dedup_global_config")
+                result = await session.execute(stmt)
+                obj = result.scalar_one_or_none()
+                
+                if obj and obj.value:
+                    return json.loads(obj.value)
+        except Exception as e:
+            logger.error(f"Load dedup config failed: {e}")
+        return {}

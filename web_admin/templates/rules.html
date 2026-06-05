@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}规则管理 - Forwarder Pro{% endblock %}
+{% block content %}
+
+<div class="row g-4 mb-4">
+    <!-- 统计概览 -->
+    <div class="col-lg-3 col-6">
+        <div class="glass-card metric-card primary">
+            <div class="metric-label">总规则</div>
+            <div class="metric-value small" id="totalRulesCount">0</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="glass-card metric-card success">
+            <div class="metric-label">已启用</div>
+            <div class="metric-value small" id="enabledRulesCount">0</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="glass-card metric-card warning">
+            <div class="metric-label">已禁用</div>
+            <div class="metric-value small" id="disabledRulesCount">0</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="glass-card metric-card info">
+            <div class="metric-label">今日转发</div>
+            <div class="metric-value small" id="todayForwardsCount">0</div>
+        </div>
+    </div>
+</div>
+
+<div class="glass-card mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-3 flex-grow-1">
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-primary-gradient px-3" onclick="showRuleModal()">
+                    <i class="bi bi-plus-circle me-1"></i> 新建规则
+                </button>
+            </div>
+            <div class="input-group input-group-sm flex-grow-1" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control border-start-0" id="searchInput" placeholder="搜索规则..."
+                    onkeyup="filterRules()">
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="statusFilter" onchange="filterRules()">
+                <option value="">所有状态</option>
+                <option value="enabled">启用</option>
+                <option value="disabled">禁用</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportRules()">
+                <i class="bi bi-download"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 规则容器 -->
+<div id="rulesContainer" class="row g-4">
+    <div class="col-12 text-center py-5 text-muted">正在加载转发规则...</div>
+</div>
+
+<!-- 规则模态框 -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content glass-card">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold" id="ruleModalTitle">创建转发规则</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ruleForm">
+                    <input type="hidden" id="ruleIdHidden">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">来源聊天 ID</label>
+                            <input type="text" class="form-control" id="sourceChat" placeholder="-123456789">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">目标聊天 ID</label>
+                            <input type="text" class="form-control" id="targetChat" placeholder="-987654321">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">关键词 (逗号分隔)</label>
+                            <textarea class="form-control" id="keywords" rows="2"
+                                placeholder="关键词1, 关键词2..."></textarea>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="enableRule" checked>
+                                <label class="form-check-label small" for="enableRule">立即启用</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="enableDedup" checked>
+                                <label class="form-check-label small" for="enableDedup">智能去重</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0">
+                <button class="btn btn-link text-muted" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-primary-gradient px-4" onclick="saveRule()">保存规则</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+    let allRules = [];
+
+    async function loadRules() {
+        try {
+            loadingManager.show('#rulesContainer', '同步规则索引...');
+            const res = await apiManager.get('/rules?size=100');
+            if (res.success) {
+                allRules = res.data.items || [];
+                renderRules(allRules);
+                updateStats();
+            } else {
+                notificationManager.error(res.error || '索引同步失败');
+                document.getElementById('rulesContainer').innerHTML = '<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle me-2"></i> 数据获取异常</div>';
+            }
+        } catch (e) {
+            console.error('API Error:', e);
+            notificationManager.error('无法连接到网关服务');
+        } finally {
+            loadingManager.hide('#rulesContainer');
+        }
+    }
+
+    function renderRules(rules) {
+        const container = document.getElementById('rulesContainer');
+        if (rules.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center py-5 text-muted"><i class="bi bi-inbox d-block fs-2 mb-2"></i>暂无转发逻辑，点击新建开始</div>';
+            return;
+        }
+
+        container.innerHTML = rules.map(rule => `
+            <div class="col-md-6 col-xl-4 scale-in">
+                <div class="glass-card h-100 rule-card-new p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="badge-soft ${rule.enabled ? 'badge-soft-success' : 'badge-soft-secondary'}">
+                            ${rule.enabled ? '转发中' : '已暂停'}
+                        </span>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="dropdown" aria-label="更多操作"><i class="bi bi-three-dots"></i></button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 glass-card">
+                                <li><a class="dropdown-item py-2" href="#" onclick="editRule(${rule.id})"><i class="bi bi-sliders me-2"></i>参数调整</a></li>
+                                <li><a class="dropdown-item py-2" href="#" onclick="toggleRule(${rule.id})"><i class="bi bi-${rule.enabled ? 'pause' : 'play'}-circle me-2"></i>${rule.enabled ? '停止转发' : '启动转发'}</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item py-2 text-danger" href="#" onclick="deleteRule(${rule.id})"><i class="bi bi-trash3 me-2"></i>回收规则</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="small text-muted mb-2 opacity-50 fw-bold">数据路由</div>
+                    <div class="d-flex align-items-center gap-2 mb-4">
+                        <div class="fw-bold text-truncate" style="max-width: 120px;" title="${rule.source_chat?.title || rule.source_chat_id}">${rule.source_chat?.title || rule.source_chat_id}</div>
+                        <i class="bi bi-arrow-right text-primary"></i>
+                        <div class="fw-bold text-truncate" style="max-width: 120px;" title="${rule.target_chat?.title || rule.target_chat_id}">${rule.target_chat?.title || rule.target_chat_id}</div>
+                    </div>
+                    
+                    <div class="d-flex gap-4 pt-4 mt-auto border-top border-light">
+                        <div class="small">
+                            <div class="text-muted mb-1 opacity-75">递送量</div>
+                            <div class="fw-bold fs-5">${(rule.forwards || 0).toLocaleString()}</div>
+                        </div>
+                        <div class="small">
+                            <div class="text-muted mb-1 opacity-75">关键词</div>
+                            <div class="fw-bold fs-5">${rule.keywords_count || 0}</div>
+                        </div>
+                        <div class="small ms-auto">
+                            <div class="text-muted mb-1 opacity-75">异常监控</div>
+                            <div class="fw-bold fs-5 ${rule.errors > 0 ? 'text-danger' : 'text-success'}">${rule.errors || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function updateStats() {
+        try {
+            const total = allRules.length;
+            const enabled = allRules.filter(r => r.enabled).length;
+            document.getElementById('totalRulesCount').textContent = total;
+            document.getElementById('enabledRulesCount').textContent = enabled;
+            document.getElementById('disabledRulesCount').textContent = total - enabled;
+
+            const res = await apiManager.getStatsOverview();
+            if (res.success) {
+                document.getElementById('todayForwardsCount').textContent = (res.data.forward_stats?.total_forwards || 0).toLocaleString();
+            }
+        } catch (e) {
+            console.debug('Stats sync delayed:', e.message);
+        }
+    }
+
+    function filterRules() {
+        try {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+
+            const filtered = allRules.filter(r => {
+                const sTitle = (r.source_chat?.title || '').toLowerCase();
+                const tTitle = (r.target_chat?.title || '').toLowerCase();
+                const sId = String(r.source_chat_id);
+                const tId = String(r.target_chat_id);
+
+                const matchSearch = sTitle.includes(search) || tTitle.includes(search) || sId.includes(search) || tId.includes(search);
+                const matchStatus = status === '' || (status === 'enabled' ? r.enabled : !r.enabled);
+                return matchSearch && matchStatus;
+            });
+            renderRules(filtered);
+        } catch (e) {
+            notificationManager.error('过滤引擎异常');
+        }
+    }
+
+    function showRuleModal(id = null) {
+        try {
+            const modalEl = document.getElementById('ruleModal');
+            const modal = new bootstrap.Modal(modalEl);
+            document.getElementById('ruleForm').reset();
+            document.getElementById('ruleIdHidden').value = id || '';
+            document.getElementById('ruleModalTitle').textContent = id ? '转发参数调整' : '新建转发规则';
+
+            if (id) {
+                const rule = allRules.find(r => r.id === id);
+                if (rule) {
+                    document.getElementById('sourceChat').value = rule.source_chat_id;
+                    document.getElementById('targetChat').value = rule.target_chat_id;
+                    document.getElementById('keywords').value = rule.keywords?.map(k => k.keyword).join(', ') || '';
+                    document.getElementById('enableRule').checked = rule.enabled;
+                    document.getElementById('enableDedup').checked = rule.enable_dedup;
+                }
+            }
+            modal.show();
+        } catch (e) {
+            notificationManager.error('窗口调度失败');
+        }
+    }
+
+    function editRule(id) {
+        showRuleModal(id);
+    }
+
+    async function saveRule() {
+        const id = document.getElementById('ruleIdHidden').value;
+        const submitBtn = document.querySelector('#ruleModal .btn-primary-gradient');
+
+        const payload = {
+            source_chat_id: document.getElementById('sourceChat').value.trim(),
+            target_chat_id: document.getElementById('targetChat').value.trim(),
+            enabled: document.getElementById('enableRule').checked,
+            enable_dedup: document.getElementById('enableDedup').checked,
+            keywords: document.getElementById('keywords').value.split(',').map(k => k.trim()).filter(k => k)
+        };
+
+        // 健壮性增强：必填项验证
+        if (!payload.source_chat_id || !payload.target_chat_id) {
+            notificationManager.warning('必须指定来源和目标链路端点 ID');
+            return;
+        }
+
+        try {
+            loadingManager.show(submitBtn, '同步中...');
+            let res;
+            if (id) {
+                res = await apiManager.updateRule(id, payload);
+            } else {
+                res = await apiManager.createRule(payload);
+            }
+
+            if (res.success) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('ruleModal'));
+                if (modal) modal.hide();
+                notificationManager.success(id ? '配置更新已生效' : '新转发逻辑已载入');
+                loadRules();
+            } else {
+                notificationManager.error(res.error || '写入失败');
+            }
+        } catch (e) {
+            notificationManager.error('通信连接异常: ' + e.message);
+        } finally {
+            loadingManager.hide(submitBtn);
+        }
+    }
+
+    async function toggleRule(id) {
+        try {
+            const res = await apiManager.toggleRule(id);
+            if (res.success) {
+                notificationManager.success(res.message || '逻辑状态已变更');
+                loadRules();
+            } else {
+                notificationManager.error(res.error || '状态切换失败');
+            }
+        } catch (e) {
+            notificationManager.error('远程操作异常');
+        }
+    }
+
+    async function deleteRule(id) {
+        if (!confirm('回收此规则将清理所有关联的数据路由和统计，确定执行此销毁操作吗？')) return;
+        try {
+            const res = await apiManager.deleteRule(id);
+            if (res.success) {
+                notificationManager.success('规则已完全回收');
+                loadRules();
+            } else {
+                notificationManager.error(res.error || '回收失败');
+            }
+        } catch (e) {
+            notificationManager.error('系统级回收异常');
+        }
+    }
+
+    function exportRules() {
+        try {
+            const exportData = {
+                rules: allRules,
+                export_time: new Date().toISOString(),
+                version: '2.0.0-PRO'
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `forwarder_rules_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            notificationManager.info('数据快照已导出');
+        } catch (e) {
+            notificationManager.error('导出任务失败');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            loadRules();
+        } catch (e) {
+            console.error('Core init failed:', e);
+        }
+    });
+</script>
+
+<style>
+    .rule-card-new {
+        transition: all var(--transition);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .rule-card-new:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--shadow-md);
+    }
+</style>
+{% endblock %}

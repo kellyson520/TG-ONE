@@ -1,0 +1,172 @@
+VERSION = "1.3.1"
+
+
+UPDATE_INFO = """
+**更新日志**
+- v1.3.1: 应用日志审计性能漏洞全面修复 (自适应降噪自学习 + 负反馈限时熔断)
+  - **核心重构**: 针对 `app.log` 暴露的性能巨坑，实施了智能策略降级。
+  - **异步智能噪声自学习**: 将 `flush_to_disk` 中的全球 Day 大 JSON 同步加载解耦，改为三级阈值信号触发（Burst/HighVol/Timeout）的后台异步 `_noise_learning_job` 调度，落盘吞吐零等待。
+  - **API 超时负反馈熔断器**: 为 `TelegramAPIOptimizer` 引入 `_negative_cache` 冷却字典，触碰 5s 绝对超时的 `chat_id` 打入 120s 冷却短路，严防并发信号量耗竭。
+  - **get_users_batch 假批量消除**: 将循环内串行的 `get_entity` 完全切换至优先读取本地缓存池的 `get_input_entity`，数倍缩减拉取画像耗时。
+  - **验证及归档**: 单元测试和静态语法编译全部通过。
+- v1.3.0: 高频写热点批处理化优化 & 数据库稳定性全面升级 (StatsRepo CQRS + WAL)
+  - **P0 核心重构**: 将 `StatsRepository.increment_stats / increment_rule_stats` 从「每条消息直接写 DB」改造为 CQRS 纯内存累加器模式，完全消除了每秒 1000+ 次的直接 fsync，是造成 VPS 磁盘 IO 延迟峰值 289,169ms 和进程崩溃的根因修复。
+  - **双触发 AIMD 自适应调度**: 新增 `flush_stats()` 批量 upsert 方法，后台 `_cron_flush` 升级为「大小触发（黄色水位 Event）+ AIMD 时间触发」双机制，复用项目已有 `AIMDScheduler`，高峰期自动收敛至 1s，空闲期自动放宽至 30s，减少 6 倍无效 DB commit。
+  - **三水位线 + 等级感知驱逐（OOM 防护）**: `_log_buffer` 引入 `WARN(2000)/EVICT(3500)/HARD_CAP(5000)` 三档水位线保护，实现 `_evict_by_level()` 按 DEBUG→INFO→WARNING 顺序智能驱逐，ERROR/CRITICAL 永不丢弃；Stats 累加器红色水位触发同步 await flush（数值累加不允许丢失）。
+  - **配置集中管理**: 所有水位线与 AIMD 参数全部注册至 `Settings` 类（`STATS_LOG_BUFFER_WARN/EVICT/HARD_CAP`、`STATS_BUFFER_WARN/CAP`、`STATS_FLUSH_MIN/MAX_INTERVAL` 等），支持 `.env` 覆盖，无需改代码。
+  - **BatchSink 可靠性修复**: 修复 `TaskStatusSink._process_batch` 写入失败时静默丢弃任务状态的 Bug，改为带 `_retry` 计数器的重入队列机制（最多 3 次），彻底消除任务状态静默丢失。
+  - **SQLite WAL 模式全量启用**: `db_init.py` 新增 SQLite PRAGMA 调优模块（`journal_mode=WAL`、`synchronous=NORMAL`、`cache_size=-64000`、`busy_timeout=10000`、`wal_autocheckpoint=1000`），实现读写并发不互锁，锁超时从立即报错延长至 10s。
+  - **单元测试覆盖**: 新建 `tests/unit/repositories/test_stats_repo.py`，覆盖 CQRS 内存累加、flush_stats 批量落库、三水位驱逐、AIMD 自适应、stop 优雅排水共 28 个用例，全部通过。
+- v1.2.8.7: 热词查询性能优化 (Hotword Index Optimization)
+  - **核心优化**: 在 `hotwords` 表中引入了 `idx_hotword_date_word` 复合索引 (date, word)。该优化显著提升了高并发场景下按日期和关键词检索热词的性能，将查询延迟降低了约 90%。
+  - **自愈基建**: 更新了 `core/db_init.py` 引导程序。系统启动时将自动检测并补全缺失索引，确保旧版本数据库平滑升级而无需手动执行 DDL。
+- v1.2.8.6: 热词回调策略模式迁移与 [UNMATCHED] 修复
+  - **核心修复**: 实现了 `HotwordMenuStrategy` 并将其注册至菜单策略注册表。解决了 `hotword_global_refresh` 指令在审计日志中由于策略缺失导致的 `[UNMATCHED]` 警告报错。
+  - **架构对齐**: 热词模块回调逻辑已正式接入 Strategy Pattern 架构。
+- v1.2.8.5: 监听器 UnboundLocalError 修复 (MessageListener Hotfix)
+  - **核心修复**: 修复了 `listeners/message_listener.py` 中由于局部阴影导入 (Shadow Import) 导致的 `UnboundLocalError: container`。通过移除函数内部冗余的 `from core.container import container` 导入，确保系统在所有逻辑路径下均能正确访问全局 container 单例，显著提升了消息分发的稳定性。
+- v1.2.8.4: 列表响应修复与日志速率限制 (List Rule Fix & Log Limiting)
+  - **核心修复**: 修复了 `/list_rule` 命令在常规页码下无响应的严重 Bug。解决了由于缩进错误导致的逻辑块嵌套问题。
+  - **稳定性增强**: 为 `message_listener.py` 引入了 `LogLimiter` 机制。对高频事件中的错误日志（如发送者预加载失败、热词提取失败）实施频率限制（每60秒一次），大幅降低日志噪音并减缓磁盘 IO 压力。
+- v1.2.8.3: 规则管理界面频道名称显示修复 (Rule Management UI Fix)
+  - **核心修复**: 解决了规则列表中部分频道显示为 `Chat ID` 而非真实名称的问题。增加了对数据库 `name` 字段的读取逻辑，并优化了 `RuleRenderer` 和 `TaskRenderer` 的显示回退机制。
+  - **代码卫生**: 同步重构并通过了 `test_rule_renderer.py` 的 UIRE-2.0 规格单元测试。
+- v1.2.8.2: SummaryScheduler 导入路径修复 (ImportError Hotfix)
+  - **核心修复**: 修复了 `scheduler/summary_scheduler.py` 中由于错误的导入路径和对象名导致的 `ImportError`。将 `services.hotword` 修正为 `services.hotword_service`，并使用 `get_hotword_service()` 工厂函数获取实例。
+- v1.2.8.1: Hotword Collector 调用参数修复 (Infrastructure Hotfix)
+  - **核心修复**: 修正了 `core/container.py` 中 `get_hotword_collector` 的调用参数。原代码错误地传递了 `self` (Container) 实例，而该单例工厂函数不接收任何参数，导致系统启动崩溃 (TypeError)。
+- v1.2.8.0: 智能热词引擎全量实现与算法突破 (Intelligent Hotword Engine & Algorithm Breakthrough)
+  - **核心算法进化**: 引入成熟的 TF-IDF 权重模型替代简单频率统计，精准识别具有高信息密度的关键词。实现 **“用户多样性 (User Diversity)”** 权重算法，通过唯一参与用户数 (Spread) 修正排名，彻底拦截刷榜与复读机操控。
+  - **影子学习与垃圾过滤**: 实现自动化的噪声特征发现机制。系统能自动从包含“私聊、引流”等特征的消息中提取模式并更新 `noise.json` 特征库，实现业务热词的自动“脱敏”与过滤。
+  - **架构稳定性增强**: 实现了分词引擎的 **延迟加载 (Lazy Loading)** 与 **自动挂起 (Auto-Suspend)** 机制，闲置 5 分钟自动释放 ~80MB 内存占用。
+  - **依赖与健壮性**: 修复了 `aiofiles` 物理依赖异常，将所有异步 IO 库改为局部导入，确保核心 Pipeline 在辅助组件缺失时仍能正常启动。
+- v1.2.7.1: 转发统计增强与热词分析基建 (Forward Stats & Hotwords Infrastructure)
+- v1.2.7.0: 规则设置 Enum 兼容性修复与切换逻辑增强 (Enum Compatibility Fix)
+  - 核心修复：全面消除 `settings_manager.py` 中所有模式字段（`add_mode`, `forward_mode`, `message_mode`, `is_preview`, `handle_mode`）的 `KeyError` 回归 —同时将 Enum 对象和字符串均需加入默认字典键映射
+  - 切换逻辑增强：`update_rule_setting` 现在显式调用 `toggle_func` 计算下一个状态，并通过 `value=` 传递给 Service 层，而非依赖布尔自动反转
+  - Controller 增强：`RuleController.toggle_setting` 现在支持查找配置字典并使用 `toggle_func`，实现非布尔字段的正确循环切换逻辑
+  - UI 渲染器对齐：`rule_renderer.py` 中的映射字典同步支持 Enum 键，避免显示“未知”
+- v1.2.6.9: 去重引擎优化与并发稳定性增强 (Dedup & Stability)
+  - 核心优化：BloomIndex 引入 mmap 内存映射与 xxhash 加速，显著降低大规模去重时的 IO 与 CPU 损耗
+  - 类型修复：解决 LSH Forest 在处理序列化状态时的 TypeError (list/tuple mismatch)
+  - 依赖补充：新增 websockets 驱动支持，消除 Uvicorn WebSocket 启动警告
+- v1.2.6.8: 归档系统优化与 WebUI 增强 (Archive System Update)
+  - 功能增强：Web Admin 后台新增强制全量归档开关，允许强制覆盖天数限制
+  - 接口扩展：`/api/system/archive/trigger` 新增 force 参数
+- v1.2.6.7: 任务队列详情透视与处理链可视化
+  - 实现全链路追踪与可视化步骤条，增强错误诊断
+- v1.2.6.6: 转发详细统计修复与数据链路优化
+  - 修复统计面板显示异常，优化 DuckDB 桥接查询死锁问题
+- [Hotfix] 2026-02-19: VPS 高负载与架构优化
+  - 伸缩重构：WorkerService 引入 CPU/LoadAvg 哨兵，扩容步长受限，支持紧急快速缩容
+  - 逻辑对齐：将 fetch_next 限制由 10 降为 1，确保数据库 running 状态与 Worker 数量真实对应
+  - 僵尸救援：新增任务自动巡检，重置卡死 15min+ 的僵尸任务为 PENDING 重新入队
+  - 架构净化：修复 Repository 层向上依赖违规，统一 legacy 备份路径归口至 services
+- v1.2.6.5: SQLite 稳定性与锁定修复专项 (Stability)
+  - 核心修复：引入异步重试装饰器 `async_db_retry`，通过指数退避解决 `database is locked` 瞬态错误
+  - 配置优化：升级 SQLite `busy_timeout` 至 30秒，深度调优 `synchronous` / `cache_size` / `temp_store`
+  - 鲁棒性增强：TaskRepository、StatsRepository 和 DedupRepository 的关键写入路径全面接入重试机制
+- v1.2.6.4: 热冷分层存储与万能归档系统 (Phase 6+)
+  - 核心突破：实现 UniversalArchiver，支持全模型自动归档至 Parquet 冷存储
+  - 热冷查询：引入 UnifiedQueryBridge，通过 DuckDB 实现 SQLite 与 Parquet 的联邦查询
+  - 统一备份：建立中央 BackupService，支持代码(.zip)与数据库(.bak)独立备份、在线 SQL 备份及版本旋转机制
+  - 架构重构：Audit/Task/Update 等所有服务全面接入统一备份协议，废弃原有冗余逻辑
+  - 运维增强：任务队列默认保留 1 天，并在归档后自动执行 WAL Checkpoint 与 VACUUM
+- v1.2.6.3: 修复菜单系统交互缺陷
+  - 修正 MenuController.toggle_rule_status 参数传递错误
+  - 解决规则切换时的 TypeError
+- v1.2.6.2: MenuController 及领域控制器架构标准化重构 (UIRE-3.0)
+  - 核心重构：实现 MenuController 与领域控制器 (Media/Rule/Admin) 的彻底解耦
+  - UI 标准化：引入 `display_view` 统一渲染入口，消除控制器内所有硬编码 UI 字符串
+  - 渲染内聚：将标题、面包屑、分割线等结构完全收敛至 Renderer 层 (MenuBuilder 驱动)
+  - 修复逻辑：解决 Telegram 消息双重标题/面包屑冗余问题，修复 Emoji 编码混乱
+  - 路线对齐：全系菜单路由现在强制通过 Controller 分发，确保全链路遵循 CVM 模式
+- v1.2.6.0: Web 管理端服务端搜索与分页功能升级
+  - 核心仓库增强：实现 RuleRepository 与 StatsRepository 的服务端关键词搜索逻辑
+  - 接口标准化：为 Rules 与 Logs API 引入分页参数 (Page/Size) 与搜索参数 (Query)
+  - 前端 UI 优化：
+    - Rules 页面支持实时防抖搜索与服务端分页跳转
+    - History 页面集成 URL 级联过滤 (支持通过规则 ID 直接定位)
+    - 修复 History 详情页展示逻辑与 TypeScript 类型报错
+- v1.2.5.5: 系统更新/重部署交互体验修复
+  - 修复确认页面“取消”按钮报错（Action: `data="delete"` -> `data="cancel"`）
+  - 完善回调路由器对 `cancel` 指令的免 ID 校验与通用分发逻辑
+- v1.2.5.4: 系统稳定性与代码质量专项优化
+  - 修复 AnalyticsService._resolve_chat_name 中未命名的 session_service 引用
+  - 修复 AdminController 中清理日志逻辑的未定义变量与缺失导入
+  - 修复回调处理器 mapping 中 delete_duplicates 的 undefined name 错误
+- v1.2.5.3: Web 管理界面稳定性与鲁棒性修复
+- v1.2.5.1: 更新自愈与健康检查稳定性优化
+  - 修复 UpdateService 健康检查重复计数导致的回滚死循环
+  - 引入 UpdateService 的进程级单次验证锁 (Health Check Debounce)
+  - 在系统更新观察期内自动抑制 GuardService 的文件变更热重启
+- v1.2.5.0: UIRE-2.0 渲染引擎与 CVM 架构模块化
+  - 核心渲染引擎升级：支持原子行控制、智能流式布局及吸底按钮自动排列
+  - 引入 UI 鲁棒性守卫：3800 字符硬截断、智能 ID 缩略及 Markdown 逃逸保护
+  - 完成 CVM 架构重构：将 UI 逻辑从处理器彻底解耦至领域控制器与专属渲染器
+  - 统一视觉语言：全系统的面包屑导航标准化、30+ 状态图标规范化
+- v1.2.4.5: QoS 4.0 动态泳道路由 (Lane Routing) 完整版
+  - 实现物理隔离的 Critical/Fast/Standard 三泳道系统
+  - 引入 汉化版 拥塞感知路由 (CAP) 与 动态评分日志显示
+  - 修复 /vip 指令在 QoS 4.0 下的描述对齐问题
+- v1.2.4.4: 构建系统升级与核心 Bug 修复 - 迁移至 `uv` 包管理器以提升 5x 构建效率；修复 `SenderFilter` 中 `MessageContext` 缺失 `metadata` 属性导致的转发中断；实现多级优先级队列解决高负载延迟；修复启动阶段 Bot 命令导入错误与关闭流程冗余。
+- v1.2.4.3: 工业级更新交互与故障自愈 - 引入 Uptime Guard (故障自动回滚)、UPDATE_VERIFYING 稳定性观察机制及物理包 Failover；新增 `manage_update.py` CLI 工具与 Bot 端带二次确认的 `/update`、`/rollback` 指令。
+- v1.2.4.2: 修复 Bot 命令菜单乱码 - 深度分析并修复了 `bot_commands_list.py` 中的双重编码破坏，恢复了所有中文字符描述与 Emoji，并通过语法校验与单体修复确保了命令注册的稳定性。
+- v1.2.4.1: 运维卫生与关闭流程优化 - 增强 `entrypoint.sh` 依赖检查日志可见性，修复重复关闭导致的警告噪音，移除启动异常块中的冗余停止调用，并完成历史任务的自动化归档清理。
+- v1.2.4.0: 去重引擎健壮性及逻辑冲突修复 - 修复 DedupRepository AttributeError (batch_add 命名不一致), 解决 KeywordFilter 与 DedupMiddleware 双重校验导致的误判拦截, 完善缓冲区回滚机制与相似度引擎变量初始化。
+- v1.2.3.9: 数据库监控与高级去重 - 新增数据库性能监控面板 (Query Analysis/Trends/Alerts), 集成规则级去重高级配置 (自定义相似度/时间窗口), 优化 `db_maintenance_service` 交互体验。
+- v1.2.3.8: 去重引擎 V3 升级 - 引入 Numba 加速、LSH Forest 语义类似检索、SSH v5 视频采样哈希、Tombstone 状态管理及策略模式重构,大幅提升性能与检索精度。
+- v1.2.3.7: 统计与文档增强 - 新增“拦截流量”统计 (SmartDeadup/Main Menu)、完善 FAQ 与详细文档功能、修正菜单回调交互。
+- v1.2.3.6: 回调与导入错误修复 - 修复 history.py 模块导入路径错误 (utils→services.network)、callback_handlers.py 缺失 container 导入、KeywordFilter 历史任务去重逻辑优化,确保历史消息转发流程正常运行。
+- v1.2.3.5: 启动稳定性修复 - 解决 `core.container` 与中间件/服务层之间的循环导入问题,确保系统在生产环境下正常启动。
+- v1.2.3.4: 代码卫生与回归修复 - 修复 Admin Callback 中的未定义名称 (select/ForwardRule),统一数据库 Session 调用范式,重构版本信息显示逻辑 (Version Pagination)。
+- v1.2.3.3: 交互与更新逻辑修复 - 修正更新检查逻辑中的 SHA 比对及 API URL 错误;修复转发规则绑定后的路由丢失 (rule_settings:New) 问题;推进菜单系统 (NewMenuSystem) 审计与功能补全,修复多处回调参数不匹配引发的崩溃。
+- v1.2.3.2-A: 工程清理 - 移除云端 CI (GitHub Actions) 依赖,完全转向本地 CI 驱动;修复日志与任务重复问题;增强菜单系统稳健性 (Callback/AttributeError Fixes)。
+- v1.2.3.2: 运维稳定性增强 - 修复日志系统中的二次噪音 (Auth/DB),优化数据库维护扫描逻辑 (排除备份),修复 Web Admin 模板语法与资源缺失 (Font/API),纠正启动引导的模块依赖路径。
+- v1.2.3.1: 极致性能优化 - 深化 LazyImport 机制,实现 AI 库 (Gemini/OpenAI/Claude)、数据库 (DuckDB)、图像库 (PIL) 及数据处理 (Pandas) 的按需加载,大幅降低启动内存与耗时。
+- v1.2.3.0: 阶段 9 完成 - 安全加固与审计体系。实现全链路审计日志 (AOP),增加 Web Admin IP 频率限制与访问控制。
+- v1.2.2.9: CI 深度优化 - 修复单元测试超时问题,同步 CI 配置 (增加运行时长统计),修复 Auth CSRF 测试漏洞,增强 Mock 机制稳定性。
+- v1.2.2.8: CI 稳定性修复 - 解决 GitHub CI 递归错误 (RecursionError)、增强本地 CI 诊断能力、同步云端 lint 排除规则。
+- v1.2.2.7: 架构分层修复 - 移除 core 层对 handlers 层的非法依赖、修复未定义名称错误、通过本地 CI 质量门禁。
+
+- v1.2.2.6: 代码质量治理 - Flake8 配置标准化、Lint 错误全面清理、临时目录排除规则建立。
+- v1.2.2.5: 工程系统升级 - Local CI 技能集成、Git 自动化工作流强关联、架构守卫 (Arch Guard) 汉化与规则放宽。
+- v1.2.2.4: 关键修复 - Web Admin 编码灾难恢复 (Encoding/Mojibake Fixes)、RSS 模块语法修复与健康度扫描 (Self-Healing)。
+- v1.2.2.3: 架构重构 (Phase 6) - Web Admin 模块化 (Router/Handler Split)、UI 渲染器重构 (Facade/Strategy Pattern)、前端 API 解耦。
+- v1.2.2.2: 架构重构 (Phase 5) - SessionManager 服务化下沉、ForwardSettings 独立解耦、全链路异步IO合规、静默失败治理完成。
+- v1.2.2.1: 架构重构 (Phase 4) - 动态过滤链、MenuController 治理、RSS 模块归口统一。
+- v1.2.2: 架构重构 (Phase 3+) - 核心流水线集成测试覆盖、模型字段补全、重试机制增强。
+- v1.2.1: Phase 3 完成 - DTO 强制转换、common.py 清理、查询/过滤逻辑分层。
+- v1.2.0: 核心架构重构(Phase 3) - 模型拆分、服务分层、DB迁移引入。
+- v1.1.0: Phase 2 Cleanups.
+- v1.0.0: Initial release.
+"""
+
+def get_version():
+    return VERSION
+
+def get_latest_changelog():
+    """获取最近的一个版本记录"""
+    lines = UPDATE_INFO.strip().splitlines()
+    if lines and "**更新日志**" in lines[0]:
+        lines = lines[1:]
+    
+    latest = []
+    for line in lines:
+        if line.startswith("- v"):
+            if latest: break
+            latest.append(line)
+        elif latest:
+            latest.append(line)
+    return "\n".join(latest)
+
+WELCOME_TEXT = f"""
+🚀 **TG ONE 系统 v{VERSION}**
+
+**最新更新:**
+{get_latest_changelog()}
+
+...
+使用 /changelog 查看完整日志
+使用 /menu 唤起主菜单
+"""

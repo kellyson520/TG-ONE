@@ -1,0 +1,103 @@
+import logging
+from .database import Database
+from models.models import Base
+# 必须导入所有定义了模型的模块，否则 create_all 找不到表
+
+logger = logging.getLogger(__name__)
+
+async def init_db_tables(db_url: str) -> None:
+    """
+    异步创建所有数据库表
+    """
+    logger.info("Initializing database tables...")
+    
+    # [Pre-flight] 执行数据库健康检查与修复
+    try:
+        from repositories.health_check import check_and_fix_dbs_at_startup
+        check_and_fix_dbs_at_startup()
+    except Exception as e:
+        logger.warning(f"Database health check skipped or failed: {e}")
+    
+    # [Fix] 优先执行数据库迁移 (Schema Migration)
+    # 确保在 create_all 之前现有表结构已有新字段
+    try:
+        from models.models import migrate_db
+        from sqlalchemy import create_engine
+        
+        # 构造同步 URL 用于迁移
+        sync_db_url = db_url.replace('+aiosqlite', '').replace('+asyncpg', '')
+        if 'sqlite' in sync_db_url:
+            # 确保使用绝对路径，避免由于 CWD 不同导致操作不同数据库文件
+            from pathlib import Path
+            from core.config import settings
+            db_path = settings.DB_DIR / "forward.db"
+            sync_db_url = f"sqlite:///{db_path.as_posix()}"
+            logger.info(f"[Fix] 使用绝对路径同步引擎: {sync_db_url}")
+            
+        logger.info(f"Running schema migration with sync engine: {sync_db_url}")
+        sync_engine = create_engine(sync_db_url)
+        migrate_db(sync_engine)
+        sync_engine.dispose()
+        logger.info("Schema migration completed.")
+    except Exception as e:
+        logger.error(f"Schema migration failed: {e}")
+        # 迁移失败不应完全阻断启动，尝试继续创建表
+
+    # 异步创建表 (使用 async engine)
+    try:
+        db = Database(db_url)
+        async with db.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+        await db.close()
+        logger.info("Database tables verified/created successfully.")
+    except Exception as e:
+        logger.error(f"Async table creation failed: {e}")
+        raise e  # 创建表失败是致命的
+
+    # [WAL] SQLite 性能优化 PRAGMA（WAL 模式 + 调优参数）
+    if 'sqlite' in db_url:
+        try:
+            from sqlalchemy.ext.asyncio import create_async_engine
+            from sqlalchemy import text
+            pragma_engine = create_async_engine(db_url, echo=False)
+            async with pragma_engine.begin() as conn:
+                await conn.execute(text("PRAGMA journal_mode = WAL"))        # 读写并发不互锁
+                await conn.execute(text("PRAGMA synchronous = NORMAL"))      # FULL→NORMAL，性能提升 3~5x
+                await conn.execute(text("PRAGMA cache_size = -64000"))       # 64MB 共享页缓存
+                await conn.execute(text("PRAGMA busy_timeout = 10000"))      # 10s 超时而非立即报错
+                await conn.execute(text("PRAGMA wal_autocheckpoint = 1000")) # 每 1000 页自动 checkpoint
+            await pragma_engine.dispose()
+            logger.info("[WAL] SQLite PRAGMA 优化已应用 (WAL + NORMAL sync + 64MB cache + 10s timeout)")
+        except Exception as e:
+            logger.warning(f"[WAL] SQLite PRAGMA 配置失败（非致命）: {e}")
+
+async def init_hotword_db() -> None:
+    """初始化热词独占数据库 hotwords.db"""
+    logger.info("Initializing hotword database tables...")
+    from core.db_factory import DbFactory
+    from models.hotword import Base as HotwordBase
+    
+    engine = DbFactory.get_hotword_async_engine()
+    try:
+        async with engine.begin() as conn:
+            # 创建所有表 (PRAGMA 已通过 DbFactory 配置)
+            await conn.run_sync(HotwordBase.metadata.create_all, checkfirst=True)
+            
+            # [Migration] 确保热词表索引存在 (由于 create_all 不会自动补充缺失索引)
+            from sqlalchemy import text
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hotword_date_word ON hot_period_stats(date_key, word)"))
+            
+        logger.info("Hotword database tables and indexes verified/created successfully.")
+    except Exception as e:
+        logger.error(f"Hotword database initialization failed: {e}")
+        raise e
+
+if __name__ == "__main__":
+    import asyncio
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # 从配置读取 URL
+    # 从配置读取 URL
+    from core.config import settings
+    # db_url = "sqlite+aiosqlite:///db/forward.db"
+    db_url = settings.DATABASE_URL if settings.DATABASE_URL else "sqlite+aiosqlite:///db/forward.db"
+    asyncio.run(init_db_tables(db_url))
