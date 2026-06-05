@@ -3,19 +3,27 @@ LZ4 Compression Service
 提供透明的数据压缩/解压缩功能，优化数据库存储
 """
 import logging
-from typing import Union
+from typing import Any, Optional, Union
 import zlib  # Fallback compression
 
 logger = logging.getLogger(__name__)
 
-# Try to import lz4, fallback to zlib if unavailable
-try:
-    import lz4.frame
-    HAS_LZ4 = True
-    logger.info("LZ4 compression available")
-except ImportError:
-    HAS_LZ4 = False
-    logger.warning("LZ4 not available, using zlib fallback")
+_lz4_frame: Optional[Any] = None
+_lz4_checked = False
+
+
+def _get_lz4_frame() -> Optional[Any]:
+    """Lazy import LZ4 so importing this module has no dependency side effects."""
+    global _lz4_frame, _lz4_checked
+    if not _lz4_checked:
+        _lz4_checked = True
+        try:
+            import lz4.frame as lz4_frame
+            _lz4_frame = lz4_frame
+            logger.info("LZ4 compression available")
+        except ImportError:
+            logger.debug("LZ4 not available, using zlib fallback")
+    return _lz4_frame
 
 
 class CompressionService:
@@ -39,7 +47,7 @@ class CompressionService:
             use_lz4: 是否优先使用 LZ4 (如果可用)
         """
         self.threshold = threshold
-        self.use_lz4 = use_lz4 and HAS_LZ4
+        self.use_lz4 = use_lz4
         self._stats = {
             "compressed_count": 0,
             "decompressed_count": 0,
@@ -79,8 +87,9 @@ class CompressionService:
                 return data_bytes
             
             # 压缩
-            if self.use_lz4:
-                compressed = lz4.frame.compress(data_bytes)
+            lz4_frame = _get_lz4_frame() if self.use_lz4 else None
+            if lz4_frame:
+                compressed = lz4_frame.compress(data_bytes)
             else:
                 compressed = zlib.compress(data_bytes, level=6)  # 平衡速度和压缩率
             
@@ -117,9 +126,10 @@ class CompressionService:
         
         try:
             # 尝试解压
-            if self.use_lz4:
+            lz4_frame = _get_lz4_frame() if self.use_lz4 else None
+            if lz4_frame:
                 try:
-                    decompressed = lz4.frame.decompress(data)
+                    decompressed = lz4_frame.decompress(data)
                 except Exception:
                     # LZ4 解压失败，可能是 zlib 压缩的或未压缩
                     try:

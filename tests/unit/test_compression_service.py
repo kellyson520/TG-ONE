@@ -2,6 +2,7 @@
 Unit Tests: Compression Service
 """
 import pytest
+import services.compression_service as compression_module
 from services.compression_service import CompressionService
 
 
@@ -21,6 +22,21 @@ class TestCompressionService:
         """测试大数据应该压缩"""
         large_text = "x" * 200
         assert self.service.should_compress(large_text)
+
+    def test_lz4_probe_is_lazy(self, monkeypatch):
+        """初始化和大小判断不应触发 LZ4 导入探测"""
+        monkeypatch.setattr(compression_module, "_lz4_checked", False)
+        monkeypatch.setattr(compression_module, "_lz4_frame", None)
+
+        service = CompressionService(threshold=100, use_lz4=True)
+
+        assert compression_module._lz4_checked is False
+        assert service.should_compress("x" * 200)
+        assert compression_module._lz4_checked is False
+
+        service.compress("x" * 200)
+
+        assert compression_module._lz4_checked is True
     
     def test_compress_decompress_roundtrip(self):
         """测试压缩解压往返"""
