@@ -1,5 +1,14 @@
 from core.pipeline import Middleware
-from services.dedup_service import dedup_service # 复用现有服务
+
+dedup_service = None
+
+
+def _get_dedup_service():
+    global dedup_service
+    if dedup_service is None:
+        from services.dedup_service import dedup_service as service
+        dedup_service = service
+    return dedup_service
 
 class DedupMiddleware(Middleware):
     async def process(self, ctx, next_call):
@@ -8,6 +17,7 @@ class DedupMiddleware(Middleware):
         recorded_targets = [] # Tuple(target_id, rule_id)
         import logging
         logger = logging.getLogger(__name__)
+        service = None
 
         for rule in ctx.rules:
             target_id = None
@@ -26,20 +36,24 @@ class DedupMiddleware(Middleware):
                 
                 # 解析单条规则的自定义配置 (JSON)
                 rule_config = {}
-                if rule.custom_config:
+                custom_config = getattr(rule, "custom_config", None)
+                if isinstance(custom_config, str) and custom_config.strip():
                     try:
                         import json
-                        cfg = json.loads(rule.custom_config)
+                        cfg = json.loads(custom_config)
                         # 仅提取去重相关配置
                         dedup_keys = {"similarity_threshold", "time_window_hours", "enable_smart_similarity", "enable_content_hash", "enable_sticker_filter", "sticker_strict_mode"}
                         for k in dedup_keys:
                             if k in cfg: rule_config[k] = cfg[k]
                     except Exception as e:
                         logger.warning(f"Failed to parse rule custom_config: {e}")
+                elif custom_config:
+                    logger.debug(f"忽略非字符串去重配置: {type(custom_config).__name__}")
 
                 # Optimistic Dedup: Check AND tentative record (Lock)
                 # 注入单条规则配置
-                is_dup, reason = await dedup_service.check_and_lock(
+                service = service or _get_dedup_service()
+                is_dup, reason = await service.check_and_lock(
                     target_id, 
                     ctx.message_obj, 
                     rule_config=rule_config,
@@ -89,13 +103,15 @@ class DedupMiddleware(Middleware):
                     for target_id, rule_id in recorded_targets:
                         if rule_id in ctx.failed_rules:
                             logger.info(f"⏪ [Pipeline-Dedup] 规则 {rule_id} 执行失败，回滚去重状态")
-                            await dedup_service.rollback(target_id, ctx.message_obj)
+                            service = service or _get_dedup_service()
+                            await service.rollback(target_id, ctx.message_obj)
                             
             except Exception as e:
                 # Global Failure Rollback
                 logger.error(f"❌ [Pipeline-Dedup] 下游处理异常，执行全面回滚: {e}")
                 for target_id, rule_id in recorded_targets:
-                    await dedup_service.rollback(target_id, ctx.message_obj)
+                    service = service or _get_dedup_service()
+                    await service.rollback(target_id, ctx.message_obj)
                 raise e
         else:
             logger.info(f"⚠️ [Pipeline-Dedup] 所有规则均被去重过滤，流程结束")
