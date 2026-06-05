@@ -16,7 +16,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def test_basic_rate_limiting():
+import pytest
+
+pytestmark = pytest.mark.performance
+
+async def benchmark_basic_rate_limiting():
     """测试基本限流功能"""
     logger.info("=" * 60)
     logger.info("Test 1: Basic Rate Limiting")
@@ -61,7 +65,7 @@ async def test_basic_rate_limiting():
     logger.info(f"Accepted: {success_count}/15")
     logger.info(f"Expected: ~10 (refilled at 10 ops/s)")
 
-async def test_blocking_mode():
+async def benchmark_blocking_mode():
     """测试阻塞模式"""
     logger.info("\n" + "=" * 60)
     logger.info("Test 2: Blocking Mode")
@@ -83,7 +87,7 @@ async def test_blocking_mode():
     logger.info(f"Wait Time: {elapsed:.3f}s")
     logger.info(f"Expected: ~0.1s (5 tokens / 50 rate)")
 
-async def test_adaptive_adjustment():
+async def benchmark_adaptive_adjustment():
     """测试自适应调整"""
     logger.info("\n" + "=" * 60)
     logger.info("Test 3: Adaptive Rate Adjustment")
@@ -120,7 +124,7 @@ async def test_adaptive_adjustment():
     logger.info(f"Rejection Rate: {stats['rejection_rate']:.2%}")
     logger.info(f"Adjusted Rate: {limiter.config.rate} ops/s")
 
-async def test_rate_limiter_pool():
+async def benchmark_rate_limiter_pool():
     """测试限流器池"""
     logger.info("\n" + "=" * 60)
     logger.info("Test 4: Rate Limiter Pool")
@@ -156,14 +160,18 @@ async def main():
     logger.info("Performance Test: Rate Limiter")
     logger.info("=" * 60)
     
-    await test_basic_rate_limiting()
-    await test_blocking_mode()
-    await test_adaptive_adjustment()
-    await test_rate_limiter_pool()
+    await benchmark_basic_rate_limiting()
+    await benchmark_blocking_mode()
+    await benchmark_adaptive_adjustment()
+    await benchmark_rate_limiter_pool()
     
     logger.info("\n" + "=" * 60)
     logger.info("All Tests Completed")
     logger.info("=" * 60)
+
+@pytest.mark.asyncio
+async def test_rate_limiter_performance():
+    await main()
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -6,13 +6,20 @@ on:
       suite:
         description: Test suite to run
         required: true
-        default: full
+        default: stress-fast
         type: choice
         options:
           - full
-          - stress
           - performance
+          - stress-fast
+          - stress-db
+          - stress-slow
+          - stress
           - all
+      pytest_extra_args:
+        description: Extra pytest args for manual heavy runs
+        required: false
+        default: ""
   schedule:
     - cron: "20 18 * * 0"
 
@@ -32,6 +39,7 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTEST_EXTRA_ARGS: ${{ github.event.inputs.pytest_extra_args || '' }}
 
 jobs:
   full:
@@ -52,12 +60,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Runner resource snapshot
+        run: |
+          python --version
+          free -h
+          df -h .
+          ulimit -a
       - name: Run full non-stress suite
         run: |
+          mkdir -p tests/temp/reports
           python -m pytest tests \
-            -m "not stress" \
+            -m "not stress and not slow and not performance and not benchmark" \
             --strict-markers \
-            --tb=short --durations=50
+            --maxfail=1 \
+            --tb=short --durations=50 \
+            --junitxml=tests/temp/reports/full.xml \
+            $PYTEST_EXTRA_ARGS
+      - name: Upload full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-report
+          path: tests/temp/reports/full.xml
+          if-no-files-found: ignore
 
   performance:
     name: Performance
@@ -77,17 +102,34 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Runner resource snapshot
+        run: |
+          python --version
+          free -h
+          df -h .
       - name: Run performance tests
         run: |
+          mkdir -p tests/temp/reports
           python -m pytest tests/performance tests/benchmarks \
+            -m "performance or benchmark" \
             --strict-markers \
-            --tb=short --durations=50
+            --maxfail=1 \
+            --tb=short --durations=50 \
+            --junitxml=tests/temp/reports/performance.xml \
+            $PYTEST_EXTRA_ARGS
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: tests/temp/reports/performance.xml
+          if-no-files-found: ignore
 
-  stress:
-    name: Stress
+  stress-fast:
+    name: Stress Fast
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    if: github.event_name == 'schedule' || github.event.inputs.suite == 'stress' || github.event.inputs.suite == 'all'
+    timeout-minutes: 45
+    if: github.event_name == 'schedule' || github.event.inputs.suite == 'stress-fast' || github.event.inputs.suite == 'stress' || github.event.inputs.suite == 'all'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -101,9 +143,107 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run stress tests
+      - name: Runner resource snapshot
         run: |
-          python -m pytest tests/stress \
-            -m "stress or slow" \
+          python --version
+          free -h
+          df -h .
+      - name: Run fast stress tests
+        run: |
+          mkdir -p tests/temp/reports
+          python -m pytest tests/stress/test_stress_scenarios.py \
+            -m "stress and not slow" \
             --strict-markers \
-            --tb=short --durations=50
+            --maxfail=1 \
+            --tb=short --durations=50 \
+            --junitxml=tests/temp/reports/stress-fast.xml \
+            $PYTEST_EXTRA_ARGS
+      - name: Upload fast stress report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-fast-report
+          path: tests/temp/reports/stress-fast.xml
+          if-no-files-found: ignore
+
+  stress-db:
+    name: Stress DB Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name == 'schedule' || github.event.inputs.suite == 'stress-db' || github.event.inputs.suite == 'stress' || github.event.inputs.suite == 'all'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Runner resource snapshot
+        run: |
+          python --version
+          free -h
+          df -h .
+      - name: Run DB archive stress tests
+        run: |
+          mkdir -p tests/temp/reports
+          python -m pytest tests/stress/test_db_boom.py \
+            -m "stress" \
+            --strict-markers \
+            --maxfail=1 \
+            --tb=short --durations=20 \
+            --junitxml=tests/temp/reports/stress-db.xml \
+            $PYTEST_EXTRA_ARGS
+      - name: Upload DB stress report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-db-report
+          path: tests/temp/reports/stress-db.xml
+          if-no-files-found: ignore
+
+  stress-slow:
+    name: Stress Slow Soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name == 'schedule' || github.event.inputs.suite == 'stress-slow' || github.event.inputs.suite == 'stress' || github.event.inputs.suite == 'all'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Runner resource snapshot
+        run: |
+          python --version
+          free -h
+          df -h .
+      - name: Run slow soak stress tests
+        run: |
+          mkdir -p tests/temp/reports
+          python -m pytest tests/stress/test_stress_scenarios.py \
+            -m "stress and slow" \
+            --strict-markers \
+            --maxfail=1 \
+            --tb=short --durations=20 \
+            --junitxml=tests/temp/reports/stress-slow.xml \
+            $PYTEST_EXTRA_ARGS
+      - name: Upload slow stress report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-slow-report
+          path: tests/temp/reports/stress-slow.xml
+          if-no-files-found: ignore

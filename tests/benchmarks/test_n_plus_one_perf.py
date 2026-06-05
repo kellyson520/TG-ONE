@@ -3,14 +3,14 @@ import time
 import sys
 import os
 from pathlib import Path
-from sqlalchemy import select, text
 from unittest.mock import AsyncMock
 
 # 路径修复
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from core.container import container
-from models.models import ForwardRule, RuleSync, Chat
+import pytest
+
+pytestmark = pytest.mark.benchmark
 
 class QueryCounter:
     """SQLAlchemy 查询计数器"""
@@ -25,7 +25,10 @@ async def benchmark_rule_sync_after():
     """测试修复后的同步规则性能"""
     print("\n--- 性能基准测试: Rule Sync (验证修复后) ---")
     
+    from sqlalchemy import select, text
+    from core.container import container
     from handlers.button.callback.modules.rule_settings import update_rule_setting
+    from models.models import ForwardRule, RuleSync, Chat
     
     async with container.db.session() as session:
         # 清理并准备数据

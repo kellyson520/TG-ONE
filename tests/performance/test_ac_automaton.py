@@ -16,7 +16,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def test_naive_search(keywords, text):
+import pytest
+
+pytestmark = pytest.mark.performance
+
+def benchmark_naive_search(keywords, text):
     """朴素搜索算法 (Baseline)"""
     matches = []
     for i, kw in enumerate(keywords):
@@ -24,7 +28,7 @@ def test_naive_search(keywords, text):
             matches.append(i)
     return matches
 
-def test_regex_search(keywords, text):
+def benchmark_regex_search(keywords, text):
     """正则表达式搜索"""
     pattern = '|'.join(re.escape(kw) for kw in keywords)
     compiled = re.compile(pattern, re.I)
@@ -73,7 +77,7 @@ def test_ac_automaton_performance():
     logger.info(f"\nTest 3: Naive Search (1000 iterations)")
     start = time.time()
     for _ in range(iterations):
-        matches = test_naive_search(keywords, test_text)
+        matches = benchmark_naive_search(keywords, test_text)
     naive_time = time.time() - start
     logger.info(f"Total Time: {naive_time:.4f}s")
     logger.info(f"Avg Time per Search: {naive_time/iterations*1000:.4f}ms")
@@ -83,7 +87,7 @@ def test_ac_automaton_performance():
     logger.info(f"\nTest 4: Regex Search (1000 iterations)")
     start = time.time()
     for _ in range(iterations):
-        result = test_regex_search(keywords, test_text)
+        result = benchmark_regex_search(keywords, test_text)
     regex_time = time.time() - start
     logger.info(f"Total Time: {regex_time:.4f}s")
     logger.info(f"Avg Time per Search: {regex_time/iterations*1000:.4f}ms")

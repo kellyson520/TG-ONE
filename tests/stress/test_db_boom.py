@@ -14,6 +14,8 @@ from models.models import Base, MediaSignature, ErrorLog
 from scheduler import db_archive_job
 from repositories import archive_store
 
+pytestmark = pytest.mark.stress
+
 IS_DUCKDB_MOCKED = isinstance(duckdb, MagicMock) or hasattr(duckdb, 'DEFAULT_REPOSITORY')
 
 # Helper to generate random string
@@ -53,7 +55,6 @@ def temp_archive_root_stress(tmp_path):
     yield str(archive_dir)
     archive_store.ARCHIVE_ROOT = original_root
 
-@pytest.mark.stress
 class TestDBBoom:
     
     def populate_db(self, session, count=1000):
@@ -110,25 +111,18 @@ class TestDBBoom:
         mock_get_session = MagicMock(return_value=MockSessionCtx(boom_session))
         mock_get_engine = MagicMock(return_value=engine)
         
-        # Patches
-        patches = [
-            patch('scheduler.db_archive_job.get_session', mock_get_session),
-            patch('scheduler.db_archive_job.get_dedup_session', mock_get_session),
-            patch('models.models.get_engine', mock_get_engine),
-            patch('scheduler.db_archive_job.analyze_database'),
-            patch('scheduler.db_archive_job.vacuum_database')
-        ]
-        
-        # Check if DuckDB is mocked
-        if IS_DUCKDB_MOCKED:
-             # Need to patch write_parquet to succeed without doing anything
-             # Return a fake path so archive logic thinks it succeeded and proceeds to delete DB rows
-             patches.append(patch('scheduler.db_archive_job.write_parquet', return_value="/fake/path"))
-             # Wait, if we patch write_parquet in schedular/db_archive_job.py, it works.
-             # But db_archive_job imports it as: from repositories.archive_store import write_parquet
+        write_parquet_patch = (
+            patch('scheduler.db_archive_job.write_parquet', return_value="/fake/path")
+            if IS_DUCKDB_MOCKED
+            else patch('scheduler.db_archive_job.write_parquet', wraps=db_archive_job.write_parquet)
+        )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_vacuum, \
-             patch('scheduler.db_archive_job.write_parquet', return_value="/fake/path") if IS_DUCKDB_MOCKED else MagicMock():
+        with patch('scheduler.db_archive_job.get_session', mock_get_session), \
+             patch('scheduler.db_archive_job.get_dedup_session', mock_get_session), \
+             patch('models.models.get_engine', mock_get_engine), \
+             patch('scheduler.db_archive_job.analyze_database'), \
+             patch('scheduler.db_archive_job.vacuum_database') as mock_vacuum, \
+             write_parquet_patch:
             
             def real_vacuum_side_effect():
                 with engine.connect() as conn:

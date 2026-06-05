@@ -9,14 +9,18 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from services.bloom_filter import BloomFilter
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import pytest
+
+pytestmark = pytest.mark.performance
+
 def test_bloom_filter_performance():
     """测试布隆过滤器性能"""
+    from core.algorithms.bloom_filter import BloomFilter
     
     # Create bloom filter
     bf = BloomFilter(capacity=100000, error_rate=0.001, filepath=":memory:")

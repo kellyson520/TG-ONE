@@ -9,11 +9,14 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from services.compression_service import CompressionService
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+import pytest
+
+pytestmark = pytest.mark.performance
 
 def generate_test_data(size_kb: int) -> str:
     """生成测试数据"""
@@ -33,6 +36,7 @@ def generate_test_data(size_kb: int) -> str:
 
 def test_compression_performance():
     """测试压缩性能"""
+    from services.compression_service import CompressionService
     
     logger.info("=" * 60)
     logger.info("Performance Test: Compression Service")

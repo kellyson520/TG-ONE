@@ -18,7 +18,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def test_direct_commit(db: Database, count: int = 1000):
+import pytest
+
+pytestmark = pytest.mark.performance
+
+async def benchmark_direct_commit(db: Database, count: int = 1000):
     """测试直接提交模式"""
     start = time.time()
     
@@ -38,7 +42,7 @@ async def test_direct_commit(db: Database, count: int = 1000):
     logger.info(f"Direct Commit: {count} records in {elapsed:.2f}s ({count/elapsed:.2f} rec/s)")
     return elapsed
 
-async def test_group_commit(db: Database, count: int = 1000):
+async def benchmark_group_commit(db: Database, count: int = 1000):
     """测试批量提交模式"""
     coordinator = GroupCommitCoordinator(db.session)
     await coordinator.start()
@@ -83,10 +87,10 @@ async def main():
     test_count = 500
     
     logger.info(f"\nTest 1: Direct Commit ({test_count} records)")
-    direct_time = await test_direct_commit(db, test_count)
+    direct_time = await benchmark_direct_commit(db, test_count)
     
     logger.info(f"\nTest 2: Group Commit ({test_count} records)")
-    group_time = await test_group_commit(db, test_count)
+    group_time = await benchmark_group_commit(db, test_count)
     
     logger.info("\n" + "=" * 60)
     logger.info("Results Summary")
@@ -97,6 +101,10 @@ async def main():
     logger.info(f"Latency Reduction: {((direct_time - group_time) / direct_time * 100):.1f}%")
     
     await db.close()
+
+@pytest.mark.asyncio
+async def test_db_group_commit_performance():
+    await main()
 
 if __name__ == "__main__":
     asyncio.run(main())
