@@ -676,5 +676,32 @@ class ForwardRecorder:
         
         return records
 
-# 全局记录器实例
-forward_recorder = ForwardRecorder()
+class LazyForwardRecorder:
+    """Import-safe proxy for the global forward recorder."""
+
+    def __init__(self) -> None:
+        self._instance: Optional[ForwardRecorder] = None
+
+    def _get(self) -> ForwardRecorder:
+        if self._instance is None:
+            self._instance = ForwardRecorder()
+        return self._instance
+
+    async def record_forward(self, *args: Any, **kwargs: Any) -> str:
+        return await self._get().record_forward(*args, **kwargs)
+
+    async def get_daily_summary(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return await self._get().get_daily_summary(*args, **kwargs)
+
+    async def get_hourly_distribution(self, *args: Any, **kwargs: Any) -> Dict[str, int]:
+        return await self._get().get_hourly_distribution(*args, **kwargs)
+
+    async def search_records(self, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
+        return await self._get().search_records(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
+# 全局懒加载记录器实例
+forward_recorder = LazyForwardRecorder()

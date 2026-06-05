@@ -2,7 +2,7 @@ import pytest
 import json
 from unittest.mock import MagicMock
 from datetime import datetime
-from core.helpers.forward_recorder import ForwardRecorder
+from core.helpers.forward_recorder import ForwardRecorder, LazyForwardRecorder
 
 @pytest.fixture
 def temp_recorder(tmp_path):
@@ -22,6 +22,30 @@ def create_mock_message(msg_id=1, text="test", date=None, sender=None, chat=None
     msg.forward = None
     msg.reply_to = None
     return msg
+
+@pytest.mark.asyncio
+async def test_global_forward_recorder_is_lazy(monkeypatch):
+    created = []
+
+    class FakeRecorder:
+        def __init__(self):
+            created.append(self)
+
+        async def get_daily_summary(self, date=None):
+            return {"date": date, "total_forwards": 0}
+
+    import core.helpers.forward_recorder as recorder_module
+
+    monkeypatch.setattr(recorder_module, "ForwardRecorder", FakeRecorder)
+    recorder = LazyForwardRecorder()
+
+    assert recorder._instance is None
+    assert created == []
+
+    summary = await recorder.get_daily_summary("2026-06-05")
+
+    assert summary["date"] == "2026-06-05"
+    assert len(created) == 1
 
 @pytest.mark.asyncio
 class TestForwardRecorder:

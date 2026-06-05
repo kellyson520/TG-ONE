@@ -1,6 +1,5 @@
 from core.pipeline import Middleware
 from services.queue_service import forward_messages_queued 
-from services.dedup_service import dedup_service
 from services.smart_buffer import smart_buffer
 import logging
 import asyncio
@@ -172,6 +171,7 @@ class SenderMiddleware(Middleware):
             }, wait=True)
             
             if getattr(rule, 'enable_dedup', False):
+                from services.dedup_service import dedup_service
                 await dedup_service.commit(target_id, ctx.message_obj)
             
             # [Feature] Forward Recorder Integration
