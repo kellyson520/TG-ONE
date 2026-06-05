@@ -446,8 +446,10 @@ class Container:
         # 保存 Bloom Filter
         try:
             from services.bloom_filter import bloom_filter_service
-            bloom_filter_service.save()
-            logger.info("布隆过滤器已保存")
+            if bloom_filter_service.save():
+                logger.info("布隆过滤器已保存")
+            else:
+                logger.debug("布隆过滤器未初始化，跳过保存")
         except Exception as e:
             logger.error(f"Failed to save Bloom Filter: {e}")
             
