@@ -46,6 +46,7 @@ class SmartBufferService:
             return
 
 
+        flush_now = False
         async with self._lock:
             self._total_contexts += 1
             if key not in self._buffers:
@@ -73,7 +74,10 @@ class SmartBufferService:
                     logger.info(f"🚀 [满载发车] 规则 {rule_id} 积压达 {len(buffer['contexts'])} 条，立即发出")
                     if buffer["timer"]:
                         buffer["timer"].cancel()
-                    await self._flush(key, send_callback)
+                    flush_now = True
+
+        if flush_now:
+            await self._flush(key, send_callback)
 
     async def _wait_and_flush(self, key: tuple, send_callback: Callable):
         """计时器逻辑"""
