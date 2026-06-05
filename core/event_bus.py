@@ -43,10 +43,10 @@ class EventBus:
         """
         if event_type == "*":
             self._wildcard_listeners.append(handler)
-            logger.debug(f"Wildcard listener registered: {handler.__name__}")
+            logger.debug(f"Wildcard listener registered: {self._handler_name(handler)}")
         else:
             self._listeners[event_type].append(handler)
-            logger.debug(f"Event listener registered: {event_type} -> {handler.__name__}")
+            logger.debug(f"Event listener registered: {event_type} -> {self._handler_name(handler)}")
     
     def unsubscribe(self, event_type: str, handler: Callable) -> None:
         """取消订阅"""
@@ -75,7 +75,7 @@ class EventBus:
             self._log_event(event_type, data)
         
         # WebSocket 广播钩子
-        if self._broadcast_enabled:
+        if self._broadcast_enabled and self._broadcaster is not None:
             asyncio.create_task(self._broadcast_event(event_type, data))
         
         # 获取所有监听器
@@ -104,17 +104,22 @@ class EventBus:
             else:
                 handler(data)
         except Exception as e:
-            logger.error(f"Event handler error [{handler.__name__}] for {event_type}: {e}")
+            handler_name = self._handler_name(handler)
+            logger.error(f"Event handler error [{handler_name}] for {event_type}: {e}")
             # 使用全局异常处理器记录
             try:
                 from services.exception_handler import exception_handler
                 await exception_handler.handle_exception(
                     e,
-                    context={"event_type": event_type, "handler": handler.__name__},
-                    task_name=f"EventHandler:{handler.__name__}"
+                    context={"event_type": event_type, "handler": handler_name},
+                    task_name=f"EventHandler:{handler_name}"
                 )
             except Exception:
                 pass  # 防止循环错误
+
+    def _handler_name(self, handler: Callable) -> str:
+        """返回安全的 handler 名称，兼容 callable 实例和 functools.partial。"""
+        return getattr(handler, "__name__", handler.__class__.__name__)
     
     def _should_log(self, event_type: str) -> bool:
         """判断是否需要记录日志"""
