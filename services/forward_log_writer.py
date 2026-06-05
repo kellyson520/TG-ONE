@@ -85,6 +85,7 @@ class ForwardLogBatchWriter:
         self._lock = asyncio.Lock()
         self._running = False
         self._flush_task: Optional[asyncio.Task] = None
+        self._flush_trigger_task: Optional[asyncio.Task] = None
         self._stats = {
             "total_logged": 0,
             "total_written": 0,
@@ -110,6 +111,8 @@ class ForwardLogBatchWriter:
                 await self._flush_task
             except asyncio.CancelledError as e:
                 logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+        if self._flush_trigger_task and not self._flush_trigger_task.done():
+            await self._flush_trigger_task
         # 刷新剩余日志
         await self._flush()
         logger.info(f"ForwardLogBatchWriter stopped. Stats: {self._stats}")
@@ -126,7 +129,8 @@ class ForwardLogBatchWriter:
         
         # 达到批量阈值立即刷新
         if len(self._queue) >= self.BATCH_SIZE:
-            asyncio.create_task(self._flush())
+            if self._flush_trigger_task is None or self._flush_trigger_task.done():
+                self._flush_trigger_task = asyncio.create_task(self._flush())
     
     async def log_forward(
         self,
