@@ -8,7 +8,11 @@ async def test_unified_sender_text():
     sender = UnifiedSender(mock_client)
     
     await sender.send(12345, text="Hello")
-    mock_client.send_message.assert_called_with(12345, "Hello")
+    mock_client.send_message.assert_called_with(
+        12345,
+        "Hello",
+        extra_keywords={"type": "text"},
+    )
     mock_client.send_file.assert_not_called()
 
 @pytest.mark.asyncio
@@ -18,7 +22,12 @@ async def test_unified_sender_media():
     mock_media = MagicMock()
     
     await sender.send(12345, text="Caption", media=mock_media)
-    mock_client.send_file.assert_called_with(12345, mock_media, caption="Caption")
+    mock_client.send_file.assert_called_with(
+        12345,
+        mock_media,
+        caption="Caption",
+        extra_keywords={"type": "media"},
+    )
     mock_client.send_message.assert_not_called()
 
 @pytest.mark.asyncio

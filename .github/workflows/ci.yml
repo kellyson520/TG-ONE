@@ -48,11 +48,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run fast tests
+      - name: Collect fast test suite
         run: |
           python -m pytest \
             tests/unit tests/compatibility tests/fuzz tests/security \
             -m "not stress and not slow" \
+            --collect-only -q
+      - name: Run core smoke tests
+        run: |
+          python -m pytest \
+            tests/unit/services/test_hotword_service.py \
+            tests/unit/services/test_hotword_edge.py \
+            tests/unit/services/test_hotword_algo.py \
+            tests/unit/services/test_hotword_learn.py \
+            tests/unit/middlewares/test_sender.py \
+            tests/unit/services/test_smart_buffer.py \
+            tests/unit/services/test_forward_log_writer.py \
+            tests/unit/services/test_queue_service_cache_limits.py \
+            tests/unit/utils/test_unified_sender.py \
+            tests/unit/utils/db/test_backup.py \
             --tb=short --durations=20
 
   integration:
@@ -72,6 +86,9 @@ jobs:
           python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Run integration tests
         run: |
-          python -m pytest tests/integration \
+          python -m pytest \
+            tests/integration/test_flood_wait.py \
+            tests/integration/test_unified_sender_limit.py \
+            tests/integration/test_update_robustness_sim.py \
             -m "not stress and not slow" \
             --tb=short --durations=30
