@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from services.queue_service import TelegramQueueService
+from services.queue_service import MessageQueueService, TelegramQueueService
 
 
 def test_target_semaphore_cache_evicts_idle_entries():
@@ -40,3 +40,29 @@ def test_flood_wait_cache_prunes_expired_and_caps_size():
 
     assert "expired" not in service._flood_wait_until
     assert len(service._flood_wait_until) <= 3
+
+
+async def test_message_queue_processes_falsy_items():
+    service = MessageQueueService(max_size=10, workers=1)
+    processed = []
+
+    async def processor(batch):
+        processed.extend(batch)
+
+    async def wait_until_processed():
+        while not processed:
+            await asyncio.sleep(0.01)
+
+    service.set_processor(processor)
+    await service.start()
+    try:
+        await service.enqueue(0)
+        await asyncio.wait_for(wait_until_processed(), timeout=1.0)
+        assert processed == [0]
+    finally:
+        if processed:
+            await service.stop()
+        else:
+            for task in service._worker_tasks:
+                task.cancel()
+            await asyncio.gather(*service._worker_tasks, return_exceptions=True)

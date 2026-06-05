@@ -71,7 +71,7 @@ class SmartBufferService:
                 
                 # 如果达到最大批次（如10张图），立即触发发车
                 if len(buffer["contexts"]) >= buffer["config"]["max_batch"]:
-                    logger.info(f"🚀 [满载发车] 规则 {rule_id} 积压达 {len(buffer['contexts'])} 条，立即发出")
+                    logger.debug(f"🚀 [满载发车] 规则 {rule_id} 积压达 {len(buffer['contexts'])} 条，立即发出")
                     if buffer["timer"]:
                         buffer["timer"].cancel()
                     flush_now = True
@@ -97,7 +97,7 @@ class SmartBufferService:
                 # 条件 2: 强行发车超时
                 if elapsed_since_last >= config["debounce"] or total_wait >= config["max_wait"]:
                     reason = "防抖超时" if elapsed_since_last >= config["debounce"] else "强行发车"
-                    logger.info(f"🚏 [站点发车] 规则 {key[0]} {reason}，发送 {len(buffer['contexts'])} 条消息 (已等 {round(total_wait, 1)}s)")
+                    logger.debug(f"🚏 [站点发车] 规则 {key[0]} {reason}，发送 {len(buffer['contexts'])} 条消息 (已等 {round(total_wait, 1)}s)")
                     await self._flush(key, send_callback)
                     break
                 
@@ -108,7 +108,12 @@ class SmartBufferService:
         except Exception as e:
             logger.error(f"缓冲区计时器异常: {e}")
             async with self._lock:
-                self._buffers.pop(key, None)
+                buffer = self._buffers.pop(key, None)
+                if buffer:
+                    self._total_contexts = max(
+                        0,
+                        self._total_contexts - len(buffer.get("contexts") or [])
+                    )
 
     async def _flush(self, key: tuple, send_callback: Callable):
         """执行发送并清理缓冲区"""
@@ -118,7 +123,7 @@ class SmartBufferService:
                 return
             
             contexts = buffer["contexts"]
-            self._total_contexts -= len(contexts)
+            self._total_contexts = max(0, self._total_contexts - len(contexts))
 
             
         # 在锁外执行回调，避免阻塞新消息推入

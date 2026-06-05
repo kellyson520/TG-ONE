@@ -62,5 +62,21 @@ class TestSmartBuffer(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.4)
         send_mock.assert_called()
 
+    async def test_timer_exception_releases_context_pressure(self):
+        service = SmartBufferService()
+        key = (104, 204)
+        service._buffers[key] = {
+            "contexts": [MagicMock(message_id=1), MagicMock(message_id=2)],
+            "last_received": time.time(),
+            "start_time": time.time(),
+            "config": {},  # Missing debounce/max_wait forces timer error path.
+        }
+        service._total_contexts = 2
+
+        await service._wait_and_flush(key, AsyncMock())
+
+        self.assertNotIn(key, service._buffers)
+        self.assertEqual(service._total_contexts, 0)
+
 if __name__ == "__main__":
     unittest.main()

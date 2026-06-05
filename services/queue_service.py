@@ -180,7 +180,7 @@ class MessageQueueService:
                             except asyncio.QueueEmpty:
                                 continue
                     
-                    if not selected_item:
+                    if selected_lane is None:
                         # All lanes empty
                         self._newItemEvent.clear()
                         # Double check to avoid race condition where item added just before clear
