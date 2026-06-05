@@ -43,7 +43,10 @@ class SessionService:
         #   'picker_context': str (optional)
         # }
         self.user_sessions: Dict[int, Dict[str, Any]] = {}
-        self.current_scan_results: Dict[str, Any] = {}
+        self.current_scan_results: Dict[Any, Any] = {}
+        self._scan_result_timestamps: Dict[Any, datetime] = {}
+        self._scan_result_ttl_seconds = 1800
+        self._scan_result_max_chats = 10
         
         # 注册到墓碑，实现重启恢复
         tombstone.register(
@@ -66,12 +69,10 @@ class SessionService:
             # ✅ Fix: 强制使用字符串作为 Key，兼容 orjson
             serializable_sessions[str(uid)] = s
             
-        # ✅ Fix: current_scan_results 也需要转换 key
-        scan_results = {str(k): v for k, v in self.current_scan_results.items()}
-
         return {
             "user_sessions": serializable_sessions,
-            "current_scan_results": scan_results,
+            # 扫描结果可能很大，属于临时交互缓存，不写入 tombstone。
+            "current_scan_results": {},
         }
 
     def _restore_state_dump(self, dump):
@@ -92,14 +93,8 @@ class SessionService:
                 except ValueError:
                     logger.warning(f"跳过无效的用户ID key: {uid_str}")
                 
-            # ✅ Fix: 恢复时将 Key 转回 int
-            raw_scan_results = dump.get("current_scan_results", {})
             self.current_scan_results = {}
-            for k, v in raw_scan_results.items():
-                if k.isdigit() or (k.startswith('-') and k[1:].isdigit()):
-                    self.current_scan_results[int(k)] = v
-                else:
-                    self.current_scan_results[k] = v
+            self._scan_result_timestamps = {}
 
             logger.info(
                 f"🔥 SessionService 恢复了 {len(self.user_sessions)} 个用户会话"
@@ -109,6 +104,74 @@ class SessionService:
         if user_id not in self.user_sessions:
             self.user_sessions[user_id] = {}
         return self.user_sessions[user_id]
+
+    def get_chat_session(self, user_id: int, chat_id: int) -> Dict[str, Any]:
+        """Return prompt/menu state stored under [user_id][chat_id]."""
+        user_session = self._get_user_session(user_id)
+        chat_session = user_session.get(chat_id)
+        if not isinstance(chat_session, dict):
+            chat_session = {}
+            user_session[chat_id] = chat_session
+        return chat_session
+
+    def set_user_session(self, user_id: int, chat_id: int, data: Dict[str, Any]) -> None:
+        """Compatibility helper used by prompt-style callback handlers."""
+        self._get_user_session(user_id)[chat_id] = data or {}
+
+    def clear_user_session(self, user_id: int, chat_id: Optional[int] = None) -> None:
+        """Clear prompt/menu state without dropping unrelated user-level settings."""
+        if user_id not in self.user_sessions:
+            return
+        if chat_id is None:
+            self.user_sessions.pop(user_id, None)
+            return
+        self.user_sessions[user_id].pop(chat_id, None)
+        if not self.user_sessions[user_id]:
+            self.user_sessions.pop(user_id, None)
+
+    def _prune_scan_results(self) -> None:
+        now = datetime.utcnow()
+        expired = [
+            chat_id for chat_id, created_at in self._scan_result_timestamps.items()
+            if (now - created_at).total_seconds() > self._scan_result_ttl_seconds
+        ]
+        for chat_id in expired:
+            self.current_scan_results.pop(chat_id, None)
+            self._scan_result_timestamps.pop(chat_id, None)
+
+        overflow = len(self.current_scan_results) - self._scan_result_max_chats
+        if overflow > 0:
+            ordered = sorted(self._scan_result_timestamps.items(), key=lambda item: item[1])
+            for chat_id, _ in ordered[:overflow]:
+                self.current_scan_results.pop(chat_id, None)
+                self._scan_result_timestamps.pop(chat_id, None)
+
+    def _get_cached_scan_result(self, chat_id: int):
+        self._prune_scan_results()
+        if chat_id not in self.current_scan_results:
+            return None
+        return self.current_scan_results.get(chat_id)
+
+    def _set_scan_result(self, chat_id: int, result: Dict[str, Any]) -> None:
+        self.current_scan_results[chat_id] = result
+        self._scan_result_timestamps[chat_id] = datetime.utcnow()
+        self._prune_scan_results()
+
+    def _clear_scan_result(self, chat_id: int) -> None:
+        self.current_scan_results.pop(chat_id, None)
+        self._scan_result_timestamps.pop(chat_id, None)
+
+    def clear_scan_result(self, chat_id: int) -> None:
+        self._clear_scan_result(chat_id)
+
+    def keep_duplicate_messages(self, event) -> Tuple[bool, str]:
+        """Drop the current dedup scan state when the user chooses to keep all."""
+        chat_id = event.chat_id
+        self._clear_scan_result(chat_id)
+        session = self._get_user_session(chat_id)
+        session.pop('selected_signatures', None)
+        session.pop('sig_mapping', None)
+        return True, "已保留重复项"
 
     async def get_selected_rule(self, user_id: int) -> Dict[str, Any]:
         """获取当前选中的规则详情 (API 兼容格式)"""
@@ -875,11 +938,13 @@ class SessionService:
         user_id = event.sender_id
         
         # 增加缓存检查：如果无回调（即非手动点击重新扫描）且已有结果，则返回缓存
-        if not progress_callback and chat_id in self.current_scan_results and self.current_scan_results[chat_id]:
+        cached_result = self._get_cached_scan_result(chat_id)
+        if not progress_callback and cached_result:
             logger.info(f"💾 返回会话 {chat_id} 的去重扫描缓存结果")
-            return self.current_scan_results[chat_id]
+            return cached_result
         
-        time_config = self.get_time_range(user_id)
+        # 会话去重的时间选择器按 chat_id 保存；历史任务仍按 user_id 保存。
+        time_config = self.get_time_range(chat_id)
         begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
         
         duplicates = {} # signature -> [msg_ids]
@@ -889,7 +954,7 @@ class SessionService:
         client = container.user_client
         
         # 清除旧结果
-        self.current_scan_results[chat_id] = {}
+        self._clear_scan_result(chat_id)
         
         try:
             # 优化：优先使用内容哈希以增加准确性（能识别重复上传的文件）
@@ -930,7 +995,7 @@ class SessionService:
                 sig_mapping[short_id] = sig
             session['sig_mapping'] = sig_mapping
 
-            self.current_scan_results[chat_id] = duplicates
+            self._set_scan_result(chat_id, duplicates)
             logger.info(f"✅ 扫描完成: 处理 {processed} 条，发现 {len(duplicates)} 组重复内容 (映射数: {len(sig_mapping)})")
             return duplicates
             
@@ -941,10 +1006,17 @@ class SessionService:
     async def delete_duplicate_messages(self, event, mode="all"):
         """删除重复消息"""
         chat_id = event.chat_id
-        if chat_id not in self.current_scan_results:
+        duplicates_map = self._get_cached_scan_result(chat_id)
+        if duplicates_map is None:
             return False, "请先进行扫描"
-            
-        duplicates_map = self.current_scan_results[chat_id]
+
+        if mode == "keep":
+            self._clear_scan_result(chat_id)
+            session = self._get_user_session(chat_id)
+            session.pop('selected_signatures', None)
+            session.pop('sig_mapping', None)
+            return True, "已保留重复项"
+
         if not duplicates_map:
             return True, "没有发现重复项"
             
@@ -972,7 +1044,8 @@ class SessionService:
         }
             
         # 启动后台删除任务
-        asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids_to_delete))
+        task_future = asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids_to_delete))
+        session['delete_task']['future'] = task_future
         return True, "已启动后台删除任务"
 
     async def _execute_batch_delete(self, chat_id, msg_ids):
@@ -994,7 +1067,8 @@ class SessionService:
                 try:
                     await client.delete_messages(chat_id, batch)
                     deleted += len(batch)
-                    task['deleted'] = deleted
+                    if task:
+                        task['deleted'] = deleted
                     
                     # 避免触发 Flood 控制
                     await asyncio.sleep(1.0)
@@ -1002,16 +1076,16 @@ class SessionService:
                     logger.error(f"删除批次 {i} 失败: {e}")
                     await asyncio.sleep(5.0) # 出错时多等等
             
-            if task['status'] == "running":
+            if task and task.get('status') == "running":
                 task['status'] = "completed"
                 
             # 清理该会话的扫描缓存
-            if chat_id in self.current_scan_results:
-                del self.current_scan_results[chat_id]
+            self._clear_scan_result(chat_id)
                 
         except Exception as e:
             logger.error(f"批量删除任务崩溃: {e}", exc_info=True)
-            if task: task['status'] = "failed"
+            if task:
+                task['status'] = "failed"
 
     async def get_delete_progress(self, chat_id):
         """获取删除任务进度"""
@@ -1023,26 +1097,6 @@ class SessionService:
             "total": task.get("total", 0),
             "status": task.get("status", "unknown")
         }
-
-    async def get_selection_state(self, chat_id):
-        """获取选中的签名列表"""
-        return self._get_user_session(chat_id).get('selected_signatures', [])
-    
-    async def toggle_select_signature(self, chat_id, signature):
-        """切换签名的选中状态"""
-        session = self._get_user_session(chat_id)
-        
-        # [Critical Fix] 如果传入的是 short_id，则需要从映射中还原
-        if 'sig_mapping' in session and signature in session['sig_mapping']:
-            signature = session['sig_mapping'][signature]
-            
-        if 'selected_signatures' not in session:
-            session['selected_signatures'] = []
-            
-        if signature in session['selected_signatures']:
-            session['selected_signatures'].remove(signature)
-        else:
-            session['selected_signatures'].append(signature)
 
     def _signature_to_display_name(self, sig):
         """签名转可显示名称"""
@@ -1057,6 +1111,15 @@ class SessionService:
         if task and task.get('cancel_event'):
             task['cancel_event'].set()
             task['status'] = "cancelled"
+            return True
+        return False
+
+    async def pause_delete_task(self, chat_id):
+        """Pause is implemented as a cancellable stop for non-resumable delete jobs."""
+        task = self._get_user_session(chat_id).get('delete_task')
+        if task and task.get('cancel_event'):
+            task['cancel_event'].set()
+            task['status'] = "paused"
             return True
         return False
 
@@ -1103,8 +1166,7 @@ class SessionService:
     async def preview_session_messages_by_filter(self, event, limit=10):
         """预览符合当前筛选条件的会话消息 (UIRE-2.0)"""
         chat_id = event.chat_id
-        user_id = event.sender_id
-        time_config = self.get_time_range(user_id)
+        time_config = self.get_time_range(chat_id)
         begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
         
         client = container.user_client
@@ -1125,8 +1187,7 @@ class SessionService:
     async def delete_session_messages_by_filter(self, event):
         """批量删除符合筛选条件的会话消息 (UIRE-2.0)"""
         chat_id = event.chat_id
-        user_id = event.sender_id
-        time_config = self.get_time_range(user_id)
+        time_config = self.get_time_range(chat_id)
         begin_date, end_date, _, _ = parse_time_range_to_dates(time_config)
         
         client = container.user_client
@@ -1141,7 +1202,7 @@ class SessionService:
                 return True, "没有匹配的消息"
             
             # 记录到进度
-            session = self._get_user_session(user_id)
+            session = self._get_user_session(chat_id)
             session['delete_task'] = {
                 "deleted": 0,
                 "total": len(msg_ids),
@@ -1150,7 +1211,8 @@ class SessionService:
             }
                 
             # 启动后台删除任务
-            asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids))
+            task_future = asyncio.create_task(self._execute_batch_delete(chat_id, msg_ids))
+            session['delete_task']['future'] = task_future
             return True, "已启动后台清理任务"
         except Exception as e:
             logger.error(f"Batch delete failed: {e}")

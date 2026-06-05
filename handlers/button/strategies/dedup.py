@@ -86,8 +86,7 @@ class DedupMenuStrategy(BaseMenuHandler):
             await new_menu_system.execute_delete_all_duplicates(event)
         
         elif action == "keep_all_duplicates":
-             # Still logic heavy, but no direct session management here
-            success, msg = await session_manager.delete_duplicate_messages(event, mode="keep")
+            success, msg = session_manager.keep_duplicate_messages(event)
             if success:
                 await event.answer("✅ 已保留所有重复项")
                 await new_menu_system.show_session_dedup_menu(event)

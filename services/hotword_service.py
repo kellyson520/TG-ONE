@@ -233,7 +233,8 @@ class HotwordService:
         self.last_activity = asyncio.get_event_loop().time()
         self._monitor_task: Optional[asyncio.Task] = None
         # 上次噪声学习发生时间（单调时钟）
-        self._last_noise_learn_time: float = 0.0
+        self._last_noise_learn_time: float = asyncio.get_event_loop().time()
+        self._noise_learning_task: Optional[asyncio.Task] = None
         # global_day 数据读盘缓存，避免短时多次触发反复读盘 (data, cache_ts)
         self._global_day_cache: Optional[tuple] = None
         self._global_day_cache_ttl: float = 600.0  # 10 分钟
@@ -317,13 +318,24 @@ class HotwordService:
         return self._analyzer
 
     def start_monitoring(self):
-        if self._monitor_task: return
+        if self._monitor_task and not self._monitor_task.done():
+            return
         async def _monitor():
-            while True:
-                await asyncio.sleep(60)
-                if not self.is_suspended and (asyncio.get_event_loop().time() - self.last_activity > settings.HOTWORD_IDLE_TIMEOUT):
-                    self.suspend()
+            try:
+                while True:
+                    await asyncio.sleep(60)
+                    if not self.is_suspended and (asyncio.get_event_loop().time() - self.last_activity > settings.HOTWORD_IDLE_TIMEOUT):
+                        self.suspend()
+            except asyncio.CancelledError:
+                pass
         self._monitor_task = asyncio.create_task(_monitor())
+
+    async def stop_monitoring(self):
+        task = self._monitor_task
+        self._monitor_task = None
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     @log_performance("解析热词批次")
     async def process_batch(self, channel_name: str, items: List[Dict[str, Any]]):
@@ -465,7 +477,9 @@ class HotwordService:
 
         if trigger_reason:
             logger.info(f"[NoiseLearning] 触发后台学习任务，原因: {trigger_reason}")
-            asyncio.create_task(self._noise_learning_job())
+            if self._noise_learning_task and not self._noise_learning_task.done():
+                return
+            self._noise_learning_task = asyncio.create_task(self._noise_learning_job())
 
     async def _noise_learning_job(self) -> None:
         """
@@ -474,6 +488,9 @@ class HotwordService:
         - 全局 day JSON 读盘缓存 10 分钟，避免高频触发时重复 IO
         """
         if self._learning_lock.locked():
+            task = self._noise_learning_task
+            if task and task is not asyncio.current_task() and not task.done():
+                await asyncio.gather(task, return_exceptions=True)
             return
 
         async with self._learning_lock:
@@ -651,6 +668,7 @@ class HotwordService:
         return data
  
     async def aggregate_daily(self):
+        await self.flush_to_disk()
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
         # 直接调用 Repo 的 DB 聚合逻辑，内置信号量控频
         await self.repo.move_temp_to_daily(yesterday, self.io_semaphore)

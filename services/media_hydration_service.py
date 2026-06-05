@@ -1,6 +1,7 @@
 import asyncio
 import os
 import logging
+from contextlib import asynccontextmanager
 from typing import Dict, Optional
 from core.constants import TEMP_DIR
 
@@ -29,6 +30,7 @@ class MediaHydrationService:
                 self._locks[file_id] = asyncio.Lock()
             return self._locks[file_id]
 
+    @asynccontextmanager
     async def hydration_context(self, message, file_id: str = None):
         """
         Context manager for hydrated media.

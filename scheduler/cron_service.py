@@ -14,21 +14,6 @@ logger = logging.getLogger(__name__)
 class CronService:
     def __init__(self):
         self._tasks = []
-
-    def start(self):
-        self._tasks.append(asyncio.create_task(self._archive_cron(), name="archive_cron"))
-        self._tasks.append(asyncio.create_task(self._compact_cron(), name="compact_cron"))
-        self._tasks.append(asyncio.create_task(self._cleanup_temp_cron(), name="cleanup_temp_cron"))
-        logger.info("CronService started")
-
-    async def stop(self):
-        for task in self._tasks:
-            task.cancel()
-        
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-            
-        self._tasks.clear()
         
     async def _archive_cron(self):
         times = settings.CLEANUP_CRON_TIMES

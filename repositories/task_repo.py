@@ -6,6 +6,7 @@ from core.states import validate_transition
 from core.config import settings
 from core.helpers.db_utils import async_db_retry
 from core.helpers.batch_sink import task_status_sink
+from core.helpers.maintenance_gate import is_maintenance_active, maintenance_owner
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +244,10 @@ class TaskRepository:
     @async_db_retry(max_retries=5)
     async def rescue_stuck_tasks(self, timeout_minutes: int = 10):
         """僵尸任务救援 - 将处于 'running' 状态超过指定时间的任务重置为 'pending'"""
+        if is_maintenance_active():
+            logger.info(f"数据库维护中，跳过本轮僵尸任务救援: {maintenance_owner()}")
+            return 0
+
         from core.db_factory import AsyncSessionManager
         async with AsyncSessionManager() as session:
             cutoff_time = datetime.utcnow() - timedelta(minutes=timeout_minutes)
@@ -256,7 +261,7 @@ class TaskRepository:
             ).values(
                 status='pending',
                 attempts=TaskQueue.attempts + 1, # 增加重试计数
-                error_message=TaskQueue.error_message + ' [System] Task rescued from zombie state',
+                error_message=func.coalesce(TaskQueue.error_message, '') + ' [System] Task rescued from zombie state',
                 updated_at=now
             )
             

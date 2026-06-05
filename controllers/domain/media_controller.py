@@ -629,8 +629,8 @@ class MediaController(BaseController):
         """显示会话扫描结果详情"""
         try:
             chat_id = event.chat_id
-            # 直接从服务获取缓存结果
-            results_map = self.container.session_service.current_scan_results.get(chat_id, {})
+            # 通过服务访问器读取，确保 TTL/容量剪枝生效。
+            results_map = self.container.session_service._get_cached_scan_result(chat_id) or {}
             
             # 转换为显示名称映射
             display_results = {}
@@ -682,9 +682,8 @@ class MediaController(BaseController):
         """显示批量删除管理"""
         try:
             chat_id = event.chat_id
-            user_id = event.sender_id
-            time_range = await self.container.session_service.get_time_range_display(user_id)
-            progress = await self.container.session_service.get_delete_progress(user_id)
+            time_range = await self.container.session_service.get_time_range_display(chat_id)
+            progress = await self.container.session_service.get_delete_progress(chat_id)
             
             data = {
                 'time_range': time_range,

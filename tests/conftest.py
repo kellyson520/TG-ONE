@@ -116,8 +116,13 @@ mock_settings.RSS_MEDIA_DIR = Path("./temp_rss_media")
 mock_settings.USER_MESSAGE_DELETE_ENABLE = False
 mock_settings.BOT_MESSAGE_DELETE_TIMEOUT = 300
 mock_settings.DB_DIR = Path("./temp_test_db")
+_pytest_worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+mock_settings.HOT_DIR = Path("tests/temp/hot")
+mock_settings.HOT_DB_PATH = Path(f"tests/temp/db/hotwords_test_{_pytest_worker_id}_{os.getpid()}.db")
+mock_settings.HOT_DATABASE_URL = f"sqlite+aiosqlite:///{mock_settings.HOT_DB_PATH.as_posix()}"
 if not mock_settings.DB_DIR.exists():
     mock_settings.DB_DIR.mkdir(parents=True, exist_ok=True)
+mock_settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # JWT Settings
 mock_settings.SECRET_KEY = "test_jwt_secret"
@@ -146,6 +151,9 @@ for key, value in mock_settings.__dict__.items():
 core.config.settings.SECRET_KEY = "test_jwt_secret"
 core.config.settings.JWT_ALGORITHM = "HS256"
 core.config.settings.DATABASE_URL = "sqlite+aiosqlite:///file:testdb_early?mode=memory&cache=shared&uri=true"
+core.config.settings.HOT_DIR = mock_settings.HOT_DIR
+core.config.settings.HOT_DB_PATH = mock_settings.HOT_DB_PATH
+core.config.settings.HOT_DATABASE_URL = mock_settings.HOT_DATABASE_URL
 
 
 # # Mock 暂时不需要测试且存在导入错误的业务模块
@@ -261,6 +269,35 @@ def event_loop():
         loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def cleanup_database_engines():
+    """测试会话结束时释放异步 DB 引擎，避免 aiosqlite 后台线程挂住 pytest。"""
+    hot_db_path = core.config.settings.HOT_DB_PATH
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            Path(f"{hot_db_path}{suffix}").unlink(missing_ok=True)
+        except Exception:
+            pass
+    try:
+        from core.db_init import init_hotword_db
+        await init_hotword_db()
+    except Exception as e:
+        logging.warning(f"热词测试库初始化失败: {e}")
+
+    yield
+
+    try:
+        from core.db_factory import dispose_all_engines
+        await dispose_all_engines()
+    except Exception as e:
+        logging.warning(f"数据库引擎清理失败: {e}")
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            Path(f"{hot_db_path}{suffix}").unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="session")

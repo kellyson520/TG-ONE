@@ -24,12 +24,15 @@ class SettingsMenuStrategy(BaseMenuHandler):
         "toggle_media_type", 
         "toggle_media_duration",
         "set_duration_range", "set_duration_start", "set_duration_end",
+        "media_duration_settings", "open_duration_picker",
+        "pick_duration_unit", "confirm_duration_value",
         "save_duration_settings",
         "toggle_media_size_filter", "toggle_media_size_alert",
         # Aliases and Navigation
         "allow_text", "filter_allow_text", "toggle_allow_text", "history_toggle_allow_text",
         "toggle_media_extension", "filter_media_extension",
         "filter_media_size", "filter_media_duration",
+        "set_media_size_limit", "toggle_ext", "media_extensions",
         "save_message_filter",
         "toggle_allow_emoji", "toggle_dedup_enabled", "toggle_dedup_mode",
         "filter_settings", "media_types", "message_filter", "filter_media_types",
@@ -93,6 +96,28 @@ class SettingsMenuStrategy(BaseMenuHandler):
         elif action == "set_duration_end":
             await new_menu_system.show_duration_range_picker(event, "max")
 
+        elif action == "media_duration_settings":
+            await new_menu_system.show_media_duration_settings(event)
+
+        elif action == "open_duration_picker":
+            side = extra_data[0] if len(extra_data) > 0 else "min"
+            unit = extra_data[1] if len(extra_data) > 1 else "seconds"
+            current_value = await self._get_duration_component(side, unit)
+            await new_menu_system.show_single_unit_duration_picker(event, side, unit, current_value)
+
+        elif action == "pick_duration_unit":
+            if len(extra_data) < 3:
+                await event.answer("参数不足", alert=True)
+                return
+            side, unit, value = extra_data[0], extra_data[1], int(extra_data[2])
+            await self._set_duration_component(side, unit, value)
+            await event.answer("✅ 已更新时长")
+            await new_menu_system.show_single_unit_duration_picker(event, side, unit, value)
+
+        elif action == "confirm_duration_value":
+            await event.answer("✅ 时长设置已保存")
+            await new_menu_system.show_media_duration_settings(event)
+
         elif action == "save_duration_settings":
             await event.answer("✅ 时长设置已自动保存")
 
@@ -111,9 +136,23 @@ class SettingsMenuStrategy(BaseMenuHandler):
             
         elif action == "filter_media_extension":
             await new_menu_system.show_media_extension_settings(event)
+
+        elif action == "media_extensions":
+            await new_menu_system.show_media_extension_settings(event)
             
         elif action == "filter_media_size":
             await new_menu_system.show_media_size_settings(event)
+
+        elif action == "set_media_size_limit":
+            await self._handle_set_media_size_limit(event, extra_data)
+
+        elif action == "toggle_ext":
+            if not extra_data:
+                await event.answer("参数不足", alert=True)
+                return
+            ok = await forward_settings_service.toggle_media_extension(extra_data[0])
+            await event.answer("✅ 已更新扩展名" if ok is not None else "操作失败")
+            await new_menu_system.show_media_extension_settings(event)
         
         elif action == "filter_media_duration":
              await new_menu_system.show_media_duration_settings(event)
@@ -353,3 +392,69 @@ class SettingsMenuStrategy(BaseMenuHandler):
         except Exception as e:
             logger.error(f"切换媒体大小超限提示失败: {str(e)}")
             await event.answer("操作失败", alert=True)
+
+    async def _handle_set_media_size_limit(self, event, extra_data):
+        from services.forward_settings_service import forward_settings_service
+        from handlers.button.new_menu_system import new_menu_system
+        if extra_data:
+            try:
+                limit_mb = max(1, int(extra_data[0]))
+            except (TypeError, ValueError):
+                await event.answer("大小参数无效", alert=True)
+                return
+            ok = await forward_settings_service.set_media_size_limit(limit_mb)
+            await event.answer(f"✅ 大小限制已设为 {limit_mb}MB" if ok else "操作失败", alert=not ok)
+            await new_menu_system.show_media_size_settings(event)
+            return
+
+        buttons = [
+            [
+                Button.inline("10MB", "new_menu:set_media_size_limit:10"),
+                Button.inline("50MB", "new_menu:set_media_size_limit:50"),
+                Button.inline("100MB", "new_menu:set_media_size_limit:100"),
+            ],
+            [
+                Button.inline("200MB", "new_menu:set_media_size_limit:200"),
+                Button.inline("500MB", "new_menu:set_media_size_limit:500"),
+                Button.inline("1GB", "new_menu:set_media_size_limit:1024"),
+            ],
+            [Button.inline("👈 返回", "new_menu:filter_media_size")],
+        ]
+        await event.edit("📐 **媒体大小限制**\n\n请选择最大允许文件大小：", buttons=buttons)
+
+    def _duration_key(self, side: str) -> str:
+        return "duration_min_seconds" if side == "min" else "duration_max_seconds"
+
+    def _seconds_to_duration_parts(self, total: int) -> dict:
+        total = max(0, int(total or 0))
+        return {
+            "days": total // 86400,
+            "hours": (total % 86400) // 3600,
+            "minutes": (total % 3600) // 60,
+            "seconds": total % 60,
+        }
+
+    def _duration_parts_to_seconds(self, parts: dict) -> int:
+        return (
+            int(parts.get("days", 0)) * 86400
+            + int(parts.get("hours", 0)) * 3600
+            + int(parts.get("minutes", 0)) * 60
+            + int(parts.get("seconds", 0))
+        )
+
+    async def _get_duration_component(self, side: str, unit: str) -> int:
+        from services.forward_settings_service import forward_settings_service
+        settings = await forward_settings_service.get_global_media_settings()
+        parts = self._seconds_to_duration_parts(settings.get(self._duration_key(side), 0))
+        return int(parts.get(unit, 0))
+
+    async def _set_duration_component(self, side: str, unit: str, value: int) -> None:
+        from services.forward_settings_service import forward_settings_service
+        settings = await forward_settings_service.get_global_media_settings()
+        key = self._duration_key(side)
+        parts = self._seconds_to_duration_parts(settings.get(key, 0))
+        parts[unit] = max(0, int(value))
+        await forward_settings_service.update_global_media_setting(
+            key,
+            self._duration_parts_to_seconds(parts),
+        )

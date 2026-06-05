@@ -45,24 +45,34 @@ async def dispose_all_engines() -> None:
     if hasattr(DbFactory, "_async_write_engine") and DbFactory._async_write_engine:
         engines_to_dispose.append(("Async Write", DbFactory._async_write_engine))
         DbFactory._async_write_engine = None
+        DbFactory._write_factory = None
 
     if hasattr(DbFactory, "_async_read_engine") and DbFactory._async_read_engine:
         engines_to_dispose.append(("Async Read", DbFactory._async_read_engine))
         DbFactory._async_read_engine = None
+        DbFactory._read_factory = None
+
+    if hasattr(DbFactory, "_hot_async_engine") and DbFactory._hot_async_engine:
+        engines_to_dispose.append(("Hotword Async", DbFactory._hot_async_engine))
+        DbFactory._hot_async_engine = None
+        DbFactory._hot_session_factory = None
 
     # 处理全局变量中的引擎 (如果有)
-    global _async_write_engine, _async_read_engine
+    global _async_write_engine, _async_read_engine, _async_write_factory, _async_read_factory
     if _async_write_engine:
         engines_to_dispose.append(("Global Async Write", _async_write_engine))
         _async_write_engine = None
+        _async_write_factory = None
     if _async_read_engine:
         engines_to_dispose.append(("Global Async Read", _async_read_engine))
         _async_read_engine = None
+        _async_read_factory = None
     
-    global _hot_async_engine
+    global _hot_async_engine, _hot_session_factory
     if _hot_async_engine:
         engines_to_dispose.append(("Hotword Async", _hot_async_engine))
         _hot_async_engine = None
+        _hot_session_factory = None
 
     for name, engine in engines_to_dispose:
         try:

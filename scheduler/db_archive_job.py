@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import List, Dict, Any
 
@@ -8,8 +8,31 @@ from core.helpers.metrics import ARCHIVE_RUN_TOTAL, ARCHIVE_RUN_SECONDS
 from repositories.bloom_index import bloom
 from models.models import analyze_database, vacuum_database
 from pathlib import Path
+from core.helpers.maintenance_gate import try_maintenance
 
 logger = logging.getLogger(__name__)
+
+
+def _checkpoint_wal_truncate() -> bool:
+    """Run WAL checkpoint outside SQLAlchemy transactions; skip quickly if busy."""
+    from core.db_factory import get_engine
+
+    raw = get_engine().raw_connection()
+    try:
+        cursor = raw.cursor()
+        try:
+            cursor.execute("PRAGMA busy_timeout=1000")
+            cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            raw.commit()
+            return True
+        finally:
+            cursor.close()
+    except Exception as e:
+        logger.warning(f"TRUNCATE WAL checkpoint 失败，跳过本轮 VACUUM: {e}")
+        logger.debug("TRUNCATE WAL checkpoint 失败详细信息", exc_info=True)
+        return False
+    finally:
+        raw.close()
 
 # 确保归档系统初始化
 def _ensure_archive_system():
@@ -68,12 +91,13 @@ def archive_force() -> None:
             
         # 优化数据库
         try:
-            from sqlalchemy import text
-            from core.db_factory import get_engine
-            analyze_database()
-            with get_engine().connect() as conn:
-                conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-            vacuum_database()
+            with try_maintenance("archive_force_db_optimize") as acquired:
+                if not acquired:
+                    logger.warning("数据库维护已有任务运行，跳过强制归档后的优化")
+                    return
+                analyze_database()
+                if _checkpoint_wal_truncate():
+                    vacuum_database()
         except Exception as e:
             logger.warning(f"强制归档后的数据库优化失败: {e}")
 
@@ -104,7 +128,7 @@ def garbage_collect_once() -> None:
                 try:
                     if item.is_file():
                         # 使用 UTC 时间
-                        mtime = datetime.fromtimestamp(item.stat().st_mtime, datetime.timezone.utc).replace(tzinfo=None)
+                        mtime = datetime.fromtimestamp(item.stat().st_mtime, timezone.utc).replace(tzinfo=None)
                         if mtime < cutoff:
                             item.unlink(missing_ok=True)
                             removed += 1
@@ -125,24 +149,15 @@ def garbage_collect_once() -> None:
     # 数据库优化与WAL截断，确保文件体积实际下降
     try:
         logger.debug("开始数据库优化")
-        analyze_database()
-        # 先尝试检查点并截断 WAL，随后 VACUUM 收缩主库
-        try:
-            from sqlalchemy import text
-            from core.db_factory import get_engine
-            with get_engine().connect() as conn:
-                try:
-                    logger.debug("尝试 TRUNCATE WAL checkpoint")
-                    conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-                except Exception as e:
-                    logger.warning(f"TRUNCATE WAL checkpoint 失败，尝试 FULL: {e}")
-                    logger.debug("TRUNCATE WAL checkpoint 失败详细信息", exc_info=True)
-                    conn.execute(text("PRAGMA wal_checkpoint(FULL)"))
-        except Exception as we:
-            logger.warning(f"WAL 截断失败（忽略）：{we}")
-            logger.debug("WAL 截断失败详细信息", exc_info=True)
-        vacuum_database()
-        logger.debug("数据库优化完成")
+        with try_maintenance("garbage_collect_db_optimize") as acquired:
+            if not acquired:
+                logger.warning("数据库维护已有任务运行，跳过本轮数据库优化")
+            else:
+                analyze_database()
+                # 先尝试检查点并截断 WAL，成功后再 VACUUM 收缩主库。
+                if _checkpoint_wal_truncate():
+                    vacuum_database()
+                    logger.debug("数据库优化完成")
     except Exception as e:
         logger.error(f"数据库优化失败: {e}")
         logger.debug("数据库优化失败详细信息", exc_info=True)

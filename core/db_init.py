@@ -86,6 +86,31 @@ async def init_hotword_db() -> None:
             # [Migration] 确保热词表索引存在 (由于 create_all 不会自动补充缺失索引)
             from sqlalchemy import text
             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hotword_date_word ON hot_period_stats(date_key, word)"))
+            await conn.execute(text("DROP TABLE IF EXISTS hot_period_stats_dedup"))
+            await conn.execute(text("""
+                CREATE TEMP TABLE hot_period_stats_dedup AS
+                SELECT
+                    MIN(id) AS id,
+                    channel,
+                    word,
+                    period,
+                    date_key,
+                    SUM(score) AS score,
+                    SUM(user_count) AS user_count
+                FROM hot_period_stats
+                GROUP BY channel, word, period, date_key
+            """))
+            await conn.execute(text("DELETE FROM hot_period_stats"))
+            await conn.execute(text("""
+                INSERT INTO hot_period_stats(id, channel, word, period, date_key, score, user_count)
+                SELECT id, channel, word, period, date_key, score, user_count
+                FROM hot_period_stats_dedup
+            """))
+            await conn.execute(text("DROP TABLE IF EXISTS hot_period_stats_dedup"))
+            await conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_hot_period_word "
+                "ON hot_period_stats(channel, word, period, date_key)"
+            ))
             
         logger.info("Hotword database tables and indexes verified/created successfully.")
     except Exception as e:

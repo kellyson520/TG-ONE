@@ -103,6 +103,7 @@ async def test_sender_media_message(mock_client, mock_message, mock_rule):
 async def test_sender_with_buttons(mock_client, mock_message, mock_rule):
     """测试带有按钮的消息发送，验证按钮逻辑"""
     mock_rule.is_replace = True
+    mock_message.media = MagicMock()
     ctx = MessageContext(
         client=mock_client,
         task_id=1,

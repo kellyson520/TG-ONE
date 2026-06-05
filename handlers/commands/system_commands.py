@@ -106,14 +106,14 @@ async def handle_dedup_scan_command(event, parts):
     from services.session_service import session_manager
     msg = await event.respond("⏳ 正在扫描重复消息...", parse_mode="md")
     
-    # 假设 scan_duplicate_messages 返回一个字典 {类型: 数量}
-    deleted_counts = await session_manager.scan_duplicate_messages(event.chat_id)
+    duplicates = await session_manager.scan_duplicate_messages(event)
     
     report = "**🗑️ 去重扫描完成**\n\n"
-    if deleted_counts:
+    if duplicates:
         total = 0
-        for media_type, count in deleted_counts.items():
-            report += f"- {media_type}: {count} 条\n"
+        for sig, msg_ids in duplicates.items():
+            count = len(msg_ids)
+            report += f"- `{sig[:8]}`: {count} 条\n"
             total += count
         if total == 0:
              report += "没有发现重复消息。"

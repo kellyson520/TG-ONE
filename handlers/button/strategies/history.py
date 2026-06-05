@@ -54,6 +54,13 @@ class HistoryMenuStrategy(BaseMenuHandler):
     async def match(self, action: str, **kwargs) -> bool:
         return action in self.ACTIONS
 
+    def _time_owner_id(self, event, session_manager) -> int:
+        try:
+            context = session_manager.get_time_picker_context(event.chat_id)
+        except Exception:
+            context = "session"
+        return event.sender_id if context == "history" else event.chat_id
+
     async def handle(self, event, action: str, **kwargs):
         from controllers.menu_controller import menu_controller
         from handlers.button.new_menu_system import new_menu_system
@@ -109,6 +116,14 @@ class HistoryMenuStrategy(BaseMenuHandler):
         elif action == "open_wheel_picker":
             await picker_menu.show_wheel_date_picker(event, extra_data[0])
 
+        elif action == "set_start_time":
+            session_manager.set_time_picker_context(event.chat_id, "history")
+            await picker_menu.show_wheel_date_picker(event, "start")
+
+        elif action == "set_end_time":
+            session_manager.set_time_picker_context(event.chat_id, "history")
+            await picker_menu.show_wheel_date_picker(event, "end")
+
         elif action == "select_days":
              if extra_data and extra_data[0] == "history":
                   session_manager.set_time_picker_context(event.chat_id, "history")
@@ -130,11 +145,12 @@ class HistoryMenuStrategy(BaseMenuHandler):
         elif action == "set_time":
             # new_menu:set_time:{start|end}:{hour|minute}:{val}
             try:
+                owner_id = self._time_owner_id(event, session_manager)
                 time_type = extra_data[0]
                 unit = extra_data[1]
                 value = int(extra_data[2])
                 await session_manager.set_time_component(
-                    event.chat_id, time_type, unit, value
+                    owner_id, time_type, unit, value
                 )
                 if time_type == "start":
                     await history_module.show_start_time_menu(event)
@@ -146,36 +162,36 @@ class HistoryMenuStrategy(BaseMenuHandler):
 
         elif action == "set_days":
              days = arg1
-             await session_manager.set_days(event.chat_id, days)
+             await session_manager.set_days(self._time_owner_id(event, session_manager), days)
              await new_menu_system.show_time_range_selection(event)
 
         elif action == "set_year":
              year = arg1
-             await session_manager.set_year(event.chat_id, year)
+             await session_manager.set_year(self._time_owner_id(event, session_manager), year)
              await event.answer("✅ 已设置年份")
              await menu_controller.show_history_time_range(event)
 
         elif action == "set_month":
              month = arg1
-             await session_manager.set_month(event.chat_id, month)
+             await session_manager.set_month(self._time_owner_id(event, session_manager), month)
              await event.answer("✅ 已设置月份")
              await menu_controller.show_history_time_range(event)
 
         elif action == "set_dom":
              dom = arg1
-             await session_manager.set_day_of_month(event.chat_id, dom)
+             await session_manager.set_day_of_month(self._time_owner_id(event, session_manager), dom)
              await event.answer("✅ 已设置日期")
              await menu_controller.show_history_time_range(event)
 
         elif action == "set_history_year":
              year = arg1
-             await session_manager.set_year(event.chat_id, year)
+             await session_manager.set_year(event.sender_id, year)
              await event.answer(f"✅ 已设置年份: {year if year > 0 else '不限'}")
              await menu_controller.show_history_time_range(event)
 
         elif action == "set_history_month":
              month = arg1
-             await session_manager.set_month(event.chat_id, month)
+             await session_manager.set_month(event.sender_id, month)
              await event.answer(f"✅ 已设置月份: {month if month > 0 else '不限'}月")
              await menu_controller.show_history_time_range(event)
 
@@ -187,7 +203,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
                     value = int(extra_data[2])
                     
                     await session_manager.set_time_field(
-                        event.chat_id, side, field, value
+                        self._time_owner_id(event, session_manager), side, field, value
                     )
                     
                     # Feedback logic from original code
@@ -207,7 +223,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
                 side = extra_data[0]
                 field = extra_data[1]
                 delta = int(extra_data[2])
-                await session_manager.adjust_time_component(event.chat_id, side, field, delta)
+                await session_manager.adjust_time_component(self._time_owner_id(event, session_manager), side, field, delta)
                 await picker_menu.show_wheel_date_picker(event, side)
             except Exception as e:
                 logger.error(f"调整时间分量失败: {e}")
@@ -217,11 +233,12 @@ class HistoryMenuStrategy(BaseMenuHandler):
             try:
                 side = extra_data[0]
                 # logic to reset fields to 0
-                tr = session_manager.get_time_range(event.chat_id)
+                owner_id = self._time_owner_id(event, session_manager)
+                tr = session_manager.get_time_range(owner_id)
                 prefix = f"{side}_"
                 for k in ["year", "month", "day", "hour", "minute", "second"]:
                     tr[prefix + k] = 0
-                session_manager.set_time_range(event.chat_id, tr)
+                session_manager.set_time_range(owner_id, tr)
                 await event.answer("✅ 已设为不限")
                 await picker_menu.show_wheel_date_picker(event, side)
             except Exception as e:
@@ -230,9 +247,10 @@ class HistoryMenuStrategy(BaseMenuHandler):
 
         elif action == "set_all_time_zero":
              # reset all components to 0
+             owner_id = self._time_owner_id(event, session_manager)
              for side in ["start", "end"]:
-                 for field in ["year", "month", "day", "seconds"]:
-                     await session_manager.set_time_field(event.chat_id, side, field, 0)
+                 for field in ["year", "month", "day", "hour", "minute", "second"]:
+                     await session_manager.set_time_field(owner_id, side, field, 0)
              await event.answer("✅ 已重置为全部时间")
              await history_module.show_time_range_selection(event)
 
@@ -276,6 +294,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
             await event.answer("📊 任务详情功能开发中", alert=True)
         
         elif action == "history_time_range":
+            session_manager.set_time_picker_context(event.chat_id, "history")
             await menu_controller.show_history_time_range(event)
         
         elif action == "history_delay_settings":
@@ -302,11 +321,11 @@ class HistoryMenuStrategy(BaseMenuHandler):
         # 6. Time Range Presets
         elif action == "set_time_range_all":
             # 设置为全部时间
-            tr = session_manager.get_time_range(event.chat_id)
+            tr = session_manager.get_time_range(event.sender_id)
             for prefix in ["start_", "end_"]:
                 for k in ["year", "month", "day", "hour", "minute", "second"]:
                     tr[prefix + k] = 0
-            session_manager.set_time_range(event.chat_id, tr)
+            session_manager.set_time_range(event.sender_id, tr)
             await event.answer("✅ 已设为全部历史")
             await menu_controller.show_history_time_range(event)
         
@@ -316,14 +335,14 @@ class HistoryMenuStrategy(BaseMenuHandler):
             from datetime import datetime, timedelta
             now = datetime.now()
             start = now - timedelta(days=days)
-            tr = session_manager.get_time_range(event.chat_id)
+            tr = session_manager.get_time_range(event.sender_id)
             tr["start_year"] = start.year
             tr["start_month"] = start.month
             tr["start_day"] = start.day
             tr["end_year"] = now.year
             tr["end_month"] = now.month
             tr["end_day"] = now.day
-            session_manager.set_time_range(event.chat_id, tr)
+            session_manager.set_time_range(event.sender_id, tr)
             await event.answer(f"✅ 已设为最近{days}天")
             await menu_controller.show_history_time_range(event)
         
@@ -334,11 +353,7 @@ class HistoryMenuStrategy(BaseMenuHandler):
         # 7. Delay & Limit Settings
         elif action in ["set_delay", "set_history_delay"]:
             delay = arg1
-            # 保存延迟设置到session
-            user_session = session_manager.user_sessions.get(event.sender_id, {})
-            if event.chat_id not in user_session:
-                user_session[event.chat_id] = {}
-            user_session[event.chat_id]["history_delay"] = delay
+            await session_manager.update_delay_setting(event.sender_id, delay)
             await event.answer(f"✅ 已设置延迟: {delay}秒")
             await menu_controller.show_history_task_actions(event)
 

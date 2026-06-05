@@ -67,13 +67,17 @@ class HotwordRepository:
                 date_match = re.search(r'\d{4,8}', filename_or_period)
                 date_key = date_match.group(0) if date_match else "current"
                 
-                stmt = select(HotPeriodStats).where(
+                stmt = select(
+                    HotPeriodStats.word,
+                    func.sum(HotPeriodStats.score).label("score"),
+                    func.sum(HotPeriodStats.user_count).label("user_count"),
+                ).where(
                     HotPeriodStats.channel == channel,
                     HotPeriodStats.period == period,
                     HotPeriodStats.date_key == date_key
-                )
+                ).group_by(HotPeriodStats.word)
                 result = await session.execute(stmt)
-                return {r.word: {"f": r.score, "u": r.user_count} for r in result.scalars()}
+                return {word: {"f": score or 0.0, "u": user_count or 0} for word, score, user_count in result.all()}
 
     async def get_channel_dirs(self) -> List[str]:
         """获取所有有数据的频道 (DB 版本)"""
@@ -92,13 +96,20 @@ class HotwordRepository:
             
             data = cfg.data
             if isinstance(data, list):
-                return {k: 1.0 for k in data}
+                return {str(k): 1.0 for k in data}
             
             # 容错处理：处理 {"terms": {"description": "...", "terms": {...}}} 这种结构
-            content = data.get("terms", {}) if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                return {}
+
+            content = data.get("terms", data)
+            if isinstance(content, list):
+                return {str(k): 1.0 for k in content}
             if isinstance(content, dict):
                 # 优先提取嵌套的 terms 字典，否则使用当前字典
                 target = content.get("terms", content) if isinstance(content.get("terms"), dict) else content
+                if isinstance(target, list):
+                    return {str(k): 1.0 for k in target}
                 # 过滤非数值字段 (如 description)
                 return {str(k): float(v) for k, v in target.items() if isinstance(v, (int, float, str)) and self._is_float(v) and str(k) != "description"}
             return {}
@@ -148,7 +159,17 @@ class HotwordRepository:
                         
                         if not rows: continue
                         
-                        # 2. 批量插入到 period 统计表
+                        # 2. 先删除同一频道/日期的旧归档，再写入新快照。
+                        #    这样定时任务重入或手动补跑不会产生重复行/重复计数。
+                        await session.execute(
+                            delete(HotPeriodStats).where(
+                                HotPeriodStats.channel == channel,
+                                HotPeriodStats.period == "day",
+                                HotPeriodStats.date_key == date_key,
+                            )
+                        )
+
+                        # 3. 批量插入到 period 统计表
                         for row in rows:
                             new_row = HotPeriodStats(
                                 channel=channel,
@@ -160,7 +181,7 @@ class HotwordRepository:
                             )
                             session.add(new_row)
                         
-                        # 3. 清空该频道的 raw 数据 (原子操作)
+                        # 4. 清空该频道的 raw 数据 (原子操作)
                         await session.execute(delete(HotRawStats).where(HotRawStats.channel == channel))
                         await session.commit()
                         logger.info(f"Archived daily hotwords for channel: {channel}")
@@ -189,7 +210,19 @@ class HotwordRepository:
                         ).group_by(HotPeriodStats.word)
                         
                         result = await session.execute(stmt)
-                        for word, s, u in result.all():
+                        rows = result.all()
+                        if not rows:
+                            continue
+
+                        await session.execute(
+                            delete(HotPeriodStats).where(
+                                HotPeriodStats.channel == channel,
+                                HotPeriodStats.period == target_period,
+                                HotPeriodStats.date_key == target_date_key,
+                            )
+                        )
+
+                        for word, s, u in rows:
                             new_row = HotPeriodStats(
                                 channel=channel,
                                 word=word,

@@ -29,6 +29,7 @@ class TaskStatusSink:
         
     def _init(self):
         self._queue = asyncio.Queue()
+        self._processing_tasks = set()
         self._running = False
         
     def start(self):
@@ -41,13 +42,15 @@ class TaskStatusSink:
         if self._running:
             self._running = False
             logger.info("🛑 正在停止 TaskStatusSink 并排空缓冲池...")
-            await self.flush()
             if self._daemon_task:
                 self._daemon_task.cancel()
                 try:
                     await self._daemon_task
                 except asyncio.CancelledError:
                     pass
+            await self.flush(wait=True)
+            if self._processing_tasks:
+                await asyncio.gather(*list(self._processing_tasks), return_exceptions=True)
 
     async def put(self, task_id: int, action: str, error_message: str = None):
         """
@@ -68,7 +71,7 @@ class TaskStatusSink:
                 logger.error(f"TaskStatusSink 守护进程异常: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
                 
-    async def flush(self):
+    async def flush(self, wait: bool = False):
         """将缓存的所有命令抽干并执行一次性 DB 批量写入"""
         if self._queue.empty():
             return
@@ -84,7 +87,11 @@ class TaskStatusSink:
         if not items:
             return
             
-        asyncio.create_task(self._process_batch(items))
+        task = asyncio.create_task(self._process_batch(items), name="task_status_sink_process_batch")
+        self._processing_tasks.add(task)
+        task.add_done_callback(self._processing_tasks.discard)
+        if wait:
+            await task
         
     async def _process_batch(self, items: List[Dict[str, Any]]):
         """统一执行 DB 写入，对完成和失败进行合并分类操作"""

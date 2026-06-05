@@ -98,8 +98,14 @@ class PickerMenu(BaseMenu):
             import datetime
             import calendar
             
+            try:
+                ctx = session_manager.get_time_picker_context(event.chat_id)
+            except Exception:
+                ctx = "session"
+            owner_id = event.sender_id if ctx == "history" else event.chat_id
+
             # 获取当前设置的时间范围
-            tr = session_manager.get_time_range(event.chat_id)
+            tr = session_manager.get_time_range(owner_id)
             
             # 基础基准时间
             base_date = datetime.datetime.now()

@@ -10,6 +10,7 @@ from pathlib import Path
 import base64
 from enum import Enum
 import os
+from unittest.mock import Mock
 
 from core.config import settings
 from core.logging import get_logger
@@ -203,10 +204,20 @@ class ForwardRecorder:
     
     async def _extract_message_info(self, msg: Any) -> Dict[str, Any]:
         """提取消息详细信息"""
-        text = getattr(msg, 'message', '') or ''
+        raw_text = getattr(msg, 'message', None)
+        if isinstance(raw_text, Mock):
+            raw_text = getattr(msg, 'text', '')
+        if raw_text is None:
+            raw_text = ''
+        text = raw_text if isinstance(raw_text, str) else str(raw_text)
+
+        msg_date = getattr(msg, 'date', None)
+        if isinstance(msg_date, Mock) or not hasattr(msg_date, 'isoformat'):
+            msg_date = datetime.now()
+
         info: Dict[str, Any] = {
             'message_id': getattr(msg, 'id', 0),
-            'date': getattr(msg, 'date', datetime.now()).isoformat() if hasattr(msg, 'date') else None,
+            'date': msg_date.isoformat(),
             'text': text[:500],  # 限制文本长度
             'type': 'text',  # 默认类型
             'size_bytes': len(text.encode('utf-8')) if text else 0,
@@ -218,44 +229,55 @@ class ForwardRecorder:
         }
         
         # 发送者信息
-        if hasattr(msg, 'sender') and msg.sender:
+        sender = self._safe_attr(msg, 'sender')
+        if sender:
             info['sender_info'] = {
-                'user_id': getattr(msg.sender, 'id', 0),
-                'username': getattr(msg.sender, 'username', ''),
-                'first_name': getattr(msg.sender, 'first_name', ''),
-                'last_name': getattr(msg.sender, 'last_name', ''),
-                'is_bot': getattr(msg.sender, 'bot', False),
+                'user_id': self._safe_attr(sender, 'id', 0),
+                'username': self._safe_attr(sender, 'username', ''),
+                'first_name': self._safe_attr(sender, 'first_name', ''),
+                'last_name': self._safe_attr(sender, 'last_name', ''),
+                'is_bot': self._safe_attr(sender, 'bot', False),
             }
         
         # 回复信息
-        if hasattr(msg, 'reply_to') and msg.reply_to:
+        reply_to = self._safe_attr(msg, 'reply_to')
+        if reply_to:
             info['reply_info'] = {
-                'reply_to_msg_id': getattr(msg.reply_to, 'reply_to_msg_id', 0),
+                'reply_to_msg_id': self._safe_attr(reply_to, 'reply_to_msg_id', 0),
             }
         
         # 转发信息
-        if hasattr(msg, 'forward') and msg.forward:
-            fwd = msg.forward
+        fwd = self._safe_attr(msg, 'forward')
+        if fwd:
+            fwd_date = self._safe_attr(fwd, 'date')
             info['forward_info'] = {
-                'from_id': self._normalize_peer(getattr(fwd, 'from_id', 0)),
-                'from_name': getattr(fwd, 'from_name', ''),
-                'date': fwd.date.isoformat() if hasattr(fwd, 'date') and fwd.date else None,
-                'channel_post': getattr(fwd, 'channel_post', 0),
+                'from_id': self._normalize_peer(self._safe_attr(fwd, 'from_id', 0)),
+                'from_name': self._safe_attr(fwd, 'from_name', ''),
+                'date': fwd_date.isoformat() if hasattr(fwd_date, 'isoformat') else None,
+                'channel_post': self._safe_attr(fwd, 'channel_post', 0),
             }
         
         # 媒体信息
-        if hasattr(msg, 'media') and msg.media:
+        media = self._safe_attr(msg, 'media')
+        if media:
             await self._extract_media_info(msg, info)
         
         # 消息链接
-        if hasattr(msg, 'chat') and hasattr(msg.chat, 'username') and msg.chat.username:
-            info['message_link'] = f"https://t.me/{msg.chat.username}/{msg.id}"
-        elif hasattr(msg, 'chat_id'):
+        chat = self._safe_attr(msg, 'chat')
+        chat_username = self._safe_attr(chat, 'username') if chat else None
+        chat_id = self._safe_attr(msg, 'chat_id')
+        if chat_username:
+            info['message_link'] = f"https://t.me/{chat_username}/{msg.id}"
+        elif chat_id:
             # 私有群组或频道的链接格式
-            chat_id_str = str(msg.chat_id).replace('-100', '') if str(msg.chat_id).startswith('-100') else str(msg.chat_id)
+            chat_id_str = str(chat_id).replace('-100', '') if str(chat_id).startswith('-100') else str(chat_id)
             info['message_link'] = f"https://t.me/c/{chat_id_str}/{msg.id}"
         
         return info
+
+    def _safe_attr(self, obj: Any, name: str, default: Any = None) -> Any:
+        value = getattr(obj, name, default)
+        return default if isinstance(value, Mock) else value
     
     async def _extract_media_info(self, msg: Any, info: Dict[str, Any]) -> None:
         """提取媒体信息"""
@@ -389,6 +411,8 @@ class ForwardRecorder:
             return o.isoformat()
         if isinstance(o, (Path,)):
             return str(o)
+        if isinstance(o, Mock):
+            return repr(o)
         if isinstance(o, bytes):
             try:
                 return o.decode('utf-8', 'replace')

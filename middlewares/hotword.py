@@ -13,6 +13,7 @@ class HotwordCollectorMiddleware(Middleware):
         self.hotword_service = hotword_service
         self.queue = asyncio.Queue(maxsize=1000)
         self.worker_task = None
+        self.heartbeat_task = None
         
     async def process(self, ctx: MessageContext, _next_call: Callable) -> None:
         if not settings.ENABLE_HOTWORD:
@@ -47,40 +48,80 @@ class HotwordCollectorMiddleware(Middleware):
         return "\n".join(text_parts).strip()
 
     async def start_worker(self):
-        if self.worker_task: return
+        if self.worker_task and not self.worker_task.done():
+            await self.worker_task
+            return
+
         async def _loop():
             buffer = {}
             last_flush = asyncio.get_running_loop().time()
             self.hotword_service.start_monitoring()
 
             async def _disk_heartbeat():
-                while True:
-                    await asyncio.sleep(settings.HOTWORD_SYNC_INTERVAL)
-                    try: await self.hotword_service.flush_to_disk()
-                    except Exception as e:
-                        logger.error(f"Hotword disk heartbeat flush failed: {e}")
-            asyncio.create_task(_disk_heartbeat())
-
-            while True:
                 try:
+                    while True:
+                        await asyncio.sleep(settings.HOTWORD_SYNC_INTERVAL)
+                        try:
+                            await self.hotword_service.flush_to_disk()
+                        except Exception as e:
+                            logger.error(f"Hotword disk heartbeat flush failed: {e}")
+                except asyncio.CancelledError:
+                    pass
+            self.heartbeat_task = asyncio.create_task(_disk_heartbeat(), name="HotwordDiskHeartbeat")
+
+            try:
+                while True:
                     try:
-                        channel_name, user_id, text = await asyncio.wait_for(self.queue.get(), timeout=1.0)
-                        buffer.setdefault(channel_name, []).append({"uid": user_id, "text": text})
-                    except asyncio.TimeoutError: pass
-                    
-                    now = asyncio.get_event_loop().time()
-                    if any(buffer) and (sum(len(v) for v in buffer.values()) >= settings.HOTWORD_BATCH_SIZE or (now - last_flush >= 5.0)):
-                        await self.hotword_service.ensure_active()
-                        for chan, texts in list(buffer.items()):
-                            await self.hotword_service.process_batch(chan, texts)
-                        buffer.clear()
-                        last_flush = now
-                except Exception as e:
-                    logger.error(f"Hotword worker error: {e}")
-                    await asyncio.sleep(1)
+                        try:
+                            channel_name, user_id, text = await asyncio.wait_for(self.queue.get(), timeout=1.0)
+                            buffer.setdefault(channel_name, []).append({"uid": user_id, "text": text})
+                        except asyncio.TimeoutError:
+                            pass
+
+                        now = asyncio.get_event_loop().time()
+                        if any(buffer) and (sum(len(v) for v in buffer.values()) >= settings.HOTWORD_BATCH_SIZE or (now - last_flush >= 5.0)):
+                            await self.hotword_service.ensure_active()
+                            for chan, texts in list(buffer.items()):
+                                await self.hotword_service.process_batch(chan, texts)
+                            buffer.clear()
+                            last_flush = now
+                    except Exception as e:
+                        logger.error(f"Hotword worker error: {e}")
+                        await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                if buffer:
+                    for chan, texts in list(buffer.items()):
+                        await self.hotword_service.process_batch(chan, texts)
+                    await self.hotword_service.flush_to_disk()
+                raise
 
         self.worker_task = asyncio.create_task(_loop())
         logger.info("HotwordCollector initialized.")
+        try:
+            await self.worker_task
+        except asyncio.CancelledError:
+            await self.stop_worker()
+            raise
+
+    async def stop_worker(self):
+        tasks = []
+        if self.heartbeat_task and not self.heartbeat_task.done():
+            self.heartbeat_task.cancel()
+            tasks.append(self.heartbeat_task)
+        if self.worker_task and not self.worker_task.done():
+            self.worker_task.cancel()
+            tasks.append(self.worker_task)
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        self.heartbeat_task = None
+        self.worker_task = None
+        await self.hotword_service.stop_monitoring()
+        try:
+            await self.hotword_service.flush_to_disk()
+        except Exception as e:
+            logger.error(f"Hotword final flush failed: {e}")
 
 _collector_instance = None
 def get_hotword_collector() -> HotwordCollectorMiddleware:

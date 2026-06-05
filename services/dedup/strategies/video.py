@@ -15,8 +15,12 @@ from services.dedup.tools import (
 )
 from core.helpers.metrics import DEDUP_HITS_TOTAL, VIDEO_HASH_PCACHE_HITS_TOTAL
 from services.dedup.tools import _HAS_XXHASH
-import xxhash
 import hashlib
+
+if _HAS_XXHASH:
+    import xxhash
+else:
+    xxhash = None
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +168,7 @@ class VideoStrategy(BaseDedupStrategy):
             num_points = max(5, duration // 30) # 每30秒一个采样点，最少5个
             num_points = min(num_points, 20)      # 最多20个，防止过载
             
-            h = xxhash.xxh128() if _HAS_XXHASH else hashlib.blake2b(digest_size=16)
+            h = xxhash.xxh128() if (_HAS_XXHASH and xxhash) else hashlib.blake2b(digest_size=16)
             total_size = doc.size
             chunk_size = 65536 # 64KB per point
             

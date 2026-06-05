@@ -29,6 +29,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _safe_headers_for_log(request: Request) -> Dict[str, str]:
+    allowed = {"host", "user-agent", "x-forwarded-host", "x-forwarded-proto", "x-real-ip"}
+    sensitive = {"authorization", "cookie", "set-cookie", "x-api-key"}
+    result = {}
+    for key, value in request.headers.items():
+        lower = key.lower()
+        if lower in sensitive:
+            result[key] = "[redacted]"
+        elif lower in allowed:
+            result[key] = value
+    return result
+
+
 # 添加本地访问验证依赖
 async def verify_local_access(request: Request):
     """验证请求是否来自本地或Docker内部网络"""
@@ -196,7 +209,7 @@ async def get_media(rule_id: int, filename: str, request: Request):
     # 记录请求信息
     logger.info(f"媒体请求 - 规则ID: {rule_id}, 文件 {filename}")
     logger.info(f"请求URL: {request.url}")
-    logger.info(f"请求 {request.headers}")
+    logger.info(f"请求头: {_safe_headers_for_log(request)}")
     # 获取基础URL，用于日志记
     base_url = str(request.base_url).rstrip("/")
     if RSS_MEDIA_BASE_URL:

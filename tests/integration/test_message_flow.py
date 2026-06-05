@@ -166,7 +166,7 @@ async def test_integration_flow_fallback(db, clear_data):
     
     # 3. Patch factory to Crash and mock recorder
     with patch("handlers.user_handler.get_filter_chain_factory") as mock_factory, \
-         patch("core.helpers.forward_recorder.forward_recorder") as mock_recorder:
+         patch("handlers.user_handler.forward_recorder") as mock_recorder:
          
         mock_factory.side_effect = RuntimeError("Simulated Chain Crash")
         

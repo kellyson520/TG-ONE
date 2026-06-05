@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from typing import Union, Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from models.models import Chat
 from core.helpers.id_utils import resolve_entity_by_id_variants
@@ -19,7 +19,32 @@ class ChatInfoService:
         self.db = db
         self._name_cache: Dict[str, str] = {}
         self._last_update: Dict[str, datetime] = {}
+        self._cache_ttl = timedelta(hours=1)
+        self._cache_max_size = 2000
         self._lock = asyncio.Lock()
+
+    def _get_cached_name(self, chat_id: str) -> Optional[str]:
+        cached_at = self._last_update.get(chat_id)
+        if not cached_at:
+            self._name_cache.pop(chat_id, None)
+            return None
+        if datetime.utcnow() - cached_at > self._cache_ttl:
+            self._name_cache.pop(chat_id, None)
+            self._last_update.pop(chat_id, None)
+            return None
+        return self._name_cache.get(chat_id)
+
+    def _set_cached_name(self, chat_id: str, name: str) -> None:
+        self._name_cache.pop(chat_id, None)
+        self._last_update.pop(chat_id, None)
+        self._name_cache[chat_id] = name
+        self._last_update[chat_id] = datetime.utcnow()
+
+        overflow = len(self._name_cache) - self._cache_max_size
+        if overflow > 0:
+            for key in list(self._name_cache.keys())[:overflow]:
+                self._name_cache.pop(key, None)
+                self._last_update.pop(key, None)
 
     def set_client(self, client):
         self.client = client
@@ -34,19 +59,21 @@ class ChatInfoService:
         """
         str_id = str(chat_id)
         
-        # 1. 内存缓存 (TTL 1小时可在此增加判断，暂时简单处理)
-        if str_id in self._name_cache:
-            return self._name_cache[str_id]
+        # 1. 内存缓存
+        cached_name = self._get_cached_name(str_id)
+        if cached_name:
+            return cached_name
         
         async with self._lock:
             # 双重检查
-            if str_id in self._name_cache:
-                return self._name_cache[str_id]
+            cached_name = self._get_cached_name(str_id)
+            if cached_name:
+                return cached_name
             
             # 2. 数据库查询
             name_from_db = await self._get_name_from_db(str_id)
             if name_from_db:
-                self._name_cache[str_id] = name_from_db
+                self._set_cached_name(str_id, name_from_db)
                 return name_from_db
             
             # 3. Telegram API 查询 (需要 client)
@@ -56,7 +83,7 @@ class ChatInfoService:
                     if entity:
                         name = telethon_utils.get_display_name(entity)
                         if name:
-                            self._name_cache[str_id] = name
+                            self._set_cached_name(str_id, name)
                             # 异步更新到数据库，不阻塞当前返回
                             asyncio.create_task(self._update_chat_in_db(str_id, entity, name))
                             return name

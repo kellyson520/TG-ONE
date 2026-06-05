@@ -906,7 +906,13 @@ class UpdateService:
                     if any(filename.startswith(p) for p in [".env", "data/", "db/", "logs/", "temp/", ".git/"]):
                         continue
                     
-                    target_path = settings.BASE_DIR / filename
+                    base_dir = settings.BASE_DIR.resolve()
+                    target_path = (base_dir / filename).resolve()
+                    try:
+                        target_path.relative_to(base_dir)
+                    except ValueError:
+                        logger.warning(f"⚠️ [安全拦截] 更新文件目标路径越界: {filename}")
+                        continue
                     
                     # 如果是目录，创建通过
                     if member.endswith('/'):

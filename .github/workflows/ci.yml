@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ENV: testing
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  compile:
+    name: Compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile Python sources
+        run: |
+          python -m compileall -q \
+            -x '(^|/)(\.git|\.venv|venv|env|dist|build|docs?|tests/temp|__pycache__)(/|$)' \
+            .
+
+  unit:
+    name: Unit and Fast Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: compile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run fast tests
+        run: |
+          python -m pytest \
+            tests/unit tests/compatibility tests/fuzz tests/security \
+            -m "not stress and not slow" \
+            --tb=short --durations=20
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: compile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run integration tests
+        run: |
+          python -m pytest tests/integration \
+            -m "not stress and not slow" \
+            --tb=short --durations=30

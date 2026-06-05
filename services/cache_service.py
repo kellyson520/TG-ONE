@@ -21,10 +21,8 @@ class CacheService:
     
     def __init__(self):
         self._cache_map: Dict[str, MultiLevelCache] = {}
-        # 使用 WeakValueDictionary 自动清理不再使用的锁
-        # 注意: 如果 lock 没有被引用，它会被回收，但这正是我们想要的。
-        # 当 get_or_compute 等待 lock 时，它持有引用。
         self._locks: Dict[str, asyncio.Lock] = {} 
+        self._lock_maxsize = 5000
         self._lock_creation_lock = asyncio.Lock()
 
     @classmethod
@@ -45,6 +43,12 @@ class CacheService:
         if key not in self._locks:
             async with self._lock_creation_lock:
                 if key not in self._locks:
+                    if len(self._locks) >= self._lock_maxsize:
+                        for old_key, old_lock in list(self._locks.items()):
+                            if not old_lock.locked():
+                                self._locks.pop(old_key, None)
+                                if len(self._locks) < self._lock_maxsize:
+                                    break
                     self._locks[key] = asyncio.Lock()
         return self._locks[key]
 
@@ -117,10 +121,6 @@ class CacheService:
                 logger.error(f"Error computing value for cache key '{key}': {e}", exc_info=True)
                 raise
             finally:
-                # 锁清理逻辑 (Optional)
-                # 简单字典策略：不主动清理，依赖 Python GC 和 keys 数量有限。
-                # 如果 key 数量极其巨大，这里还是有内存泄露风险。
-                # 改进：使用 TTL dict 或 LRU dict 存锁，或者在 finally 里尝试删除（需小心并发）
                 pass
 
     # 装饰器支持

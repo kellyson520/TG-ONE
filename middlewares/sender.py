@@ -14,7 +14,10 @@ class SenderMiddleware(Middleware):
         self.bus = event_bus
 
     async def process(self, ctx, next_call):
-        forward_rules = [r for r in ctx.rules if r.target_chat]
+        forward_rules = [
+            r for r in ctx.rules
+            if r.target_chat and not getattr(r, 'enable_only_push', False)
+        ]
         
         if forward_rules:
             # 如果是媒体组，则启用智能缓冲区聚合
@@ -24,7 +27,7 @@ class SenderMiddleware(Middleware):
                     target_id = int(rule.target_chat.telegram_chat_id)
                     
                     # 定义实际发送逻辑
-                    async def do_send(buffered_ctxs: list):
+                    async def do_send(buffered_ctxs: list, bound_rule=rule):
                         # 聚合逻辑：如果是多条消息，提取 message_id 列表
                         # 这里我们取列表中的第一条作为主 context 触发后续逻辑
                         primary_ctx = buffered_ctxs[0]
@@ -32,7 +35,7 @@ class SenderMiddleware(Middleware):
                         
                         # 如果是 Copy 模式，UnifiedSender 已经能处理 List[Media]
                         # 如果是 Forward 模式，我们合并 IDs
-                        await self._execute_send(primary_ctx, rule, msg_ids, buffered_ctxs)
+                        await self._execute_send(primary_ctx, bound_rule, msg_ids, buffered_ctxs)
 
                     # 推入缓冲区
                     await smart_buffer.push(
@@ -221,4 +224,3 @@ class SenderMiddleware(Middleware):
             await client.delete_messages(chat_id, message_ids)
         except Exception as e:
             logger.error(f"⚠️ Failed to delete source messages: {e}")
-

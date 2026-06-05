@@ -54,8 +54,8 @@ class SessionMenu(BaseMenu):
         """显示去重扫描结果"""
         try:
             chat_id = event.chat_id
-            if (hasattr(session_manager, "current_scan_results") and chat_id in session_manager.current_scan_results):
-                scan_results_cache = session_manager.current_scan_results[chat_id]
+            scan_results_cache = session_manager._get_cached_scan_result(chat_id)
+            if scan_results_cache is not None:
                 if scan_results_cache:
                     scan_results = {session_manager._signature_to_display_name(sig): len(ids) for sig, ids in scan_results_cache.items()}
                 else: scan_results = {}

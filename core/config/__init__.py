@@ -383,7 +383,6 @@ class Settings(BaseSettings):
     
     ARCHIVE_BATCH_SIZE: int = Field(default=10000, description="归档单批次处理记录数")
     ARCHIVE_MAX_WORKERS: int = Field(default=2, description="归档任务并发工作进程数")
-    AUTO_ARCHIVE_ENABLED: bool = Field(default=True, description="是否启用自动归档逻辑")
     
     # === Bloom Filter 指数配置 ===
     BLOOM_ROOT: str = Field(

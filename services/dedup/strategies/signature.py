@@ -14,7 +14,7 @@ class SignatureStrategy(BaseDedupStrategy):
         config = ctx.config
         
         # 1. 检查是否跳过签名
-        if config.skip_media_sig:
+        if config.get("skip_media_sig", False):
             return None
             
         # 2. 生成签名
@@ -38,14 +38,14 @@ class SignatureStrategy(BaseDedupStrategy):
              return DedupResult(True, "签名重复: persistent cache 命中", "signature", signature)
 
         # 5. 检查内存缓存 (L1) - 时间窗口
-        if config.enable_time_window:
+        if config.get("enable_time_window", True):
             cache_key = str(target_chat_id)
             if cache_key in ctx.time_window_cache:
                 sigs = ctx.time_window_cache[cache_key]
                 if signature in sigs:
                     last_seen_ts = sigs[signature]
                     # 检查是否在窗口内
-                    window_hours = config.time_window_hours
+                    window_hours = config.get("time_window_hours", 24)
                     diff = time.time() - last_seen_ts
                     
                     if window_hours < 0: # 永久
@@ -61,7 +61,7 @@ class SignatureStrategy(BaseDedupStrategy):
             
         # 7. 冷区检查 (Archive/DuckDB)
         # 逻辑：只有当时间窗口设置为永久(<=0)时，才进行深度挖掘
-        if config.time_window_hours <= 0: 
+        if config.get("time_window_hours", 24) <= 0: 
             try:
                 from repositories.bloom_index import bloom
                 if bloom.probably_contains("media_signatures", str(target_chat_id), str(signature)):

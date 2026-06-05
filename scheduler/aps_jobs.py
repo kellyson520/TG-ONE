@@ -25,7 +25,7 @@ def setup_apscheduler() -> Optional[object]:
     from repositories.archive_store import compact_small_files
     sch = AsyncIOScheduler()
     async def maintenance_job():
-        if settings.auto_archive_enabled:
+        if settings.AUTO_ARCHIVE_ENABLED:
             try:
                 loop = asyncio.get_event_loop()
                 start = loop.time()
@@ -40,22 +40,22 @@ def setup_apscheduler() -> Optional[object]:
                     ARCHIVE_RUN_TOTAL.labels(status=status).inc()
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-        if settings.auto_gc_enabled:
+        if settings.AUTO_GC_ENABLED:
             try:
                 await asyncio.to_thread(garbage_collect_once)
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-    for t in settings.cleanup_cron_times:
+    for t in settings.CLEANUP_CRON_TIMES:
         parsed = _parse_time(t)
         if not parsed:
             continue
         h, m = parsed
         sch.add_job(maintenance_job, "cron", hour=h, minute=m, id=f"maintenance_{h}_{m}", coalesce=True, max_instances=1, misfire_grace_time=600)
-    if settings.archive_compact_enabled:
+    if settings.ARCHIVE_COMPACT_ENABLED:
         h, m = 4, 30
         async def compact_job():
             try:
-                await asyncio.to_thread(compact_small_files, "media_signatures", settings.archive_compact_min_files)
+                await asyncio.to_thread(compact_small_files, "media_signatures", settings.ARCHIVE_COMPACT_MIN_FILES)
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
         sch.add_job(compact_job, "cron", hour=h, minute=m, id="compact_media_signatures", coalesce=True, max_instances=1, misfire_grace_time=600)

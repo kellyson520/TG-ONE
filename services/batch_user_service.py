@@ -16,7 +16,22 @@ class BatchUserService:
     def __init__(self):
         self.cache = {}  # 用户信息缓存
         self.cache_ttl = timedelta(minutes=30)  # 缓存30分钟
+        self.cache_max_size = 5000
         self.pending_requests: Set[str] = set()  # 防止重复请求
+
+    def _prune_cache(self, now: datetime = None) -> None:
+        now = now or datetime.now()
+        expired = [
+            user_id for user_id, cached_data in self.cache.items()
+            if now - cached_data['cached_at'] >= self.cache_ttl
+        ]
+        for user_id in expired:
+            self.cache.pop(user_id, None)
+
+        overflow = len(self.cache) - self.cache_max_size
+        if overflow > 0:
+            for user_id in list(self.cache.keys())[:overflow]:
+                self.cache.pop(user_id, None)
         
     async def get_users_info(self, user_ids: List[Union[int, str]], use_cache: bool = True) -> Dict[str, Any]:
         """
@@ -83,11 +98,13 @@ class BatchUserService:
                         # 缓存结果
                         now = datetime.now()
                         for user_id, user_info in users_data.items():
+                            self.cache.pop(user_id, None)
                             self.cache[user_id] = {
                                 'data': user_info,
                                 'cached_at': now
                             }
                             result[user_id] = user_info
+                        self._prune_cache(now)
                             
                         logger.debug(f"成功获取并缓存 {len(users_data)} 个用户信息")
                         
@@ -216,6 +233,7 @@ class BatchUserService:
     def get_cache_stats(self) -> Dict[str, Any]:
         """获取缓存统计"""
         now = datetime.now()
+        self._prune_cache(now)
         valid_cache = 0
         expired_cache = 0
         

@@ -1,7 +1,5 @@
-from datetime import datetime
 from typing import Optional
 from services.dedup.strategies.base import BaseDedupStrategy
-from services.dedup.types import DedupContext, DedupResult
 from services.dedup.types import DedupContext, DedupResult
 from services.dedup.tools import generate_content_hash, is_video
 from core.helpers.metrics import DEDUP_HITS_TOTAL
@@ -47,7 +45,7 @@ class ContentStrategy(BaseDedupStrategy):
              return DedupResult(True, f"内容重复: {reason}", "content_hash", content_hash)
              
         # 5. 检查归档 (L4)
-        if config.time_window_hours <= 0:
+        if config.get("time_window_hours", 24) <= 0:
             try:
                 from repositories.bloom_index import bloom
                 if bloom.probably_contains("media_signatures", str(target_chat_id), str(content_hash)):
