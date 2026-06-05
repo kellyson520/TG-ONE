@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Any, Callable, Awaitable, Dict, Tuple
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from services.network.pid import PIDController
 from services.network.circuit_breaker import CircuitBreaker
 import time
@@ -253,23 +253,57 @@ class TelegramQueueService:
         self._global_sem = asyncio.Semaphore(self._global_limit)
         self._target_limit = settings.FORWARD_MAX_CONCURRENCY_PER_TARGET
         self._pair_limit = settings.FORWARD_MAX_CONCURRENCY_PER_PAIR
-        self._target_semaphores = {}
-        self._pair_semaphores = {}
+        self._target_semaphores = OrderedDict()
+        self._pair_semaphores = OrderedDict()
         self._flood_wait_until = _flood_wait_until
+        self._semaphore_cache_max = getattr(settings, "FORWARD_SEMAPHORE_CACHE_MAX", 5000)
+        self._flood_wait_cache_max = getattr(settings, "FLOOD_WAIT_CACHE_MAX", 5000)
         self._global_next_at = 0.0
         self._target_next_at = {}
         self._pair_next_at = {}
         self._telegram_breaker = CircuitBreaker(name="telegram_api_global", failure_threshold=10, recovery_timeout=60.0)
 
     def _get_target_sem(self, target_key: str):
-        if target_key not in self._target_semaphores:
-            self._target_semaphores[target_key] = asyncio.Semaphore(self._target_limit)
-        return self._target_semaphores[target_key]
+        return self._get_cached_sem(self._target_semaphores, target_key, self._target_limit)
 
     def _get_pair_sem(self, pair_key: str):
-        if pair_key not in self._pair_semaphores:
-            self._pair_semaphores[pair_key] = asyncio.Semaphore(self._pair_limit)
-        return self._pair_semaphores[pair_key]
+        return self._get_cached_sem(self._pair_semaphores, pair_key, self._pair_limit)
+
+    def _get_cached_sem(self, cache: OrderedDict, key: str, limit: int):
+        sem = cache.get(key)
+        if sem is not None:
+            cache.move_to_end(key)
+            return sem
+
+        sem = asyncio.Semaphore(limit)
+        cache[key] = sem
+        self._trim_semaphore_cache(cache, limit)
+        return sem
+
+    def _trim_semaphore_cache(self, cache: OrderedDict, limit: int):
+        if len(cache) <= self._semaphore_cache_max:
+            return
+
+        for key in list(cache.keys()):
+            if len(cache) <= self._semaphore_cache_max:
+                break
+            sem = cache[key]
+            if getattr(sem, "_value", 0) >= limit:
+                cache.pop(key, None)
+
+    def _trim_flood_wait_cache(self):
+        now = time.time()
+        for key, until in list(self._flood_wait_until.items()):
+            if until <= now:
+                self._flood_wait_until.pop(key, None)
+
+        overflow = len(self._flood_wait_until) - self._flood_wait_cache_max
+        if overflow <= 0:
+            return
+
+        oldest = sorted(self._flood_wait_until.items(), key=lambda item: item[1])[:overflow]
+        for key, _ in oldest:
+            self._flood_wait_until.pop(key, None)
 
     async def run_guarded_operation(self, target_chat_id, source_chat_id, operation_name, func, handle_flood_wait_sleep=True):
         target_key = str(target_chat_id)
@@ -338,7 +372,9 @@ class TelegramQueueService:
 
     def _handle_flood_wait(self, target_key, pair_key, seconds):
         import random
+        self._trim_flood_wait_cache()
         self._flood_wait_until[target_key] = time.time() + float(seconds) * random.uniform(0.8, 1.2)
+        self._trim_flood_wait_cache()
 
 telegram_queue_service = TelegramQueueService()
 async def send_message_queued(client, target_chat_id, message, **kwargs):
