@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import time
 from telethon import TelegramClient
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.functions.users import GetUsersRequest
