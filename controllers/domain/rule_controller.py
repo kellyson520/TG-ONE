@@ -66,16 +66,20 @@ class RuleController(BaseController):
             
             if not config:
                 # 尝试布尔切换作为兜底
-                await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+                result = await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
             elif "toggle_func" in config and config["toggle_func"]:
                 # 获取当前值并计算新值
                 data = await rule_management_service.get_rule_detail(rule_id)
                 current_val = data.get(field)
                 new_val = config["toggle_func"](current_val)
-                await rule_management_service.toggle_rule_setting(rule_id, field, value=new_val)
+                result = await rule_management_service.toggle_rule_setting(rule_id, field, value=new_val)
             else:
                 # 默认布尔切换
-                await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+                result = await rule_management_service.toggle_rule_boolean_setting(rule_id, field)
+
+            if not result.get('success'):
+                await self.notify(event, f"❌ 更新失败: {result.get('error', '未知错误')}", alert=True)
+                return
 
             await self.notify(event, "✅ 设置已更新")
             

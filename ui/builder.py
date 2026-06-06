@@ -281,6 +281,6 @@ class MenuBuilder:
             text = mw.process(text)
             
         if len(text) > self.MAX_TEXT_LENGTH:
-            text = text[:self.MAX_TEXT_LENGTH] + "\n\n... (内容过长)"
+            text = text[:self.MAX_TEXT_LENGTH] + "\n\n... (内容过长，已自动截断)"
             
         return ViewResult(text=text, buttons=self._apply_smart_layout())

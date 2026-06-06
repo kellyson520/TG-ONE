@@ -460,7 +460,10 @@ class MediaController(BaseController):
         """设置最大媒体大小限制"""
         try:
             from services.rule.facade import rule_management_service
-            await rule_management_service.logic.toggle_rule_setting(rule_id, "max_media_size", size)
+            result = await rule_management_service.logic.toggle_rule_setting(rule_id, "max_media_size", size)
+            if not result.get("success"):
+                await self.notify(event, f"❌ 设置失败: {result.get('error', '未知错误')}", alert=True)
+                return
             await self.notify(event, f"✅ 最大媒体大小已设为 {size}MB")
             await self.show_settings(event, rule_id)
         except Exception as e:
@@ -471,6 +474,9 @@ class MediaController(BaseController):
         try:
             from services.rule.facade import rule_management_service
             result = await rule_management_service.toggle_rule_setting(rule_id, field)
+            if not result.get("success"):
+                await self.notify(event, f"❌ 更新失败: {result.get('error', '未知错误')}", alert=True)
+                return
             status = "开启" if result.get("new_value") else "关闭"
             await self.notify(event, f"✅ 已{status}")
             await self.show_settings(event, rule_id)

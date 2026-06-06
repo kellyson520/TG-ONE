@@ -587,10 +587,14 @@ class RuleLogicService:
         async with self.container.db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
+            if not hasattr(rule, field):
+                return {'success': False, 'error': f'Invalid field: {field}'}
             
-            current_val = getattr(rule, field, None)
+            current_val = getattr(rule, field)
             if value is None:
-                new_val = not current_val if isinstance(current_val, bool) else current_val
+                if not isinstance(current_val, bool):
+                    return {'success': False, 'error': f'Field is not toggleable without value: {field}'}
+                new_val = not current_val
             else:
                 new_val = value
                 
@@ -605,8 +609,10 @@ class RuleLogicService:
                         setattr(target, field, new_val)
             
             await s.commit()
-            if rule.source_chat:
-                self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+            self.container.rule_repo.clear_cache()
+            bus = getattr(self.container, "bus", None)
+            if bus:
+                await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
                 
             return {'success': True, 'new_value': new_val}
 
