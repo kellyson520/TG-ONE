@@ -44,6 +44,7 @@ def mock_rule_mgmt():
 def mock_forward_settings():
     with patch("services.session_service.forward_settings_service") as mock:
         mock.get_global_media_settings = AsyncMock(return_value={})
+        mock.update_global_media_setting = AsyncMock(return_value=True)
         yield mock
 
 @pytest.mark.asyncio
@@ -66,6 +67,16 @@ async def test_save_time_range_settings_compat(session_service):
 
     assert await session_service.save_time_range_settings(uid) is True
     assert session_service.get_time_range(uid) == {"start_year": 2026}
+
+
+@pytest.mark.asyncio
+async def test_set_history_message_limit(session_service, mock_forward_settings):
+    res = await session_service.set_history_message_limit(2500)
+
+    assert res == {"success": True, "limit": 2500}
+    mock_forward_settings.update_global_media_setting.assert_awaited_once_with(
+        "HISTORY_MESSAGE_LIMIT", 2500
+    )
 
 
 @pytest.mark.asyncio
@@ -151,6 +162,58 @@ async def test_start_history_task_success(session_service, mock_container, mock_
     payload = args[1] if len(args) > 1 else kwargs['payload']
     assert payload['chat_id'] == 999
     assert payload['target_chat_id'] == 888
+
+
+@pytest.mark.asyncio
+async def test_start_history_task_respects_message_limit(
+    session_service,
+    mock_container,
+    mock_rule_mgmt,
+    mock_forward_settings,
+    monkeypatch,
+):
+    from core.config import settings
+
+    user_id = 12345
+    rule_id = 10
+    monkeypatch.setattr(settings, "HISTORY_MESSAGE_LIMIT", 2)
+
+    await session_service.set_selected_rule(user_id, rule_id)
+    session_service.set_time_range(user_id, {})
+
+    mock_session = mock_container.db.session.return_value.__aenter__.return_value
+    mock_rule = MagicMock()
+    mock_rule.id = rule_id
+    mock_rule.source_chat_id = 1
+    mock_rule.source_chat = MagicMock()
+    mock_rule.source_chat.telegram_chat_id = 999
+    mock_rule.target_chat = MagicMock()
+    mock_rule.target_chat.telegram_chat_id = 888
+    mock_container.rule_repo.get_by_id = AsyncMock(return_value=mock_rule)
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_rule
+    mock_session.execute.return_value = mock_result
+    mock_session.get.return_value = MagicMock(telegram_chat_id=999)
+
+    async def mock_iter(*args, **kwargs):
+        for idx in range(5):
+            msg = MagicMock()
+            msg.id = idx + 1
+            msg.date = datetime.now(timezone.utc)
+            yield msg
+
+    mock_container.user_client.iter_messages.return_value = mock_iter()
+
+    res = await session_service.start_history_task(user_id)
+    assert res["success"] is True
+
+    progress = await session_service.get_history_progress(user_id)
+    if "future" in progress:
+        await progress["future"]
+
+    progress = await session_service.get_history_progress(user_id)
+    assert progress["done"] == 2
+    assert mock_container.task_repo.push.await_count == 2
 
 @pytest.mark.asyncio
 async def test_backpressure_logic(session_service, mock_container, mock_rule_mgmt, mock_forward_settings):

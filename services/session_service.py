@@ -349,6 +349,28 @@ class SessionService:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    async def set_history_message_limit(self, limit: int) -> Dict[str, Any]:
+        """Set the global history task message cap; 0 means unlimited."""
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return {'success': False, 'error': '请输入有效的数字'}
+
+        if limit < 0 or limit > 1_000_000:
+            return {'success': False, 'error': '数量限制必须在 0-1000000 之间'}
+
+        from core.config import settings
+
+        settings.HISTORY_MESSAGE_LIMIT = limit
+        try:
+            await forward_settings_service.update_global_media_setting(
+                "HISTORY_MESSAGE_LIMIT", limit
+            )
+        except Exception as e:
+            logger.warning(f"保存历史消息数量限制到全局配置失败: {e}")
+
+        return {'success': True, 'limit': limit}
+
     async def save_time_range_settings(self, user_id: int) -> bool:
         """Compatibility hook for menu callbacks that explicitly save a picker."""
         try:
@@ -527,6 +549,13 @@ class SessionService:
             media_settings = None
         
         media_filter = MediaFilter(media_settings)
+        try:
+            from core.config import settings
+            runtime_limit = int(settings.HISTORY_MESSAGE_LIMIT or 0)
+            stored_limit = int((media_settings or {}).get("HISTORY_MESSAGE_LIMIT") or 0)
+            message_limit = runtime_limit or stored_limit
+        except Exception:
+            message_limit = 0
         
         try:
             # 1. 获取规则详情
@@ -552,6 +581,8 @@ class SessionService:
                 estimated_total = await self._estimate_message_count(
                     client, source_chat_id, begin_date, end_date
                 )
+                if message_limit > 0 and estimated_total > 0:
+                    estimated_total = min(estimated_total, message_limit)
                 progress.total = estimated_total
                 task_info['total'] = estimated_total
                 logger.info(f"📊 估算消息总数: {estimated_total}")
@@ -568,8 +599,15 @@ class SessionService:
             )
             
             async for message in client.iter_messages(
-                source_chat_id, reverse=True, offset_date=begin_date
+                source_chat_id,
+                reverse=True,
+                offset_date=begin_date,
+                limit=message_limit or None,
             ):
+                if message_limit > 0 and progress.done >= message_limit:
+                    logger.info(f"✅ 已达到历史消息数量限制: {message_limit}")
+                    break
+
                 # 检查取消事件
                 if cancel_event.is_set():
                     logger.info(f"⏸️ 历史任务已取消: user_id={user_id}")
@@ -784,6 +822,16 @@ class SessionService:
             # 估算
             client = container.user_client
             count = await self._estimate_message_count(client, source_chat_id, begin_date, end_date)
+            try:
+                from core.config import settings
+                runtime_limit = int(settings.HISTORY_MESSAGE_LIMIT or 0)
+                media_settings = await forward_settings_service.get_global_media_settings()
+                stored_limit = int((media_settings or {}).get("HISTORY_MESSAGE_LIMIT") or 0)
+                limit = runtime_limit or stored_limit
+                if limit > 0 and count > 0:
+                    count = min(count, limit)
+            except Exception:
+                pass
             
             # 显示时间
             time_str = time_config.get('display_text', '全部时间')

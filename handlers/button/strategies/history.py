@@ -371,14 +371,22 @@ class HistoryMenuStrategy(BaseMenuHandler):
 
         elif action == "set_history_limit":
             limit = arg1
-            from core.config import settings
-            settings.HISTORY_MESSAGE_LIMIT = limit
+            res = await session_manager.set_history_message_limit(limit)
+            if not res.get("success"):
+                await event.answer(f"❌ {res.get('error', '设置失败')}", alert=True)
+                return
             await event.answer(f"✅ 已设置数量限制: {limit if limit > 0 else '不限'}")
             await history_module.show_message_limit_menu(event)
 
         elif action == "custom_history_limit":
+            await session_manager.update_user_state(
+                event.sender_id,
+                event.chat_id,
+                "set_history_limit",
+                None,
+                {"state_type": "history"},
+            )
             await event.answer("🔢 请在对话框输入消息数量限制数值", alert=True)
-            # 这里通常需要设置用户状态，暂未实现
             
         elif action == "history_message_filter":
             await history_module.show_message_filter_menu(event)

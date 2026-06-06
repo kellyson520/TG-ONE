@@ -3,7 +3,7 @@ import logging
 
 from core.container import container
 from .button import button_helpers
-from core.helpers.common import get_bot_client, get_main_module
+from core.helpers.common import get_bot_client
 from handlers.button.settings_manager import get_ai_settings_text
 from core.helpers.auto_delete import (
     async_delete_user_message,
@@ -31,6 +31,25 @@ async def handle_prompt_setting(
     if not current_state:
         logger.info("当前无状态,返回False")
         return False
+
+    if current_state == "set_history_limit":
+        raw_value = (event.message.text or "").strip().replace(",", "")
+        res = await session_manager.set_history_message_limit(raw_value)
+        if res.get("success"):
+            if sender_id in session_manager.user_sessions:
+                session_manager.user_sessions[sender_id].pop(chat_id, None)
+                if not session_manager.user_sessions[sender_id]:
+                    session_manager.user_sessions.pop(sender_id, None)
+            limit = res.get("limit", 0)
+            label = f"{limit:,} 条" if limit > 0 else "无限制"
+            await send_message_and_delete(
+                await get_bot_client(), chat_id, f"✅ 历史消息数量限制已设置为 {label}"
+            )
+        else:
+            await send_message_and_delete(
+                await get_bot_client(), chat_id, f"❌ {res.get('error', '设置失败')}"
+            )
+        return True
 
     rule_id = None
     field_name = None
@@ -228,7 +247,6 @@ async def handle_prompt_setting(
                 final_val = int(new_val)
                 
             # 使用 Service 层统一更新
-            from core.container import container
             res = await container.rule_service.toggle_rule_setting(rule_id, key, final_val)
             
             if not res.get('success'):
