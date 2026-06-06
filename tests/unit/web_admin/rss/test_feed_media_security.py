@@ -20,6 +20,15 @@ def make_request() -> Request:
     )
 
 
+def test_rss_public_base_url_ignores_request_host(monkeypatch):
+    monkeypatch.setattr(feed, "RSS_MEDIA_BASE_URL", "")
+    monkeypatch.setattr(feed.settings, "RSS_BASE_URL", None)
+    monkeypatch.setattr(feed.settings, "RSS_HOST", "127.0.0.1")
+    monkeypatch.setattr(feed.settings, "RSS_PORT", 8000)
+
+    assert feed._get_rss_public_base_url() == "http://127.0.0.1:8000"
+
+
 @pytest.mark.asyncio
 async def test_get_media_serves_file_inside_rule_media_dir(tmp_path, monkeypatch):
     rule_dir = tmp_path / "media" / "1"

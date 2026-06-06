@@ -54,6 +54,16 @@ def _resolve_rule_media_path(rule_id: int, filename: str) -> Path:
     return media_path
 
 
+def _get_rss_public_base_url() -> str:
+    if RSS_MEDIA_BASE_URL:
+        return RSS_MEDIA_BASE_URL.rstrip("/")
+    if settings.RSS_BASE_URL:
+        return str(settings.RSS_BASE_URL).rstrip("/")
+
+    scheme = "https" if settings.RSS_PORT == 443 else "http"
+    return f"{scheme}://{settings.RSS_HOST}:{settings.RSS_PORT}"
+
+
 def _safe_headers_for_log(request: Request) -> Dict[str, str]:
     allowed = {"host", "user-agent", "x-forwarded-host", "x-forwarded-proto", "x-real-ip"}
     sensitive = {"authorization", "cookie", "set-cookie", "x-api-key"}
@@ -111,31 +121,8 @@ async def get_feed(rule_id: int, request: Request):
         if not rss_config or not rss_config.enable_rss:
             logger.warning(f"规则 {rule_id} 的RSS未启用或不存在")
             raise HTTPException(status_code=404, detail="RSS feed 未启用或不存在")
-        # 获取请求URL的基础部分
-        base_url = str(request.base_url).rstrip("/")
-        logger.info(f"请求基础URL: {base_url}")
-        logger.info(f"请求 {request.headers}")
-        logger.info(f"请求客户 {request.client}")
-        # 检查是否有环境变量中配置的基础URL
-        if RSS_MEDIA_BASE_URL:
-            logger.info(f"使用环境变量中配置的媒体基础URL: {RSS_MEDIA_BASE_URL}")
-            base_url = RSS_MEDIA_BASE_URL.rstrip("/")
-        else:
-            # 检查是否有X-Forwarded-Host或Host
-            forwarded_host = request.headers.get("X-Forwarded-Host")
-            host_header = request.headers.get("Host")
-            if forwarded_host:
-                logger.info(f"检测到X-Forwarded-Host: {forwarded_host}")
-                # 构建基于forwarded_host的URL
-                scheme = request.headers.get("X-Forwarded-Proto", "http")
-                base_url = f"{scheme}://{forwarded_host}"
-                logger.info(f"基于X-Forwarded-Host的媒体基础URL: {base_url}")
-            elif host_header and host_header != f"{settings.RSS_HOST}:{settings.RSS_PORT}":
-                logger.info(f"检测到自定义Host: {host_header}")
-                # 构建基于Host的URL
-                scheme = request.url.scheme
-                base_url = f"{scheme}://{host_header}"
-                logger.info(f"基于Host的媒体基础URL: {base_url}")
+        base_url = _get_rss_public_base_url()
+        logger.debug(f"请求客户 {request.client}")
         logger.info(f"最终使用的媒体基础URL: {base_url}")
         # 获取规则对应的条目
         entries = await get_entries(rule_id)
@@ -235,23 +222,8 @@ async def get_media(rule_id: int, filename: str, request: Request):
     logger.info(f"媒体请求 - 规则ID: {rule_id}, 文件 {filename}")
     logger.info(f"请求URL: {request.url}")
     logger.info(f"请求头: {_safe_headers_for_log(request)}")
-    # 获取基础URL，用于日志记
-    base_url = str(request.base_url).rstrip("/")
-    if RSS_MEDIA_BASE_URL:
-        logger.info(f"环境变量中配置的媒体基础URL: {RSS_MEDIA_BASE_URL}")
-        base_url = RSS_MEDIA_BASE_URL.rstrip("/")
-    else:
-        # 检查是否有X-Forwarded-Host或Host
-        forwarded_host = request.headers.get("X-Forwarded-Host")
-        host_header = request.headers.get("Host")
-        if forwarded_host:
-            logger.info(f"检测到X-Forwarded-Host: {forwarded_host}")
-            scheme = request.headers.get("X-Forwarded-Proto", "http")
-            base_url = f"{scheme}://{forwarded_host}"
-        elif host_header and host_header != f"{settings.RSS_HOST}:{settings.RSS_PORT}":
-            logger.info(f"检测到自定义Host: {host_header}")
-            scheme = request.url.scheme
-            base_url = f"{scheme}://{host_header}"
+    # 获取基础URL，用于日志记录；不信任 Host/X-Forwarded-Host，避免 RSS 链接投毒
+    base_url = _get_rss_public_base_url()
     logger.info(f"最终使用的媒体基础URL: {base_url}")
     # 构建规则特定的媒体文件路
     media_path = _resolve_rule_media_path(rule_id, filename)
