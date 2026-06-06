@@ -1,8 +1,7 @@
 import logging
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 from ai import get_ai_provider
 from core.config import settings
-from core.constants import DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
 from services.ai_context import AIConversationMemory, AIPromptBuilder, AITurn
 
 logger = logging.getLogger(__name__)
@@ -17,11 +16,12 @@ class AIService:
     async def process_message(self, text: str, rule, images: List[Dict] = None, context=None) -> str:
         """调用 AI 提供商处理消息"""
         try:
-            model = rule.ai_model or DEFAULT_AI_MODEL
-            prompt_template = rule.ai_prompt or DEFAULT_AI_PROMPT
+            model = self._resolve_model(rule)
+            prompt_template = self._resolve_prompt_template(rule)
             memory_key: Optional[str] = None
             memory_turns: List[AITurn] = []
             if settings.AI_MEMORY_ENABLED:
+                self.memory.refresh_from_settings()
                 memory_key = self.memory.make_key(rule, context)
                 memory_turns = self.memory.snapshot(memory_key)
             
@@ -44,16 +44,17 @@ class AIService:
             )
             
             # 3. 错误处理与清洗
-            if not response or any(x in str(response).lower() for x in ["ai处理失败", "ai failed"]):
+            response_text = "" if response is None else str(response)
+            if not response_text or any(x in response_text.lower() for x in ["ai处理失败", "ai failed"]):
                 return text
 
             if memory_key:
-                self.memory.append(memory_key, text, response)
+                self.memory.append(memory_key, text, response_text)
 
-            return response
+            return response_text
             
         except Exception as e:
-            logger.error(f"AI Service processing failed: {e}")
+            logger.error(f"AI Service processing failed: {e}", exc_info=True)
             return text
 
     async def _build_dynamic_prompt(
@@ -66,5 +67,43 @@ class AIService:
     ) -> str:
         """构建包含聊天上下文的 Prompt"""
         return self.prompt_builder.build(template, rule, context, message_text, memory_turns)
+
+    def _resolve_model(self, rule: Any) -> str:
+        return _text_attr(rule, "ai_model") or str(getattr(settings, "DEFAULT_AI_MODEL", "gpt-4o"))
+
+    def _resolve_prompt_template(self, rule: Any) -> str:
+        if _bool_attr(rule, "is_summary"):
+            return (
+                _text_attr(rule, "summary_prompt")
+                or _text_attr(rule, "ai_prompt")
+                or str(getattr(settings, "DEFAULT_SUMMARY_PROMPT", "请总结以下内容："))
+            )
+        return _text_attr(rule, "ai_prompt") or str(getattr(settings, "DEFAULT_AI_PROMPT", "请总结以下内容："))
+
+
+def _read_attr(obj: Any, name: str) -> Any:
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return obj.get(name)
+    return getattr(obj, name, None)
+
+
+def _text_attr(obj: Any, name: str) -> str:
+    value = _read_attr(obj, name)
+    if isinstance(value, (str, int, float)) and str(value):
+        return str(value)
+    return ""
+
+
+def _bool_attr(obj: Any, name: str) -> bool:
+    value = _read_attr(obj, name)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value == 1
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+    return False
 
 ai_service = AIService()

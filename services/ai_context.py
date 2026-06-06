@@ -27,12 +27,47 @@ class AIConversationMemory:
         max_text_chars: Optional[int] = None,
         clock=time.monotonic,
     ) -> None:
-        self.max_sessions = max(1, int(max_sessions or settings.AI_MEMORY_MAX_SESSIONS))
-        self.max_turns = max(1, int(max_turns or settings.AI_MEMORY_MAX_TURNS))
-        self.ttl_seconds = max(1, int(ttl_seconds or settings.AI_MEMORY_TTL_SECONDS))
-        self.max_text_chars = max(32, int(max_text_chars or settings.AI_MEMORY_MAX_TEXT_CHARS))
         self._clock = clock
         self._sessions: "OrderedDict[str, Deque[AITurn]]" = OrderedDict()
+        self.max_sessions = _positive_int(max_sessions, settings.AI_MEMORY_MAX_SESSIONS)
+        self.max_turns = _positive_int(max_turns, settings.AI_MEMORY_MAX_TURNS)
+        self.ttl_seconds = _positive_int(ttl_seconds, settings.AI_MEMORY_TTL_SECONDS)
+        self.max_text_chars = _positive_int(max_text_chars, settings.AI_MEMORY_MAX_TEXT_CHARS, minimum=32)
+
+    def refresh_from_settings(self) -> None:
+        """Apply runtime config changes without dropping valid recent memory."""
+        new_max_sessions = _positive_int(getattr(settings, "AI_MEMORY_MAX_SESSIONS", None), self.max_sessions)
+        new_max_turns = _positive_int(getattr(settings, "AI_MEMORY_MAX_TURNS", None), self.max_turns)
+        new_ttl_seconds = _positive_int(getattr(settings, "AI_MEMORY_TTL_SECONDS", None), self.ttl_seconds)
+        new_max_text_chars = _positive_int(
+            getattr(settings, "AI_MEMORY_MAX_TEXT_CHARS", None),
+            self.max_text_chars,
+            minimum=32,
+        )
+
+        text_limit_changed = new_max_text_chars != self.max_text_chars
+        turns_limit_changed = new_max_turns != self.max_turns
+
+        self.max_sessions = new_max_sessions
+        self.max_turns = new_max_turns
+        self.ttl_seconds = new_ttl_seconds
+        self.max_text_chars = new_max_text_chars
+
+        if text_limit_changed or turns_limit_changed:
+            for key, turns in list(self._sessions.items()):
+                recent_turns = list(turns)[-self.max_turns:]
+                if text_limit_changed:
+                    recent_turns = [
+                        AITurn(
+                            user=self._clip(turn.user),
+                            assistant=self._clip(turn.assistant),
+                            created_at=turn.created_at,
+                        )
+                        for turn in recent_turns
+                    ]
+                self._sessions[key] = deque(recent_turns, maxlen=self.max_turns)
+
+        self._prune()
 
     def make_key(self, rule: Any, context: Any) -> Optional[str]:
         rule_id = _first_scalar(rule, ("id", "rule_id"))
@@ -223,3 +258,12 @@ def _nested_scalar(obj: Any, paths: Iterable[str]) -> Optional[str]:
         if _valid_scalar(cur):
             return str(cur)
     return None
+
+
+def _positive_int(value: Any, fallback: Any, minimum: int = 1) -> int:
+    raw = fallback if value is None else value
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        parsed = int(fallback)
+    return max(minimum, parsed)
