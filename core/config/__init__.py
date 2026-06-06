@@ -601,6 +601,10 @@ class Settings(BaseSettings):
     DEFAULT_AI_PROMPT: str = Field(
         default="请尊重原意，保持原有格式不变，用简体中文重写下面的内容："
     )
+    DEFAULT_AI_PERSONA: str = Field(
+        default="",
+        description="AI 默认人格/角色设定，留空表示不注入"
+    )
     AI_MEMORY_ENABLED: bool = Field(
         default=False,
         description="是否启用 AI 跨消息短期记忆"

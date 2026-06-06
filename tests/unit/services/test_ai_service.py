@@ -144,3 +144,22 @@ async def test_ai_auto_context_injects_persona_when_template_has_no_placeholder(
     assert "像资深运营一样输出" in prompt
     assert "对话记忆:" in prompt
     assert "第一轮" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ai_prompt_uses_default_persona(monkeypatch):
+    monkeypatch.setattr(settings, "AI_MEMORY_ENABLED", False)
+    monkeypatch.setattr(settings, "DEFAULT_AI_PERSONA", "全局默认人格")
+    provider = FakeProvider()
+
+    async def fake_get_provider(_model):
+        return provider
+
+    monkeypatch.setattr("services.ai_service.get_ai_provider", fake_get_provider)
+    service = AIService()
+    rule = _rule(ai_prompt="请改写：", ai_persona=None)
+
+    await service.process_message("内容", rule, context=_context())
+
+    assert "人格设定:" in provider.calls[-1]["prompt"]
+    assert "全局默认人格" in provider.calls[-1]["prompt"]

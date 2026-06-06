@@ -161,6 +161,7 @@ class AIPromptBuilder:
         return (
             _first_scalar(context, ("ai_persona", "persona", "personality", "role"))
             or _first_scalar(rule, ("ai_persona", "persona", "personality", "ai_role", "role"))
+            or getattr(settings, "DEFAULT_AI_PERSONA", "")
             or ""
         )
 
