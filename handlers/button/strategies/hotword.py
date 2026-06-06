@@ -1,11 +1,37 @@
 from .base import BaseMenuHandler
 from .registry import MenuHandlerRegistry
-from core.container import container
 from telethon.errors import MessageNotModifiedError
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def parse_hotword_view_payload(data: str, extra_data=None) -> tuple[str, str]:
+    """Parse hotword_view callback data while allowing ':' inside channel names."""
+    channel = "global"
+    period = "day"
+    valid_periods = {"day", "month", "year", "all"}
+
+    if extra_data:
+        channel = extra_data[0] or channel
+        if len(extra_data) > 1 and extra_data[1] in valid_periods:
+            period = extra_data[1]
+        return channel, period
+
+    prefix = "hotword_view:"
+    if not data.startswith(prefix):
+        return channel, period
+
+    payload = data[len(prefix):]
+    if not payload:
+        return channel, period
+
+    maybe_channel, sep, maybe_period = payload.rpartition(":")
+    if sep and maybe_period in valid_periods:
+        return maybe_channel or channel, maybe_period
+    return payload, period
+
 
 @MenuHandlerRegistry.register
 class HotwordMenuStrategy(BaseMenuHandler):
@@ -54,19 +80,7 @@ class HotwordMenuStrategy(BaseMenuHandler):
             # Supported formats:
             # 1. hotword_view:channel_name:period (via extra_data)
             # 2. legacy string parse
-            channel = "global"
-            period = "day"
-            
-            if extra_data:
-                channel = extra_data[0]
-                if len(extra_data) > 1:
-                    period = extra_data[1]
-            else:
-                parts = data.split(":")
-                if len(parts) > 1:
-                    channel = parts[1]
-                if len(parts) > 2:
-                    period = parts[2]
+            channel, period = parse_hotword_view_payload(data, extra_data)
             
             ranks = await hotword_service.get_rankings(channel, period=period)
             result = hotword_renderer.render_channel_rankings(channel, ranks, period)
