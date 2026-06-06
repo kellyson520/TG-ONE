@@ -1,10 +1,20 @@
 import hashlib
+import re
 import time
 from typing import Optional
 
 _CHANNEL_TOKENS: dict[str, tuple[str, float]] = {}
 _TOKEN_TTL_SECONDS = 3600
 _TOKEN_MAX_ITEMS = 512
+_TOKEN_PATTERN = re.compile(r"^[0-9a-f]{16}$")
+
+
+def make_hotword_channel_token(channel_name: str) -> str:
+    return hashlib.blake2b(channel_name.encode("utf-8"), digest_size=8).hexdigest()
+
+
+def is_hotword_channel_token(value: str) -> bool:
+    return bool(value and _TOKEN_PATTERN.fullmatch(value))
 
 
 def _prune_tokens(now: float) -> None:
@@ -23,7 +33,7 @@ def _prune_tokens(now: float) -> None:
 
 def register_hotword_channel(channel_name: str) -> str:
     now = time.monotonic()
-    token = hashlib.blake2b(channel_name.encode("utf-8"), digest_size=8).hexdigest()
+    token = make_hotword_channel_token(channel_name)
     _CHANNEL_TOKENS[token] = (channel_name, now)
     _prune_tokens(now)
     return token

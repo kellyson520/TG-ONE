@@ -151,6 +151,37 @@ async def test_hotword_rankings_read_archived_periods_when_raw_is_empty():
     assert year_day_ranks["全年日榜"] == 21
 
 @pytest.mark.asyncio
+async def test_hotword_resolves_callback_token_from_archived_channels():
+    from services.hotword_service import HotwordService
+    from models.hotword import HotPeriodStats
+    from sqlalchemy import text
+    from ui.hotword_callback_codec import make_hotword_channel_token
+
+    service = HotwordService()
+    channel = "长期存在的频道:月榜"
+    token = make_hotword_channel_token(channel)
+
+    async with service.repo.session_factory() as session:
+        await session.execute(
+            text("DELETE FROM hot_period_stats WHERE channel = :channel"),
+            {"channel": channel},
+        )
+        session.add(
+            HotPeriodStats(
+                channel=channel,
+                word="稳定token",
+                period="month",
+                date_key=datetime.now().strftime("%Y%m"),
+                score=3.0,
+                user_count=1,
+            )
+        )
+        await session.commit()
+
+    assert await service.resolve_channel_token(token) == channel
+    assert await service.resolve_channel_token("not-a-token") is None
+
+@pytest.mark.asyncio
 async def test_hotword_suspend_resume():
     from services.hotword_service import HotwordService
     service = HotwordService()

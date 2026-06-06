@@ -3,7 +3,7 @@ from .registry import MenuHandlerRegistry
 from telethon.errors import MessageNotModifiedError
 from datetime import datetime
 import logging
-from ui.hotword_callback_codec import resolve_hotword_channel
+from ui.hotword_callback_codec import is_hotword_channel_token, resolve_hotword_channel
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +101,8 @@ class HotwordMenuStrategy(BaseMenuHandler):
             # 1. hotword_view:channel_name:period (via extra_data)
             # 2. legacy string parse
             channel, period = parse_hotword_view_payload(data, extra_data)
+            if action == "hotword_view_id" and is_hotword_channel_token(channel):
+                channel = await hotword_service.resolve_channel_token(channel) or channel
             
             ranks = await hotword_service.get_rankings(channel, period=period)
             result = hotword_renderer.render_channel_rankings(channel, ranks, period)

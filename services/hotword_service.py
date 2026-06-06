@@ -649,6 +649,20 @@ class HotwordService:
         sorted_data = sorted(current_data.items(), key=_sort_key, reverse=True)[:25]
         return [(w, int(v["f"] if isinstance(v, dict) else v)) for w, v in sorted_data]
 
+    async def resolve_channel_token(self, token: str) -> Optional[str]:
+        """Resolve a stable hotword callback token after process memory/TTL loss."""
+        if not token:
+            return None
+
+        from ui.hotword_callback_codec import is_hotword_channel_token, make_hotword_channel_token
+        if not is_hotword_channel_token(token):
+            return None
+
+        for channel in await self.repo.get_channel_dirs():
+            if make_hotword_channel_token(channel) == token:
+                return channel
+        return None
+
     async def _load_period_data(self, channel_name: str, period: str) -> Dict[str, Any]:
         """内部辅助：加载特定周期数据"""
         if period == "day":
