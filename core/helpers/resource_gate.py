@@ -11,10 +11,17 @@ except ImportError:
 
 class ResourceGate:
     """
-    Performance Gatekeeper to ensure resource usage stays within limits.
-    Strictly enforcing the 2GB RAM limit as per system mandate.
+    Performance Gatekeeper to ensure resource usage stays within configured limits.
     """
-    MAX_RAM_BYTES = 2 * 1024 * 1024 * 1024  # 2GB
+    DEFAULT_MAX_RAM_BYTES = 768 * 1024 * 1024
+
+    @staticmethod
+    def _configured_limit_bytes() -> int:
+        try:
+            from core.config import settings
+            return int(settings.MEMORY_CRITICAL_THRESHOLD_MB) * 1024 * 1024
+        except Exception:
+            return ResourceGate.DEFAULT_MAX_RAM_BYTES
 
     @staticmethod
     def get_current_memory_usage() -> int:
@@ -41,7 +48,7 @@ class ResourceGate:
         if current_usage == 0:
             return True # Assume safe if we can't check or error
 
-        limit = limit_bytes or ResourceGate.MAX_RAM_BYTES
+        limit = limit_bytes or ResourceGate._configured_limit_bytes()
         
         if current_usage > limit:
             logger.warning(f"ResourceGate: Memory usage {current_usage / 1024 / 1024:.2f} MB exceeds limit {limit / 1024 / 1024:.2f} MB")
@@ -56,4 +63,8 @@ class ResourceGate:
         if not ResourceGate.check_memory_safe():
             # Get current usage specifically for the error message
             usage = ResourceGate.get_current_memory_usage()
-            raise MemoryError(f"Process exceeded allowed memory limit (2GB). Current: {usage / 1024 / 1024:.2f} MB")
+            limit_mb = ResourceGate._configured_limit_bytes() / 1024 / 1024
+            raise MemoryError(
+                f"Process exceeded allowed memory limit ({limit_mb:.0f}MB). "
+                f"Current: {usage / 1024 / 1024:.2f} MB"
+            )

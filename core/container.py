@@ -371,9 +371,14 @@ class Container:
             self.http_session = aiohttp.ClientSession()
             logger.info("全局 HTTP 会话已初始化")
         
-        # Start Hotword Collector Worker
-        from middlewares.hotword import get_hotword_collector
-        self.services.append(asyncio.create_task(get_hotword_collector().start_worker(), name="HotwordCollector"))
+        # Start Hotword Collector Worker only when enabled; on small VPS this avoids
+        # an idle heartbeat/monitor task when hotword analysis is disabled.
+        from core.config import settings
+        if settings.ENABLE_HOTWORD:
+            from middlewares.hotword import get_hotword_collector
+            self.services.append(asyncio.create_task(get_hotword_collector().start_worker(), name="HotwordCollector"))
+        else:
+            logger.info("热词分析已禁用，跳过 HotwordCollector 启动")
 
         # 使用 asyncio.create_task 启动并由 Container 持有引用
         if self.worker:

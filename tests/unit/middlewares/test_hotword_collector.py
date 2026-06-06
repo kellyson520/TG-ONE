@@ -49,3 +49,14 @@ async def test_hotword_collector_isolates_failed_channel_batches(monkeypatch):
 
     assert service.processed
     assert service.processed[0][0] == "good"
+
+
+@pytest.mark.asyncio
+async def test_hotword_queue_full_log_is_rate_limited():
+    collector = HotwordCollectorMiddleware(FakeHotwordService())
+
+    assert collector._should_log_queue_full() is True
+    assert collector._should_log_queue_full() is False
+
+    collector._last_queue_full_log_at -= collector._queue_full_log_interval
+    assert collector._should_log_queue_full() is True

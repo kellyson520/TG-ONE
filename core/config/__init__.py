@@ -127,11 +127,11 @@ class Settings(BaseSettings):
         description="数据库连接URL"
     )
     DB_POOL_SIZE: int = Field(
-        default=20,
+        default=5,
         description="数据库连接池大小"
     )
     DB_MAX_OVERFLOW: int = Field(
-        default=30,
+        default=5,
         description="数据库连接池最大溢出连接数"
     )
     DB_ECHO: bool = Field(
@@ -358,9 +358,9 @@ class Settings(BaseSettings):
         description="归档数据根路径 (本地路径或 S3 URL)"
     )
     ARCHIVE_PARQUET_COMPRESSION: str = Field(default="ZSTD")
-    ARCHIVE_PARQUET_ROW_GROUP_SIZE: int = Field(default=100000)
+    ARCHIVE_PARQUET_ROW_GROUP_SIZE: int = Field(default=20000)
     ARCHIVE_QUERY_DEBUG: bool = Field(default=False)
-    ARCHIVE_WRITE_CHUNK_SIZE: int = Field(default=200000)
+    ARCHIVE_WRITE_CHUNK_SIZE: int = Field(default=50000)
     
     # S3 / AWS 凭据
     AWS_REGION: Optional[str] = Field(default=None)
@@ -373,7 +373,7 @@ class Settings(BaseSettings):
     
     # DuckDB 性能优化
     DUCKDB_THREADS: int = Field(default=0)
-    DUCKDB_MEMORY_LIMIT: Optional[str] = Field(default=None)
+    DUCKDB_MEMORY_LIMIT: Optional[str] = Field(default="256MB")
     
     # === 热冷分层归档配置 ===
     HOT_DAYS_TASK: int = Field(default=1, description="TaskQueue 热数据保留天数")
@@ -489,14 +489,14 @@ class Settings(BaseSettings):
     HOT_DAYS_STATS: int = Field(default=180)
     
     # 归档批量大小
-    ARCHIVE_BATCH_SIZE: int = Field(default=100000)
-    ARCHIVE_LOG_BATCH_SIZE: int = Field(default=200000)
-    ARCHIVE_TASK_BATCH_SIZE: int = Field(default=100000)
-    ARCHIVE_STATS_BATCH_SIZE: int = Field(default=500000)
+    ARCHIVE_BATCH_SIZE: int = Field(default=10000)
+    ARCHIVE_LOG_BATCH_SIZE: int = Field(default=20000)
+    ARCHIVE_TASK_BATCH_SIZE: int = Field(default=10000)
+    ARCHIVE_STATS_BATCH_SIZE: int = Field(default=20000)
     
     # 归档性能与压实
-    ARCHIVE_WRITE_PARALLEL: bool = Field(default=True)
-    ARCHIVE_WRITE_MAX_WORKERS: int = Field(default=4)
+    ARCHIVE_WRITE_PARALLEL: bool = Field(default=False)
+    ARCHIVE_WRITE_MAX_WORKERS: int = Field(default=1)
     ARCHIVE_COMPACT_ENABLED: bool = Field(default=False)
     ARCHIVE_COMPACT_MIN_FILES: int = Field(default=10)
 
@@ -692,11 +692,11 @@ class Settings(BaseSettings):
     
     # === Worker 动态池配置 ===
     WORKER_MIN_CONCURRENCY: int = Field(
-        default=2,
+        default=1,
         description="Worker 最小并发数"
     )
     WORKER_MAX_CONCURRENCY: int = Field(
-        default=100,
+        default=8,
         description="Worker 最大并发数"
     )
     
@@ -720,11 +720,11 @@ class Settings(BaseSettings):
     
     # === 资源监控与熔断阈值 ===
     MEMORY_WARNING_THRESHOLD_MB: int = Field(
-        default=512,
+        default=384,
         description="内存预警阈值 (MB)"
     )
     MEMORY_CRITICAL_THRESHOLD_MB: int = Field(
-        default=1024,
+        default=768,
         description="内存熔断阈值 (MB)"
     )
     LOOP_LAG_THRESHOLD_MS: int = Field(

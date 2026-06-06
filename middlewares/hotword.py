@@ -14,6 +14,8 @@ class HotwordCollectorMiddleware(Middleware):
         self.queue = asyncio.Queue(maxsize=1000)
         self.worker_task = None
         self.heartbeat_task = None
+        self._last_queue_full_log_at = 0.0
+        self._queue_full_log_interval = 30.0
         
     async def process(self, ctx: MessageContext, _next_call: Callable) -> None:
         if not settings.ENABLE_HOTWORD:
@@ -31,11 +33,19 @@ class HotwordCollectorMiddleware(Middleware):
                 sender_id = getattr(ctx.message_obj, 'sender_id', None)
                 self.queue.put_nowait((channel_name, sender_id, text))
             except asyncio.QueueFull:
-                logger.warning("Hotword queue full, dropping message.")
+                if self._should_log_queue_full():
+                    logger.warning("Hotword queue full, dropping message.")
             except Exception as e:
                 logger.error(f"Hotword collection failed: {e}")
 
         await _next_call()
+
+    def _should_log_queue_full(self) -> bool:
+        now = asyncio.get_event_loop().time()
+        if now - self._last_queue_full_log_at < self._queue_full_log_interval:
+            return False
+        self._last_queue_full_log_at = now
+        return True
 
     def _extract_text(self, ctx: MessageContext) -> str:
         msg = ctx.message_obj

@@ -11,7 +11,7 @@ class TestResourceGate:
         mock_process.memory_info.return_value.rss = 1 * 1024 * 1024
         mock_psutil.Process.return_value = mock_process
         
-        # Should be safe (limit is 2GB)
+        # Should be safe under the configured memory limit
         assert ResourceGate.check_memory_safe() is True
         
     @patch('core.helpers.resource_gate.psutil')

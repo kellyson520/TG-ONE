@@ -307,7 +307,7 @@ class Bootstrap:
 
     async def _resource_monitor_loop(self) -> None:
         """周期性资源监控"""
-        logger.info("资源监控器已启动 (Limit: 2GB)")
+        logger.info(f"资源监控器已启动 (Limit: {settings.MEMORY_CRITICAL_THRESHOLD_MB}MB)")
         while not self.coordinator.is_shutting_down():
             try:
                 if not ResourceGate.check_memory_safe():
@@ -420,4 +420,3 @@ class Bootstrap:
         # 发送欢迎消息
         if send_welcome_message:
             await send_welcome_message(self.bot_client)
-
