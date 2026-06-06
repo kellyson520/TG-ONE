@@ -164,7 +164,10 @@ class PickerMenu(BaseMenu):
                 row_val,
                 row_dec,
                 [Button.inline("♾️ 设为不限", f"new_menu:picker_limit:{side}:none")],
-                [Button.inline("✅ 确认选择", "new_menu:history_time_range"), Button.inline("👈 返回", "new_menu:history_time_range")]
+                [
+                    Button.inline("✅ 确认选择", self._time_picker_back_action(ctx)),
+                    Button.inline("👈 返回", self._time_picker_back_action(ctx)),
+                ]
             ]
             
             text = (
@@ -179,5 +182,12 @@ class PickerMenu(BaseMenu):
         except Exception as e:
             logger.error(f"显示滚轮选择器失败: {e}", exc_info=True)
             await event.answer("加载选择器失败", alert=True)
+
+    def _time_picker_back_action(self, context: str) -> str:
+        if context == "dedup":
+            return "new_menu:session_dedup_time_range"
+        if context == "delete":
+            return "new_menu:time_range_selection"
+        return "new_menu:history_time_range"
 
 picker_menu = PickerMenu()

@@ -259,7 +259,9 @@ class HistoryMenuStrategy(BaseMenuHandler):
              await new_menu_system.show_time_range_selection(event)
 
         elif action == "save_time_range":
-             success = await session_manager.save_time_range_settings(event.chat_id)
+             success = await session_manager.save_time_range_settings(
+                 self._time_owner_id(event, session_manager)
+             )
              if success:
                  await event.answer("✅ 时间范围设置已保存")
                  await new_menu_system.show_time_range_selection(event)
@@ -321,13 +323,18 @@ class HistoryMenuStrategy(BaseMenuHandler):
         # 6. Time Range Presets
         elif action == "set_time_range_all":
             # 设置为全部时间
-            tr = session_manager.get_time_range(event.sender_id)
+            context = session_manager.get_time_picker_context(event.chat_id)
+            owner_id = self._time_owner_id(event, session_manager)
+            tr = session_manager.get_time_range(owner_id)
             for prefix in ["start_", "end_"]:
                 for k in ["year", "month", "day", "hour", "minute", "second"]:
                     tr[prefix + k] = 0
-            session_manager.set_time_range(event.sender_id, tr)
+            session_manager.set_time_range(owner_id, tr)
             await event.answer("✅ 已设为全部历史")
-            await menu_controller.show_history_time_range(event)
+            if context == "history":
+                await menu_controller.show_history_time_range(event)
+            else:
+                await new_menu_system.show_time_range_selection(event)
         
         elif action == "set_time_range_days":
             # 设置最近N天
@@ -335,16 +342,21 @@ class HistoryMenuStrategy(BaseMenuHandler):
             from datetime import datetime, timedelta
             now = datetime.now()
             start = now - timedelta(days=days)
-            tr = session_manager.get_time_range(event.sender_id)
+            context = session_manager.get_time_picker_context(event.chat_id)
+            owner_id = self._time_owner_id(event, session_manager)
+            tr = session_manager.get_time_range(owner_id)
             tr["start_year"] = start.year
             tr["start_month"] = start.month
             tr["start_day"] = start.day
             tr["end_year"] = now.year
             tr["end_month"] = now.month
             tr["end_day"] = now.day
-            session_manager.set_time_range(event.sender_id, tr)
+            session_manager.set_time_range(owner_id, tr)
             await event.answer(f"✅ 已设为最近{days}天")
-            await menu_controller.show_history_time_range(event)
+            if context == "history":
+                await menu_controller.show_history_time_range(event)
+            else:
+                await new_menu_system.show_time_range_selection(event)
         
         elif action == "confirm_time_range":
             await event.answer("✅ 时间范围已确认")

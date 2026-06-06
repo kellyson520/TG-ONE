@@ -19,7 +19,6 @@ class HistoryModule(BaseMenu):
         await picker_menu.show_wheel_date_picker(event, side)
 
     async def show_time_range_selection(self, event):
-        session_manager.set_time_picker_context(event.chat_id, "history")
         try:
             earliest_date, latest_date = (
                 await session_manager.get_chat_message_date_range(event.chat_id)
@@ -31,17 +30,27 @@ class HistoryModule(BaseMenu):
             date_range_text = ""
 
         try:
-            display = await session_manager.get_time_range_display(event.chat_id)
+            context = session_manager.get_time_picker_context(event.chat_id)
+            owner_id = event.sender_id if context == "history" else event.chat_id
+            display = await session_manager.get_time_range_display(owner_id)
         except Exception:
             display = "0天 00:00:00 - ∞" # Default display if fetching fails
         # 获取返回路径
-        context = session_manager.get_time_picker_context(event.chat_id)
+        try:
+            context = session_manager.get_time_picker_context(event.chat_id)
+        except Exception:
+            context = "history"
         if context == "dedup":
             back_target = "new_menu:session_dedup"
         elif context == "delete":
             back_target = "new_menu:delete_session_messages"
         else:
             back_target = "new_menu:history_messages"
+        select_days_action = (
+            "new_menu:select_days:history"
+            if context == "history"
+            else "new_menu:select_days"
+        )
 
         buttons = [
             [
@@ -51,7 +60,7 @@ class HistoryModule(BaseMenu):
                 Button.inline("📅 设置结束时间 (高级滚轮)", "new_menu:open_wheel_picker:end"),
             ],
             [
-                Button.inline("📊 快速选择天数", "new_menu:select_days:history"),
+                Button.inline("📊 快速选择天数", select_days_action),
                 Button.inline("🗓️ 全部时间", "new_menu:set_all_time_zero"),
             ],
             [Button.inline("👈 返回上一级", back_target)],
@@ -239,7 +248,7 @@ class HistoryModule(BaseMenu):
 
     async def show_history_messages(self, event):
         """显示历史消息菜单"""
-        res = await session_manager.get_selected_rule(event.chat_id)
+        res = await session_manager.get_selected_rule(event.sender_id)
         rule_id = res.get('rule_id')
         
         rule_info = ""
@@ -292,7 +301,7 @@ class HistoryModule(BaseMenu):
         try:
             from ..forward_management import forward_manager
             rules = await forward_manager.get_channel_rules()
-            res = await session_manager.get_selected_rule(event.chat_id)
+            res = await session_manager.get_selected_rule(event.sender_id)
             current_rule_id = res.get('rule_id')
 
             buttons = []
@@ -310,7 +319,9 @@ class HistoryModule(BaseMenu):
     async def show_current_history_task(self, event):
         """显示当前历史任务"""
         try:
-            prog = await session_manager.get_history_progress(event.chat_id)
+            prog = await session_manager.get_history_progress(event.sender_id)
+            if not prog:
+                prog = {}
             done, total = prog.get("done", 0), prog.get("total", 0)
             status = prog.get("status", "idle")
             percent = (done * 100 // total) if total else 0
@@ -331,7 +342,7 @@ class HistoryModule(BaseMenu):
     async def show_history_delay_settings(self, event):
         """显示历史延迟设置"""
         try:
-            delay = await session_manager.get_history_delay(event.chat_id)
+            delay = await session_manager.get_history_delay(event.sender_id)
             options = [0, 1, 2, 3, 5, 10, 15, 30]
             buttons = []
             row = []

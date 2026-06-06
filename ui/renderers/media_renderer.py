@@ -1,5 +1,4 @@
-from typing import Dict, Any, List
-from telethon.tl.custom import Button
+from typing import Dict, Any
 from .base_renderer import BaseRenderer, ViewResult
 from ui.constants import UIStatus
 
@@ -15,7 +14,7 @@ class MediaRenderer(BaseRenderer):
         builder.add_section("服务说明", "您可以将指定时间范围内的历史消息按照现有规则进行重发、过滤或同步。")
         
         if current_task:
-            processed = current_task.get('processed', 0)
+            processed = current_task.get('processed', current_task.get('done', 0))
             total = current_task.get('total', 1) # 防止除零
             percent = (processed / total) * 100
             

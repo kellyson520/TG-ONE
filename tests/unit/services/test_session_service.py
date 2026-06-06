@@ -60,6 +60,15 @@ async def test_time_range_ops(session_service):
 
 
 @pytest.mark.asyncio
+async def test_save_time_range_settings_compat(session_service):
+    uid = 1001
+    session_service.set_time_range(uid, {"start_year": 2026})
+
+    assert await session_service.save_time_range_settings(uid) is True
+    assert session_service.get_time_range(uid) == {"start_year": 2026}
+
+
+@pytest.mark.asyncio
 async def test_history_quick_time_range_helpers(session_service):
     uid = 101
 

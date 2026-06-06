@@ -349,6 +349,19 @@ class SessionService:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    async def save_time_range_settings(self, user_id: int) -> bool:
+        """Compatibility hook for menu callbacks that explicitly save a picker."""
+        try:
+            current = self.get_time_range(user_id) or {}
+            if current:
+                self.set_time_range(user_id, current.copy())
+            else:
+                await self.get_time_range_config(user_id)
+            return True
+        except Exception as e:
+            logger.error(f"保存时间范围设置失败: {e}")
+            return False
+
     async def get_delay_settings(self, user_id: int) -> Dict[str, Any]:
         """获取延迟设置 (API 兼容格式)"""
         try:
