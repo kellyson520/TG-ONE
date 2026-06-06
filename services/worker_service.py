@@ -32,6 +32,7 @@ class WorkerService:
         # [NEW] 中央分发资源
         self.task_queue = asyncio.Queue(maxsize=settings.WORKER_QUEUE_SIZE)
         self.dispatcher = None # 在 start() 中初始化
+        self._scale_down_requests = 0
         
         # [NEW] 资源阈值
         self.mem_warning, self.mem_critical = self._resolve_memory_thresholds()
@@ -100,17 +101,17 @@ class WorkerService:
         task.add_done_callback(lambda t: self.workers.pop(t, None))
 
     async def _kill_worker(self):
-        """Kill an idle worker (approximate)"""
-        if len(self.workers) <= settings.WORKER_MIN_CONCURRENCY:
+        """Request one worker to exit after it becomes idle."""
+        active_after_pending = len(self.workers) - self._scale_down_requests
+        if active_after_pending <= settings.WORKER_MIN_CONCURRENCY:
             return
 
-        # Simple kill: Cancel the last added task
-        # Improvement: Cancel idle workers?
-        # For now, just pop one randomly or last
-        task = list(self.workers.keys())[-1]
-        worker_id = self.workers[task]
-        task.cancel()
-        logger.debug(f"Scaling down: Cancelled worker {worker_id}")
+        try:
+            self.task_queue.put_nowait(None)
+            self._scale_down_requests += 1
+            logger.debug("Scaling down: queued idle worker shutdown request")
+        except asyncio.QueueFull:
+            logger.debug("Scaling down deferred: task queue is full")
 
     async def _monitor_scaling(self):
         """
@@ -293,10 +294,16 @@ class WorkerService:
         logger.debug(f"[{worker_id}] Loop Started")
         
         while self.running:
+            queue_item_acquired = False
             try:
                 try:
                       # [Optimization] 改为从中央队列获取任务批次，彻底消除 DB 锁竞争
                       tasks = await self.task_queue.get()
+                      queue_item_acquired = True
+                      if tasks is None:
+                          self._scale_down_requests = max(0, self._scale_down_requests - 1)
+                          logger.debug(f"[{worker_id}] Graceful scale-down requested")
+                          break
                       # 如果 Dispatcher 放入的是单个任务，包装为列表；如果是列表（媒体组），直接使用
                       if not isinstance(tasks, list):
                           tasks = [tasks]
@@ -338,11 +345,23 @@ class WorkerService:
             except Exception as e:
                 logger.error(f"[{worker_id}] Loop Error: {e}")
                 await asyncio.sleep(1)
+            finally:
+                if queue_item_acquired:
+                    self.task_queue.task_done()
 
     async def _process_task_safely(self, task, log, group_tasks: list = None):
         """处理基础任务的安全封装，支持传入预先锁定的媒体组任务"""
+        group_tasks = group_tasks or []
+        payload = {}
+        chat_id = None
+        msg_id = None
         try:
-            payload = json.loads(task.task_data)
+            try:
+                payload = json.loads(task.task_data or "{}")
+            except Exception as e:
+                log.error("task_invalid_json", error=str(e), task_data=task.task_data)
+                await self._fail_group([task] + group_tasks, f"Invalid Task JSON: {e}")
+                return
             
             # [Optimization] 处理不需要预取消息的任务类型
             if task.task_type == "message_delete":
@@ -350,23 +369,23 @@ class WorkerService:
                 message_ids = payload.get('message_ids', [])
                 if not chat_id or not message_ids:
                     log.error("delete_task_invalid_payload", payload=payload)
-                    await self.repo.fail(task.id, "Invalid Delete Payload")
+                    await self._fail_group([task] + group_tasks, "Invalid Delete Payload")
                     return
                 
                 try:
                     log.info(f"🗑️ [Worker] 执行删除消息任务: Chat={chat_id}, IDs={message_ids}")
                     await self.client.delete_messages(chat_id, message_ids)
-                    await self.repo.complete(task.id)
+                    await self._complete_group([task] + group_tasks)
                     return
                 except Exception as e:
                     log.error(f"delete_messages_failed", error=str(e))
-                    await self._retry_task(task, e, log)
+                    await self._retry_group([task] + group_tasks, e, log)
                     return
 
             if task.task_type == "custom_task":
                 log.info(f"⚙️ [Worker] 处理自定义任务: {payload.get('action')}")
                 # TODO: 以后可扩展基于 action 的路由
-                await self.repo.complete(task.id)
+                await self._complete_group([task] + group_tasks)
                 return
 
             # --- 以下是需要获取原始消息的任务类型 (process_message, download_file, manual_download) ---
@@ -382,27 +401,32 @@ class WorkerService:
             
             if not chat_id or not msg_id:
                 log.error("task_invalid_payload", task_data=task.task_data)
-                await self.repo.fail(task.id, "Invalid Payload")
+                await self._fail_group([task] + group_tasks, "Invalid Payload")
                 return
 
             if group_tasks:
                 log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
-            else:
-                group_tasks = []
             
             # 收集所有相关任务（当前任务 + 同组任务）
-            all_related_tasks = [task] + group_tasks
             all_message_ids = [msg_id]
             
             # 解析同组任务的 message_id
             if group_tasks:
+                valid_group_tasks = []
                 for t in group_tasks:
                     try:
-                        p = json.loads(t.task_data)
+                        p = json.loads(t.task_data or "{}")
                         if p.get('message_id'):
                             all_message_ids.append(p.get('message_id'))
+                            valid_group_tasks.append(t)
+                        else:
+                            await self.repo.fail(t.id, "Invalid Payload (Group)")
                     except Exception as ex:
                         logger.warning(f"Failed to parse group task data: {ex}")
+                        await self.repo.fail(t.id, f"Invalid Task JSON (Group): {ex}")
+                group_tasks = valid_group_tasks
+
+            all_related_tasks = [task] + group_tasks
             
             # 关键点：从 Telethon 获取真实消息对象 (批量获取)
             # 如果消息已过期或被删，这里会返回 None
@@ -418,9 +442,7 @@ class WorkerService:
             if not valid_messages:
                 log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
                 # 消息不存在，标记为失败
-                await self.repo.fail(task.id, "Source message not found")
-                for t in group_tasks:
-                    await self.repo.fail(t.id, "Source message not found (Group)")
+                await self._fail_group(all_related_tasks, "Source message not found")
                 return
             
             primary_message = valid_messages[0]
@@ -461,9 +483,7 @@ class WorkerService:
                 except PermanentError as e:
                     # 处理自定义永久错误
                     log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self.repo.fail(task.id, str(e))
-                    for t in group_tasks:
-                        await self.repo.fail(t.id, str(e))
+                    await self._fail_group(all_related_tasks, str(e))
                     return
             
             elif task.task_type == "download_file":
@@ -471,7 +491,7 @@ class WorkerService:
                 # 这是一个"特权"任务
                 if not self.downloader:
                     log.error("downloader_not_initialized")
-                    await self.repo.fail(task.id, "Downloader not initialized")
+                    await self._fail_group(all_related_tasks, "Downloader not initialized")
                     return
                 
                 sub_folder = str(chat_id)
@@ -479,16 +499,16 @@ class WorkerService:
                     await self.downloader.push_to_queue(primary_message, sub_folder)
                 except FloodWaitException as e:
                     # 捕获FloodWaitException，将其转化为我们定义的 TransientError
-                    await self._retry_task(task, e, log)
+                    await self._retry_group(all_related_tasks, e, log)
                     return
                 except TransientError as e:
                     # 处理自定义瞬态错误
-                    await self._retry_task(task, e, log)
+                    await self._retry_group(all_related_tasks, e, log)
                     return
                 except PermanentError as e:
                     # 处理自定义永久错误
                     log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self.repo.fail(task.id, str(e))
+                    await self._fail_group(all_related_tasks, str(e))
                     return
             
             elif task.task_type == "manual_download":
@@ -496,7 +516,7 @@ class WorkerService:
                 # 可以指定一个特殊的下载目录，如 "./downloads/manual"
                 if not self.downloader:
                     log.error("downloader_not_initialized")
-                    await self.repo.fail(task.id, "Downloader not initialized")
+                    await self._fail_group(all_related_tasks, "Downloader not initialized")
                     return
                 
                 # 使用"manual"作为子文件夹，区分手动下载和自动下载
@@ -523,24 +543,22 @@ class WorkerService:
                             # 注意：这里我们只记录错误，不抛出异常，因为下载已经成功了
                 except FloodWaitException as e:
                     # 捕获FloodWaitException，使用统一的重试逻辑
-                    await self._retry_task(task, e, log)
+                    await self._retry_group(all_related_tasks, e, log)
                     return
                 except TransientError as e:
                     # 处理自定义瞬态错误
-                    await self._retry_task(task, e, log)
+                    await self._retry_group(all_related_tasks, e, log)
                     return
                 except PermanentError as e:
                     # 处理自定义永久错误
                     log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self.repo.fail(task.id, str(e))
+                    await self._fail_group(all_related_tasks, str(e))
                     return
             
             # === 任务成功 ===
             # [Fix] 必须完成所有相关的媒体组任务，否则它们会被其他 Worker 重复获取
-            await self.repo.complete(task.id)
+            await self._complete_group(all_related_tasks)
             if group_tasks:
-                for t in group_tasks:
-                    await self.repo.complete(t.id)
                 logger.debug(f"task_completed_with_group: count={len(group_tasks)}")
             else:
                 logger.debug("task_completed")
@@ -563,17 +581,17 @@ class WorkerService:
             if isinstance(e, (FloodWaitException, TransientError)):
                 # 捕获FloodWaitException或TransientError，使用统一的重试逻辑
                 log.warning(f"任务遇到瞬态错误，将重试: 类型={type(e).__name__}, 错误={str(e)}")
-                await self._retry_task(task, e, log)
+                await self._retry_group([task] + group_tasks, e, log)
             elif isinstance(e, PermanentError):
                 # 处理自定义永久错误
                 log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
-                await self.repo.fail(task.id, str(e))
+                await self._fail_group([task] + group_tasks, str(e))
             else:
                 from core.helpers.id_utils import get_display_name_async
-                chat_display = await get_display_name_async(chat_id)
+                chat_display = await get_display_name_async(chat_id) if chat_id else "unknown"
                 log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
                 # 记录具体的错误信息到数据库
-                await self.repo.fail(task.id, f"Unhandled: {str(e)}")
+                await self._fail_group([task] + group_tasks, f"Unhandled: {str(e)}")
 
     # ... Helper methods stay same ...
 
@@ -708,7 +726,8 @@ class WorkerService:
         # 调用reschedule方法，更新task.next_retry_at字段
         await self.repo.reschedule(
             task.id, 
-            next_run
+            next_run,
+            increment_attempts=True,
         )
         
     async def _retry_group(self, tasks, error, log):
@@ -717,3 +736,13 @@ class WorkerService:
         """
         for task in tasks:
             await self._retry_task(task, error, log)
+
+    async def _fail_group(self, tasks, error: str):
+        """Mark all already-locked tasks in a group as failed."""
+        for task in tasks:
+            await self.repo.fail(task.id, error)
+
+    async def _complete_group(self, tasks):
+        """Mark all already-locked tasks in a group as completed."""
+        for task in tasks:
+            await self.repo.complete(task.id)

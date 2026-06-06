@@ -278,9 +278,23 @@ class TaskRepository:
                 return result.rowcount
 
     @async_db_retry(max_retries=5)
-    async def reschedule(self, task_id: int, next_run_time: datetime):
+    async def reschedule(
+        self,
+        task_id: int,
+        next_run_time: datetime,
+        increment_attempts: bool = False,
+    ):
         """重新调度任务 (纯 UPDATE，最小化锁持有时间)"""
         now = datetime.utcnow()
+        values = {
+            "status": "pending",
+            "scheduled_at": next_run_time,
+            "next_retry_at": next_run_time,
+            "updated_at": now,
+        }
+        if increment_attempts:
+            values["attempts"] = TaskQueue.attempts + 1
+
         async with self.db.get_session() as session:
             # [Optimization] 将状态验证内联到 WHERE 条件中
             # 合法的前置状态: running/pending/failed -> pending (reschedule)
@@ -288,12 +302,7 @@ class TaskRepository:
                 update(TaskQueue)
                 .where(TaskQueue.id == task_id)
                 .where(TaskQueue.status.in_(['running', 'pending', 'failed']))
-                .values(
-                    status='pending',
-                    scheduled_at=next_run_time,
-                    next_retry_at=next_run_time,
-                    updated_at=now
-                )
+                .values(**values)
             )
             await session.commit()
             if result.rowcount > 0:

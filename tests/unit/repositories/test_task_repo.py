@@ -91,6 +91,20 @@ class TestTaskRepository:
         await db.refresh(task)
         assert task.status == "failed"
 
+    async def test_reschedule_can_increment_attempts(self, repo, db):
+        await repo.push("retry_task", {"id": 1})
+        tasks = await repo.fetch_next()
+        assert tasks
+        tid = tasks[0].id
+        next_run = datetime.utcnow() + timedelta(seconds=30)
+
+        await repo.reschedule(tid, next_run, increment_attempts=True)
+
+        task = await db.get(TaskQueue, tid)
+        assert task.status == "pending"
+        assert task.attempts == 1
+        assert task.next_retry_at == next_run
+
     async def test_rescue_stuck_tasks(self, repo, db):
         # 插入一个卡住的任务 (status=running, updated_at 很久以前)
         old_time = datetime.utcnow() - timedelta(minutes=20)
