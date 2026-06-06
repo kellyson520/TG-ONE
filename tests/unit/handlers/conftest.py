@@ -39,7 +39,9 @@ _mock_settings.load_media_extensions = MagicMock(return_value=[])
 _mock_settings.load_summary_times = MagicMock(return_value=[])
 sys.modules['core.config.settings_loader'] = _mock_settings
 
-# Mock core.config
+# Configure real core.config for handler tests without replacing the module.
+# Replacing sys.modules["core.config"] pollutes sibling tests collected later;
+# modules such as services.smart_buffer import settings at module import time.
 mock_config_settings = MagicMock()
 mock_config_settings.DATABASE_URL = "sqlite:///:memory:"
 mock_config_settings.APP_ENV = "testing"
@@ -54,9 +56,16 @@ mock_config_settings.FORWARD_MAX_CONCURRENCY_PER_TARGET = 2
 mock_config_settings.FORWARD_MAX_CONCURRENCY_PER_PAIR = 1
 mock_config_settings.FORWARD_SEMAPHORE_CACHE_MAX = 100
 mock_config_settings.FLOOD_WAIT_CACHE_MAX = 100
-mock_config = MagicMock()
-mock_config.settings = mock_config_settings
-sys.modules["core.config"] = mock_config
+try:
+    import core.config as _real_core_config
+
+    for _key, _value in mock_config_settings.__dict__.items():
+        if not _key.startswith("_") and _key.isupper():
+            setattr(_real_core_config.settings, _key, _value)
+except Exception:
+    mock_config = MagicMock()
+    mock_config.settings = mock_config_settings
+    sys.modules.setdefault("core.config", mock_config)
 
 # Mock 业务模块
 for module in [
@@ -65,12 +74,6 @@ for module in [
     "scheduler.summary_scheduler",
     "scheduler.optimized_chat_updater",
     "core.helpers.media.media",
-    "middlewares.loader",
-    "middlewares.dedup", 
-    "middlewares.download",
-    "middlewares.sender",
-    "middlewares.filter",
-    "middlewares.ai",
     "core.helpers.tombstone"
 ]:
     if module not in sys.modules:

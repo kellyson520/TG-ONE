@@ -127,6 +127,8 @@ jobs:
             tests/unit/services/test_smart_buffer.py \
             tests/unit/services/test_forward_log_writer.py \
             tests/unit/services/test_queue_service_cache_limits.py \
+            tests/unit/core/cache/test_unified_cache_memory_release.py \
+            tests/unit/scheduler/test_db_archive_job_gate.py \
             tests/unit/services/test_rule_logic_settings.py \
             tests/unit/services/test_ai_service.py \
             tests/unit/middlewares/test_ai_middleware.py \

@@ -290,6 +290,20 @@ class MultiLevelCache(Generic[T]):
                 f"缓存清空-{self.name}", "完成", old_stats.to_dict()
             )
 
+    def clear_memory(self) -> int:
+        """Clear only in-process L1 cache entries and keep persistent L2 data."""
+        with self._lock:
+            removed = len(self.l1_cache._store)
+            self.l1_cache.clear()
+            self.stats.size = 0
+            if removed:
+                logger.log_system_state(
+                    f"内存缓存释放-{self.name}",
+                    "完成",
+                    {"entries_cleared": removed},
+                )
+            return removed
+
     def get_stats(self) -> CacheStats:
         """获取缓存统计信息"""
         with self._lock:
@@ -454,6 +468,29 @@ class SmartCache:
         )
 
         return global_stats
+
+    def release_memory(self) -> Dict[str, Any]:
+        """Release in-process cache memory without touching persistent storage."""
+        entries_cleared = 0
+        caches_cleared: List[str] = []
+
+        for name, cache in list(self.caches.items()):
+            removed = cache.clear_memory()
+            if removed:
+                entries_cleared += removed
+                caches_cleared.append(name)
+
+        pattern_entries = sum(len(accesses) for accesses in self.access_patterns.values())
+        self.access_patterns.clear()
+
+        result = {
+            "total_caches": len(self.caches),
+            "caches_cleared": caches_cleared,
+            "entries_cleared": entries_cleared,
+            "access_patterns_cleared": pattern_entries,
+        }
+        logger.log_operation("全局内存缓存释放", details=str(result))
+        return result
 
 
 # 全局智能缓存管理器实例 - 延迟初始化
@@ -692,6 +729,20 @@ def get_cache_stats(cache_name: Optional[str] = None) -> Dict[str, Any]:
             return {}
     else:
         return mgr.get_global_stats()
+
+
+def release_memory_caches() -> Dict[str, Any]:
+    """Release in-memory cache layers if the smart cache has been initialized."""
+    if smart_cache is None:
+        return {
+            "total_caches": 0,
+            "caches_cleared": [],
+            "entries_cleared": 0,
+            "access_patterns_cleared": 0,
+        }
+
+    mgr = cast(SmartCache, smart_cache)
+    return mgr.release_memory()
 
 
 def optimize_all_caches() -> Dict[str, Any]:

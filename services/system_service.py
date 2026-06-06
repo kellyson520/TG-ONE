@@ -529,6 +529,55 @@ class GuardService:
         except Exception:
             return {"status": "error"}
 
+    def _release_memory_pressure(self) -> Dict[str, Any]:
+        """Release non-critical in-memory state during high RSS pressure."""
+        result: Dict[str, Any] = {}
+
+        try:
+            from core.cache.unified_cache import release_memory_caches
+
+            result["unified_cache"] = release_memory_caches()
+        except Exception as e:
+            result["unified_cache_error"] = str(e)
+            logger.debug("[guard-mem] Failed to release unified caches", exc_info=True)
+
+        try:
+            import services.hotword_service as hotword_module
+
+            hotword_service = getattr(hotword_module, "_service_instance", None)
+            if hotword_service is not None:
+                hotword_service.suspend()
+                result["hotword"] = "suspended"
+        except Exception as e:
+            result["hotword_error"] = str(e)
+            logger.debug("[guard-mem] Failed to suspend hotword service", exc_info=True)
+
+        try:
+            from services.network.api_optimization import get_api_optimizer
+
+            api_optimizer = get_api_optimizer()
+            negative_cache = getattr(api_optimizer, "_negative_cache", None) if api_optimizer else None
+            if isinstance(negative_cache, dict):
+                result["api_negative_cache_cleared"] = len(negative_cache)
+                negative_cache.clear()
+        except Exception as e:
+            result["api_optimizer_error"] = str(e)
+            logger.debug("[guard-mem] Failed to clear API optimizer memory", exc_info=True)
+
+        try:
+            from core.helpers.entity_optimization import get_entity_resolver
+
+            resolver = get_entity_resolver()
+            if resolver is not None:
+                stats_before = resolver.get_cache_stats()
+                resolver.clear_cache()
+                result["entity_cache_cleared"] = stats_before.get("total_cached", 0)
+        except Exception as e:
+            result["entity_resolver_error"] = str(e)
+            logger.debug("[guard-mem] Failed to clear entity resolver memory", exc_info=True)
+
+        return result
+
     def start_guards(self):
         """Deprecated: Use start_guards_async instead."""
         
@@ -602,9 +651,10 @@ class GuardService:
                         unreachable = gc.collect()
                         if unreachable > 0:
                             logger.debug(f"[guard-mem] GC collected {unreachable} objects before freeze")
+                        pressure_result = self._release_memory_pressure()
                         tombstone.force_release_memory()
                         if now - self._last_memory_warning_at >= self._memory_warning_interval:
-                            logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
+                            logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB), release={pressure_result}")
                             self._last_memory_warning_at = now
                         else:
                             logger.debug(f"[guard-mem] Memory threshold still exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")

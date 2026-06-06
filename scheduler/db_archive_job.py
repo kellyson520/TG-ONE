@@ -53,8 +53,13 @@ from repositories.db_context import async_db_session
 
 async def archive_once_async() -> None:
     """异步执行归档任务"""
-    manager = get_archive_manager(async_db_session)
-    await manager.run_archiving_cycle()
+    with try_maintenance("archive_once") as acquired:
+        if not acquired:
+            logger.warning("数据库维护已有任务运行，跳过本轮归档")
+            return
+
+        manager = get_archive_manager(async_db_session)
+        await manager.run_archiving_cycle()
 
 from core.config import settings
 
