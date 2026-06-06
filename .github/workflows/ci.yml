@@ -131,6 +131,14 @@ jobs:
             --strict-markers \
             --maxfail=1 \
             --tb=short --durations=20
+      - name: Run bounded AI long conversation check
+        run: |
+          python -m pytest \
+            tests/stress/test_ai_long_conversation.py \
+            -m "stress and not slow" \
+            --strict-markers \
+            --maxfail=1 \
+            --tb=short --durations=10
 
   integration:
     name: Integration
