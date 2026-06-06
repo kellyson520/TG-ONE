@@ -182,6 +182,46 @@ async def test_hotword_resolves_callback_token_from_archived_channels():
     assert await service.resolve_channel_token("not-a-token") is None
 
 @pytest.mark.asyncio
+async def test_hotword_global_month_prefers_direct_global_archive():
+    from services.hotword_service import HotwordService
+    from models.hotword import HotPeriodStats
+    from sqlalchemy import text
+
+    service = HotwordService()
+    month_key = datetime.now().strftime("%Y%m")
+    channel = "global_month_fallback_probe"
+
+    async with service.repo.session_factory() as session:
+        await session.execute(
+            text("DELETE FROM hot_period_stats WHERE channel IN ('global', :channel)"),
+            {"channel": channel},
+        )
+        session.add_all([
+            HotPeriodStats(
+                channel="global",
+                word="全局直读",
+                period="month",
+                date_key=month_key,
+                score=99999.0,
+                user_count=10,
+            ),
+            HotPeriodStats(
+                channel=channel,
+                word="频道回退",
+                period="month",
+                date_key=month_key,
+                score=99999.0,
+                user_count=10,
+            ),
+        ])
+        await session.commit()
+
+    ranks = dict(await service.get_rankings("global", period="month"))
+
+    assert ranks["全局直读"] == 99999
+    assert "频道回退" not in ranks
+
+@pytest.mark.asyncio
 async def test_hotword_suspend_resume():
     from services.hotword_service import HotwordService
     service = HotwordService()

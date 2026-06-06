@@ -567,29 +567,15 @@ class HotwordService:
         """
         # 1. 获取基础数据及跨域分布字典
         if channel_name == "global":
-            # 计算 Gini 基尼系数需要全通道数据
-            all_channels = await self.repo.get_channel_dirs()
-            channel_data_map = {}
-            for ch in all_channels:
-                if ch == "global": continue
-                channel_data_map[ch] = await self._load_period_data(ch, period)
-            
-            # 聚合全局得分字典与跨域分布
-            word_ch_freq = {} 
-            global_word_meta = {} 
-            
-            for ch, ch_data in channel_data_map.items():
-                for word, v in ch_data.items():
-                    f = v["f"] if isinstance(v, dict) else v
-                    u = v.get("u", 1) if isinstance(v, dict) else 1
-                    
-                    word_ch_freq.setdefault(word, []).append(f)
-                    gm = global_word_meta.setdefault(word, {"f": 0.0, "u": 0})
-                    gm["f"] += f
-                    gm["u"] += u
-            
-            current_data = global_word_meta
-            num_channels = len(channel_data_map)
+            if period != "day":
+                current_data = await self._load_period_data("global", period)
+                if current_data:
+                    word_ch_freq = {}
+                    num_channels = 1
+                else:
+                    current_data, word_ch_freq, num_channels = await self._load_global_from_channels(period)
+            else:
+                current_data, word_ch_freq, num_channels = await self._load_global_from_channels(period)
         else:
             current_data = await self._load_period_data(channel_name, period)
             word_ch_freq = {}
@@ -648,6 +634,34 @@ class HotwordService:
             
         sorted_data = sorted(current_data.items(), key=_sort_key, reverse=True)[:25]
         return [(w, int(v["f"] if isinstance(v, dict) else v)) for w, v in sorted_data]
+
+    async def _load_global_from_channels(self, period: str) -> tuple[Dict[str, Any], Dict[str, list], int]:
+        """Aggregate global rankings from per-channel data when direct global data is unavailable."""
+        global_word_meta: Dict[str, Dict[str, Any]] = {}
+        word_ch_freq: Dict[str, list] = {}
+
+        if period != "day":
+            direct_global = await self._load_period_data("global", period)
+            if direct_global:
+                return direct_global, word_ch_freq, 1
+
+        channel_data_map = {}
+        for ch in await self.repo.get_channel_dirs():
+            if ch == "global":
+                continue
+            channel_data_map[ch] = await self._load_period_data(ch, period)
+
+        for ch_data in channel_data_map.values():
+            for word, v in ch_data.items():
+                f = v["f"] if isinstance(v, dict) else v
+                u = v.get("u", 1) if isinstance(v, dict) else 1
+
+                word_ch_freq.setdefault(word, []).append(f)
+                gm = global_word_meta.setdefault(word, {"f": 0.0, "u": 0})
+                gm["f"] += f
+                gm["u"] += u
+
+        return global_word_meta, word_ch_freq, len(channel_data_map)
 
     async def resolve_channel_token(self, token: str) -> Optional[str]:
         """Resolve a stable hotword callback token after process memory/TTL loss."""
