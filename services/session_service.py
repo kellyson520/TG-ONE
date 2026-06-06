@@ -10,9 +10,8 @@ from datetime import datetime, timezone
 
 from core.container import container
 from core.helpers.tombstone import tombstone
-from core.helpers.time_range import format_time_range_display, parse_time_range_to_dates
+from core.helpers.time_range import clamp_time_component, format_time_range_display, parse_time_range_to_dates
 from services.forward_settings_service import forward_settings_service
-from services.dedup.engine import smart_deduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +265,48 @@ class SessionService:
     def set_time_range(self, user_id: int, time_range: Dict[str, int]):
         """设置时间范围原始配置"""
         self._get_user_session(user_id)['time_range'] = time_range
+
+    async def set_days(self, user_id: int, days: int) -> Dict[str, Any]:
+        """设置最近 N 天；0 表示全部历史。"""
+        days = clamp_time_component(days, "day")
+        time_range = self.get_time_range(user_id).copy()
+        time_range.update({
+            'start_year': 0,
+            'start_month': 0,
+            'start_day': days,
+            'start_hour': 0,
+            'start_minute': 0,
+            'start_second': 0,
+            'end_year': 0,
+            'end_month': 0,
+            'end_day': 0,
+            'end_hour': 0,
+            'end_minute': 0,
+            'end_second': 0,
+        })
+        self.set_time_range(user_id, time_range)
+        return {'success': True, 'time_range': time_range}
+
+    async def set_year(self, user_id: int, year: int) -> Dict[str, Any]:
+        """设置起始年份；0 表示不限年份。"""
+        time_range = self.get_time_range(user_id).copy()
+        time_range['start_year'] = clamp_time_component(year, "year")
+        self.set_time_range(user_id, time_range)
+        return {'success': True, 'time_range': time_range}
+
+    async def set_month(self, user_id: int, month: int) -> Dict[str, Any]:
+        """设置起始月份；0 表示不限月份。"""
+        time_range = self.get_time_range(user_id).copy()
+        time_range['start_month'] = clamp_time_component(month, "month")
+        self.set_time_range(user_id, time_range)
+        return {'success': True, 'time_range': time_range}
+
+    async def set_day_of_month(self, user_id: int, day: int) -> Dict[str, Any]:
+        """设置起始日期分量；0 表示不限日期。"""
+        time_range = self.get_time_range(user_id).copy()
+        time_range['start_day'] = clamp_time_component(day, "day")
+        self.set_time_range(user_id, time_range)
+        return {'success': True, 'time_range': time_range}
 
     async def get_time_range_config(self, user_id: int) -> Dict[str, Any]:
         """获取时间范围配置 (API 兼容格式)"""

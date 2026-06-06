@@ -58,6 +58,26 @@ async def test_time_range_ops(session_service):
     session_service.set_time_range(uid, {'year': 2026})
     assert session_service.get_time_range(uid) == {'year': 2026}
 
+
+@pytest.mark.asyncio
+async def test_history_quick_time_range_helpers(session_service):
+    uid = 101
+
+    await session_service.set_days(uid, 7)
+    tr = session_service.get_time_range(uid)
+    assert tr["start_day"] == 7
+    assert tr["start_year"] == 0
+    assert tr["end_year"] == 0
+
+    await session_service.set_year(uid, 2026)
+    await session_service.set_month(uid, 13)
+    await session_service.set_day_of_month(uid, 40)
+
+    tr = session_service.get_time_range(uid)
+    assert tr["start_year"] == 2026
+    assert tr["start_month"] == 12
+    assert tr["start_day"] == 31
+
 @pytest.mark.asyncio
 async def test_start_history_task_success(session_service, mock_container, mock_rule_mgmt, mock_forward_settings):
     user_id = 12345
@@ -77,8 +97,11 @@ async def test_start_history_task_success(session_service, mock_container, mock_
     mock_rule = MagicMock()
     mock_rule.id = rule_id
     mock_rule.source_chat_id = 1
+    mock_rule.source_chat = MagicMock()
+    mock_rule.source_chat.telegram_chat_id = 999
     mock_rule.target_chat = MagicMock()
     mock_rule.target_chat.telegram_chat_id = 888
+    mock_container.rule_repo.get_by_id = AsyncMock(return_value=mock_rule)
     
     # Execute result - Scalar one or none
     mock_result = MagicMock()
@@ -131,7 +154,10 @@ async def test_backpressure_logic(session_service, mock_container, mock_rule_mgm
     mock_result = MagicMock()
     mock_rule = MagicMock()
     mock_rule.source_chat_id = 1
+    mock_rule.source_chat = MagicMock()
+    mock_rule.source_chat.telegram_chat_id = 100
     mock_rule.target_chat.telegram_chat_id = 3
+    mock_container.rule_repo.get_by_id = AsyncMock(return_value=mock_rule)
     mock_result.scalar_one_or_none.return_value = mock_rule
     mock_session.execute.return_value = mock_result
     mock_session.get.return_value = MagicMock(telegram_chat_id=100)
