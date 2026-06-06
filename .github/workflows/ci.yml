@@ -124,6 +124,7 @@ jobs:
             tests/unit/services/test_smart_buffer.py \
             tests/unit/services/test_forward_log_writer.py \
             tests/unit/services/test_queue_service_cache_limits.py \
+            tests/unit/services/test_ai_service.py \
             tests/unit/utils/test_unified_sender.py \
             tests/unit/utils/db/test_backup.py \
             -m "not stress and not slow" \

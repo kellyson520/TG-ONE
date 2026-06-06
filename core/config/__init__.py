@@ -601,6 +601,30 @@ class Settings(BaseSettings):
     DEFAULT_AI_PROMPT: str = Field(
         default="请尊重原意，保持原有格式不变，用简体中文重写下面的内容："
     )
+    AI_MEMORY_ENABLED: bool = Field(
+        default=False,
+        description="是否启用 AI 跨消息短期记忆"
+    )
+    AI_MEMORY_MAX_TURNS: int = Field(
+        default=12,
+        description="每个 AI 记忆会话最多保留的对话轮数"
+    )
+    AI_MEMORY_MAX_SESSIONS: int = Field(
+        default=200,
+        description="AI 记忆最多保留的会话数量"
+    )
+    AI_MEMORY_TTL_SECONDS: int = Field(
+        default=86400,
+        description="AI 记忆会话空闲过期时间"
+    )
+    AI_MEMORY_MAX_TEXT_CHARS: int = Field(
+        default=800,
+        description="AI 记忆中单条用户/助手文本最大字符数"
+    )
+    AI_PROMPT_AUTO_CONTEXT: bool = Field(
+        default=True,
+        description="提示词未显式包含变量时是否自动附加人格和记忆上下文"
+    )
     BOT_MESSAGE_DELETE_TIMEOUT: int = Field(default=300)
     USER_MESSAGE_DELETE_ENABLE: bool = Field(default=False)
     

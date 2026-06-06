@@ -151,7 +151,9 @@ jobs:
       - name: Run fast stress tests
         run: |
           mkdir -p tests/temp/reports
-          python -m pytest tests/stress/test_stress_scenarios.py \
+          python -m pytest \
+            tests/stress/test_stress_scenarios.py \
+            tests/stress/test_ai_long_conversation.py \
             -m "stress and not slow" \
             --strict-markers \
             --maxfail=1 \
