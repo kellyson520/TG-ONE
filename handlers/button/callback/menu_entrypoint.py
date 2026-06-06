@@ -1,9 +1,8 @@
 """
 新菜单系统的回调处理器
 """
-import traceback
 import logging
-from core.container import container
+from handlers.button.new_menu_system import new_menu_system
 from handlers.button.strategies import MenuHandlerRegistry
 
 logger = logging.getLogger(__name__)
@@ -36,9 +35,16 @@ async def handle_new_menu_callback(event, **kwargs):
         await event.answer("⚠️ 系统繁忙，请稍后再试", alert=True)
 
 
-async def callback_new_menu_handler(event, action_data, message, data):
+async def callback_new_menu_handler(event, action_data, maybe_message=None, maybe_data=None, data=None):
     """新菜单系统的统一回调处理器"""
     try:
+        if data is None:
+            message = maybe_message
+            data = maybe_data
+        else:
+            # Legacy signature: (event, action_data, session, message, data)
+            message = maybe_data
+
         try:
             logger.info(f"[menu] new_menu action_data={action_data}")
         except Exception:
@@ -52,6 +58,13 @@ async def callback_new_menu_handler(event, action_data, message, data):
         else:
             action = action_data
             extra_data = []
+
+        if action == "set_duration_start":
+            await new_menu_system.show_duration_range_picker(event, "min")
+            return
+        if action == "set_duration_end":
+            await new_menu_system.show_duration_range_picker(event, "max")
+            return
 
         # Try to dispatch using the new Strategy Pattern
         context = {

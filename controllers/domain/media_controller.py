@@ -1,6 +1,5 @@
 import logging
-from typing import Optional
-from controllers.base import BaseController, ControllerAbort
+from controllers.base import BaseController
 from services.session_service import session_service
 
 logger = logging.getLogger(__name__)
@@ -392,7 +391,6 @@ class MediaController(BaseController):
     async def run_summary_now(self, event, rule_id: int):
         """立即执行 AI 总结"""
         try:
-            from scheduler.summary_scheduler import SummaryScheduler
             from services.rule.facade import rule_management_service
             
             rule_data = await rule_management_service.get_rule_detail(rule_id)
@@ -805,7 +803,7 @@ class MediaController(BaseController):
     async def show_history_task_list(self, event, page: int = 1):
         """显示历史任务列表 (Refactored to UIRE-3.0)"""
         try:
-            tasks, total = await self.container.task_repo.get_tasks(page=page, limit=10, task_type='history')
+            tasks, total = await self.container.task_repo.get_history_tasks(page=page, limit=10)
             
             view_result = self.container.ui.task.render_history_task_list({
                 'tasks': tasks,

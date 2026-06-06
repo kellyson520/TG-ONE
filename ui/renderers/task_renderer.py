@@ -1,5 +1,4 @@
 from typing import Dict, Any
-from telethon.tl.custom import Button
 from ui.constants import UIStatus
 from .base_renderer import BaseRenderer, ViewResult
 
@@ -164,11 +163,12 @@ class TaskRenderer(BaseRenderer):
             if total > 10:
                 btn_row = []
                 if page > 1:
-                    btn_row.append(Button.inline("⬅️ 上一页", f"new_menu:history_task_list:{page-1}"))
+                    btn_row.append(("⬅️ 上一页", f"new_menu:history_task_list:{page-1}"))
                 if total > page * 10:
-                    btn_row.append(Button.inline("下一页 ➡️", f"new_menu:history_task_list:{page+1}"))
+                    btn_row.append(("下一页 ➡️", f"new_menu:history_task_list:{page+1}"))
                 if btn_row:
                     builder.add_button_row(btn_row)
+        return builder.build()
         
     def render_quick_stats_result(self, stats: Dict[str, Any]) -> ViewResult:
         """渲染快速统计结果"""

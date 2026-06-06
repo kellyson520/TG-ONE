@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, func
+from sqlalchemy import and_, or_, select, update, func
 from models.models import TaskQueue, ForwardRule, Chat
 from datetime import datetime, timedelta
 import logging
@@ -441,6 +441,32 @@ class TaskRepository:
             tasks = result.scalars().all()
             
             return tasks, total
+
+    async def get_history_tasks(self, page: int = 1, limit: int = 50):
+        """分页获取历史处理相关任务，兼容旧聚合任务与当前历史消息子任务。"""
+        page = max(1, int(page or 1))
+        limit = max(1, min(int(limit or 50), 100))
+        history_payload = or_(
+            TaskQueue.task_data.like('%"is_history": true%'),
+            TaskQueue.task_data.like('%"is_history":true%'),
+        )
+        history_filter = or_(
+            TaskQueue.task_type.in_(("history", "history_forward")),
+            and_(TaskQueue.task_type == "process_message", history_payload),
+        )
+
+        async with self.db.get_session(readonly=True) as session:
+            stmt = select(TaskQueue).where(history_filter)
+            total = (
+                await session.execute(select(func.count()).select_from(stmt.subquery()))
+            ).scalar() or 0
+
+            result = await session.execute(
+                stmt.order_by(TaskQueue.created_at.desc())
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+            return result.scalars().all(), total
 
     async def get_task_by_id(self, task_id: int):
         """获取单个任务详情 (只读)"""

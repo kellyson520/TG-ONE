@@ -132,3 +132,30 @@ class TestTaskRepository:
         await db.refresh(task)
         assert task.status == "running"
         assert task.attempts == 0
+
+    async def test_get_history_tasks_matches_legacy_and_history_payloads(self, repo, db):
+        legacy = TaskQueue(
+            task_type="history_forward",
+            task_data='{"rule_id": 1}',
+            status="completed",
+            created_at=datetime.utcnow() - timedelta(minutes=3),
+        )
+        history_child = TaskQueue(
+            task_type="process_message",
+            task_data='{"chat_id": 1, "message_id": 10, "is_history": true}',
+            status="completed",
+            created_at=datetime.utcnow() - timedelta(minutes=2),
+        )
+        normal_child = TaskQueue(
+            task_type="process_message",
+            task_data='{"chat_id": 1, "message_id": 11}',
+            status="completed",
+            created_at=datetime.utcnow() - timedelta(minutes=1),
+        )
+        db.add_all([legacy, history_child, normal_child])
+        await db.commit()
+
+        tasks, total = await repo.get_history_tasks(page=1, limit=10)
+
+        assert total == 2
+        assert [task.id for task in tasks] == [history_child.id, legacy.id]

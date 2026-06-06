@@ -1,7 +1,7 @@
 from .base import BaseMenuHandler
 from .registry import MenuHandlerRegistry
-from core.container import container
-from telethon import Button
+from controllers.menu_controller import menu_controller
+from handlers.button.new_menu_system import new_menu_system
 
 @MenuHandlerRegistry.register
 class RuleMenuStrategy(BaseMenuHandler):
@@ -35,9 +35,6 @@ class RuleMenuStrategy(BaseMenuHandler):
         return action in self.ACTIONS
 
     async def handle(self, event, action: str, **kwargs):
-        from controllers.menu_controller import menu_controller
-        from handlers.button.new_menu_system import new_menu_system
-
         extra_data = kwargs.get("extra_data", [])
         
         # Helper to get first int arg safely
@@ -49,8 +46,10 @@ class RuleMenuStrategy(BaseMenuHandler):
             await menu_controller.show_rule_list(event, page=page)
         
         elif action in ["forward_management", "rule_management", "rule_management_page"]:
-            page = arg1 if action == "rule_management_page" else 0
-            await new_menu_system.show_rule_management(event, page=page)
+            if action == "rule_management_page":
+                await new_menu_system.show_rule_management(event, page=arg1)
+            else:
+                await new_menu_system.show_rule_management(event)
 
         elif action in ["rule_detail", "edit_rule"]:
             rule_id = arg1
@@ -72,9 +71,12 @@ class RuleMenuStrategy(BaseMenuHandler):
         # 2. Rule Actions
         elif action == "toggle_rule":
             rule_id = arg1
-            from_page = extra_data[1] if len(extra_data) > 1 else "detail"
-            page = int(extra_data[2]) if len(extra_data) > 2 else 0
-            await menu_controller.toggle_rule_status(event, rule_id, from_page, page)
+            if len(extra_data) > 1:
+                from_page = extra_data[1]
+                page = int(extra_data[2]) if len(extra_data) > 2 else 0
+                await menu_controller.toggle_rule_status(event, rule_id, from_page, page)
+            else:
+                await menu_controller.toggle_rule_status(event, rule_id)
         
         elif action == "delete_rule_confirm":
             rule_id = arg1
