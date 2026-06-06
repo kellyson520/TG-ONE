@@ -26,6 +26,16 @@ def test_parse_hotword_view_payload_uses_extra_data():
     assert period == "year"
 
 
+def test_parse_hotword_view_payload_rejoins_split_extra_data_channel():
+    channel, period = parse_hotword_view_payload(
+        "new_menu:hotword_view:Channel:From:Extra:year",
+        ["Channel", "From", "Extra", "year"],
+    )
+
+    assert channel == "Channel:From:Extra"
+    assert period == "year"
+
+
 def test_hotword_view_token_payload_round_trip_for_long_channel_name():
     long_channel = "小说🌸小说搜索🔍全网成人小说🌸完本小说"
     action = encode_hotword_view_action(long_channel, "month")
@@ -35,3 +45,17 @@ def test_hotword_view_token_payload_round_trip_for_long_channel_name():
     assert len(action.encode("utf-8")) <= 64
     assert channel == long_channel
     assert period == "month"
+
+
+def test_hotword_view_token_payload_resolves_after_new_menu_split():
+    long_channel = "小说🌸小说搜索🔍全网成人小说🌸完本小说"
+    action = encode_hotword_view_action(long_channel, "month")
+    _, token, period = action.split(":")
+
+    channel, parsed_period = parse_hotword_view_payload(
+        f"new_menu:{action}",
+        [token, period],
+    )
+
+    assert channel == long_channel
+    assert parsed_period == "month"

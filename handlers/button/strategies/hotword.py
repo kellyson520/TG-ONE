@@ -15,9 +15,17 @@ def parse_hotword_view_payload(data: str, extra_data=None) -> tuple[str, str]:
     valid_periods = {"day", "month", "year", "all"}
 
     if extra_data:
-        channel = extra_data[0] or channel
-        if len(extra_data) > 1 and extra_data[1] in valid_periods:
-            period = extra_data[1]
+        parts = [str(part) for part in extra_data if part is not None]
+        if parts and parts[-1] in valid_periods:
+            period = parts.pop()
+
+        is_token_payload = data.startswith("hotword_view_id:") or data.startswith("new_menu:hotword_view_id:")
+        if is_token_payload:
+            token = parts[0] if parts else ""
+            resolved_channel = resolve_hotword_channel(token)
+            channel = resolved_channel or token or channel
+        elif parts:
+            channel = ":".join(parts) or channel
         return channel, period
 
     token_prefix = "hotword_view_id:"
