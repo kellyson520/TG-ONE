@@ -39,6 +39,9 @@ class WorkerService:
         self.last_gc_time = 0
         self.last_critical_alert = 0 # 上次发送内存紧急告警的时间
         self.critical_mode = False   # 是否处于熔断模式
+        self._reconnect_lock = asyncio.Lock()
+        self._next_reconnect_at = 0.0
+        self._reconnect_cooldown_seconds = 5.0
 
     def _resolve_memory_thresholds(self):
         configured_warning = settings.MEMORY_WARNING_THRESHOLD_MB
@@ -325,9 +328,6 @@ class WorkerService:
 
                 # 依次处理每个任务组
                 for gid, group in task_groups.items():
-                    # 确保连接正常
-                    await self._ensure_connected()
-                    
                     main_task = group[0]
                     sub_tasks = group[1:] if len(group) > 1 else []
                     
@@ -335,7 +335,12 @@ class WorkerService:
                     log = logger.bind(worker_id=worker_id, task_id=main_task.id, task_type=main_task.task_type)
                     
                     try:
+                        # 确保连接正常；断连属于瞬态错误，任务应延后重试而不是失败或丢失。
+                        await self._ensure_connected()
                         await self._process_task_safely(main_task, log, group_tasks=sub_tasks)
+                    except (FloodWaitException, TransientError) as e:
+                        log.warning(f"group_transient_error", error=str(e), gid=gid)
+                        await self._retry_group(group, e, log)
                     except Exception as e:
                         log.error(f"group_processing_failed", error=str(e), gid=gid)
 
@@ -664,16 +669,61 @@ class WorkerService:
         """重置休眠时间"""
         self.current_sleep = self.min_sleep
 
+    def _client_is_connected(self) -> bool:
+        state = getattr(self.client, "is_connected", False)
+        return bool(state() if callable(state) else state)
+
     async def _ensure_connected(self):
         """确保 Telethon 客户端已连接"""
-        if not self.client.is_connected():
+        if self._client_is_connected():
+            return
+
+        loop = asyncio.get_event_loop()
+        now = loop.time()
+        if now < self._next_reconnect_at:
+            wait = self._next_reconnect_at - now
+            raise TransientError(
+                f"client reconnect cooling down ({wait:.1f}s)",
+                context={"retry_delay_seconds": wait, "increment_attempts": False},
+            )
+
+        async with self._reconnect_lock:
+            if self._client_is_connected():
+                return
+
+            now = loop.time()
+            if now < self._next_reconnect_at:
+                wait = self._next_reconnect_at - now
+                raise TransientError(
+                    f"client reconnect cooling down ({wait:.1f}s)",
+                    context={"retry_delay_seconds": wait, "increment_attempts": False},
+                )
+
             logger.warning("Client disconnected. Attempting to reconnect...")
             try:
                 await self.client.connect()
             except Exception as e:
+                self._next_reconnect_at = loop.time() + self._reconnect_cooldown_seconds
                 logger.error(f"Reconnection failed: {e}")
-                # 等待一会儿再重试，避免死循环冲击
-                await asyncio.sleep(5)
+                raise TransientError(
+                    f"client reconnect failed: {e}",
+                    context={
+                        "retry_delay_seconds": self._reconnect_cooldown_seconds,
+                        "increment_attempts": False,
+                    },
+                ) from e
+
+            if not self._client_is_connected():
+                self._next_reconnect_at = loop.time() + self._reconnect_cooldown_seconds
+                raise TransientError(
+                    "client reconnect failed: still disconnected",
+                    context={
+                        "retry_delay_seconds": self._reconnect_cooldown_seconds,
+                        "increment_attempts": False,
+                    },
+                )
+
+            self._next_reconnect_at = 0.0
     
     def _calculate_backoff(self, retry_count: int) -> float:
         """
@@ -697,16 +747,24 @@ class WorkerService:
         """
         处理任务重试，根据错误类型和重试次数决定后续操作
         """
-        current_retries = task.attempts + 1
+        error_context = getattr(error, "context", {}) or {}
+        increment_attempts = bool(error_context.get("increment_attempts", True))
+        current_retries = task.attempts + (1 if increment_attempts else 0)
         
         # 如果超过最大重试次数，升级为永久失败
-        if current_retries > settings.MAX_RETRIES:
+        if increment_attempts and current_retries > settings.MAX_RETRIES:
             log.error("task_max_retries_exceeded", retry_count=current_retries, max_retries=settings.MAX_RETRIES, error=str(error))
             await self.repo.fail(task.id, f"Max retries exceeded: {str(error)}")
             return
 
         # 计算等待时间
-        if isinstance(error, FloodWaitException):
+        retry_delay = error_context.get("retry_delay_seconds")
+        if retry_delay is not None:
+            try:
+                wait_seconds = max(0.0, float(retry_delay))
+            except (TypeError, ValueError):
+                wait_seconds = self._calculate_backoff(current_retries)
+        elif isinstance(error, FloodWaitException):
             wait_seconds = error.seconds + 1 # 额外多等1秒保险
         else:
             wait_seconds = self._calculate_backoff(current_retries)
@@ -727,7 +785,7 @@ class WorkerService:
         await self.repo.reschedule(
             task.id, 
             next_run,
-            increment_attempts=True,
+            increment_attempts=increment_attempts,
         )
         
     async def _retry_group(self, tasks, error, log):

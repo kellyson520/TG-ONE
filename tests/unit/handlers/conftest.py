@@ -70,7 +70,6 @@ except Exception:
 # Mock 业务模块
 for module in [
     "services.download_service", 
-    "services.worker_service", 
     "scheduler.summary_scheduler",
     "scheduler.optimized_chat_updater",
     "core.helpers.media.media",
