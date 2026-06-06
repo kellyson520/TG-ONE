@@ -123,6 +123,30 @@ class SummaryScheduler:
 
         return next_time
 
+    def _seconds_until_daily(self, hour: int, minute: int, second: int = 0) -> float:
+        now = datetime.now(self.timezone)
+        target = now.replace(hour=hour, minute=minute, second=second, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        return (target - now).total_seconds()
+
+    def _seconds_until_next_monthly(self, hour: int, minute: int, second: int = 0) -> float:
+        now = datetime.now(self.timezone)
+        target = now.replace(day=1, hour=hour, minute=minute, second=second, microsecond=0)
+        if target <= now:
+            if target.month == 12:
+                target = target.replace(year=target.year + 1, month=1)
+            else:
+                target = target.replace(month=target.month + 1)
+        return (target - now).total_seconds()
+
+    def _seconds_until_next_yearly(self, hour: int, minute: int, second: int = 0) -> float:
+        now = datetime.now(self.timezone)
+        target = now.replace(month=1, day=1, hour=hour, minute=minute, second=second, microsecond=0)
+        if target <= now:
+            target = target.replace(year=target.year + 1)
+        return (target - now).total_seconds()
+
     @log_performance("执行总结任务", threshold_seconds=30.0)
     @handle_errors(default_return=None)
     async def _execute_summary(self, rule_id, is_now=False):
@@ -509,51 +533,27 @@ class SummaryScheduler:
                 from services.hotword_service import get_hotword_service
                 hotword_service = get_hotword_service()
                 
-                # 每日 00:00:10 聚合昨日数据
-                now = datetime.now(self.timezone)
-                daily_target = now.replace(hour=0, minute=0, second=10, microsecond=0)
-                if daily_target <= now: daily_target += timedelta(days=1)
-                daily_delay = (daily_target - now).total_seconds()
-                
                 self.timing_wheel.add_task(
-                    "hotword_aggregate_daily", 
-                    daily_delay, 
+                    "hotword_aggregate_daily",
+                    self._seconds_until_daily(0, 0, 10),
                     self._hotword_daily_callback
                 )
-                
-                # 每月 1 号 01:00:00 聚合上月数据
-                monthly_target = now.replace(day=1, hour=1, minute=0, second=0, microsecond=0)
-                if monthly_target <= now:
-                    # Move to next month
-                    if monthly_target.month == 12:
-                        monthly_target = monthly_target.replace(year=monthly_target.year+1, month=1)
-                    else:
-                        monthly_target = monthly_target.replace(month=monthly_target.month+1)
-                
-                monthly_delay = (monthly_target - now).total_seconds()
+
                 self.timing_wheel.add_task(
-                    "hotword_aggregate_monthly", 
-                    monthly_delay, 
+                    "hotword_aggregate_monthly",
+                    self._seconds_until_next_monthly(1, 0, 0),
                     self._hotword_monthly_callback
                 )
 
-                # 每年 1 月 1 日 02:00:00 年终大决算
-                yearly_target = now.replace(month=1, day=1, hour=2, minute=0, second=0, microsecond=0)
-                if yearly_target <= now: yearly_target = yearly_target.replace(year=yearly_target.year + 1)
-                yearly_delay = (yearly_target - now).total_seconds()
                 self.timing_wheel.add_task(
                     "hotword_aggregate_yearly",
-                    yearly_delay,
+                    self._seconds_until_next_yearly(2, 0, 0),
                     self._hotword_yearly_callback
                 )
 
-                # 每日 08:30:00 全局热词推送 (H.5.C3)
-                push_target = now.replace(hour=8, minute=30, second=0, microsecond=0)
-                if push_target <= now: push_target += timedelta(days=1)
-                push_delay = (push_target - now).total_seconds()
                 self.timing_wheel.add_task(
                     "hotword_global_push",
-                    push_delay,
+                    self._seconds_until_daily(8, 30, 0),
                     self._hotword_push_callback
                 )
 
@@ -574,7 +574,11 @@ class SummaryScheduler:
             await hotword_service.aggregate_daily()
         finally:
             # 安排下一天
-            self.timing_wheel.add_task("hotword_aggregate_daily", 86400, self._hotword_daily_callback)
+            self.timing_wheel.add_task(
+                "hotword_aggregate_daily",
+                self._seconds_until_daily(0, 0, 10),
+                self._hotword_daily_callback,
+            )
 
     async def _hotword_monthly_callback(self):
         """每月热词聚合回调"""
@@ -583,8 +587,11 @@ class SummaryScheduler:
             hotword_service = get_hotword_service()
             await hotword_service.aggregate_monthly()
         finally:
-            # 安排下个月 (简化处理：31天后触发，callback内会重新对齐月1号)
-            self.timing_wheel.add_task("hotword_aggregate_monthly", 31*86400, self._hotword_monthly_callback)
+            self.timing_wheel.add_task(
+                "hotword_aggregate_monthly",
+                self._seconds_until_next_monthly(1, 0, 0),
+                self._hotword_monthly_callback,
+            )
 
     async def _hotword_yearly_callback(self):
         """每年热词聚合回调"""
@@ -593,7 +600,11 @@ class SummaryScheduler:
             hotword_service = get_hotword_service()
             await hotword_service.aggregate_yearly()
         finally:
-            self.timing_wheel.add_task("hotword_aggregate_yearly", 365*86400, self._hotword_yearly_callback)
+            self.timing_wheel.add_task(
+                "hotword_aggregate_yearly",
+                self._seconds_until_next_yearly(2, 0, 0),
+                self._hotword_yearly_callback,
+            )
 
     async def _hotword_push_callback(self):
         """每日全局热词推送回调"""
@@ -613,7 +624,11 @@ class SummaryScheduler:
         except Exception as e:
             logger.error(f"每日热词推送失败: {e}")
         finally:
-            self.timing_wheel.add_task("hotword_global_push", 86400, self._hotword_push_callback)
+            self.timing_wheel.add_task(
+                "hotword_global_push",
+                self._seconds_until_daily(8, 30, 0),
+                self._hotword_push_callback,
+            )
 
 
     def stop(self):

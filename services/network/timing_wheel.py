@@ -36,6 +36,9 @@ class HashedTimingWheel:
 
     def add_task(self, task_id: str, delay_seconds: float, callback: Callable, *args, **kwargs) -> str:
         """添加一个定时任务"""
+        if task_id in self.tasks:
+            self.cancel_task(task_id)
+
         total_ticks = int(delay_seconds / self.tick_ms)
         if total_ticks <= 0:
             total_ticks = 1

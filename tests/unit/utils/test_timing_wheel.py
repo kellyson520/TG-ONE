@@ -45,5 +45,27 @@ async def test_timing_wheel_cancellation():
     
     await tw.stop()
 
+
+@pytest.mark.asyncio
+async def test_timing_wheel_replacing_same_task_id_cancels_old_slot_entry():
+    tw = HashedTimingWheel(tick_ms=50, slots=10)
+    await tw.start()
+
+    results = []
+
+    async def task_cb(val):
+        results.append(val)
+
+    tw.add_task("same", 0.1, task_cb, "old")
+    tw.add_task("same", 0.3, task_cb, "new")
+
+    await asyncio.sleep(0.2)
+    assert results == []
+
+    await asyncio.sleep(0.25)
+    assert results == ["new"]
+
+    await tw.stop()
+
 if __name__ == "__main__":
     asyncio.run(test_timing_wheel_execution())

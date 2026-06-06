@@ -157,6 +157,9 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                             channel_name = chat_display.replace("/", "_").replace("\\", "_")
                             from middlewares.hotword import get_hotword_collector
                             get_hotword_collector().queue.put_nowait((channel_name, event.sender_id, msg_text))
+                    except asyncio.QueueFull:
+                        if error_limiter.should_log("hotword_queue_full"):
+                            logger.warning("热词采集队列已满，已丢弃当前消息以保护主监听流程")
                     except Exception as e:
                         if error_limiter.should_log("hotword_extract"):
                             logger.error(f"❌ [监听器] 直接提取热词失败: {e}", exc_info=True)
