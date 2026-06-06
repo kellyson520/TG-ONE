@@ -23,23 +23,32 @@ class HotwordRepository:
         异步 UPSERT 写入原始统计数据。
         counts 格式: { word: {"f": frequency, "u": user_increment} }
         """
+        rows = [
+            {
+                "channel": channel,
+                "word": word,
+                "score": meta.get("f", 0.0),
+                "unique_users": meta.get("u", 0),
+            }
+            for word, meta in counts.items()
+            if word
+        ]
+        if not rows:
+            return
+
         async with self.session_factory() as session:
             try:
-                # 采用 SQLite 批处理 UPSERT (Insert or Update)
-                for word, meta in counts.items():
-                    stmt = insert(HotRawStats).values(
-                        channel=channel,
-                        word=word,
-                        score=meta.get("f", 0.0),
-                        unique_users=meta.get("u", 0)
-                    ).on_conflict_do_update(
-                        index_elements=['channel', 'word'],
-                        set_={
-                            "score": HotRawStats.score + meta.get("f", 0.0),
-                            "unique_users": HotRawStats.unique_users + meta.get("u", 0)
-                        }
-                    )
-                    await session.execute(stmt)
+                # 采用 SQLite 批量 UPSERT，避免每个词一次 SQL 导致写锁放大。
+                stmt = insert(HotRawStats).values(rows)
+                excluded = stmt.excluded
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['channel', 'word'],
+                    set_={
+                        "score": HotRawStats.score + excluded.score,
+                        "unique_users": HotRawStats.unique_users + excluded.unique_users,
+                    }
+                )
+                await session.execute(stmt)
                 await session.commit()
             except Exception as e:
                 await session.rollback()

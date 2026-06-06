@@ -301,6 +301,30 @@ async def test_hotword_global_day_uses_batched_channel_snapshot():
 
 
 @pytest.mark.asyncio
+async def test_hotword_temp_counts_batch_upsert_accumulates():
+    from services.hotword_service import HotwordService
+    from sqlalchemy import text
+
+    service = HotwordService()
+    channel = "batch_upsert_chan"
+
+    async with service.repo.session_factory() as session:
+        await session.execute(
+            text("DELETE FROM hot_raw_stats WHERE channel = :channel"),
+            {"channel": channel},
+        )
+        await session.commit()
+
+    await service.repo.save_temp_counts(channel, {"批量写入": {"f": 10.0, "u": 2}})
+    await service.repo.save_temp_counts(channel, {"批量写入": {"f": 5.0, "u": 3}})
+
+    data = await service.repo.load_rankings(channel, "_temp")
+
+    assert data["批量写入"]["f"] == 15.0
+    assert data["批量写入"]["u"] == 5
+
+
+@pytest.mark.asyncio
 async def test_hotword_suspend_resume():
     from services.hotword_service import HotwordService
     service = HotwordService()
