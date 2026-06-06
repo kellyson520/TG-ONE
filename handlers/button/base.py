@@ -68,13 +68,15 @@ class BaseMenu:
 
         # 如果 text 中包含 MenuBuilder 的分割符，说明它是 FullPage 模式
         if "━━━━━━━━━━━━━━" in text:
-            # 此时 view_result.text = [Title] + [Divider] + [Breadcrumb] + [Body]
-            # 我们直接全量作为 body 传入 _render_page，并将 _render_page 的 title 置空
-            # 这样可以在保留 _render_page 的“更新时间”脚注的同时，完全尊重 Renderer 的排版
+            # 此时 view_result.text = [Title] + [Divider] + [Breadcrumb] + [Body]。
+            # 提取标题传给 _render_page，正文保留分割线和后续内容，避免上层调试/测试看到空标题。
+            lines = text.splitlines()
+            title = lines[0].strip() if lines else ""
+            body = "\n".join(lines[1:]) if len(lines) > 1 else ""
             return await self._render_page(
                 event,
-                title="",
-                body_lines=[text],
+                title=title,
+                body_lines=[body],
                 buttons=buttons,
                 breadcrumb=breadcrumb if not ("🗺️" in text) else None # 如果自带了面包屑，则不再添加传入的
             )

@@ -112,7 +112,7 @@ async def test_rule_list_render_integration(rule_controller, mock_event):
         _, kwargs = mock_render.call_args
         
         body = "\n".join(kwargs['body_lines'])
-        assert "转发规则管理" in body
+        assert "转发规则管理" in kwargs['title']
         assert "Source A" in body
         assert "Target B" in body
         # 验证状态图标

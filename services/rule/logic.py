@@ -704,11 +704,16 @@ class RuleLogicService:
         async with self.container.db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'Config not found'}
+            if not hasattr(config, field):
+                return {'success': False, 'error': f'Invalid field: {field}'}
             
             rule_id = config.rule_id
             push_channel = config.push_channel
             
-            new_val = not getattr(config, field, False)
+            current_val = getattr(config, field)
+            if not isinstance(current_val, bool):
+                return {'success': False, 'error': f'Field is not toggleable: {field}'}
+            new_val = not current_val
             setattr(config, field, new_val)
             
             # 同步
@@ -723,6 +728,10 @@ class RuleLogicService:
                         setattr(target_config, field, new_val)
             
             await s.commit()
+            self.container.rule_repo.clear_cache()
+            bus = getattr(self.container, "bus", None)
+            if bus:
+                await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
             return {'success': True, 'new_value': new_val}
             
     @handle_errors(default_return={'success': False, 'error': 'Toggle media send mode failed'})
@@ -800,6 +809,8 @@ class RuleLogicService:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule:
                 return {'success': False, 'error': 'Rule not found'}
+            if not hasattr(rule, field):
+                return {'success': False, 'error': f'Invalid field: {field}'}
             
             old_val = getattr(rule, field)
             setattr(rule, field, value)
@@ -819,16 +830,21 @@ class RuleLogicService:
                             rules_to_reschedule.append(target.id)
             
             await s.commit()
+            self.container.rule_repo.clear_cache()
+            bus = getattr(self.container, "bus", None)
+            if bus:
+                await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
             
             # 触发调度更新 (副作用)
-            if rules_to_reschedule and self.container.scheduler:
+            scheduler = getattr(self.container, "scheduler", None)
+            if rules_to_reschedule and scheduler:
                 for rid in rules_to_reschedule:
                     # 获取最新 DTO 传给调度器 (保持解耦)
                     latest_rule_dto = await self.container.rule_repo.get_by_id(rid)
                     if latest_rule_dto:
                          # 调度器目前可能直接收 DTO 或 ORM，取决于实现
                          # 这里调用 container.scheduler.schedule_rule
-                         await self.container.scheduler.schedule_rule(latest_rule_dto)
+                         await scheduler.schedule_rule(latest_rule_dto)
             
             return {'success': True, 'old_value': old_val, 'new_value': value}
 
@@ -977,6 +993,8 @@ class RuleLogicService:
         async with self.container.db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'PushConfig not found'}
+            if not hasattr(config, field):
+                return {'success': False, 'error': f'Invalid field: {field}'}
             
             setattr(config, field, value)
             push_channel = config.push_channel
@@ -993,4 +1011,8 @@ class RuleLogicService:
                         setattr(target_config, field, value)
             
             await s.commit()
+            self.container.rule_repo.clear_cache()
+            bus = getattr(self.container, "bus", None)
+            if bus:
+                await bus.publish("RULE_UPDATED", {"rule_id": int(config.rule_id), "field": field, "action": "update"})
             return {'success': True}

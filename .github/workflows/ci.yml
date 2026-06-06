@@ -166,6 +166,7 @@ jobs:
         run: |
           python -m pytest \
             tests/integration/test_flood_wait.py \
+            tests/integration/test_uire_v2_full_link.py \
             tests/integration/test_unified_sender_limit.py \
             tests/integration/test_update_robustness_sim.py \
             -m "not stress and not slow" \
