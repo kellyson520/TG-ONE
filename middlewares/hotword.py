@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Callable, List, Optional
+from typing import Callable
 from core.pipeline import Middleware, MessageContext
 from core.config import settings
 from services.hotword_service import get_hotword_service
@@ -82,7 +82,10 @@ class HotwordCollectorMiddleware(Middleware):
                         if any(buffer) and (sum(len(v) for v in buffer.values()) >= settings.HOTWORD_BATCH_SIZE or (now - last_flush >= 5.0)):
                             await self.hotword_service.ensure_active()
                             for chan, texts in list(buffer.items()):
-                                await self.hotword_service.process_batch(chan, texts)
+                                try:
+                                    await self.hotword_service.process_batch(chan, texts)
+                                except Exception as e:
+                                    logger.error(f"Hotword channel batch failed ({chan}): {e}", exc_info=True)
                             buffer.clear()
                             last_flush = now
                     except Exception as e:
@@ -91,7 +94,10 @@ class HotwordCollectorMiddleware(Middleware):
             except asyncio.CancelledError:
                 if buffer:
                     for chan, texts in list(buffer.items()):
-                        await self.hotword_service.process_batch(chan, texts)
+                        try:
+                            await self.hotword_service.process_batch(chan, texts)
+                        except Exception as e:
+                            logger.error(f"Hotword final channel batch failed ({chan}): {e}", exc_info=True)
                     await self.hotword_service.flush_to_disk()
                 raise
 
