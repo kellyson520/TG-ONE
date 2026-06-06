@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Any
 from .base_renderer import BaseRenderer, ViewResult
 from ui.constants import UIStatus
-from core.helpers.datetime_utils import format_datetime_for_display
+from ui.hotword_callback_codec import encode_hotword_view_action
 
 class HotwordRenderer(BaseRenderer):
     """
@@ -56,8 +56,7 @@ class HotwordRenderer(BaseRenderer):
         period_btns = []
         for p_key, p_val in period_map.items():
             if p_key != period:
-                # 假设回调格式为 hotword_view:channel_name:period
-                period_btns.append((p_val, f"hotword_view:{channel_name}:{p_key}"))
+                period_btns.append((p_val, encode_hotword_view_action(channel_name, p_key)))
         
         if period_btns:
             builder.add_button_row(period_btns)
@@ -76,7 +75,7 @@ class HotwordRenderer(BaseRenderer):
         
         # 将匹配项作为按钮展示，方便用户点击直达
         for channel in matches[:8]:
-            builder.add_button(channel, f"hotword_view:{channel}:day", icon="📺")
+            builder.add_button(channel, encode_hotword_view_action(channel, "day"), icon="📺")
             
         if len(matches) > 8:
             builder.add_section("更多匹配", matches[8:20], icon="➕")

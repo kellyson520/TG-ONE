@@ -1,4 +1,5 @@
 from handlers.button.strategies.hotword import parse_hotword_view_payload
+from ui.hotword_callback_codec import encode_hotword_view_action
 
 
 def test_parse_hotword_view_payload_supports_colon_in_channel_name():
@@ -23,3 +24,14 @@ def test_parse_hotword_view_payload_uses_extra_data():
 
     assert channel == "Channel:From:Extra"
     assert period == "year"
+
+
+def test_hotword_view_token_payload_round_trip_for_long_channel_name():
+    long_channel = "小说🌸小说搜索🔍全网成人小说🌸完本小说"
+    action = encode_hotword_view_action(long_channel, "month")
+
+    channel, period = parse_hotword_view_payload(action)
+
+    assert len(action.encode("utf-8")) <= 64
+    assert channel == long_channel
+    assert period == "month"

@@ -1,4 +1,3 @@
-import traceback
 import logging
 from core.container import container
 from services.network.router import RadixRouter
@@ -45,8 +44,6 @@ from .advanced_media_callback import (
     handle_advanced_media_callback,
 )
 
-# 导入AI设置回调
-from .ai_callback import callback_set_summary_time  # Still used in dict? No, replaced.
 from .ai_callback import handle_ai_callback
 
 # 导入媒体设置回调
@@ -96,11 +93,6 @@ from handlers.button.callback.modules.common_utils import (
 # callback_delay_time_page, callback_page_rule, callback_close_settings,
 # callback_set_sync_rule, callback_toggle_rule_sync, callback_sync_rule_page,
 # callback_set_summary_time, callback_handle_ufb_item
-
-# callback_set_summary_time was in ai_callback.
-# handle_other_callback imports it from .callback_handlers.
-# So we MUST import it here from ai_callback.
-from .ai_callback import callback_set_summary_time
 
 # callback_handle_ufb_item was in other_callback itself.
 # handle_other_callback imports it from .callback_handlers?
@@ -363,6 +355,7 @@ callback_router.add_route("ufb_item:{rest}", handle_other_callback)
 
 # 热词模块动态路由
 callback_router.add_route("hotword_view:{rest}", handle_hotword_callback)
+callback_router.add_route("hotword_view_id:{rest}", handle_hotword_callback)
 callback_router.add_route("hotword_noise_page:{rest}", handle_hotword_callback)
 
 

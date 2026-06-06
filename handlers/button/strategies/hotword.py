@@ -3,6 +3,7 @@ from .registry import MenuHandlerRegistry
 from telethon.errors import MessageNotModifiedError
 from datetime import datetime
 import logging
+from ui.hotword_callback_codec import resolve_hotword_channel
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,17 @@ def parse_hotword_view_payload(data: str, extra_data=None) -> tuple[str, str]:
         if len(extra_data) > 1 and extra_data[1] in valid_periods:
             period = extra_data[1]
         return channel, period
+
+    token_prefix = "hotword_view_id:"
+    if data.startswith(token_prefix):
+        payload = data[len(token_prefix):]
+        token, sep, maybe_period = payload.rpartition(":")
+        if sep and maybe_period in valid_periods:
+            period = maybe_period
+        else:
+            token = payload
+        resolved_channel = resolve_hotword_channel(token)
+        return resolved_channel or token or channel, period
 
     prefix = "hotword_view:"
     if not data.startswith(prefix):
@@ -45,7 +57,7 @@ class HotwordMenuStrategy(BaseMenuHandler):
 
     ACTIONS = {
         "hotword_main", "hotword_global_refresh", 
-        "hotword_view", "hotword_search_prompt",
+        "hotword_view", "hotword_view_id", "hotword_search_prompt",
         "hotword_noise_page", "hotword_noise_add_prompt"
     }
 
@@ -76,7 +88,7 @@ class HotwordMenuStrategy(BaseMenuHandler):
         elif action == "hotword_search_prompt":
             await event.answer("🔍 请直接发送 /hot <关键词> 进行搜索", alert=True)
 
-        elif action == "hotword_view":
+        elif action in {"hotword_view", "hotword_view_id"}:
             # Supported formats:
             # 1. hotword_view:channel_name:period (via extra_data)
             # 2. legacy string parse
