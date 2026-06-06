@@ -59,6 +59,28 @@ async def test_update_setting(service, mock_db_session):
     mock_db_session.commit.assert_awaited_once()
 
 @pytest.mark.asyncio
+async def test_update_setting_reports_save_failure(service):
+    settings = {'media_types': {'image': True}, 'allow_text': True}
+    service._global_settings = settings
+    service._save_global_settings = AsyncMock(return_value=False)
+
+    ok = await service.update_global_media_setting('allow_text', False)
+
+    assert ok is False
+    assert settings['allow_text'] is True
+    assert service._global_settings is None
+
+@pytest.mark.asyncio
+async def test_duration_component_rejects_invalid_inputs(service):
+    service._global_settings = {'duration_min_seconds': 0, 'duration_max_seconds': 0}
+    service._save_global_settings = AsyncMock(return_value=True)
+
+    assert await service.set_duration_component('middle', 'seconds', 5) is False
+    assert await service.set_duration_component('min', 'weeks', 5) is False
+    assert await service.set_duration_component('min', 'seconds', 'bad') is False
+    service._save_global_settings.assert_not_awaited()
+
+@pytest.mark.asyncio
 async def test_toggle_media_type(service, mock_db_session):
     service._global_settings = {'media_types': {'image': True}}
     

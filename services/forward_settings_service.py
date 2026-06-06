@@ -74,10 +74,10 @@ class ForwardSettingsService:
             self._global_settings = default_settings
             return self._global_settings
 
-    async def _save_global_settings(self):
+    async def _save_global_settings(self) -> bool:
         """保存全局设置到数据库"""
         if self._global_settings is None:
-            return
+            return True
 
         async with container.db.get_session() as session:
             try:
@@ -94,13 +94,15 @@ class ForwardSettingsService:
                     )
                     session.add(config)
 
-                config.value = json.dumps(self._global_settings)
+                config.value = json.dumps(self._global_settings, ensure_ascii=False)
                 config.updated_at = datetime.now().isoformat()
                 await session.commit()
+                return True
 
             except Exception as e:
                 await session.rollback()
                 logger.error(f"保存全局设置失败: {str(e)}")
+                return False
 
     async def get_global_media_settings(self) -> Dict[str, Any]:
         """获取全局媒体设置"""
@@ -110,15 +112,21 @@ class ForwardSettingsService:
         """更新全局媒体设置"""
         settings = await self._load_global_settings()
         if key in settings:
+            old_value = settings.get(key)
             settings[key] = value
-            await self._save_global_settings()
+            saved = await self._save_global_settings()
+            if not saved:
+                settings[key] = old_value
             self._global_settings = None # Invalidate cache
-            return True
+            return saved
         elif key in settings.get("media_types", {}):
+            old_value = settings["media_types"].get(key)
             settings["media_types"][key] = value
-            await self._save_global_settings()
+            saved = await self._save_global_settings()
+            if not saved:
+                settings["media_types"][key] = old_value
             self._global_settings = None
-            return True
+            return saved
         return False
 
     async def toggle_media_type(self, media_type: str) -> bool:
@@ -127,9 +135,11 @@ class ForwardSettingsService:
             current = settings["media_types"][media_type]
             new_state = not current
             settings["media_types"][media_type] = new_state
-            await self._save_global_settings()
+            saved = await self._save_global_settings()
+            if not saved:
+                settings["media_types"][media_type] = current
             self._global_settings = None
-            return True
+            return saved
         return False
 
     async def get_duration_settings(self) -> Dict[str, Any]:
@@ -144,6 +154,14 @@ class ForwardSettingsService:
         settings = await self._load_global_settings()
         min_seconds = int(settings.get("duration_min_seconds", 0) or 0)
         max_seconds = int(settings.get("duration_max_seconds", 0) or 0)
+        if side not in {"min", "max"}:
+            return False
+        if unit not in {"days", "hours", "minutes", "seconds"}:
+            return False
+        try:
+            value = max(0, int(value))
+        except (TypeError, ValueError):
+            return False
 
         def seconds_to_components(total: int):
             if total < 0: total = 0
@@ -173,11 +191,16 @@ class ForwardSettingsService:
             max_seconds = components_to_seconds(max_d, max_h, max_m, max_s)
 
         try:
+            old_min_seconds = settings.get("duration_min_seconds", 0)
+            old_max_seconds = settings.get("duration_max_seconds", 0)
             settings["duration_min_seconds"] = min_seconds
             settings["duration_max_seconds"] = max_seconds
-            await self._save_global_settings()
+            saved = await self._save_global_settings()
+            if not saved:
+                settings["duration_min_seconds"] = old_min_seconds
+                settings["duration_max_seconds"] = old_max_seconds
             self._global_settings = None
-            return True
+            return saved
         except Exception as e:
             logger.error(f"保存时长区间失败: {str(e)}")
             return False
@@ -185,17 +208,20 @@ class ForwardSettingsService:
     async def toggle_media_extension(self, ext: str) -> bool:
         settings = await self._load_global_settings()
         extension = (ext or "").lower().strip()
-        if not extension: return None
-        selected = settings.get("media_extensions", [])
+        if not extension: return False
+        selected = list(settings.get("media_extensions", []) or [])
+        old_selected = list(selected)
         if extension in selected:
             selected.remove(extension)
         else:
             selected.append(extension)
         
         settings["media_extensions"] = sorted(list(set(selected)))
-        await self._save_global_settings()
+        saved = await self._save_global_settings()
+        if not saved:
+            settings["media_extensions"] = old_selected
         self._global_settings = None
-        return extension in settings["media_extensions"]
+        return saved and extension in settings["media_extensions"]
 
     async def set_media_size_limit(self, limit_mb: int) -> bool:
         return await self.update_global_media_setting("media_size_limit", int(limit_mb))
@@ -235,5 +261,3 @@ class ForwardSettingsService:
         return ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mkv", "mov", "avi", "mp3", "flac", "wav", "ogg", "zip", "rar", "7z", "pdf", "docx"]
 
 forward_settings_service = ForwardSettingsService()
-
-

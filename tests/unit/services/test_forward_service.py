@@ -88,3 +88,18 @@ class TestForwardService:
         
         res = await db.execute(select(ForwardRule).filter_by(id=rule.id))
         assert res.scalar_one_or_none() is None
+
+    async def test_update_forward_rule_rejects_invalid_fields(self, service, db):
+        c1 = Chat(telegram_chat_id="3101")
+        c2 = Chat(telegram_chat_id="3102")
+        db.add_all([c1, c2])
+        await db.commit()
+
+        rule = ForwardRule(source_chat_id=c1.id, target_chat_id=c2.id, enable_rule=True)
+        db.add(rule)
+        await db.commit()
+
+        result = await service.update_forward_rule(rule.id, missing_column=False)
+
+        assert result["success"] is False
+        assert "missing_column" in result["error"]

@@ -120,6 +120,9 @@ jobs:
             tests/unit/services/test_hotword_edge.py \
             tests/unit/services/test_hotword_algo.py \
             tests/unit/services/test_hotword_learn.py \
+            tests/unit/ui/renderers/test_hotword_renderer.py \
+            tests/unit/handlers/commands/test_hotword_commands.py \
+            tests/unit/handlers/button/strategies/test_hotword_strategy.py \
             tests/unit/middlewares/test_sender.py \
             tests/unit/services/test_smart_buffer.py \
             tests/unit/services/test_forward_log_writer.py \

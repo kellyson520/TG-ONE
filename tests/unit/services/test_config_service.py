@@ -41,6 +41,11 @@ class TestConfigService:
         await service.set("json_key", {"a": 1}, data_type="json")
         assert await service.get("json_key") == {"a": 1}
 
+        # Boolean strings should not be treated as truthy Python strings
+        await service.set("bool_string_key", "false", data_type="boolean")
+        assert await service.get("bool_string_key") is False
+        assert service._memory_cache["bool_string_key"] is False
+
     async def test_fallback_logic(self, service):
         # 内存 -> DB -> JSON -> Env -> Default
         
@@ -65,3 +70,17 @@ class TestConfigService:
         
         with patch.dict(os.environ, {"ENV_SYNC": "env_sync_val"}):
             assert service.get_sync("ENV_SYNC") == "env_sync_val"
+
+    async def test_preload_decodes_db_types(self, service, db):
+        db.add_all([
+            SystemConfiguration(key="preload_bool", value="false", data_type="boolean"),
+            SystemConfiguration(key="preload_int", value="42", data_type="integer"),
+            SystemConfiguration(key="preload_json", value='{"enabled": true}', data_type="json"),
+        ])
+        await db.commit()
+
+        await service.preload()
+
+        assert service.get_sync("preload_bool") is False
+        assert service.get_sync("preload_int") == 42
+        assert service.get_sync("preload_json") == {"enabled": True}

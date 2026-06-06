@@ -9,22 +9,40 @@ class HotwordRenderer(BaseRenderer):
     负责将热词统计数据转化为精美的 Telegram 列表和菜单
     """
 
-    def render_global_rankings(self, ranks: List[Tuple[str, int]], date_str: str) -> ViewResult:
+    def render_global_rankings(
+        self,
+        ranks: List[Tuple[str, int]],
+        date_str: str,
+        period: str = "day",
+    ) -> ViewResult:
         """渲染全平台每日简报"""
         builder = self.new_builder()
+        period_map = {"day": "今日", "month": "月度", "year": "年度", "all": "总榜"}
+        period = period if period in period_map else "day"
+        period_text = period_map[period]
+
         builder.set_title("全平台热词统计", icon="🌍")
-        builder.add_breadcrumb(["热词分析", "全局日报"])
+        builder.add_breadcrumb(["热词分析", f"全局{period_text}"])
 
         if not ranks:
-            builder.add_section("今日榜单", "暂无热点数据", icon="📊")
+            builder.add_section(f"{period_text}榜单", "暂无热点数据", icon="📊")
         else:
             items = []
             for i, (word, count) in enumerate(ranks[:15], 1):
                 icon = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🔹"
                 items.append(f"{icon} **{word}** ({count} 次)")
-            builder.add_section(f"热词榜单 - {date_str}", items, icon="🔥")
+            section_title = f"热词榜单 - {date_str}" if period == "day" else f"{period_text}热词榜单"
+            builder.add_section(section_title, items, icon="🔥")
 
-        builder.add_button("刷新", "hotword_global_refresh", icon="🔄")
+        period_btns = []
+        for p_key, p_val in period_map.items():
+            if p_key != period:
+                period_btns.append((p_val, encode_hotword_view_action("global", p_key)))
+        if period_btns:
+            builder.add_button_row(period_btns)
+
+        refresh_action = "hotword_global_refresh" if period == "day" else encode_hotword_view_action("global", period)
+        builder.add_button("刷新", refresh_action, icon="🔄")
         builder.add_button("返回主菜单", "main_menu", icon=UIStatus.BACK)
         
         return builder.build()

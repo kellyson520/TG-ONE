@@ -105,7 +105,11 @@ class HotwordMenuStrategy(BaseMenuHandler):
                 channel = await hotword_service.resolve_channel_token(channel) or channel
             
             ranks = await hotword_service.get_rankings(channel, period=period)
-            result = hotword_renderer.render_channel_rankings(channel, ranks, period)
+            if channel == "global":
+                today = datetime.now().strftime("%Y-%m-%d")
+                result = hotword_renderer.render_global_rankings(ranks, today, period=period)
+            else:
+                result = hotword_renderer.render_channel_rankings(channel, ranks, period)
             try:
                 await event.edit(result.text, buttons=result.buttons)
             except MessageNotModifiedError:

@@ -15,6 +15,26 @@ logger = logging.getLogger(__name__)
 
 class _AsyncDbProvider:
     """异步数据库配置提供者"""
+    @staticmethod
+    def _decode_value(value: Any, data_type: str = 'string') -> Optional[Any]:
+        if value is None:
+            return None
+
+        t = (data_type or 'string').lower()
+        if t == 'integer':
+            try:
+                return int(value)
+            except Exception:
+                return None
+        if t == 'boolean':
+            return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+        if t == 'json':
+            try:
+                return json.loads(value)
+            except Exception:
+                return None
+        return value
+
     async def get(self, key: str) -> Optional[Any]:
         from core.container import container
         async with container.db.get_session() as s:
@@ -24,31 +44,20 @@ class _AsyncDbProvider:
             
             if not cfg or cfg.value is None:
                 return None
-                
-            v = cfg.value
-            t = (cfg.data_type or 'string').lower()
-            
-            if t == 'integer':
-                try:
-                    return int(v)
-                except Exception:
-                    return None
-            if t == 'boolean':
-                return str(v).strip().lower() in ('1','true','yes','on')
-            if t == 'json':
-                try:
-                    return json.loads(v)
-                except Exception:
-                    return None
-            return v
 
-    async def set(self, key: str, value: Any, data_type: str = 'string', encrypted: bool = False) -> None:
+            return self._decode_value(cfg.value, cfg.data_type)
+
+    async def set(self, key: str, value: Any, data_type: str = 'string', encrypted: bool = False) -> Any:
         v = value
         t = (data_type or 'string').lower()
         if t == 'json':
             v = json.dumps(value, ensure_ascii=False)
         elif t == 'boolean':
-            v = 'true' if bool(value) else 'false'
+            if isinstance(value, str):
+                parsed = value.strip().lower() in ('1', 'true', 'yes', 'on')
+            else:
+                parsed = bool(value)
+            v = 'true' if parsed else 'false'
         else:
             v = str(value)
             
@@ -66,6 +75,7 @@ class _AsyncDbProvider:
                 cfg.data_type = t
                 cfg.is_encrypted = bool(encrypted)
             await s.commit()
+        return self._decode_value(v, t)
 
     async def get_all(self) -> Dict[str, Any]:
         result = {}
@@ -74,7 +84,9 @@ class _AsyncDbProvider:
             stmt = select(SystemConfiguration)
             rows = (await s.execute(stmt)).scalars().all()
             for cfg in rows:
-                result[cfg.key] = cfg.value
+                value = self._decode_value(cfg.value, cfg.data_type)
+                if value is not None:
+                    result[cfg.key] = value
         return result
 
 class _JsonProvider:
@@ -136,8 +148,8 @@ class ConfigService:
 
     async def set(self, key: str, value: Any, data_type: str = 'string', encrypted: bool = False) -> None:
         """异步设置配置"""
-        await self.db.set(key, value, data_type, encrypted)
-        self._memory_cache[key] = value
+        stored_value = await self.db.set(key, value, data_type, encrypted)
+        self._memory_cache[key] = stored_value
         
         # 通知订阅者
         cb = self._subscribers.get('change')

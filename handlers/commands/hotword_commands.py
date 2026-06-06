@@ -25,6 +25,14 @@ async def handle_hotword_command(event, command):
             return
 
         subcommand = args[0].lower()
+        valid_periods = {"day", "month", "year", "all"}
+        if subcommand in valid_periods:
+            from datetime import datetime
+            today = datetime.now().strftime("%Y-%m-%d")
+            ranks = await hotword_service.get_rankings("global", period=subcommand)
+            result = hotword_renderer.render_global_rankings(ranks, today, period=subcommand)
+            await respond_and_delete(event, result.text, buttons=result.buttons)
+            return
         
         # --- 子命令处理 ---
         
@@ -70,7 +78,7 @@ async def handle_hotword_command(event, command):
         period = "day"
         if len(args) > 1:
             period = args[1].lower()
-            if period not in ["day", "month", "year", "all"]: period = "day"
+            if period not in valid_periods: period = "day"
 
         matches = await hotword_service.fuzzy_match_channel(query)
         if not matches:

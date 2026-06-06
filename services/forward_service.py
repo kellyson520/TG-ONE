@@ -195,6 +195,23 @@ class ForwardService:
         """更新转发规则 (原生异步)"""
         try:
             logger.info(f"🔄 [转发服务] 开始更新转发规则: 规则ID={rule_id}, 更新内容={kwargs}")
+            if not kwargs:
+                return {'success': False, 'error': '未提供更新字段'}
+
+            valid_fields = {attr.key for attr in ForwardRule.__mapper__.column_attrs}
+            protected_fields = {'id', 'created_at'}
+            invalid_fields = [
+                key for key in kwargs
+                if key not in valid_fields or key in protected_fields
+            ]
+            if invalid_fields:
+                logger.warning(
+                    f"⚠️ [转发服务] 更新规则失败: 非法字段，规则ID={rule_id}, 字段={invalid_fields}"
+                )
+                return {
+                    'success': False,
+                    'error': f"非法更新字段: {', '.join(sorted(invalid_fields))}"
+                }
             
             async with self.container.db.get_session() as session:
                 # [Fix] 预加载关联以获取聊天ID
@@ -216,8 +233,7 @@ class ForwardService:
                 logger.debug(f"[转发服务] 更新前规则状态: 规则ID={rule_id}, 启用状态={getattr(rule, 'enable_rule', True)}, 去重状态={getattr(rule, 'enable_dedup', False)}")
                 
                 for key, value in kwargs.items():
-                    if hasattr(rule, key):
-                        setattr(rule, key, value)
+                    setattr(rule, key, value)
                 
                 # 显式提交事务
                 await session.commit()
