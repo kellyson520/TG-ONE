@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from typing import Dict, List, Any
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, text
 from sqlalchemy.dialects.sqlite import insert
 
 from core.db_factory import DbFactory
@@ -90,6 +90,98 @@ class HotwordRepository:
             channels.update(result.scalars().all())
 
             return sorted(channels)
+
+    async def load_global_day_snapshot(self, date_key: str) -> tuple[Dict[str, Any], Dict[str, List[float]], int]:
+        """
+        批量读取 global/day 所需的频道分布。
+
+        语义与逐频道 _load_period_data(channel, "day") 保持一致：
+        - 有当日归档或 raw 的频道，使用当日归档 + raw。
+        - 当日没有数据的频道，回退到该频道最近一次 day 归档。
+        """
+        async with self.session_factory() as session:
+            raw_channels_result = await session.execute(
+                select(HotRawStats.channel).where(HotRawStats.channel != "global").distinct()
+            )
+            period_channels_result = await session.execute(
+                select(HotPeriodStats.channel).where(HotPeriodStats.channel != "global").distinct()
+            )
+            all_channels = set(raw_channels_result.scalars().all())
+            all_channels.update(period_channels_result.scalars().all())
+
+            current_result = await session.execute(
+                select(
+                    HotPeriodStats.channel,
+                    HotPeriodStats.word,
+                    HotPeriodStats.score,
+                    HotPeriodStats.user_count,
+                ).where(
+                    HotPeriodStats.channel != "global",
+                    HotPeriodStats.period == "day",
+                    HotPeriodStats.date_key == date_key,
+                )
+            )
+            current_rows = current_result.all()
+
+            raw_result = await session.execute(
+                select(
+                    HotRawStats.channel,
+                    HotRawStats.word,
+                    HotRawStats.score,
+                    HotRawStats.unique_users,
+                ).where(HotRawStats.channel != "global")
+            )
+            raw_rows = raw_result.all()
+
+            active_channels = {row[0] for row in current_rows}
+            active_channels.update(row[0] for row in raw_rows)
+
+            latest_result = await session.execute(
+                text(
+                    """
+                    SELECT h.channel, h.word, h.score, h.user_count
+                    FROM hot_period_stats h
+                    JOIN (
+                        SELECT channel, MAX(date_key) AS latest_date
+                        FROM hot_period_stats
+                        WHERE channel != 'global' AND period = 'day'
+                        GROUP BY channel
+                    ) latest
+                      ON latest.channel = h.channel
+                     AND latest.latest_date = h.date_key
+                    WHERE h.channel != 'global' AND h.period = 'day'
+                    """
+                )
+            )
+            latest_rows = latest_result.all()
+
+        channel_word_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+        def _add_row(channel: str, word: str, score: float, user_count: int) -> None:
+            stats = channel_word_meta.setdefault(channel, {})
+            entry = stats.setdefault(word, {"f": 0.0, "u": 0})
+            entry["f"] += float(score or 0.0)
+            entry["u"] += int(user_count or 0)
+
+        for channel, word, score, user_count in current_rows:
+            _add_row(channel, word, score, user_count)
+        for channel, word, score, user_count in raw_rows:
+            _add_row(channel, word, score, user_count)
+        for channel, word, score, user_count in latest_rows:
+            if channel not in active_channels:
+                _add_row(channel, word, score, user_count)
+
+        global_word_meta: Dict[str, Dict[str, Any]] = {}
+        word_ch_freq: Dict[str, List[float]] = {}
+        for ch_data in channel_word_meta.values():
+            for word, meta in ch_data.items():
+                f = meta["f"]
+                word_ch_freq.setdefault(word, []).append(f)
+                gm = global_word_meta.setdefault(word, {"f": 0.0, "u": 0})
+                gm["f"] += f
+                gm["u"] += meta["u"]
+
+        return global_word_meta, word_ch_freq, len(all_channels)
 
     async def load_period_summary(self, channel: str, period: str, date_prefix: str) -> Dict[str, Any]:
         """按 date_key 前缀聚合周期数据，用于当前月/年实时榜单。"""

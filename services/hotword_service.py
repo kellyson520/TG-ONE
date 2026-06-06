@@ -637,6 +637,12 @@ class HotwordService:
 
     async def _load_global_from_channels(self, period: str) -> tuple[Dict[str, Any], Dict[str, list], int]:
         """Aggregate global rankings from per-channel data when direct global data is unavailable."""
+        if period == "day":
+            date_str = datetime.now().strftime("%Y%m%d")
+            data, word_ch_freq, num_channels = await self.repo.load_global_day_snapshot(date_str)
+            if data:
+                return data, word_ch_freq, num_channels
+
         global_word_meta: Dict[str, Dict[str, Any]] = {}
         word_ch_freq: Dict[str, list] = {}
 

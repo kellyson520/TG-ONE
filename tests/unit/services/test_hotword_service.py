@@ -221,6 +221,85 @@ async def test_hotword_global_month_prefers_direct_global_archive():
     assert ranks["全局直读"] == 99999
     assert "频道回退" not in ranks
 
+
+@pytest.mark.asyncio
+async def test_hotword_global_day_uses_batched_channel_snapshot():
+    from services.hotword_service import HotwordService
+    from models.hotword import HotRawStats, HotPeriodStats
+    from sqlalchemy import text
+
+    service = HotwordService()
+    today = datetime.now().strftime("%Y%m%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+    current_channel = "global_day_batch_current"
+    raw_channel = "global_day_batch_raw"
+    fallback_channel = "global_day_batch_fallback"
+
+    async with service.repo.session_factory() as session:
+        await session.execute(
+            text(
+                "DELETE FROM hot_period_stats "
+                "WHERE channel IN (:current_channel, :raw_channel, :fallback_channel)"
+            ),
+            {
+                "current_channel": current_channel,
+                "raw_channel": raw_channel,
+                "fallback_channel": fallback_channel,
+            },
+        )
+        await session.execute(
+            text(
+                "DELETE FROM hot_raw_stats "
+                "WHERE channel IN (:current_channel, :raw_channel, :fallback_channel)"
+            ),
+            {
+                "current_channel": current_channel,
+                "raw_channel": raw_channel,
+                "fallback_channel": fallback_channel,
+            },
+        )
+        session.add_all([
+            HotPeriodStats(
+                channel=current_channel,
+                word="今日批量",
+                period="day",
+                date_key=today,
+                score=50.0,
+                user_count=5,
+            ),
+            HotPeriodStats(
+                channel=current_channel,
+                word="不该回退",
+                period="day",
+                date_key=yesterday,
+                score=9999.0,
+                user_count=5,
+            ),
+            HotPeriodStats(
+                channel=fallback_channel,
+                word="最近回退",
+                period="day",
+                date_key=yesterday,
+                score=40.0,
+                user_count=4,
+            ),
+            HotRawStats(
+                channel=raw_channel,
+                word="实时批量",
+                score=45.0,
+                unique_users=3,
+            ),
+        ])
+        await session.commit()
+
+    ranks = dict(await service.get_rankings("global", period="day"))
+
+    assert ranks["今日批量"] == 50
+    assert ranks["实时批量"] == 45
+    assert ranks["最近回退"] == 40
+    assert "不该回退" not in ranks
+
+
 @pytest.mark.asyncio
 async def test_hotword_suspend_resume():
     from services.hotword_service import HotwordService
