@@ -34,11 +34,25 @@ class WorkerService:
         self.dispatcher = None # 在 start() 中初始化
         
         # [NEW] 资源阈值
-        self.mem_warning = settings.MEMORY_WARNING_THRESHOLD_MB
-        self.mem_critical = settings.MEMORY_CRITICAL_THRESHOLD_MB
+        self.mem_warning, self.mem_critical = self._resolve_memory_thresholds()
         self.last_gc_time = 0
         self.last_critical_alert = 0 # 上次发送内存紧急告警的时间
         self.critical_mode = False   # 是否处于熔断模式
+
+    def _resolve_memory_thresholds(self):
+        configured_warning = settings.MEMORY_WARNING_THRESHOLD_MB
+        configured_critical = settings.MEMORY_CRITICAL_THRESHOLD_MB
+        try:
+            total_mb = psutil.virtual_memory().total / 1024 / 1024
+            dynamic_warning = max(256, int(total_mb * 0.45))
+            dynamic_critical = max(dynamic_warning + 128, int(total_mb * 0.70))
+            warning = min(configured_warning, dynamic_warning)
+            critical = min(configured_critical, dynamic_critical)
+            if critical <= warning:
+                critical = warning + 128
+            return warning, critical
+        except Exception:
+            return configured_warning, configured_critical
 
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""
