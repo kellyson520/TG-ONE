@@ -264,7 +264,7 @@ async def handle_prompt_setting(
             # 智能回位：根据 key 返回对应的设置页面
             from controllers.menu_controller import menu_controller
             media_keys = ['max_media_size', 'enable_duration_filter', 'enable_resolution_filter', 'enable_file_size_range']
-            ai_keys = ['ai_model', 'ai_prompt', 'is_ai', 'is_summary', 'summary_time', 'summary_prompt']
+            ai_keys = ['ai_model', 'ai_prompt', 'ai_persona', 'is_ai', 'is_summary', 'summary_time', 'summary_prompt']
             
             if key in media_keys:
                 await menu_controller.show_media_settings(event, rule_id)

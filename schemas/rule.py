@@ -129,6 +129,7 @@ class RuleBase(BaseModel):
     is_ai: bool = False
     ai_model: Optional[str] = None
     ai_prompt: Optional[str] = None
+    ai_persona: Optional[str] = None
     enable_ai_upload_image: bool = False
     is_summary: bool = False
     summary_time: str = "08:00"

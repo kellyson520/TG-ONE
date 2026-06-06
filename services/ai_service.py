@@ -69,16 +69,16 @@ class AIService:
         return self.prompt_builder.build(template, rule, context, message_text, memory_turns)
 
     def _resolve_model(self, rule: Any) -> str:
-        return _text_attr(rule, "ai_model") or str(getattr(settings, "DEFAULT_AI_MODEL", "gpt-4o"))
+        return _text_attr(rule, "ai_model") or _setting_text("DEFAULT_AI_MODEL", "gpt-4o")
 
     def _resolve_prompt_template(self, rule: Any) -> str:
         if _bool_attr(rule, "is_summary"):
             return (
                 _text_attr(rule, "summary_prompt")
                 or _text_attr(rule, "ai_prompt")
-                or str(getattr(settings, "DEFAULT_SUMMARY_PROMPT", "请总结以下内容："))
+                or _setting_text("DEFAULT_SUMMARY_PROMPT", "请总结以下内容：")
             )
-        return _text_attr(rule, "ai_prompt") or str(getattr(settings, "DEFAULT_AI_PROMPT", "请总结以下内容："))
+        return _text_attr(rule, "ai_prompt") or _setting_text("DEFAULT_AI_PROMPT", "请总结以下内容：")
 
 
 def _read_attr(obj: Any, name: str) -> Any:
@@ -94,6 +94,13 @@ def _text_attr(obj: Any, name: str) -> str:
     if isinstance(value, (str, int, float)) and str(value):
         return str(value)
     return ""
+
+
+def _setting_text(name: str, fallback: str) -> str:
+    value = getattr(settings, name, fallback)
+    if isinstance(value, (str, int, float)) and str(value):
+        return str(value)
+    return fallback
 
 
 def _bool_attr(obj: Any, name: str) -> bool:

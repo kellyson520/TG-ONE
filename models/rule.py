@@ -40,6 +40,7 @@ class ForwardRule(Base):
     enable_reverse_whitelist = Column(Boolean, default=False)
     
     ai_prompt = Column(Text, nullable=True)
+    ai_persona = Column(Text, nullable=True)
     summary_prompt = Column(Text, nullable=True)
     ai_model = Column(String, nullable=True)
     

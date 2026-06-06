@@ -206,7 +206,8 @@ async def get_ai_settings_text(rule):
     from ui.constants import AI_SETTINGS_TEXT
     ai_prompt = rule.ai_prompt or settings.DEFAULT_AI_PROMPT
     summary_prompt = rule.summary_prompt or settings.DEFAULT_SUMMARY_PROMPT
-    return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt)
+    ai_persona = getattr(rule, 'ai_persona', None) or settings.DEFAULT_AI_PERSONA or "未设置"
+    return AI_SETTINGS_TEXT.format(ai_prompt=ai_prompt, summary_prompt=summary_prompt, ai_persona=ai_persona)
 
 
 # 添加 AI 设置
@@ -226,6 +227,11 @@ AI_SETTINGS = {
     "ai_prompt": {
         "display_name": "设置AI处理提示词",
         "toggle_action": "set_ai_prompt",
+        "toggle_func": None,
+    },
+    "ai_persona": {
+        "display_name": "设置AI人格",
+        "toggle_action": "set_ai_persona",
         "toggle_func": None,
     },
     "enable_ai_upload_image": {
@@ -715,6 +721,9 @@ async def create_ai_settings_buttons(rule):
         # Prompt Settings
         buttons.append([
             Button.inline("设置提示词", f"set_ai_prompt:{rule.id}")
+        ])
+        buttons.append([
+            Button.inline("设置人格", f"new_menu:set_rule_val:{rule.id}:ai_persona")
         ])
         
         # AI Options

@@ -47,6 +47,12 @@ async def create_ai_settings_buttons(rule=None, rule_id=None):
             buttons.append([Button.inline(display_value, callback_data)])
             continue
 
+        if field == "ai_persona":
+            display_value = config["display_name"]
+            callback_data = f"new_menu:set_rule_val:{rule.id}:ai_persona"
+            buttons.append([Button.inline(display_value, callback_data)])
+            continue
+
         elif field == "ai_model":
             current_value = getattr(rule, field)
             display_value = current_value or settings.DEFAULT_AI_MODEL

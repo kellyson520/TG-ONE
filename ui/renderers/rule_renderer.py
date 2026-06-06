@@ -288,12 +288,14 @@ class RuleRenderer(BaseRenderer):
         
         builder.add_section("内容重写 (Rewrite)", [
             f"启用 AI 重写: {'✅' if rule.get('is_ai') else '❌'}",
-            f"当前模型: `{rule.get('ai_model') or '默认'}`"
+            f"当前模型: `{rule.get('ai_model') or '默认'}`",
+            f"人格设定: {'已设置' if rule.get('ai_persona') else '默认/未设置'}"
         ])
         
         builder.add_button("切换 AI 重写", f"new_menu:toggle_rule_set:{rid}:is_ai", icon=UIStatus.SYNC)
         builder.add_button("模型切换", f"new_menu:set_rule_val:{rid}:ai_model", icon="🤖")
         builder.add_button("编辑重写提示词", f"new_menu:set_rule_val:{rid}:ai_prompt", icon="📝")
+        builder.add_button("编辑人格设定", f"new_menu:set_rule_val:{rid}:ai_persona", icon="🎭")
         
         builder.add_section("定时总结 (Summary)", [
             f"启用定时总结: {'✅' if rule.get('is_summary') else '❌'}",

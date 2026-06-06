@@ -138,11 +138,13 @@ class MediaRenderer(BaseRenderer):
             builder.add_section("处理逻辑", [], icon="🧠")
             builder.add_status_grid({
                 "基础模型": rule.get('ai_model', '默认'),
+                "人格设定": "已设置" if rule.get('ai_persona') else "默认/未设置",
                 "图片上传": ("是" if rule.get('enable_ai_upload_image') else "否", UIStatus.INFO),
                 "后置过滤": ("开启" if rule.get('is_keyword_after_ai') else "关闭", UIStatus.INFO)
             })
             builder.add_button("切换模型", f"change_model:{rid}", icon="🧠")
             builder.add_button("设置提示词", f"set_ai_prompt:{rid}", icon="✍️")
+            builder.add_button("设置人格", f"new_menu:set_rule_val:{rid}:ai_persona", icon="🎭")
             builder.add_button(f"{'✅' if rule.get('enable_ai_upload_image') else '❌'} 传图", f"toggle_ai_upload_image:{rid}")
             builder.add_button(f"{'✅' if rule.get('is_keyword_after_ai') else '❌'} 后滤", f"toggle_keyword_after_ai:{rid}")
 

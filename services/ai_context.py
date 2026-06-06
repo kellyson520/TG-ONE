@@ -196,7 +196,7 @@ class AIPromptBuilder:
         return (
             _first_scalar(context, ("ai_persona", "persona", "personality", "role"))
             or _first_scalar(rule, ("ai_persona", "persona", "personality", "ai_role", "role"))
-            or getattr(settings, "DEFAULT_AI_PERSONA", "")
+            or _scalar_or_empty(getattr(settings, "DEFAULT_AI_PERSONA", ""))
             or ""
         )
 
@@ -246,6 +246,10 @@ def _first_scalar(obj: Any, names: Iterable[str]) -> Optional[str]:
         if _valid_scalar(value):
             return str(value)
     return None
+
+
+def _scalar_or_empty(value: Any) -> str:
+    return str(value) if _valid_scalar(value) else ""
 
 
 def _nested_scalar(obj: Any, paths: Iterable[str]) -> Optional[str]:

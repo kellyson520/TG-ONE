@@ -316,6 +316,7 @@ class RuleController(BaseController):
             'max_media_size': '最大文件限制 (MB)',
             'ai_model': 'AI 模型名称',
             'ai_prompt': 'AI 重写提示词',
+            'ai_persona': 'AI 人格设定',
             'summary_time': '定时总结时间 (HH:mm)',
             'summary_prompt': '总结提示词',
             'delay_seconds': '延迟处理秒数'

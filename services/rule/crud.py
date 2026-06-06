@@ -141,6 +141,14 @@ class RuleCRUDService:
             },
             'is_ai': rule_dto.is_ai,
             'is_summary': rule_dto.is_summary,
+            'ai_model': rule_dto.ai_model,
+            'ai_prompt': rule_dto.ai_prompt,
+            'ai_persona': rule_dto.ai_persona,
+            'enable_ai_upload_image': rule_dto.enable_ai_upload_image,
+            'summary_time': rule_dto.summary_time,
+            'summary_prompt': rule_dto.summary_prompt,
+            'is_keyword_after_ai': rule_dto.is_keyword_after_ai,
+            'is_top_summary': rule_dto.is_top_summary,
             'enable_dedup': rule_dto.enable_dedup,
             'created_at': rule_dto.created_at,
             'use_bot': rule_dto.use_bot,
@@ -276,4 +284,3 @@ class RuleCRUDService:
             await self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
             
             return {'success': True, 'message': 'Deleted successfully', 'source_chat_id': source_id, 'target_chat_id': target_id}
-
