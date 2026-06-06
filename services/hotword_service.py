@@ -10,7 +10,7 @@ from core.logging import get_logger, log_performance
 from core.helpers.lazy_import import LazyImport
 from repositories.hotword_repo import HotwordRepository
 
-from core.algorithms.simhash import SimHash, SimHashIndex
+from core.algorithms.simhash import SimHashIndex
 from core.algorithms.ac_automaton import ACManager
 
 logger = get_logger(__name__)
@@ -654,18 +654,81 @@ class HotwordService:
         if period == "day":
             date_str = datetime.now().strftime("%Y%m%d")
             fname = f"{channel_name}_day_{date_str}.json" # 保持文件名兼容，Repo 会解析
-            data = await self.repo.load_rankings(channel_name, fname) or await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
+            data = self._merge_period_data(
+                await self.repo.load_rankings(channel_name, fname),
+                await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json"),
+            )
+            if not data:
+                data = await self.repo.load_latest_period(channel_name, "day")
         elif period == "month":
-            fname = f"{channel_name}_month_{datetime.now().strftime('%Y%m')}.json"
-            data = await self.repo.load_rankings(channel_name, fname)
+            month_key = datetime.now().strftime("%Y%m")
+            fname = f"{channel_name}_month_{month_key}.json"
+            month_data = await self.repo.load_rankings(channel_name, fname)
+            temp_data = await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
+            if month_data:
+                data = self._merge_period_data(month_data, temp_data)
+            else:
+                data = self._merge_period_data(
+                    await self.repo.load_period_summary(channel_name, "day", month_key),
+                    temp_data,
+                )
+            if not data:
+                data = (
+                    await self.repo.load_latest_period(channel_name, "month")
+                    or await self.repo.load_latest_period(channel_name, "day")
+                )
         elif period == "year":
-            fname = f"{channel_name}_year_{str(datetime.now().year)}.json"
-            data = await self.repo.load_rankings(channel_name, fname)
+            year_key = str(datetime.now().year)
+            month_key = datetime.now().strftime("%Y%m")
+            fname = f"{channel_name}_year_{year_key}.json"
+            year_data = await self.repo.load_rankings(channel_name, fname)
+            temp_data = await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
+            if year_data:
+                data = self._merge_period_data(year_data, temp_data)
+            else:
+                month_summary = await self.repo.load_period_summary(channel_name, "month", year_key)
+                if month_summary:
+                    data = self._merge_period_data(
+                        month_summary,
+                        await self.repo.load_period_summary(channel_name, "day", month_key),
+                        temp_data,
+                    )
+                else:
+                    data = self._merge_period_data(
+                        await self.repo.load_period_summary(channel_name, "day", year_key),
+                        temp_data,
+                    )
+            if not data:
+                data = (
+                    await self.repo.load_latest_period(channel_name, "year")
+                    or await self.repo.load_latest_period(channel_name, "month")
+                    or await self.repo.load_latest_period(channel_name, "day")
+                )
         else:
-            data = await self.repo.load_rankings(channel_name, f"{channel_name}_all.json")
+            data = self._merge_period_data(
+                await self.repo.load_period_summary(channel_name, "year", ""),
+                await self.repo.load_period_summary(channel_name, "month", ""),
+                await self.repo.load_period_summary(channel_name, "day", ""),
+                await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json"),
+            )
             
         # 统一返回 Any 映射，由调用方解析 {"f": score, "u": users}
         return data
+
+    def _merge_period_data(self, *datasets: Dict[str, Any]) -> Dict[str, Any]:
+        """合并多个热词数据源，统一处理 {"f": score, "u": users} 和旧版数值格式。"""
+        merged: Dict[str, Dict[str, Any]] = {}
+        for data in datasets:
+            if not data:
+                continue
+            for word, value in data.items():
+                entry = merged.setdefault(word, {"f": 0.0, "u": 0})
+                if isinstance(value, dict):
+                    entry["f"] += float(value.get("f", 0.0) or 0.0)
+                    entry["u"] += int(value.get("u", 0) or 0)
+                else:
+                    entry["f"] += float(value or 0.0)
+        return merged
  
     async def aggregate_daily(self):
         await self.flush_to_disk()

@@ -1,8 +1,7 @@
 import logging
 import asyncio
-from typing import Dict, List, Optional, Any
-from sqlalchemy import select, delete, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, List, Any
+from sqlalchemy import select, delete, func
 from sqlalchemy.dialects.sqlite import insert
 
 from core.db_factory import DbFactory
@@ -84,7 +83,47 @@ class HotwordRepository:
         async with self.session_factory() as session:
             stmt = select(HotRawStats.channel).distinct()
             result = await session.execute(stmt)
-            return list(result.scalars().all())
+            channels = set(result.scalars().all())
+
+            stmt = select(HotPeriodStats.channel).distinct()
+            result = await session.execute(stmt)
+            channels.update(result.scalars().all())
+
+            return sorted(channels)
+
+    async def load_period_summary(self, channel: str, period: str, date_prefix: str) -> Dict[str, Any]:
+        """按 date_key 前缀聚合周期数据，用于当前月/年实时榜单。"""
+        async with self.session_factory() as session:
+            stmt = select(
+                HotPeriodStats.word,
+                func.sum(HotPeriodStats.score).label("score"),
+                func.sum(HotPeriodStats.user_count).label("user_count"),
+            ).where(
+                HotPeriodStats.channel == channel,
+                HotPeriodStats.period == period,
+                HotPeriodStats.date_key.like(f"{date_prefix}%"),
+            ).group_by(HotPeriodStats.word)
+            result = await session.execute(stmt)
+            return {word: {"f": score or 0.0, "u": user_count or 0} for word, score, user_count in result.all()}
+
+    async def load_latest_period(self, channel: str, period: str) -> Dict[str, Any]:
+        """读取指定频道最近一次归档周期，避免当前周期尚未聚合时榜单为空。"""
+        async with self.session_factory() as session:
+            stmt = (
+                select(HotPeriodStats.date_key)
+                .where(
+                    HotPeriodStats.channel == channel,
+                    HotPeriodStats.period == period,
+                )
+                .order_by(HotPeriodStats.date_key.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            date_key = result.scalar_one_or_none()
+
+        if not date_key:
+            return {}
+        return await self.load_period_summary(channel, period, date_key)
 
     async def load_config(self, name: str) -> Dict[str, float]:
         """从 DB 加载配置项"""

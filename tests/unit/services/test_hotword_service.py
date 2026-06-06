@@ -1,10 +1,8 @@
 import pytest
-import asyncio
-import os
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # 设置测试环境路径
 TEST_HOT_DIR = Path("tests/temp/hot_test_data")
@@ -90,7 +88,6 @@ async def test_hotword_aggregation():
     # 手动插入两个日数据
     curr_month = datetime.now().strftime("%Y%m")
     
-    from sqlalchemy.ext.asyncio import AsyncSession
     from models.hotword import HotPeriodStats
     
     async with service.repo.session_factory() as session:
@@ -108,6 +105,50 @@ async def test_hotword_aggregation():
     month_data = await service.repo.load_rankings(channel, f"month_{curr_month}")
     assert "月" in month_data
     assert month_data["月"]["f"] == 3.0
+
+@pytest.mark.asyncio
+async def test_hotword_rankings_read_archived_periods_when_raw_is_empty():
+    from services.hotword_service import HotwordService
+    from models.hotword import HotPeriodStats
+
+    service = HotwordService()
+    channel = "period_only_chan"
+    year_channel = "period_only_year_chan"
+    year_day_channel = "period_only_year_day_chan"
+    curr_month = datetime.now().strftime("%Y%m")
+    curr_year = datetime.now().strftime("%Y")
+
+    from sqlalchemy import text
+    async with service.repo.session_factory() as session:
+        await session.execute(text(f"DELETE FROM hot_period_stats WHERE channel='{channel}'"))
+        await session.execute(text(f"DELETE FROM hot_raw_stats WHERE channel='{channel}'"))
+        await session.execute(text(f"DELETE FROM hot_period_stats WHERE channel='{year_channel}'"))
+        await session.execute(text(f"DELETE FROM hot_raw_stats WHERE channel='{year_channel}'"))
+        await session.execute(text(f"DELETE FROM hot_period_stats WHERE channel='{year_day_channel}'"))
+        await session.execute(text(f"DELETE FROM hot_raw_stats WHERE channel='{year_day_channel}'"))
+        session.add_all([
+            HotPeriodStats(channel=channel, word="日榜", period="day", date_key=f"{curr_month}01", score=8.0, user_count=2),
+            HotPeriodStats(channel=channel, word="月榜", period="day", date_key=f"{curr_month}02", score=5.0, user_count=1),
+            HotPeriodStats(channel=year_channel, word="年榜", period="month", date_key=curr_month, score=13.0, user_count=3),
+            HotPeriodStats(channel=year_day_channel, word="全年日榜", period="day", date_key=f"{curr_year}0102", score=21.0, user_count=4),
+        ])
+        await session.commit()
+
+    channels = await service.repo.get_channel_dirs()
+    assert channel in channels
+    assert year_channel in channels
+    assert year_day_channel in channels
+
+    day_ranks = dict(await service.get_rankings(channel, period="day"))
+    month_ranks = dict(await service.get_rankings(channel, period="month"))
+    year_ranks = dict(await service.get_rankings(year_channel, period="year"))
+    year_day_ranks = dict(await service.get_rankings(year_day_channel, period="year"))
+
+    assert day_ranks["月榜"] == 5 or day_ranks["日榜"] == 8
+    assert month_ranks["日榜"] == 8
+    assert month_ranks["月榜"] == 5
+    assert year_ranks["年榜"] == 13
+    assert year_day_ranks["全年日榜"] == 21
 
 @pytest.mark.asyncio
 async def test_hotword_suspend_resume():
