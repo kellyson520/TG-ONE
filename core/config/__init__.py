@@ -557,6 +557,10 @@ class Settings(BaseSettings):
         default=9000,
         description="Web服务监听端口"
     )
+    WEB_CORS_ALLOWED_ORIGINS: Union[List[str], str] = Field(
+        default_factory=list,
+        description="允许跨域访问 Web 管理接口的 Origin 列表；留空时仅允许本机常见 Origin"
+    )
     
     # === UI 与分页配置 ===
     PROJECT_NAME: str = Field(default="TG Forwarder RSS")
@@ -746,7 +750,15 @@ class Settings(BaseSettings):
     )
 
 
-    @field_validator("CLEANUP_CRON_TIMES", "GC_TEMP_DIRS", "ADMIN_IDS", "LOG_MUTE_LOGGERS", "LOG_MUTE_CATEGORIES", mode="before")
+    @field_validator(
+        "CLEANUP_CRON_TIMES",
+        "GC_TEMP_DIRS",
+        "ADMIN_IDS",
+        "LOG_MUTE_LOGGERS",
+        "LOG_MUTE_CATEGORIES",
+        "WEB_CORS_ALLOWED_ORIGINS",
+        mode="before"
+    )
     @classmethod
     def parse_list_fields(cls, v: Any) -> List[Any]:
         if isinstance(v, str):

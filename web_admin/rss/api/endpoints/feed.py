@@ -29,6 +29,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _resolve_rule_media_path(rule_id: int, filename: str) -> Path:
+    """Resolve a public RSS media filename inside the rule media directory."""
+    if (
+        not filename
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or "\x00" in filename
+        or Path(filename).name != filename
+    ):
+        raise HTTPException(status_code=400, detail="无效的媒体文件名")
+
+    base_dir = Path(get_rule_media_dir(rule_id)).resolve()
+    media_path = (base_dir / filename).resolve()
+    try:
+        media_path.relative_to(base_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的媒体文件路径")
+
+    if media_path.is_dir():
+        raise HTTPException(status_code=404, detail="媒体文件未找到")
+
+    return media_path
+
+
 def _safe_headers_for_log(request: Request) -> Dict[str, str]:
     allowed = {"host", "user-agent", "x-forwarded-host", "x-forwarded-proto", "x-real-ip"}
     sensitive = {"authorization", "cookie", "set-cookie", "x-api-key"}
@@ -229,7 +254,7 @@ async def get_media(rule_id: int, filename: str, request: Request):
             base_url = f"{scheme}://{host_header}"
     logger.info(f"最终使用的媒体基础URL: {base_url}")
     # 构建规则特定的媒体文件路
-    media_path = Path(get_rule_media_dir(rule_id)) / filename
+    media_path = _resolve_rule_media_path(rule_id, filename)
     # 记录尝试访问的路
     logger.info(f"尝试访问媒体文件: {media_path}")
     # 检查文件是否存
@@ -640,8 +665,7 @@ async def delete_rule_data(rule_id: int):
                 if system == "Windows":
                     # Windows: 使用 rd /s /q
                     subprocess.run(
-                        ["rd", "/s", "/q", str(dir_path)],
-                        shell=True,
+                        ["cmd", "/c", "rmdir", "/s", "/q", str(dir_path)],
                         stderr=subprocess.PIPE,
                         stdout=subprocess.PIPE,
                     )

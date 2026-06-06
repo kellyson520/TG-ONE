@@ -101,6 +101,26 @@ app = FastAPI(
     redoc_url=None
 )
 
+
+def _get_cors_allowed_origins() -> list[str]:
+    configured = getattr(settings, "WEB_CORS_ALLOWED_ORIGINS", None) or []
+    if isinstance(configured, str):
+        configured = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    if configured:
+        return list(dict.fromkeys(configured))
+
+    port = settings.WEB_PORT
+    origins = [
+        f"http://127.0.0.1:{port}",
+        f"http://localhost:{port}",
+        f"https://127.0.0.1:{port}",
+        f"https://localhost:{port}",
+    ]
+    host = settings.WEB_HOST
+    if host and host not in {"0.0.0.0", "::", "*"}:
+        origins.extend([f"http://{host}:{port}", f"https://{host}:{port}"])
+    return list(dict.fromkeys(origins))
+
 # 注册路由
 app.include_router(auth_router)
 app.include_router(rule_viz_router)
@@ -154,11 +174,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500
     )
 
+cors_allowed_origins = _get_cors_allowed_origins()
+
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_allowed_origins,
+    allow_credentials="*" not in cors_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
