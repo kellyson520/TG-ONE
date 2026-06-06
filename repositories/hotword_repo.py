@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import re
 from typing import Dict, List, Any
 from sqlalchemy import select, delete, func, text
 from sqlalchemy.dialects.sqlite import insert
@@ -9,6 +10,13 @@ from models.hotword import HotRawStats, HotPeriodStats, HotConfig
 
 logger = logging.getLogger(__name__)
 
+_PERIOD_FILE_RE = re.compile(r"(?:^|_)(day|month|year)_(\d{4,8})(?:\.json)?$")
+_PERIOD_DATE_LENGTHS = {
+    "day": {8},
+    "month": {6},
+    "year": {4},
+}
+
 class HotwordRepository:
     """
     热词持久化层：使用 hotwords.db (SQLite) 替代原有小文件方案。
@@ -17,6 +25,19 @@ class HotwordRepository:
     
     def __init__(self):
         self.session_factory = DbFactory.get_hotword_session_factory()
+
+    def _parse_period_key(self, filename_or_period: str) -> tuple[str, str]:
+        """Parse the trailing period/date token without inspecting channel names."""
+        value = str(filename_or_period or "")
+        match = _PERIOD_FILE_RE.search(value)
+        if match:
+            period, date_key = match.groups()
+            if len(date_key) in _PERIOD_DATE_LENGTHS[period]:
+                return period, date_key
+
+        if value in _PERIOD_DATE_LENGTHS:
+            return value, "current"
+        return "day", "current"
 
     async def save_temp_counts(self, channel: str, counts: Dict[str, Dict[str, Any]]):
         """
@@ -68,12 +89,7 @@ class HotwordRepository:
                 result = await session.execute(stmt)
                 return {r.word: {"f": r.score, "u": r.unique_users} for r in result.scalars()}
             else:
-                # 解析周期
-                period = "day" if "day" in filename_or_period else "month" if "month" in filename_or_period else "year"
-                # 简单实现：这里需要 date_key，如果 filename_or_period 包含日期则提取
-                import re
-                date_match = re.search(r'\d{4,8}', filename_or_period)
-                date_key = date_match.group(0) if date_match else "current"
+                period, date_key = self._parse_period_key(filename_or_period)
                 
                 stmt = select(
                     HotPeriodStats.word,

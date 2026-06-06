@@ -223,6 +223,58 @@ async def test_hotword_global_month_prefers_direct_global_archive():
 
 
 @pytest.mark.asyncio
+async def test_hotword_load_rankings_parses_period_from_suffix_not_channel_name():
+    from repositories.hotword_repo import HotwordRepository
+    from models.hotword import HotPeriodStats
+    from sqlalchemy import text
+
+    repo = HotwordRepository()
+    month_key = datetime.now().strftime("%Y%m")
+    numeric_channel = "RED讨论组【2025复活版】"
+    day_named_channel = "daydream频道"
+
+    async with repo.session_factory() as session:
+        await session.execute(
+            text("DELETE FROM hot_period_stats WHERE channel IN (:numeric_channel, :day_named_channel)"),
+            {
+                "numeric_channel": numeric_channel,
+                "day_named_channel": day_named_channel,
+            },
+        )
+        session.add_all([
+            HotPeriodStats(
+                channel=numeric_channel,
+                word="数字频道月榜",
+                period="month",
+                date_key=month_key,
+                score=7.0,
+                user_count=2,
+            ),
+            HotPeriodStats(
+                channel=day_named_channel,
+                word="day频道月榜",
+                period="month",
+                date_key=month_key,
+                score=5.0,
+                user_count=1,
+            ),
+        ])
+        await session.commit()
+
+    numeric_data = await repo.load_rankings(
+        numeric_channel,
+        f"{numeric_channel}_month_{month_key}.json",
+    )
+    day_named_data = await repo.load_rankings(
+        day_named_channel,
+        f"{day_named_channel}_month_{month_key}.json",
+    )
+
+    assert numeric_data["数字频道月榜"]["f"] == 7.0
+    assert day_named_data["day频道月榜"]["f"] == 5.0
+
+
+@pytest.mark.asyncio
 async def test_hotword_global_day_uses_batched_channel_snapshot():
     from services.hotword_service import HotwordService
     from models.hotword import HotRawStats, HotPeriodStats

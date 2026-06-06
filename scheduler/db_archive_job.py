@@ -11,6 +11,7 @@ from pathlib import Path
 from core.helpers.maintenance_gate import try_maintenance
 
 logger = logging.getLogger(__name__)
+_archive_system_checked = False
 
 
 def _checkpoint_wal_truncate() -> bool:
@@ -37,6 +38,10 @@ def _checkpoint_wal_truncate() -> bool:
 # 确保归档系统初始化
 def _ensure_archive_system():
     """确保归档系统已正确初始化"""
+    global _archive_system_checked
+    if _archive_system_checked:
+        return
+
     try:
         from repositories.archive_init import init_archive_system
         if not init_archive_system():
@@ -44,9 +49,8 @@ def _ensure_archive_system():
     except Exception as e:
         logger.error(f"归档系统初始化检查失败: {e}")
         logger.debug("归档系统初始化检查失败的详细信息", exc_info=True)
-
-# 在模块加载时进行一次检查
-_ensure_archive_system()
+    finally:
+        _archive_system_checked = True
 
 from repositories.archive_manager import get_archive_manager
 from repositories.db_context import async_db_session
@@ -58,6 +62,7 @@ async def archive_once_async() -> None:
             logger.warning("数据库维护已有任务运行，跳过本轮归档")
             return
 
+        _ensure_archive_system()
         manager = get_archive_manager(async_db_session)
         await manager.run_archiving_cycle()
 
@@ -84,6 +89,7 @@ def archive_force() -> None:
     logger.info("开始强制归档流程")
     
     async def _force_task():
+        _ensure_archive_system()
         manager = get_archive_manager(async_db_session)
         # 临时将阈值设为 -1 以强制归档所有现有数据
         original_config = manager.archive_config.copy()
