@@ -275,6 +275,8 @@ class _ConsolidatedFilter(logging.Filter):
         self.global_drop_patterns = [
             self._compile(_re, p) for p in settings.LOG_GLOBAL_DROP_PATTERNS.split(";") if p.strip()
         ]
+        self.telethon_noise_interval_seconds = 600.0
+        self._telethon_noise_last: Dict[str, float] = {}
 
     @staticmethod
     def _compile(_re: Any, pat: str) -> Optional[Any]:
@@ -295,12 +297,30 @@ class _ConsolidatedFilter(logging.Filter):
         return False
 
     def _is_telethon_noise(self, record: logging.LogRecord) -> bool:
-        if not (record.name or "").startswith("telethon.client.updates"):
-            return False
+        name = record.name or ""
         try:
-            return "Got difference for channel" in (record.getMessage() or "")
+            message = record.getMessage() or ""
         except Exception:
+            message = ""
+
+        key = None
+        if name.startswith("telethon.client.updates") and "Got difference for channel" in message:
+            key = "client_updates_difference"
+        elif name.startswith("telethon.network.mtprotostate") and "Server sent a very new message" in message:
+            key = "network_very_new_message"
+        elif name.startswith("telethon.network.mtprotosender") and "Too many messages had to be ignored consecutively" in message:
+            key = "network_too_many_ignored"
+
+        if key is None:
             return False
+
+        now = time.monotonic()
+        last_seen = self._telethon_noise_last.get(key)
+        if last_seen is None or now - last_seen >= self.telethon_noise_interval_seconds:
+            self._telethon_noise_last[key] = now
+            return False
+
+        return True
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:

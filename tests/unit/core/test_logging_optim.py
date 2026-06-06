@@ -4,7 +4,7 @@ import time
 import os
 import shutil
 from pathlib import Path
-from core.logging import BufferedRotatingFileHandler
+from core.logging import BufferedRotatingFileHandler, _ConsolidatedFilter
 
 class TestLoggingOptimization(unittest.TestCase):
     def setUp(self):
@@ -80,6 +80,51 @@ class TestLoggingOptimization(unittest.TestCase):
         err_size = os.path.getsize(error_log) if error_log.exists() else 0
         print(f"Error log size: {err_size}")
         self.assertTrue(err_size > 0)
+
+    def test_telethon_clock_noise_is_rate_limited(self):
+        log_filter = _ConsolidatedFilter()
+
+        very_new = logging.LogRecord(
+            "telethon.network.mtprotostate",
+            logging.WARNING,
+            __file__,
+            1,
+            "Server sent a very new message with ID 123, ignoring",
+            (),
+            None,
+        )
+        repeated_very_new = logging.LogRecord(
+            "telethon.network.mtprotostate",
+            logging.WARNING,
+            __file__,
+            2,
+            "Server sent a very new message with ID 456, ignoring",
+            (),
+            None,
+        )
+        ignored = logging.LogRecord(
+            "telethon.network.mtprotosender",
+            logging.WARNING,
+            __file__,
+            3,
+            "Security error while unpacking a received message: Too many messages had to be ignored consecutively",
+            (),
+            None,
+        )
+        repeated_ignored = logging.LogRecord(
+            "telethon.network.mtprotosender",
+            logging.WARNING,
+            __file__,
+            4,
+            "Security error while unpacking a received message: Too many messages had to be ignored consecutively",
+            (),
+            None,
+        )
+
+        self.assertTrue(log_filter.filter(very_new))
+        self.assertFalse(log_filter.filter(repeated_very_new))
+        self.assertTrue(log_filter.filter(ignored))
+        self.assertFalse(log_filter.filter(repeated_ignored))
 
 if __name__ == "__main__":
     unittest.main()
