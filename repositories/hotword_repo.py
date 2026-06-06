@@ -287,7 +287,10 @@ class HotwordRepository:
 
     async def move_temp_to_daily(self, date_key: str, semaphore: asyncio.Semaphore):
         """将 hot_raw_stats 中的数据归档到 hot_period_stats (day 级)"""
-        channels = await self.get_channel_dirs()
+        async with self.session_factory() as session:
+            result = await session.execute(select(HotRawStats.channel).distinct())
+            channels = list(result.scalars().all())
+
         for channel in channels:
             async with semaphore:
                 async with self.session_factory() as session:
