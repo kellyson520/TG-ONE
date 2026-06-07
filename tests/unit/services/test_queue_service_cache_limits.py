@@ -1,6 +1,10 @@
 import asyncio
 import time
 
+import pytest
+
+from core.exceptions import TransientError
+from services.network.circuit_breaker import CircuitState
 from services.queue_service import MessageQueueService, TelegramQueueService
 
 
@@ -66,3 +70,18 @@ async def test_message_queue_processes_falsy_items():
             for task in service._worker_tasks:
                 task.cancel()
             await asyncio.gather(*service._worker_tasks, return_exceptions=True)
+
+
+async def test_open_telegram_circuit_raises_transient_without_attempt_increment():
+    service = TelegramQueueService()
+    service._telegram_breaker.state = CircuitState.OPEN
+    service._telegram_breaker.last_failure_time = time.time()
+
+    async def operation():
+        raise AssertionError("operation should not run while circuit is open")
+
+    with pytest.raises(TransientError) as exc_info:
+        await service.run_guarded_operation("target", None, "GetMsgs", operation)
+
+    assert exc_info.value.context["increment_attempts"] is False
+    assert exc_info.value.context["retry_delay_seconds"] == service._telegram_breaker.recovery_timeout

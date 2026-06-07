@@ -2,8 +2,9 @@ import asyncio
 import logging
 from typing import Any, Callable, Awaitable, Dict, Tuple
 from collections import defaultdict, OrderedDict
+from core.exceptions import TransientError
 from services.network.pid import PIDController
-from services.network.circuit_breaker import CircuitBreaker
+from services.network.circuit_breaker import CircuitBreaker, CircuitOpenException
 import time
 
 logger = logging.getLogger(__name__)
@@ -362,7 +363,16 @@ class TelegramQueueService:
                                 logger.warning(f"Target {target_key} is in long FloodWait ({wait_seconds:.1f}s). Skipping sleep and raising.")
                                 raise FloodWaitException(int(wait_seconds))
                             await asyncio.sleep(wait_seconds)
-                    return await self._telegram_breaker.call(_run_with_retry)
+                    try:
+                        return await self._telegram_breaker.call(_run_with_retry)
+                    except CircuitOpenException as e:
+                        raise TransientError(
+                            str(e),
+                            context={
+                                "retry_delay_seconds": self._telegram_breaker.recovery_timeout,
+                                "increment_attempts": False,
+                            },
+                        ) from e
 
     def _update_next_at(self, target_key, pair_key):
         now = time.time()
