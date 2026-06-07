@@ -1,11 +1,17 @@
 import asyncio
 import time
+from unittest.mock import AsyncMock
 
 import pytest
 
 from core.exceptions import TransientError
 from services.network.circuit_breaker import CircuitState
-from services.queue_service import MessageQueueService, TelegramQueueService
+from services.queue_service import (
+    FloodWaitException,
+    MessageQueueService,
+    TelegramQueueService,
+    get_messages_queued,
+)
 
 
 def test_target_semaphore_cache_evicts_idle_entries():
@@ -121,6 +127,37 @@ async def test_message_queue_retries_batch_after_processor_failure():
             await asyncio.gather(*service._worker_tasks, return_exceptions=True)
 
 
+async def test_message_queue_requeue_does_not_deadlock_when_lane_fills():
+    service = MessageQueueService(max_size=1, workers=1)
+    first = ("persist", {"chat_id": 42}, 50)
+    second = ("persist", {"chat_id": 43}, 50)
+    attempts = 0
+    processed = []
+
+    async def processor(batch):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            await service.enqueue(second)
+            raise RuntimeError("temporary db failure")
+        processed.extend(batch)
+
+    async def wait_until_second_processed():
+        while second not in processed:
+            await asyncio.sleep(0.01)
+
+    service.set_processor(processor)
+    await service.start()
+    try:
+        await service.enqueue(first)
+        await asyncio.wait_for(wait_until_second_processed(), timeout=1.0)
+        assert second in processed
+    finally:
+        for task in service._worker_tasks:
+            task.cancel()
+        await asyncio.gather(*service._worker_tasks, return_exceptions=True)
+
+
 async def test_short_flood_wait_does_not_hold_global_semaphore():
     service = TelegramQueueService()
     service._global_sem = asyncio.Semaphore(1)
@@ -189,3 +226,13 @@ async def test_open_telegram_circuit_raises_transient_without_attempt_increment(
 
     assert exc_info.value.context["increment_attempts"] is False
     assert exc_info.value.context["retry_delay_seconds"] == service._telegram_breaker.recovery_timeout
+
+
+async def test_get_messages_entity_recovery_propagates_flood_wait(monkeypatch):
+    monkeypatch.setattr("services.queue_service.asyncio.sleep", AsyncMock())
+    client = AsyncMock()
+    client.get_messages.side_effect = ValueError("Could not find the input entity for Peer")
+    client.get_entity.side_effect = FloodWaitException(9)
+
+    with pytest.raises(FloodWaitException):
+        await get_messages_queued(client, 12345, ids=[1])

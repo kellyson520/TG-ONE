@@ -34,6 +34,39 @@ def _result_with_rows(rows):
 
 
 @pytest.mark.asyncio
+async def test_archive_writes_cross_date_batch_to_separate_partitions(monkeypatch):
+    session = _AsyncSession()
+    older = datetime(2026, 4, 1, 12, 0, 0)
+    newer = datetime(2026, 4, 2, 12, 0, 0)
+    rows = [
+        RuleLog(id=1, rule_id=10, action="forwarded", details="older", created_at=older),
+        RuleLog(id=2, rule_id=10, action="forwarded", details="newer", created_at=newer),
+    ]
+
+    session.execute.side_effect = [
+        _result_with_scalar(2),
+        _result_with_rows(rows),
+        MagicMock(),
+    ]
+    monkeypatch.setattr("repositories.archive_manager.settings.ARCHIVE_BATCH_SIZE", 100, raising=False)
+
+    manager = ArchiveManager(lambda: session)
+
+    with patch("repositories.archive_manager.write_parquet", return_value="/tmp/archive/part.parquet") as write_mock:
+        await manager.archive_model_data(RuleLog, days_threshold=30)
+
+    assert write_mock.call_count == 2
+    calls_by_date = {
+        call.kwargs["partition_dt"].date(): [row["id"] for row in call.args[1]]
+        for call in write_mock.call_args_list
+    }
+    assert calls_by_date == {
+        older.date(): [1],
+        newer.date(): [2],
+    }
+
+
+@pytest.mark.asyncio
 async def test_archive_stops_after_delete_lock_to_avoid_duplicate_parquet_writes(monkeypatch):
     session = _AsyncSession()
     old_time = datetime.utcnow() - timedelta(days=40)

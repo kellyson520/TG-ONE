@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Type, Any
+from typing import Type, Any, Dict, List, Tuple
 
 from sqlalchemy import select, delete, func
 from sqlalchemy.exc import OperationalError
@@ -154,22 +154,17 @@ class ArchiveManager:
                     row = {c.name: getattr(rec, c.name) for c in model.__table__.columns}
                     rows.append(row)
                 
-                # 写入 Parquet
-                first_rec_time = rows[0].get('created_at') or rows[0].get('timestamp')
-                if isinstance(first_rec_time, datetime):
-                    partition_dt = first_rec_time
-                elif isinstance(first_rec_time, str):
-                    try:
-                        partition_dt = datetime.fromisoformat(first_rec_time)
-                    except ValueError:
-                        partition_dt = datetime.utcnow()
-                else:
-                    partition_dt = datetime.utcnow()
-                
                 try:
-                    write_result = write_parquet(table_name, rows, partition_dt=partition_dt)
-                    if not write_result:
-                        logger.error(f"归档表 {table_name} 写入 Parquet 失败（返回空路径），跳过删除步骤")
+                    write_results = []
+                    for partition_dt, partition_rows in self._partition_rows_by_day(rows):
+                        write_result = write_parquet(table_name, partition_rows, partition_dt=partition_dt)
+                        if not write_result:
+                            logger.error(f"归档表 {table_name} 写入 Parquet 失败（返回空路径），跳过删除步骤")
+                            write_results = []
+                            break
+                        write_results.append(write_result)
+
+                    if not write_results:
                         continue
                     
                     # 如果有 Bloom 索引配置，更新索引
@@ -206,6 +201,27 @@ class ArchiveManager:
             # 归档后主库空间释放 (注意：VACUUM 不建议在常规事务中运行)
             # logger.info(f"执行表 {table_name} 的空间优化...")
             # await session.execute(text("VACUUM"))
+
+    def _partition_datetime_from_row(self, row: Dict[str, Any]) -> datetime:
+        rec_time = row.get('created_at') or row.get('timestamp')
+        if isinstance(rec_time, datetime):
+            return rec_time
+        if isinstance(rec_time, str):
+            try:
+                return datetime.fromisoformat(rec_time)
+            except ValueError:
+                return datetime.utcnow()
+        return datetime.utcnow()
+
+    def _partition_rows_by_day(self, rows: List[Dict[str, Any]]) -> List[Tuple[datetime, List[Dict[str, Any]]]]:
+        partitions: Dict[Any, Tuple[datetime, List[Dict[str, Any]]]] = {}
+        for row in rows:
+            partition_dt = self._partition_datetime_from_row(row)
+            key = partition_dt.date()
+            if key not in partitions:
+                partitions[key] = (partition_dt, [])
+            partitions[key][1].append(row)
+        return list(partitions.values())
 
     async def get_combined_logs(self, rule_id: int, limit: int = 100):
         """跨库查询：结合热库 (SQLite) 和冷库 (Parquet)"""

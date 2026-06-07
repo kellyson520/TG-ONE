@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -106,6 +107,37 @@ async def test_hotword_aggregation():
     assert "月" in month_data
     assert month_data["月"]["f"] == 3.0
 
+
+@pytest.mark.asyncio
+async def test_hotword_daily_aggregation_uses_configured_timezone(monkeypatch):
+    from datetime import timezone
+    from services.hotword_service import HotwordService
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            utc_now = datetime(2026, 6, 1, 16, 0, 10, tzinfo=timezone.utc)
+            if tz is not None:
+                return utc_now.astimezone(tz)
+            return utc_now.replace(tzinfo=None)
+
+    class FakeRepo:
+        def __init__(self):
+            self.archived_date = None
+
+        async def move_temp_to_daily(self, date_key, semaphore):
+            self.archived_date = date_key
+
+    service = HotwordService()
+    service.repo = FakeRepo()
+    monkeypatch.setattr("services.hotword_service.datetime", FixedDateTime)
+    monkeypatch.setattr("services.hotword_service.settings.TIMEZONE", "Asia/Shanghai")
+
+    await service.aggregate_daily()
+
+    assert service.repo.archived_date == "20260601"
+
+
 @pytest.mark.asyncio
 async def test_hotword_rankings_read_archived_periods_when_raw_is_empty():
     from services.hotword_service import HotwordService
@@ -180,6 +212,22 @@ async def test_hotword_resolves_callback_token_from_archived_channels():
 
     assert await service.resolve_channel_token(token) == channel
     assert await service.resolve_channel_token("not-a-token") is None
+
+@pytest.mark.asyncio
+async def test_hotword_resolves_global_callback_token_without_archived_global_channel():
+    from services.hotword_service import HotwordService
+    from sqlalchemy import text
+    from ui.hotword_callback_codec import make_hotword_channel_token
+
+    service = HotwordService()
+    token = make_hotword_channel_token("global")
+
+    async with service.repo.session_factory() as session:
+        await session.execute(text("DELETE FROM hot_raw_stats WHERE channel = 'global'"))
+        await session.execute(text("DELETE FROM hot_period_stats WHERE channel = 'global'"))
+        await session.commit()
+
+    assert await service.resolve_channel_token(token) == "global"
 
 @pytest.mark.asyncio
 async def test_hotword_global_month_prefers_direct_global_archive():
@@ -454,6 +502,48 @@ async def test_hotword_temp_counts_batch_upsert_accumulates():
 
     assert data["批量写入"]["f"] == 15.0
     assert data["批量写入"]["u"] == 5
+
+
+@pytest.mark.asyncio
+async def test_hotword_daily_archive_merges_with_existing_day_instead_of_overwriting():
+    from repositories.hotword_repo import HotwordRepository
+    from models.hotword import HotRawStats, HotPeriodStats
+    from sqlalchemy import text
+
+    repo = HotwordRepository()
+    channel = "daily_merge_existing_chan"
+    date_key = "20260502"
+
+    async with repo.session_factory() as session:
+        await session.execute(text("DELETE FROM hot_period_stats WHERE channel = :channel"), {"channel": channel})
+        await session.execute(text("DELETE FROM hot_raw_stats WHERE channel = :channel"), {"channel": channel})
+        session.add_all([
+            HotPeriodStats(
+                channel=channel,
+                word="历史热词",
+                period="day",
+                date_key=date_key,
+                score=10.0,
+                user_count=2,
+            ),
+            HotRawStats(
+                channel=channel,
+                word="历史热词",
+                score=2.0,
+                unique_users=1,
+                last_update=datetime(2026, 5, 2, 23, 30),
+            ),
+        ])
+        await session.commit()
+
+    await repo.move_temp_to_daily(date_key, asyncio.Semaphore(1))
+
+    data = await repo.load_rankings(channel, f"{channel}_day_{date_key}.json")
+    temp = await repo.load_rankings(channel, "_temp")
+
+    assert data["历史热词"]["f"] == 12.0
+    assert data["历史热词"]["u"] == 3
+    assert temp == {}
 
 
 @pytest.mark.asyncio

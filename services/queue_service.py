@@ -56,6 +56,7 @@ class MessageQueueService:
         
         self.workers = workers
         self._worker_tasks = []
+        self._requeue_tasks = set()
         self._processor_callback: Callable[[Any], Awaitable[None]] = None
         self._started = False
         
@@ -94,8 +95,14 @@ class MessageQueueService:
     async def stop(self):
         """Gracefully stops the service."""
         logger.info("正在停止 MessageQueueService... 正在等待队列清空")
-        for lane in self.lanes.values():
-            await lane.join()
+        while True:
+            for lane in self.lanes.values():
+                await lane.join()
+
+            pending_requeues = list(self._requeue_tasks)
+            if not pending_requeues:
+                break
+            await asyncio.gather(*pending_requeues, return_exceptions=True)
         
         logger.info("队列已清空。正在取消工作线程")
         for task in self._worker_tasks:
@@ -158,6 +165,13 @@ class MessageQueueService:
         for item in items:
             await self.enqueue(item)
 
+    def _schedule_requeue_batch(self, items):
+        if not items:
+            return
+        task = asyncio.create_task(self._requeue_batch(items))
+        self._requeue_tasks.add(task)
+        task.add_done_callback(self._requeue_tasks.discard)
+
     async def _worker_loop(self, worker_id: int):
         """Consumer process with Strict Priority Logic (Event-Based)."""
         logger.debug(f"Worker-{worker_id} started (QoS 4.0).")
@@ -208,12 +222,12 @@ class MessageQueueService:
                         pass
                         
                     # Process Batch
+                    retry_items = []
                     try:
                         await self._processor_callback(buffer)
                     except Exception as e:
                         logger.error(f"Worker-{worker_id} failed to process batch: {e}", exc_info=True)
-                        await self._requeue_batch(list(buffer))
-                        await asyncio.sleep(min(1.0, max(0.05, self._current_delay)))
+                        retry_items = list(buffer)
                     finally:
                         # Cleanup & State Update
                         for item in buffer:
@@ -231,6 +245,8 @@ class MessageQueueService:
                                     
                             # Mark Task Done
                             self.lanes[selected_lane].task_done()
+
+                        self._schedule_requeue_batch(retry_items)
                             
                         # [PID Logic]
                         q_deep = self.qsize() # Total size
@@ -242,7 +258,7 @@ class MessageQueueService:
                         # Yield control briefly to avoid starving event loop if processing is synchronous-heavy
                         # But with pure async, it's fine. 
                         # Using PID delay to pace usage if needed
-                        if self._current_delay > 0.01:
+                        if q_deep == 0 and self._current_delay > 0.01:
                              await asyncio.sleep(self._current_delay)
             
             except asyncio.CancelledError:
@@ -434,12 +450,34 @@ class TelegramQueueService:
         self._trim_flood_wait_cache()
 
 telegram_queue_service = TelegramQueueService()
+
+def _pop_handle_flood_wait_sleep(kwargs: dict) -> bool:
+    return bool(kwargs.pop("handle_flood_wait_sleep", True))
+
+def _is_retryable_queue_error(error: Exception) -> bool:
+    return isinstance(error, (FloodWaitException, TransientError))
+
 async def send_message_queued(client, target_chat_id, message, **kwargs):
-    return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendMsg", lambda: client.send_message(target_chat_id, message, **kwargs))
+    handle_flood_wait_sleep = _pop_handle_flood_wait_sleep(kwargs)
+    return await telegram_queue_service.run_guarded_operation(
+        target_chat_id,
+        None,
+        "SendMsg",
+        lambda: client.send_message(target_chat_id, message, **kwargs),
+        handle_flood_wait_sleep=handle_flood_wait_sleep,
+    )
 async def send_file_queued(client, target_chat_id, file, **kwargs):
-    return await telegram_queue_service.run_guarded_operation(target_chat_id, None, "SendFile", lambda: client.send_file(target_chat_id, file, **kwargs))
+    handle_flood_wait_sleep = _pop_handle_flood_wait_sleep(kwargs)
+    return await telegram_queue_service.run_guarded_operation(
+        target_chat_id,
+        None,
+        "SendFile",
+        lambda: client.send_file(target_chat_id, file, **kwargs),
+        handle_flood_wait_sleep=handle_flood_wait_sleep,
+    )
 async def forward_messages_queued(client, source_chat_id, target_chat_id, messages, **kwargs):
     use_batch = settings.ENABLE_BATCH_FORWARD_API
+    handle_flood_wait_sleep = _pop_handle_flood_wait_sleep(kwargs)
     
     # 获取消息 ID 列表供批量使用
     if isinstance(messages, int):
@@ -456,9 +494,12 @@ async def forward_messages_queued(client, source_chat_id, target_chat_id, messag
         try:
             return await telegram_queue_service.run_guarded_operation(
                 target_chat_id, source_chat_id, "ForwardBatch", 
-                lambda: api_optimizer.forward_messages_batch(client, source_chat_id, target_chat_id, ids, **kwargs)
+                lambda: api_optimizer.forward_messages_batch(client, source_chat_id, target_chat_id, ids, **kwargs),
+                handle_flood_wait_sleep=handle_flood_wait_sleep,
             )
         except Exception as e:
+            if _is_retryable_queue_error(e):
+                raise
             logger.warning(f"Batch forward failed, falling back to individual calls: {e}")
             # Fallback to individual
             results = []
@@ -466,15 +507,24 @@ async def forward_messages_queued(client, source_chat_id, target_chat_id, messag
                 try:
                     res = await telegram_queue_service.run_guarded_operation(
                         target_chat_id, source_chat_id, "ForwardSingle", 
-                        lambda m=msg_id: client.forward_messages(target_chat_id, m, from_peer=source_chat_id, **kwargs)
+                        lambda m=msg_id: client.forward_messages(target_chat_id, m, from_peer=source_chat_id, **kwargs),
+                        handle_flood_wait_sleep=handle_flood_wait_sleep,
                     )
                     results.append(res)
                 except Exception as ex:
+                    if _is_retryable_queue_error(ex):
+                        raise
                     logger.warning(f"Failed to forward message {msg_id} during fallback: {ex}")
             return results
 
     # 单条转发或不启用批量
-    return await telegram_queue_service.run_guarded_operation(target_chat_id, source_chat_id, "Forward", lambda: client.forward_messages(target_chat_id, messages, from_peer=source_chat_id, **kwargs))
+    return await telegram_queue_service.run_guarded_operation(
+        target_chat_id,
+        source_chat_id,
+        "Forward",
+        lambda: client.forward_messages(target_chat_id, messages, from_peer=source_chat_id, **kwargs),
+        handle_flood_wait_sleep=handle_flood_wait_sleep,
+    )
 
 async def get_messages_queued(client, chat_id, ids=None, **kwargs):
     """
@@ -495,6 +545,8 @@ async def get_messages_queued(client, chat_id, ids=None, **kwargs):
                     return await client.get_messages(chat_id, ids=ids, **kwargs)
                 except Exception as ex:
                     logger.error(f"Failed to resolve entity for {chat_id}: {ex}")
+                    if _is_retryable_queue_error(ex):
+                        raise
                     raise e # 抛出原始的 ValueError
             raise e
         except Exception as e:

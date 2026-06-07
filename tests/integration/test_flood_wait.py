@@ -162,3 +162,43 @@ async def test_batch_forward_fallback(mock_client, monkeypatch):
         assert mock_batch.called
         # 验证回退到单条调用 (3次)
         assert mock_client.forward_messages.call_count == 3
+
+@pytest.mark.asyncio
+async def test_batch_forward_propagates_flood_wait_without_fallback(mock_client, monkeypatch):
+    """批量转发遇到限流必须交给 worker 重试，不能 fallback 后误报成功"""
+    import services.queue_service as queue_module
+
+    monkeypatch.setattr(queue_module.settings, "ENABLE_BATCH_FORWARD_API", True)
+    with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
+        mock_batch.side_effect = FloodWaitException(30)
+        mock_client.forward_messages.return_value = "success"
+
+        with pytest.raises(FloodWaitException):
+            await forward_messages_queued(
+                client=mock_client,
+                source_chat_id=111,
+                target_chat_id=2001,
+                messages=[1, 2, 3],
+                handle_flood_wait_sleep=False,
+            )
+
+        mock_client.forward_messages.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_batch_forward_fallback_propagates_single_flood_wait(mock_client, monkeypatch):
+    """fallback 逐条转发遇到限流也必须停止，不能吞掉后继续 complete"""
+    import services.queue_service as queue_module
+
+    monkeypatch.setattr(queue_module.settings, "ENABLE_BATCH_FORWARD_API", True)
+    with patch('services.network.telegram_api_optimizer.api_optimizer.forward_messages_batch') as mock_batch:
+        mock_batch.side_effect = Exception("Batch failed")
+        mock_client.forward_messages.side_effect = FloodWaitException(15)
+
+        with pytest.raises(FloodWaitException):
+            await forward_messages_queued(
+                client=mock_client,
+                source_chat_id=111,
+                target_chat_id=2002,
+                messages=[1, 2, 3],
+                handle_flood_wait_sleep=False,
+            )

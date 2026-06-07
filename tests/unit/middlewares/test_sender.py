@@ -1,7 +1,9 @@
 
+import asyncio
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from core.pipeline import MessageContext
+from core.exceptions import TransientError
 from middlewares.sender import SenderMiddleware
 from models.models import ForwardRule, Chat
 from datetime import datetime
@@ -131,3 +133,122 @@ async def test_sender_with_buttons(mock_client, mock_message, mock_rule):
     args, kwargs = mock_client.send_message.call_args
     assert args[1] == "👇 互动按钮"
     assert 'buttons' in kwargs
+
+@pytest.mark.asyncio
+async def test_execute_send_re_raises_transient_error_after_failed_event(mock_client, mock_message, mock_rule):
+    """瞬态发送失败必须抛回 worker，否则任务会被误标记完成"""
+    mock_rule.is_replace = True
+    ctx = MessageContext(
+        client=mock_client,
+        task_id=1,
+        chat_id=111,
+        message_id=100,
+        message_obj=mock_message,
+        rules=[mock_rule]
+    )
+    ctx.metadata['modified_text'] = "Modified Content"
+
+    mock_bus = AsyncMock()
+    middleware = SenderMiddleware(mock_bus)
+
+    with patch("core.helpers.smart_retry.retry_manager.execute", side_effect=TransientError("temporary network error")):
+        with pytest.raises(TransientError):
+            await middleware._execute_send(ctx, mock_rule, [100], [ctx])
+
+    assert any(
+        call.args[0] == "FORWARD_FAILED"
+        for call in mock_bus.publish.call_args_list
+    )
+
+@pytest.mark.asyncio
+async def test_execute_send_wraps_retryable_timeout_as_transient(mock_client, mock_message, mock_rule):
+    """SmartRetry 耗尽后抛出的原始网络异常仍应触发 worker 重试"""
+    mock_rule.is_replace = True
+    ctx = MessageContext(
+        client=mock_client,
+        task_id=1,
+        chat_id=111,
+        message_id=100,
+        message_obj=mock_message,
+        rules=[mock_rule]
+    )
+    ctx.metadata['modified_text'] = "Modified Content"
+
+    mock_bus = AsyncMock()
+    middleware = SenderMiddleware(mock_bus)
+
+    with patch("core.helpers.smart_retry.retry_manager.execute", side_effect=TimeoutError("send timed out")):
+        with pytest.raises(TransientError) as exc_info:
+            await middleware._execute_send(ctx, mock_rule, [100], [ctx])
+
+    assert isinstance(exc_info.value.__cause__, TimeoutError)
+    assert any(
+        call.args[0] == "FORWARD_FAILED"
+        for call in mock_bus.publish.call_args_list
+    )
+
+@pytest.mark.asyncio
+async def test_process_re_raises_transient_buffer_failure(mock_client, mock_message, mock_rule):
+    """缓冲区直通/推送阶段的瞬态错误也必须交给 worker 重试"""
+    mock_rule.enable_only_push = False
+    ctx = MessageContext(
+        client=mock_client,
+        task_id=1,
+        chat_id=111,
+        message_id=100,
+        message_obj=mock_message,
+        rules=[mock_rule]
+    )
+    mock_bus = AsyncMock()
+    next_call = AsyncMock()
+    middleware = SenderMiddleware(mock_bus)
+
+    with patch("middlewares.sender.smart_buffer.push", side_effect=TransientError("temporary queue pressure")):
+        with pytest.raises(TransientError):
+            await middleware.process(ctx, next_call)
+
+    next_call.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_process_enqueues_multiple_rules_concurrently(mock_client, mock_message, mock_rule):
+    """多个目标规则不能因等待 smart buffer flush 而串行阻塞"""
+    mock_rule.enable_only_push = False
+    second_rule = MagicMock(spec=ForwardRule)
+    second_rule.id = 6
+    second_rule.target_chat = MagicMock(spec=Chat)
+    second_rule.target_chat.telegram_chat_id = "333"
+    second_rule.enable_only_push = False
+
+    ctx = MessageContext(
+        client=mock_client,
+        task_id=1,
+        chat_id=111,
+        message_id=100,
+        message_obj=mock_message,
+        rules=[mock_rule, second_rule]
+    )
+    mock_bus = AsyncMock()
+    next_call = AsyncMock()
+    middleware = SenderMiddleware(mock_bus)
+
+    first_entered = asyncio.Event()
+    first_can_finish = asyncio.Event()
+    second_entered = asyncio.Event()
+
+    async def fake_push(rule_id, target_id, context, send_callback):
+        if rule_id == mock_rule.id:
+            first_entered.set()
+            await first_can_finish.wait()
+        elif rule_id == second_rule.id:
+            second_entered.set()
+
+    with patch("middlewares.sender.smart_buffer.push", side_effect=fake_push):
+        process_task = asyncio.create_task(middleware.process(ctx, next_call))
+        await asyncio.wait_for(first_entered.wait(), timeout=0.1)
+        await asyncio.sleep(0.01)
+
+        try:
+            assert second_entered.is_set()
+        finally:
+            first_can_finish.set()
+            await process_task

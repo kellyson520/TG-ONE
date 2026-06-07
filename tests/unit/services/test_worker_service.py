@@ -190,3 +190,37 @@ async def test_connection_backoff_does_not_consume_task_attempt(monkeypatch):
     assert repo.reschedule.await_args.args[0] == 31
     assert before + timedelta(seconds=4.5) <= repo.reschedule.await_args.args[1]
     assert repo.reschedule.await_args.kwargs["increment_attempts"] is False
+
+
+async def test_manual_download_forward_transient_error_retries_task(monkeypatch):
+    _patch_worker_settings(monkeypatch, MAX_RETRIES=3)
+    import core.helpers.id_utils as id_utils
+
+    repo = SimpleNamespace(reschedule=AsyncMock(), fail=AsyncMock(), complete=AsyncMock())
+    downloader = SimpleNamespace(push_to_queue=AsyncMock(return_value="/tmp/manual.bin"))
+    worker = WorkerService(
+        client=MagicMock(),
+        task_repo=repo,
+        pipeline=MagicMock(),
+        downloader=downloader,
+    )
+    message = SimpleNamespace(id=200, text="caption")
+    task = SimpleNamespace(
+        id=41,
+        attempts=0,
+        task_type="manual_download",
+        task_data='{"chat_id": 100, "message_id": 200, "target_chat_id": 300}',
+    )
+    monkeypatch.setattr(id_utils, "get_display_name_async", AsyncMock(return_value="source"))
+    monkeypatch.setattr(worker_module, "get_messages_queued", AsyncMock(return_value=message))
+    monkeypatch.setattr(
+        worker_module,
+        "send_file_queued",
+        AsyncMock(side_effect=TransientError("temporary send failure")),
+    )
+
+    await worker._process_task_safely(task, MagicMock())
+
+    repo.reschedule.assert_awaited_once()
+    repo.complete.assert_not_awaited()
+    repo.fail.assert_not_awaited()

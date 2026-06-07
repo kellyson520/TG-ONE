@@ -535,6 +535,8 @@ class WorkerService:
                                 caption=primary_message.text or ""
                             )
                             log.info(f"manual_forward_completed", target_id=target_id)
+                        except (FloodWaitException, TransientError):
+                            raise
                         except Exception as e:
                             log.error(f"manual_forward_failed", target_id=target_id, error=str(e))
                             # 注意：这里我们只记录错误，不抛出异常，因为下载已经成功了

@@ -318,37 +318,40 @@ class HotwordRepository:
             async with semaphore:
                 async with self.session_factory() as session:
                     try:
-                        # 1. 读取该频道所有 temp 数据
+                        # 1. 读取该频道所有 temp 数据。raw 表只保存聚合增量，last_update 是写入时间，
+                        #    不是消息发生时间，不能用它做日期分桶。
                         stmt = select(HotRawStats).where(HotRawStats.channel == channel)
                         result = await session.execute(stmt)
                         rows = result.scalars().all()
                         
                         if not rows: continue
                         
-                        # 2. 先删除同一频道/日期的旧归档，再写入新快照。
-                        #    这样定时任务重入或手动补跑不会产生重复行/重复计数。
-                        await session.execute(
-                            delete(HotPeriodStats).where(
-                                HotPeriodStats.channel == channel,
-                                HotPeriodStats.period == "day",
-                                HotPeriodStats.date_key == date_key,
-                            )
+                        # 2. 批量 UPSERT 到 period 统计表；重跑或补归档时合并增量，不覆盖已有日榜。
+                        archive_rows = [
+                            {
+                                "channel": channel,
+                                "word": row.word,
+                                "period": "day",
+                                "date_key": date_key,
+                                "score": row.score,
+                                "user_count": row.unique_users,
+                            }
+                            for row in rows
+                        ]
+                        stmt = insert(HotPeriodStats).values(archive_rows)
+                        excluded = stmt.excluded
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=["channel", "word", "period", "date_key"],
+                            set_={
+                                "score": HotPeriodStats.score + excluded.score,
+                                "user_count": HotPeriodStats.user_count + excluded.user_count,
+                            },
                         )
-
-                        # 3. 批量插入到 period 统计表
-                        for row in rows:
-                            new_row = HotPeriodStats(
-                                channel=channel,
-                                word=row.word,
-                                period='day',
-                                date_key=date_key,
-                                score=row.score,
-                                user_count=row.unique_users
-                            )
-                            session.add(new_row)
+                        await session.execute(stmt)
                         
-                        # 4. 清空该频道的 raw 数据 (原子操作)
-                        await session.execute(delete(HotRawStats).where(HotRawStats.channel == channel))
+                        # 3. 只清空已归档的 raw 数据 (原子操作)
+                        delete_stmt = delete(HotRawStats).where(HotRawStats.channel == channel)
+                        await session.execute(delete_stmt)
                         await session.commit()
                         logger.info(f"Archived daily hotwords for channel: {channel}")
                     except Exception as e:

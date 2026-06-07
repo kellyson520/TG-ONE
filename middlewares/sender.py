@@ -1,5 +1,6 @@
 from core.pipeline import Middleware
-from services.queue_service import forward_messages_queued 
+from core.exceptions import TransientError
+from services.queue_service import FloodWaitException, forward_messages_queued
 from services.smart_buffer import smart_buffer
 import logging
 import asyncio
@@ -7,6 +8,15 @@ from core.helpers.forward_recorder import forward_recorder
 
 
 logger = logging.getLogger(__name__)
+
+def _is_retryable_send_error(error: Exception) -> bool:
+    if isinstance(error, (FloodWaitException, TransientError)):
+        return True
+    try:
+        from core.helpers.smart_retry import retry_manager
+        return retry_manager.should_retry(error)
+    except Exception:
+        return isinstance(error, (TimeoutError, ConnectionError))
 
 class SenderMiddleware(Middleware):
     def __init__(self, event_bus):
@@ -21,33 +31,44 @@ class SenderMiddleware(Middleware):
         if forward_rules:
             # 如果是媒体组，则启用智能缓冲区聚合
             # 文本消息也可以选择性启用，这里我们为所有转发规则启用聚合逻辑
+            push_tasks = []
             for rule in forward_rules:
-                try:
-                    target_id = int(rule.target_chat.telegram_chat_id)
-                    
-                    # 定义实际发送逻辑
-                    async def do_send(buffered_ctxs: list, bound_rule=rule):
-                        # 聚合逻辑：如果是多条消息，提取 message_id 列表
-                        # 这里我们取列表中的第一条作为主 context 触发后续逻辑
-                        primary_ctx = buffered_ctxs[0]
-                        msg_ids = [c.message_id for c in buffered_ctxs]
-                        
-                        # 如果是 Copy 模式，UnifiedSender 已经能处理 List[Media]
-                        # 如果是 Forward 模式，我们合并 IDs
-                        await self._execute_send(primary_ctx, bound_rule, msg_ids, buffered_ctxs)
+                push_tasks.append(asyncio.create_task(self._push_rule_to_buffer(ctx, rule)))
 
-                    # 推入缓冲区
-                    await smart_buffer.push(
-                        rule.id, 
-                        target_id, 
-                        ctx, 
-                        do_send
-                    )
-                    
-                except Exception as e:
-                    logger.error(f"❌ [发送器] 推入缓冲区失败: {e}")
+            results = await asyncio.gather(*push_tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, (FloodWaitException, TransientError)):
+                    raise result
 
         await next_call()
+
+    async def _push_rule_to_buffer(self, ctx, rule):
+        try:
+            target_id = int(rule.target_chat.telegram_chat_id)
+
+            # 定义实际发送逻辑
+            async def do_send(buffered_ctxs: list, bound_rule=rule):
+                # 聚合逻辑：如果是多条消息，提取 message_id 列表
+                # 这里我们取列表中的第一条作为主 context 触发后续逻辑
+                primary_ctx = buffered_ctxs[0]
+                msg_ids = [c.message_id for c in buffered_ctxs]
+
+                # 如果是 Copy 模式，UnifiedSender 已经能处理 List[Media]
+                # 如果是 Forward 模式，我们合并 IDs
+                await self._execute_send(primary_ctx, bound_rule, msg_ids, buffered_ctxs)
+
+            # 推入缓冲区
+            await smart_buffer.push(
+                rule.id,
+                target_id,
+                ctx,
+                do_send
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [发送器] 推入缓冲区失败: {e}")
+            if isinstance(e, (FloodWaitException, TransientError)):
+                raise
 
     async def _execute_send(self, ctx, rule, message_ids, all_ctxs):
         """真正的发送执行逻辑"""
@@ -206,9 +227,10 @@ class SenderMiddleware(Middleware):
                 "ctx_task_id": getattr(ctx, 'task_id', None)
             }, wait=True)
             
-            from services.queue_service import FloodWaitException
-            if isinstance(e, FloodWaitException):
-                raise e
+            if isinstance(e, (FloodWaitException, TransientError)):
+                raise
+            if _is_retryable_send_error(e):
+                raise TransientError(str(e)) from e
 
     async def _cleanup_source(self, ctx, message_ids):
         """清理源消息逻辑"""

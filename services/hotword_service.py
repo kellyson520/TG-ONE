@@ -4,6 +4,7 @@ import math
 import re
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from core.config import settings
 from core.logging import get_logger, log_performance
@@ -14,6 +15,14 @@ from core.algorithms.simhash import SimHashIndex
 from core.algorithms.ac_automaton import ACManager
 
 logger = get_logger(__name__)
+
+def hotword_now() -> datetime:
+    timezone_name = getattr(settings, "TIMEZONE", None) or getattr(settings, "DEFAULT_TIMEZONE", "Asia/Shanghai")
+    try:
+        return datetime.now(ZoneInfo(timezone_name))
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        logger.warning(f"Invalid hotword timezone '{timezone_name}', falling back to local time")
+        return datetime.now()
 
 class HotwordAnalyzer:
     """
@@ -659,7 +668,7 @@ class HotwordService:
     async def _load_global_from_channels(self, period: str) -> tuple[Dict[str, Any], Dict[str, list], int]:
         """Aggregate global rankings from per-channel data when direct global data is unavailable."""
         if period == "day":
-            date_str = datetime.now().strftime("%Y%m%d")
+            date_str = hotword_now().strftime("%Y%m%d")
             data, word_ch_freq, num_channels = await self.repo.load_global_day_snapshot(date_str)
             if data:
                 return data, word_ch_freq, num_channels
@@ -699,6 +708,9 @@ class HotwordService:
         if not is_hotword_channel_token(token):
             return None
 
+        if make_hotword_channel_token("global") == token:
+            return "global"
+
         for channel in await self.repo.get_channel_dirs():
             if make_hotword_channel_token(channel) == token:
                 return channel
@@ -707,7 +719,7 @@ class HotwordService:
     async def _load_period_data(self, channel_name: str, period: str) -> Dict[str, Any]:
         """内部辅助：加载特定周期数据"""
         if period == "day":
-            date_str = datetime.now().strftime("%Y%m%d")
+            date_str = hotword_now().strftime("%Y%m%d")
             fname = f"{channel_name}_day_{date_str}.json" # 保持文件名兼容，Repo 会解析
             data = self._merge_period_data(
                 await self.repo.load_rankings(channel_name, fname),
@@ -716,7 +728,7 @@ class HotwordService:
             if not data:
                 data = await self.repo.load_latest_period(channel_name, "day")
         elif period == "month":
-            month_key = datetime.now().strftime("%Y%m")
+            month_key = hotword_now().strftime("%Y%m")
             fname = f"{channel_name}_month_{month_key}.json"
             month_data = await self.repo.load_rankings(channel_name, fname)
             temp_data = await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
@@ -733,8 +745,9 @@ class HotwordService:
                     or await self.repo.load_latest_period(channel_name, "day")
                 )
         elif period == "year":
-            year_key = str(datetime.now().year)
-            month_key = datetime.now().strftime("%Y%m")
+            now = hotword_now()
+            year_key = str(now.year)
+            month_key = now.strftime("%Y%m")
             fname = f"{channel_name}_year_{year_key}.json"
             year_data = await self.repo.load_rankings(channel_name, fname)
             temp_data = await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json")
@@ -787,7 +800,7 @@ class HotwordService:
  
     async def aggregate_daily(self):
         await self.flush_to_disk()
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+        yesterday = (hotword_now() - timedelta(days=1)).strftime("%Y%m%d")
         # 直接调用 Repo 的 DB 聚合逻辑，内置信号量控频
         await self.repo.move_temp_to_daily(yesterday, self.io_semaphore)
         logger.info(f"Daily aggregation completed for {yesterday}")
@@ -811,11 +824,11 @@ class HotwordService:
         )
 
     async def aggregate_monthly(self):
-        last_month = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
+        last_month = (hotword_now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
         await self.aggregate_period("Monthly", f"day_{last_month}", f"month_{last_month}.json")
 
     async def aggregate_yearly(self):
-        last_year = str(datetime.now().year - 1)
+        last_year = str(hotword_now().year - 1)
         await self.aggregate_period("Yearly", f"month_{last_year}", f"year_{last_year}.json")
 
     async def fuzzy_match_channel(self, query: str) -> List[str]:

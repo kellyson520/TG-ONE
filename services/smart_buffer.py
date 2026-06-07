@@ -47,15 +47,18 @@ class SmartBufferService:
 
 
         flush_now = False
+        flush_future = None
         async with self._lock:
             self._total_contexts += 1
             if key not in self._buffers:
+                flush_future = asyncio.get_running_loop().create_future()
                 self._buffers[key] = {
                     "contexts": [context],
                     "timer": None,
                     "start_time": time.time(),
                     "last_received": time.time(),
-                    "config": config
+                    "config": config,
+                    "future": flush_future
                 }
                 # 启动发车计时器
                 self._buffers[key]["timer"] = asyncio.create_task(
@@ -64,6 +67,7 @@ class SmartBufferService:
                 logger.debug(f"🚍 [小车启动] 规则 {rule_id} -> 目标 {target_chat_id} 开始收集消息 (防抖: {config['debounce']}s)")
             else:
                 buffer = self._buffers[key]
+                flush_future = buffer.get("future")
                 buffer["contexts"].append(context)
                 buffer["last_received"] = time.time()
                 # 更新配置（以防规则在运行中被修改）
@@ -77,7 +81,16 @@ class SmartBufferService:
                     flush_now = True
 
         if flush_now:
-            await self._flush(key, send_callback)
+            try:
+                await self._flush(key, send_callback)
+            except Exception:
+                if flush_future and flush_future.done():
+                    flush_future.exception()
+                raise
+            return
+
+        if flush_future:
+            await asyncio.shield(flush_future)
 
     async def _wait_and_flush(self, key: tuple, send_callback: Callable):
         """计时器逻辑"""
@@ -123,6 +136,7 @@ class SmartBufferService:
                 return
             
             contexts = buffer["contexts"]
+            flush_future = buffer.get("future")
             self._total_contexts = max(0, self._total_contexts - len(contexts))
 
             
@@ -131,6 +145,12 @@ class SmartBufferService:
             await send_callback(contexts)
         except Exception as e:
             logger.error(f"缓冲区发送回调失败: {e}")
+            if flush_future and not flush_future.done():
+                flush_future.set_exception(e)
+            raise
+        else:
+            if flush_future and not flush_future.done():
+                flush_future.set_result(None)
 
 # 全局单例
 smart_buffer = SmartBufferService()
