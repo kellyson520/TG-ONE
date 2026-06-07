@@ -61,5 +61,22 @@ class TestLSHForest(unittest.TestCase):
         results = self.forest.query(target_h, top_k=5)
         self.assertEqual(results[0], "id_500")
 
+    def test_query_logs_malformed_candidate_and_continues(self):
+        forest = LSHForest(num_trees=1, prefix_length=64)
+        target_h = 0x123456789ABCDEF0
+        forest.trees[0] = [
+            (target_h, "doc1"),
+            (target_h + 1,),
+        ]
+
+        with self.assertLogs("core.algorithms.lsh_forest", level="WARNING") as logs:
+            results = forest.query(target_h, top_k=1, max_search=10)
+
+        self.assertEqual(results, ["doc1"])
+        log_text = "\n".join(logs.output)
+        self.assertIn("LSH Forest候选项损坏", log_text)
+        self.assertIn("tree=0", log_text)
+        self.assertIn("direction=right", log_text)
+
 if __name__ == "__main__":
     unittest.main()

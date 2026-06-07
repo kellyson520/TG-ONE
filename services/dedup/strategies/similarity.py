@@ -1,54 +1,67 @@
-from datetime import datetime
-import logging
-import time
-from typing import Optional, Dict
+from typing import Callable, Optional
 
 from services.dedup.strategies.base import BaseDedupStrategy
 from services.dedup.types import DedupContext, DedupResult
 from services.dedup.tools import (
-    calculate_simhash, 
-    is_video, 
-    calculate_text_similarity,
-    clean_text_for_hash
+    calculate_simhash,
+    is_video,
+    clean_text_for_hash,
 )
-from core.helpers.metrics import DEDUP_HITS_TOTAL, DEDUP_FP_HITS_TOTAL, DEDUP_SIMILARITY_COMPARISONS
+from core.helpers.metrics import (
+    DEDUP_HITS_TOTAL,
+    DEDUP_FP_HITS_TOTAL,
+    DEDUP_SIMILARITY_COMPARISONS,
+)
 
-logger = logging.getLogger(__name__)
 
 class SimilarityStrategy(BaseDedupStrategy):
     async def process(self, ctx: DedupContext) -> Optional[DedupResult]:
         """高级文本相似度去重 (LSH Forest + SimHash v3 + Pruning)"""
-        
+
         config = ctx.config
         if not config.get("enable_smart_similarity", False):
             return None
-            
+
         message_obj = ctx.message_obj
         target_chat_id = ctx.target_chat_id
-        
+
         # 1. 前置过滤
-        if is_video(message_obj) and not config.get("enable_text_similarity_for_video", False):
+        if is_video(message_obj) and not config.get(
+            "enable_text_similarity_for_video",
+            False,
+        ):
             return None
-            
-        if getattr(message_obj, "grouped_id", None) and config.get("disable_similarity_for_grouped", True):
+
+        if getattr(message_obj, "grouped_id", None) and config.get(
+            "disable_similarity_for_grouped",
+            True,
+        ):
             return None
-            
-        text = getattr(message_obj, "message", "") or getattr(message_obj, "text", "")
-        if not text: return None
-        
+
+        text = (
+            getattr(message_obj, "message", "")
+            or getattr(message_obj, "text", "")
+        )
+        if not text:
+            return None
+
         # 清洗文本
-        cleaned_text = clean_text_for_hash(text, strip_numbers=config.get("strip_numbers", True))
+        cleaned_text = clean_text_for_hash(
+            text,
+            strip_numbers=config.get("strip_numbers", True),
+        )
         min_len = int(config.get("min_text_length", 10))
         curr_len = len(cleaned_text)
         if curr_len < min_len:
             return None
-            
+
         # 2. 生成 SimHash 指纹
         current_fp = None
         if config.get("enable_text_fingerprint", True):
             current_fp = calculate_simhash(cleaned_text)
-            if not current_fp: return None
-            
+            if not current_fp:
+                return None
+
             # --- LSH Forest 快速索引查询 (Phase 5 核心) ---
             cache_key = str(target_chat_id)
             if hasattr(ctx, 'lsh_forests') and cache_key in ctx.lsh_forests:
@@ -59,49 +72,96 @@ class SimilarityStrategy(BaseDedupStrategy):
                     for doc_id in hits:
                         # doc_id 通常存的是 timestamp 或 msg_id
                         # 如果需要精确校验，可以去 text_cache 找，但这里直接命中 LSH 即视为相似
-                        try: DEDUP_FP_HITS_TOTAL.labels(algo="lsh_forest").inc()
-                        except: pass
-                        return DedupResult(True, "LSH索引命中 (语义重复)", "similarity_lsh", current_fp)
+                        self._record_metric_best_effort(
+                            ctx,
+                            "DEDUP_FP_HITS_TOTAL",
+                            lambda: DEDUP_FP_HITS_TOTAL.labels(
+                                algo="lsh_forest"
+                            ).inc(),
+                        )
+                        return DedupResult(
+                            True,
+                            "文本相似度命中 (LSH索引, 语义重复)",
+                            "similarity_lsh",
+                            current_fp,
+                        )
 
         # 3. 内存缓存滚动比对 (带数学剪枝)
         if ctx.text_fp_cache and str(target_chat_id) in ctx.text_fp_cache:
             cache_key = str(target_chat_id)
             # --- V4 自适应阈值计算 ---
             # Threshold = min(0.95, 0.82 + 20 / (Length + 5))
+
             def get_adaptive_threshold(length: int) -> float:
                 return min(0.95, 0.82 + 20.0 / (length + 5.0))
-            
+
             base_threshold = config.get("similarity_threshold", 0.85)
             # 如果没强制指定高阈值，则使用自适应阈值
-            current_threshold = max(base_threshold, get_adaptive_threshold(curr_len))
-            
+            current_threshold = max(
+                base_threshold,
+                get_adaptive_threshold(curr_len),
+            )
+
             # reversed 遍历，优先比对新消息
             comparisons = 0
             max_checks = config.get("max_similarity_comparisons", 100)
-            
+
             for fp, meta in reversed(ctx.text_fp_cache[cache_key].items()):
-                if comparisons >= max_checks: break
-                
+                if comparisons >= max_checks:
+                    break
+
                 # 数学剪枝：如果长度差异过大，则不可能相似 (Jaccard 上限)
                 prev_len = meta.get('len', 0) if isinstance(meta, dict) else 0
                 if prev_len:
-                    upper_bound = min(prev_len, curr_len) / max(prev_len, curr_len)
+                    upper_bound = min(prev_len, curr_len) / max(
+                        prev_len,
+                        curr_len,
+                    )
                     if upper_bound < current_threshold:
                         continue
-                
+
                 # 计算相似度
                 sim = 1.0 - (bin(current_fp ^ fp).count('1') / 64.0)
                 comparisons += 1
-                
-                if sim >= current_threshold:
-                    try: DEDUP_HITS_TOTAL.labels(method="similarity_memory").inc()
-                    except: pass
-                    return DedupResult(True, f"文本相似度命中 (T={current_threshold:.2f}): {sim:.2f}", "similarity", fp)
 
-            try: DEDUP_SIMILARITY_COMPARISONS.observe(float(comparisons))
-            except: pass
+                if sim >= current_threshold:
+                    self._record_metric_best_effort(
+                        ctx,
+                        "DEDUP_HITS_TOTAL",
+                        lambda: DEDUP_HITS_TOTAL.labels(
+                            method="similarity_memory"
+                        ).inc(),
+                    )
+                    return DedupResult(
+                        True,
+                        (
+                            "文本相似度命中 "
+                            f"(T={current_threshold:.2f}): {sim:.2f}"
+                        ),
+                        "similarity",
+                        fp,
+                    )
+
+            self._record_metric_best_effort(
+                ctx,
+                "DEDUP_SIMILARITY_COMPARISONS",
+                lambda: DEDUP_SIMILARITY_COMPARISONS.observe(
+                    float(comparisons)
+                ),
+            )
 
         return None
 
     async def record(self, ctx: DedupContext, result: DedupResult):
         pass
+
+    def _record_metric_best_effort(
+        self,
+        ctx: DedupContext,
+        metric_name: str,
+        record: Callable[[], None],
+    ) -> None:
+        try:
+            record()
+        except Exception as exc:
+            ctx.logger.debug("相似度指标记录失败 (%s): %s", metric_name, exc)

@@ -63,8 +63,13 @@ class UniversalArchiver:
                 # 尝试检查列类型是否为 String
                 if isinstance(time_attr.property.columns[0].type, SQLA_String):
                     is_string_time = True
-            except:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "[UniversalArchiver] 归档时间字段类型探测失败: table=%s, time_column=%s, error=%s",
+                    table_name,
+                    time_column,
+                    e,
+                )
 
             is_string_time = True # 对于 SQLite 统一使用字符串对比更可靠
             query_cutoff = cutoff_date.strftime("%Y-%m-%d %H:%M:%S")
@@ -115,7 +120,15 @@ class UniversalArchiver:
                     if isinstance(first_row_time, str):
                         try:
                             partition_dt = datetime.fromisoformat(first_row_time)
-                        except:
+                        except (TypeError, ValueError) as e:
+                            logger.warning(
+                                "[UniversalArchiver] 归档分区时间解析失败: table=%s, row_id=%s, time_column=%s, value=%r, error=%s",
+                                table_name,
+                                getattr(rows[0], "id", None),
+                                time_column,
+                                first_row_time,
+                                e,
+                            )
                             partition_dt = datetime.now()
                     else:
                         partition_dt = first_row_time or datetime.now()

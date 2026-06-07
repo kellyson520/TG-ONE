@@ -8,6 +8,17 @@ from ui.hotword_callback_codec import is_hotword_channel_token, resolve_hotword_
 logger = logging.getLogger(__name__)
 
 
+async def _edit_hotword_message(event, result, action: str, context: str) -> None:
+    try:
+        await event.edit(result.text, buttons=result.buttons)
+    except MessageNotModifiedError:
+        logger.debug(
+            "热词菜单内容未变化: action=%s, context=%s",
+            action,
+            context,
+        )
+
+
 def parse_hotword_view_payload(data: str, extra_data=None) -> tuple[str, str]:
     """Parse hotword_view callback data while allowing ':' inside channel names."""
     channel = "global"
@@ -84,10 +95,7 @@ class HotwordMenuStrategy(BaseMenuHandler):
             today = datetime.now().strftime("%Y-%m-%d")
             ranks = await hotword_service.get_rankings(period="day")
             result = hotword_renderer.render_global_rankings(ranks, today)
-            try:
-                await event.edit(result.text, buttons=result.buttons)
-            except MessageNotModifiedError:
-                pass
+            await _edit_hotword_message(event, result, action, "global:day")
             if action == "hotword_global_refresh":
                 await event.answer("🔄 数据已刷新 (若无变化则不更新)")
             else:
@@ -110,10 +118,12 @@ class HotwordMenuStrategy(BaseMenuHandler):
                 result = hotword_renderer.render_global_rankings(ranks, today, period=period)
             else:
                 result = hotword_renderer.render_channel_rankings(channel, ranks, period)
-            try:
-                await event.edit(result.text, buttons=result.buttons)
-            except MessageNotModifiedError:
-                pass
+            await _edit_hotword_message(
+                event,
+                result,
+                action,
+                f"channel={channel}, period={period}",
+            )
             await event.answer()
 
         elif action == "hotword_noise_page":
@@ -127,10 +137,7 @@ class HotwordMenuStrategy(BaseMenuHandler):
             
             data_list = await hotword_service.get_noise_list(page=page)
             result = hotword_renderer.render_noise_list(data_list)
-            try:
-                await event.edit(result.text, buttons=result.buttons)
-            except MessageNotModifiedError:
-                pass
+            await _edit_hotword_message(event, result, action, f"page={page}")
             await event.answer()
 
         elif action == "hotword_noise_add_prompt":

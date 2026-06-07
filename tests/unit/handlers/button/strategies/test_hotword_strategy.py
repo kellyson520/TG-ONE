@@ -1,3 +1,10 @@
+import logging
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+from telethon.errors import MessageNotModifiedError
+
 from handlers.button.strategies.hotword import parse_hotword_view_payload
 from ui.hotword_callback_codec import _CHANNEL_TOKENS, encode_hotword_view_action
 
@@ -71,3 +78,37 @@ def test_hotword_view_token_payload_survives_memory_mapping_loss():
 
     assert channel == token
     assert period == "year"
+
+
+@pytest.mark.asyncio
+async def test_hotword_main_logs_message_not_modified(monkeypatch, caplog):
+    from handlers.button.strategies import hotword as module
+
+    event = SimpleNamespace(
+        data=b"hotword_main",
+        edit=AsyncMock(side_effect=MessageNotModifiedError(request=None)),
+        answer=AsyncMock(),
+    )
+    service = SimpleNamespace(get_rankings=AsyncMock(return_value=[]))
+    rendered = SimpleNamespace(text="same text", buttons=[])
+
+    monkeypatch.setattr(
+        "services.hotword_service.get_hotword_service",
+        lambda: service,
+    )
+    monkeypatch.setattr(
+        "ui.renderers.hotword_renderer.hotword_renderer.render_global_rankings",
+        lambda *args, **kwargs: rendered,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=module.__name__):
+        await module.HotwordMenuStrategy().handle(
+            event,
+            "hotword_main",
+            data="hotword_main",
+            extra_data=[],
+        )
+
+    event.answer.assert_awaited_once()
+    assert "热词菜单内容未变化" in caplog.text
+    assert "action=hotword_main" in caplog.text

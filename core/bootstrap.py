@@ -348,7 +348,10 @@ class Bootstrap:
             
             logger.info("Stopping auxiliary services (Cron, Guards, Updates, SleepManager, BatchSink)...")
             await cron_service.stop()
-            guard_service.stop_guards()
+            if hasattr(guard_service, "stop_guards_async"):
+                await guard_service.stop_guards_async()
+            else:
+                guard_service.stop_guards()
             update_service.stop()
             sleep_manager.stop()
             await task_status_sink.stop()
@@ -361,8 +364,11 @@ class Bootstrap:
             try:
                 from web_admin.fastapi_app import stop_web_server
                 self.coordinator.register_cleanup(stop_web_server, priority=2, timeout=5.0, name="web_server_stop")
-            except ImportError:
-                pass
+            except ImportError as import_err:
+                logger.debug(
+                    "Web 管理服务停止钩子不可用，跳过注册: %s",
+                    import_err,
+                )
         
         # Priority 2: Shutdown Container
         self.coordinator.register_cleanup(container.shutdown, priority=2, timeout=10.0, name="container_shutdown")

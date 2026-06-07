@@ -117,6 +117,105 @@ async def test_get_performance_metrics(analytics_service):
             # Verify TPS calculation (10 / 600 = 0.0166... -> 0.02)
             assert result['performance']['current_tps'] == 0.02
 
+
+@pytest.mark.asyncio
+async def test_get_performance_metrics_queue_failure_logs_and_defaults(
+    analytics_service,
+):
+    mock_task_repo = AsyncMock()
+    mock_task_repo.get_queue_status.side_effect = RuntimeError("queue offline")
+
+    mock_container = MagicMock()
+    mock_container.task_repo = mock_task_repo
+
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.first.return_value = MagicMock(count=0, avg_time=None)
+    mock_session.execute.return_value = mock_result
+    mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
+
+    with patch.object(AnalyticsService, 'container', new_callable=PropertyMock) as mock_container_prop:
+        mock_container_prop.return_value = mock_container
+
+        with patch.object(realtime_stats_cache, 'get_system_stats', new_callable=AsyncMock) as mock_get_sys_stats, \
+             patch.object(realtime_stats_cache, 'get_forward_stats', new_callable=AsyncMock) as mock_get_fwd_stats, \
+             patch('services.analytics_service.logger.warning') as warning:
+
+            mock_get_sys_stats.return_value = {
+                'system_resources': {'cpu_percent': 10, 'memory_percent': 20}
+            }
+            mock_get_fwd_stats.return_value = {
+                "today": {
+                    "total_forwards": 0,
+                    "error_count": 0
+                }
+            }
+
+            result = await analytics_service.get_performance_metrics()
+
+    assert result['queue_status']['active_queues'] == 0
+    assert result['queue_status']['pending_tasks'] == 0
+    assert result['queue_status']['avg_delay'] == "0s"
+    assert any(
+        "获取队列状态失败" in str(call.args[0])
+        for call in warning.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_resolve_chat_name_uses_chat_info_when_db_lookup_fails(
+    analytics_service,
+    caplog,
+):
+    mock_container = MagicMock()
+    mock_container.db.get_session.return_value.__aenter__.side_effect = RuntimeError(
+        "db offline"
+    )
+    mock_container.chat_info_service.get_chat_name = AsyncMock(
+        return_value="Resolved Chat"
+    )
+
+    with patch.object(
+        AnalyticsService,
+        'container',
+        new_callable=PropertyMock,
+    ) as mock_container_prop:
+        mock_container_prop.return_value = mock_container
+
+        result = await analytics_service._resolve_chat_name(123456)
+
+    assert result == "Resolved Chat"
+    assert "数据库查询聊天名称失败" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_resolve_chat_name_logs_and_returns_short_id_when_all_sources_fail(
+    analytics_service,
+    caplog,
+):
+    mock_container = MagicMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session = AsyncMock()
+    mock_session.execute.return_value = mock_result
+    mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
+    mock_container.chat_info_service.get_chat_name = AsyncMock(
+        side_effect=RuntimeError("chat info offline")
+    )
+
+    with patch.object(
+        AnalyticsService,
+        'container',
+        new_callable=PropertyMock,
+    ) as mock_container_prop:
+        mock_container_prop.return_value = mock_container
+
+        result = await analytics_service._resolve_chat_name("123456789012345")
+
+    assert result == "123456789012"
+    assert "chat_info_service 查询聊天名称失败" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_search_records(analytics_service):
     from models.models import RuleLog, ForwardRule

@@ -101,3 +101,5 @@ web_admin/frontend/*
 !web_admin/frontend/dist/
 web_admin/frontend_legacy/*
 !web_admin/frontend_legacy/dist/
+data.zip
+*.bak

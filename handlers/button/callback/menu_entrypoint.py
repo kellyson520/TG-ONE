@@ -49,8 +49,8 @@ async def callback_new_menu_handler(event, action_data, maybe_message=None, mayb
 
         try:
             logger.info(f"[menu] new_menu action_data={action_data}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"记录菜单动作日志失败: action_data={action_data}, error={e}")
 
         # action_data 已经是解析后的动作
         if ":" in action_data:

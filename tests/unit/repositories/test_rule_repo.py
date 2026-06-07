@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from repositories.rule_repo import RuleRepository
 from models.models import ForwardRule, Chat
@@ -56,6 +58,131 @@ class TestRuleRepository:
         repo.clear_cache()
         rules_fresh = await repo.get_rules_for_source_chat("-1001")
         assert len(rules_fresh) == 0
+
+    async def test_get_priority_map_logs_cache_read_failure(
+        self,
+        repo,
+        db,
+        monkeypatch,
+        caplog,
+    ):
+        source = Chat(telegram_chat_id="-1001", name="Src")
+        target = Chat(telegram_chat_id="-1002", name="Dst")
+        db.add_all([source, target])
+        await db.commit()
+
+        rule = ForwardRule(
+            source_chat_id=source.id,
+            target_chat_id=target.id,
+            priority=42,
+            enable_rule=True,
+        )
+        db.add(rule)
+        await db.commit()
+
+        class FailingReadCache:
+            def get(self, key):
+                raise RuntimeError("priority cache read unavailable")
+
+            def set(self, key, value, ttl=None):
+                return None
+
+        monkeypatch.setattr(
+            "repositories.rule_repo.get_persistent_cache",
+            lambda: FailingReadCache(),
+        )
+        caplog.set_level(logging.WARNING, logger="repositories.rule_repo")
+
+        priority_map = await repo.get_priority_map()
+
+        assert priority_map[-1001] == 42
+        assert "Rule priority map cache read failed" in caplog.text
+        assert "priority cache read unavailable" in caplog.text
+
+    async def test_get_priority_map_logs_cache_write_failure(
+        self,
+        repo,
+        db,
+        monkeypatch,
+        caplog,
+    ):
+        source = Chat(telegram_chat_id="-1003", name="Src")
+        target = Chat(telegram_chat_id="-1004", name="Dst")
+        db.add_all([source, target])
+        await db.commit()
+
+        rule = ForwardRule(
+            source_chat_id=source.id,
+            target_chat_id=target.id,
+            priority=7,
+            enable_rule=True,
+        )
+        db.add(rule)
+        await db.commit()
+
+        class FailingWriteCache:
+            def get(self, key):
+                return None
+
+            def set(self, key, value, ttl=None):
+                raise RuntimeError("priority cache write unavailable")
+
+        monkeypatch.setattr(
+            "repositories.rule_repo.get_persistent_cache",
+            lambda: FailingWriteCache(),
+        )
+        caplog.set_level(logging.WARNING, logger="repositories.rule_repo")
+
+        priority_map = await repo.get_priority_map()
+
+        assert priority_map[-1003] == 7
+        assert "Rule priority map cache write failed" in caplog.text
+        assert "priority cache write unavailable" in caplog.text
+
+    async def test_get_priority_map_logs_invalid_candidate_and_keeps_valid(
+        self,
+        repo,
+        db,
+        monkeypatch,
+        caplog,
+    ):
+        source = Chat(telegram_chat_id="-1005", name="Src")
+        target = Chat(telegram_chat_id="-1006", name="Dst")
+        db.add_all([source, target])
+        await db.commit()
+
+        rule = ForwardRule(
+            source_chat_id=source.id,
+            target_chat_id=target.id,
+            priority=13,
+            enable_rule=True,
+        )
+        db.add(rule)
+        await db.commit()
+
+        class EmptyCache:
+            def get(self, key):
+                return None
+
+            def set(self, key, value, ttl=None):
+                return None
+
+        monkeypatch.setattr(
+            "repositories.rule_repo.get_persistent_cache",
+            lambda: EmptyCache(),
+        )
+        monkeypatch.setattr(
+            "repositories.rule_repo.build_candidate_telegram_ids",
+            lambda chat_id: ["bad-candidate", str(chat_id)],
+        )
+        caplog.set_level(logging.WARNING, logger="repositories.rule_repo")
+
+        priority_map = await repo.get_priority_map()
+
+        assert priority_map[-1005] == 13
+        assert "Rule priority map candidate is not numeric" in caplog.text
+        assert "bad-candidate" in caplog.text
+        assert "-1005" in caplog.text
 
     async def test_toggle_rule(self, repo, db):
         chat = Chat(telegram_chat_id="-1001", name="Src")

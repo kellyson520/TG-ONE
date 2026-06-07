@@ -6,6 +6,7 @@
 import hashlib
 import threading
 from collections import defaultdict
+from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -281,6 +282,10 @@ class QueryPrewarmer:
 # 全局实例
 batch_executor = BatchQueryExecutor()
 query_prewarmer = QueryPrewarmer()
+_PREWARM_INTERVAL_SECONDS = 300.0
+_initial_prewarm_task: Optional[asyncio.Task] = None
+_periodic_prewarm_task: Optional[asyncio.Task] = None
+_query_optimization_stop_event: Optional[asyncio.Event] = None
 
 
 class OptimizedQueries:
@@ -489,26 +494,85 @@ class CacheInvalidationManager:
         query_cache.invalidate_pattern("media_signature_exists")
 
 
+async def _periodic_prewarm_loop(stop_event: asyncio.Event):
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(
+                stop_event.wait(),
+                timeout=_PREWARM_INTERVAL_SECONDS,
+            )
+            break
+        except asyncio.TimeoutError:
+            logger.debug(
+                "Query optimizer periodic prewarm interval elapsed: interval=%.3fs",
+                _PREWARM_INTERVAL_SECONDS,
+            )
+        except asyncio.CancelledError:
+            raise
+
+        if stop_event.is_set():
+            break
+
+        try:
+            await query_prewarmer.prewarm_hot_queries()
+        except Exception as e:
+            logger.error(f"Periodic prewarming failed: {e}")
+
+
+async def _cancel_task(task: Optional[asyncio.Task]) -> None:
+    if not task or task.done() or task is asyncio.current_task():
+        return
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+
 # 启动预热任务
 async def start_query_optimization():
     """启动查询优化服务"""
+    global _initial_prewarm_task
+    global _periodic_prewarm_task
+    global _query_optimization_stop_event
+
+    if _periodic_prewarm_task and not _periodic_prewarm_task.done():
+        logger.debug("Query optimization services already running")
+        return
+
     logger.info("Starting query optimization services...")
+    _query_optimization_stop_event = asyncio.Event()
 
     # 启动预热任务
-    asyncio.create_task(query_prewarmer.prewarm_hot_queries())
+    _initial_prewarm_task = asyncio.create_task(
+        query_prewarmer.prewarm_hot_queries(),
+        name="query_optimizer_initial_prewarm",
+    )
 
     # 定期预热热点查询
-    async def periodic_prewarm():
-        while True:
-            try:
-                await asyncio.sleep(300)  # 每5分钟
-                await query_prewarmer.prewarm_hot_queries()
-            except Exception as e:
-                logger.error(f"Periodic prewarming failed: {e}")
-
-    asyncio.create_task(periodic_prewarm())
+    _periodic_prewarm_task = asyncio.create_task(
+        _periodic_prewarm_loop(_query_optimization_stop_event),
+        name="query_optimizer_periodic_prewarm",
+    )
 
     logger.info("Query optimization services started")
+
+
+async def stop_query_optimization():
+    """停止查询优化后台任务。"""
+    global _initial_prewarm_task
+    global _periodic_prewarm_task
+    global _query_optimization_stop_event
+
+    if _query_optimization_stop_event:
+        _query_optimization_stop_event.set()
+
+    await _cancel_task(_periodic_prewarm_task)
+    _periodic_prewarm_task = None
+
+    await _cancel_task(_initial_prewarm_task)
+    _initial_prewarm_task = None
+    _query_optimization_stop_event = None
+
+    logger.info("Query optimization services stopped")
 
 
 # 查询性能分析

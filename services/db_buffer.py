@@ -31,12 +31,12 @@ class MessageBuffer:
         async with self._lock:
             self._buffer.append(item)
             current_size = len(self._buffer)
-        
-        # Check trigger outside lock to avoid holding it during flush
+
+        if self._coordinator:
+            await self._coordinator.trigger_flush()
+
         if current_size >= self._batch_size:
             logger.debug(f"Buffer size {current_size} >= {self._batch_size}, triggering flush")
-            if self._coordinator:
-                await self._coordinator.trigger_flush()
 
     async def get_and_clear(self) -> List[Any]:
         """Retrieve all items and clear buffer atomically."""
@@ -52,6 +52,12 @@ class MessageBuffer:
     def should_flush(self) -> bool:
         """Check if time based flush is needed."""
         return (time.time() - self._last_flush_time) >= self._flush_interval and len(self._buffer) > 0
+
+    def time_until_flush(self) -> Optional[float]:
+        if not self._buffer:
+            return None
+        elapsed = time.time() - self._last_flush_time
+        return max(0.0, self._flush_interval - elapsed)
 
     @property
     def size(self) -> int:
@@ -98,12 +104,7 @@ class GroupCommitCoordinator:
     async def _loop(self):
         while self._running:
             try:
-                # Wait for trigger OR timeout (Time Trigger)
-                try:
-                    await asyncio.wait_for(self._flush_event.wait(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    pass # Check time interval
-                
+                await self._wait_for_work_or_deadline()
                 self._flush_event.clear()
 
                 if self._buffer.should_flush() or self._buffer.size >= self._buffer._batch_size:
@@ -115,6 +116,30 @@ class GroupCommitCoordinator:
 
         # Final flush on exit
         await self._flush()
+
+    async def _wait_for_work_or_deadline(self):
+        if (
+            self._buffer.should_flush()
+            or self._buffer.size >= self._buffer._batch_size
+        ):
+            return
+
+        timeout = self._buffer.time_until_flush()
+        if timeout is None:
+            self._flush_event.clear()
+            if self._buffer.size == 0:
+                await self._flush_event.wait()
+            return
+
+        self._flush_event.clear()
+        try:
+            await asyncio.wait_for(self._flush_event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.debug(
+                "GroupCommitCoordinator等待超时: timeout=%.3fs, buffer_size=%s",
+                timeout,
+                self._buffer.size,
+            )
 
     async def _flush(self):
         items = await self._buffer.get_and_clear()

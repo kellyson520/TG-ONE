@@ -227,7 +227,13 @@ class SystemMenu(BaseMenu):
                                         if " - ERROR - " in line or " ERROR " in line or line.startswith("ERROR"): error_count += 1
                                         elif " - WARNING - " in line or " WARNING " in line or line.startswith("WARNING"): warning_count += 1
                                         elif " - INFO - " in line or " INFO " in line or line.startswith("INFO"): info_count += 1
-                            except Exception: continue
+                            except Exception as e:
+                                logger.debug(
+                                    "SystemMenu failed to read log file: path=%s error=%s",
+                                    file_path,
+                                    e,
+                                )
+                                continue
                 log_size_str = f"{total_log_size / (1024 * 1024):.2f} MB"
             except Exception as e:
                 logger.debug(f"[SystemMenu] Failed to calculate log stats: {e}")

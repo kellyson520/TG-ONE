@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
 from unittest.mock import patch
+from types import SimpleNamespace
 
 # 设置测试环境路径
 TEST_HOT_DIR = Path("tests/temp/hot_test_data")
@@ -59,7 +60,7 @@ async def test_hotword_full_lifecycle():
 
 @pytest.mark.asyncio
 async def test_hotword_aggregation():
-    from services.hotword_service import HotwordService
+    from services.hotword_service import HotwordService, hotword_now
     service = HotwordService()
     channel = "agg_chan"
     from sqlalchemy import text
@@ -69,7 +70,7 @@ async def test_hotword_aggregation():
         await session.commit()
     
     # 模拟昨天的日报数据
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+    yesterday = (hotword_now() - timedelta(days=1)).strftime("%Y%m%d")
     
     # 准备 temp 数据到数据库
     await service.repo.save_temp_counts(channel, {"测试": {"f": 10.0, "u": 1}, "聚合": {"f": 5.0, "u": 1}})
@@ -87,7 +88,7 @@ async def test_hotword_aggregation():
     
     # 5. 测试月度聚合
     # 手动插入两个日数据
-    curr_month = datetime.now().strftime("%Y%m")
+    curr_month = hotword_now().strftime("%Y%m")
     
     from models.hotword import HotPeriodStats
     
@@ -621,3 +622,88 @@ async def test_hotword_process_batch_resumes_suspended_state():
 
     assert not service.is_suspended
     assert service.analyzer._jieba is not None
+
+
+@pytest.mark.asyncio
+async def test_hotword_monitor_suspends_idle_service_without_fixed_sleep(
+    monkeypatch,
+):
+    from services.hotword_service import HotwordService
+
+    original_sleep = asyncio.sleep
+    sleep_calls = []
+    service = HotwordService()
+    service._analyzer = SimpleNamespace(suspend=lambda: None)
+    service.last_activity = asyncio.get_event_loop().time() - 2.0
+
+    async def fail_sleep(delay):
+        sleep_calls.append(delay)
+        raise AssertionError(f"hotword monitor used fixed sleep: {delay}")
+
+    async def wait_until_suspended():
+        while not service.is_suspended:
+            await original_sleep(0)
+
+    monkeypatch.setattr("services.hotword_service.asyncio.sleep", fail_sleep)
+
+    service.start_monitoring()
+    try:
+        await asyncio.wait_for(wait_until_suspended(), timeout=0.2)
+    finally:
+        await service.stop_monitoring()
+
+    assert sleep_calls == []
+
+
+@pytest.mark.asyncio
+async def test_hotword_monitor_timeout_is_observable(monkeypatch, caplog):
+    from services.hotword_service import HotwordService
+    from core.config import settings
+
+    original_wait_for = asyncio.wait_for
+    service = HotwordService()
+    service._analyzer = SimpleNamespace(suspend=lambda: None)
+    loop = asyncio.get_event_loop()
+    service.last_activity = loop.time()
+
+    async def fake_wait_for(awaitable, timeout):
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        service.last_activity = (
+            loop.time()
+            - settings.HOTWORD_IDLE_TIMEOUT
+            - 1.0
+        )
+        raise asyncio.TimeoutError
+
+    async def wait_until_suspended():
+        while not service.is_suspended:
+            await asyncio.sleep(0)
+
+    monkeypatch.setattr(
+        "services.hotword_service.asyncio.wait_for",
+        fake_wait_for,
+    )
+    caplog.set_level("DEBUG", logger="services.hotword_service")
+
+    service.start_monitoring()
+    try:
+        await original_wait_for(wait_until_suspended(), timeout=0.2)
+    finally:
+        await service.stop_monitoring()
+
+    assert "热词监控等待超时" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hotword_monitor_cancellation_is_observable(caplog):
+    from services.hotword_service import HotwordService
+
+    service = HotwordService()
+    caplog.set_level("DEBUG", logger="services.hotword_service")
+
+    service.start_monitoring()
+    await asyncio.sleep(0)
+    await service.stop_monitoring()
+
+    assert "热词监控任务已取消" in caplog.text

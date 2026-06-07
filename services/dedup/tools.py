@@ -251,7 +251,8 @@ def generate_signature(message_obj: Any) -> Optional[str]:
                 return f"document:{doc_id}:{size}:{getattr(doc, 'mime_type', '')}"
             
         return None
-    except Exception:
+    except Exception as exc:
+        logger.debug("强特征签名生成失败: %s", exc)
         return None
 
 def generate_content_hash(message_obj: Any) -> Optional[str]:
@@ -273,7 +274,8 @@ def generate_content_hash(message_obj: Any) -> Optional[str]:
                 return hashlib.blake2b(str(fp).encode(), digest_size=16).hexdigest()
                 
         return None
-    except Exception:
+    except Exception as exc:
+        logger.debug("内容哈希生成失败: %s", exc)
         return None
 
 def calculate_video_partial_file_hash(file_path: str, chunk_size: int = 1048576) -> Optional[str]:
@@ -305,7 +307,8 @@ def calculate_video_partial_file_hash(file_path: str, chunk_size: int = 1048576)
             combined = head + mid + tail
             if _HAS_XXHASH: return xxhash.xxh128_hexdigest(combined)
             return hashlib.md5(combined).hexdigest()
-    except Exception:
+    except Exception as exc:
+        logger.debug("视频部分哈希计算失败 (%s): %s", file_path, exc)
         return None
 
 def is_video(message_obj: Any) -> bool:

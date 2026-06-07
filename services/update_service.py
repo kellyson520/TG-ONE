@@ -70,8 +70,8 @@ class UpdateService:
                 if process.returncode == 0:
                     sha = out.decode().strip()
                     if sha: return sha
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"获取 Git 当前版本失败，降级读取状态文件: {e}")
         
         # 2. 从状态文件读取 (Non-Git Fallback)
         state = self._get_state()
@@ -329,6 +329,17 @@ class UpdateService:
         except Exception as e:
             logger.critical(f"☠️ [更新] 严重错误：数据库回滚失败: {e}")
 
+    def _read_external_signal_status(self, lock_file: Path) -> Optional[str]:
+        """读取外部更新信号状态；坏锁文件不应打断监听循环。"""
+        try:
+            content = json.loads(lock_file.read_text(encoding='utf-8'))
+            return content.get("status")
+        except json.JSONDecodeError as e:
+            logger.warning(f"外部更新信号文件损坏，已忽略本轮信号: path={lock_file}, error={e}")
+        except Exception as e:
+            logger.warning(f"读取外部更新信号失败，已忽略本轮信号: path={lock_file}, error={e}")
+        return None
+
     async def start_periodic_check(self):
         """启动更新检查服务"""
         # 启动时无需再次验证健康度，main.py 已经执行过一次。
@@ -360,40 +371,37 @@ class UpdateService:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=5.0)
                     break 
                 except asyncio.TimeoutError:
-                    pass
+                    logger.debug("外部更新信号等待超时，继续轮询: timeout=5.0s")
 
                 if not lock_file.exists():
                     continue
 
                 try:
-                    content = json.loads(lock_file.read_text(encoding='utf-8'))
-                    status = content.get("status")
-                    
+                    status = self._read_external_signal_status(lock_file)
+
                     if status in ["processing", "rollback_requested"]:
                         logger.warning(f"📡 [UpdateService] 检测到外部更新信号 (Status: {status})，正在进行受控重启...")
-                        
+
                         # 如果系统已经在关闭流程中，我们只尝试更新退出码，不再发送事件（防止 EventBus 关闭导致的挂起）
                         is_closing = False
                         if container.lifecycle and container.lifecycle.stop_event.is_set():
                             is_closing = True
-                            
+
                         if not is_closing:
                             await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
-                        
+
                         if container.lifecycle:
                             container.lifecycle.shutdown(EXIT_CODE_UPDATE)
                         else:
                             sys.exit(EXIT_CODE_UPDATE)
-                       
+
                         # 立即退出监听循环
                         break
-                        
-                except json.JSONDecodeError:
-                    pass
+
                 except SystemExit:
                     raise
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"处理外部更新信号失败，已继续监听: path={lock_file}, error={e}")
 
             except SystemExit:
                 raise
@@ -404,7 +412,7 @@ class UpdateService:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=10.0)
                     break
                 except asyncio.TimeoutError:
-                    pass
+                    logger.debug("外部更新信号异常退避等待超时，恢复监听: timeout=10.0s")
 
     async def _run_periodic_update_check(self):
         """执行周期性自动更新检查"""
@@ -414,7 +422,10 @@ class UpdateService:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=settings.UPDATE_CHECK_INTERVAL)
                     break  # Stop signaled
                 except asyncio.TimeoutError:
-                    pass   # Timeout, continue check
+                    logger.debug(
+                        "周期更新检查等待超时，开始本轮检查: timeout=%ss",
+                        settings.UPDATE_CHECK_INTERVAL,
+                    )
 
                 # 网络检查，不通则跳过本次循环
                 if not await self._check_network():
@@ -438,7 +449,7 @@ class UpdateService:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=3600)
                     break
                 except asyncio.TimeoutError:
-                    pass
+                    logger.debug("周期更新异常退避等待超时，恢复检查: timeout=3600s")
 
     async def verify_update_health(self):
         """
@@ -839,6 +850,20 @@ class UpdateService:
         except Exception as e:
             return False, f"Git 更新执行异常: {e}"
 
+    async def _resolve_http_final_version(self, version: str) -> str:
+        """解析 HTTP 更新最终 SHA；失败时保留请求版本作为 best-effort 降级。"""
+        try:
+            import httpx
+
+            repo_path = settings.UPDATE_REMOTE_URL.replace("https://github.com/", "").replace(".git", "")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f"https://api.github.com/repos/{repo_path}/commits/{version}")
+                if r.status_code == 200:
+                    return r.json().get("sha", version)
+        except Exception as e:
+            logger.warning(f"解析远端 HTTP 更新版本失败，使用请求版本: version={version}, error={e}")
+        return version
+
     async def _perform_http_update(self, target_version: Optional[str] = None) -> Tuple[bool, str]:
         """通过下载压缩包执行 HTTP 更新 (无 Git 环境 fallback)"""
         try:
@@ -940,15 +965,7 @@ class UpdateService:
             
             # 持久化版本信息
             # 尝试解析真实 SHA (如果 version 是分支名)
-            final_version = version
-            try:
-                repo_path = settings.UPDATE_REMOTE_URL.replace("https://github.com/", "").replace(".git", "")
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    r = await client.get(f"https://api.github.com/repos/{repo_path}/commits/{version}")
-                    if r.status_code == 200:
-                        final_version = r.json().get("sha", version)
-            except Exception:
-                pass
+            final_version = await self._resolve_http_final_version(version)
 
             try:
                 state.update({

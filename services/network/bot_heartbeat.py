@@ -1,10 +1,13 @@
 import asyncio
+import inspect
+import logging
 import time
 from typing import Any, Dict, Optional
 
 from core.cache.persistent_cache import dumps_json, get_persistent_cache, loads_json
 
 HEARTBEAT_KEY = "bot_heartbeat"
+logger = logging.getLogger(__name__)
 
 
 def get_heartbeat() -> Dict[str, Any]:
@@ -34,18 +37,29 @@ def update_heartbeat(
     cache.set(HEARTBEAT_KEY, dumps_json(payload), ttl)
 
 
+async def _is_client_connected(bot_client) -> bool:
+    connected = getattr(bot_client, "is_connected", False)
+    if callable(connected):
+        connected = connected()
+    if inspect.isawaitable(connected):
+        connected = await connected
+    return bool(connected)
+
+
 async def start_heartbeat(user_client, bot_client, interval_seconds: int = 30) -> None:
     async def _beat_once():
         ok = False
         try:
-            ok = bool(getattr(bot_client, "is_connected", False))
+            ok = await _is_client_connected(bot_client)
             if ok:
                 try:
                     me = await bot_client.get_me()
                     ok = bool(me)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Bot heartbeat get_me failed: %s", exc)
                     ok = True
-        except Exception:
+        except Exception as exc:
+            logger.debug("Bot heartbeat connection check failed: %s", exc)
             ok = False
         update_heartbeat("running" if ok else "stopped")
 
@@ -56,5 +70,6 @@ async def start_heartbeat(user_client, bot_client, interval_seconds: int = 30) -
             await _beat_once()
         except asyncio.CancelledError:
             break
-        except Exception:
+        except Exception as exc:
+            logger.debug("Bot heartbeat loop failed: %s", exc)
             update_heartbeat("stopped")

@@ -17,12 +17,16 @@ class SleepManager:
         self._last_activity = time.time()
         self._is_sleeping = False
         self._check_task: Optional[asyncio.Task] = None
+        self._running = False
+        self._activity_event: Optional[asyncio.Event] = None
         self._on_sleep_callbacks: List[Callable[[], None]] = []
         self._on_wake_callbacks: List[Callable[[], None]] = []
         
     def record_activity(self):
         """Call this whenever meaningful activity occurs (message received, UI request, etc.)"""
         self._last_activity = time.time()
+        if self._activity_event:
+            self._activity_event.set()
         if self._is_sleeping:
             self._wake_up()
             
@@ -47,23 +51,53 @@ class SleepManager:
                 logger.error(f"Error in sleep callback: {e}")
 
     async def start_monitor(self):
+        if self._running:
+            return
+
         logger.info("SleepManager: Monitor started.")
-        while True:
+        self._running = True
+        if self._activity_event is None:
+            self._activity_event = asyncio.Event()
+
+        while self._running:
             try:
-                await asyncio.sleep(5)
                 if self._is_sleeping:
+                    self._activity_event.clear()
+                    await self._activity_event.wait()
                     continue
-                if time.time() - self._last_activity > self.SLEEP_TIMEOUT:
+
+                self._activity_event.clear()
+                idle_remaining = self._time_until_sleep()
+                if idle_remaining <= 0:
                     await self._go_to_sleep()
+                    continue
+
+                try:
+                    await asyncio.wait_for(
+                        self._activity_event.wait(),
+                        timeout=idle_remaining,
+                    )
+                except asyncio.TimeoutError:
+                    logger.debug(
+                        "SleepManager: Idle wait timed out after %.3fs.",
+                        idle_remaining,
+                    )
             except asyncio.CancelledError:
                 logger.info("SleepManager: Monitor stopping (cancelled).")
                 break
             except Exception as e:
                 logger.error(f"SleepManager error: {e}")
+        self._running = False
+
+    def _time_until_sleep(self) -> float:
+        idle_for = time.time() - self._last_activity
+        return max(0.0, self.SLEEP_TIMEOUT - idle_for)
 
     def stop(self):
-        """No-op for now as it relies on task cancellation, but provides interface parity."""
-        pass
+        """Request monitor shutdown and wake it if it is waiting."""
+        self._running = False
+        if self._activity_event:
+            self._activity_event.set()
 
     def register_on_sleep(self, callback: Callable):
         self._on_sleep_callbacks.append(callback)

@@ -356,5 +356,5 @@ async def callback_close_admin_panel(event, rule_id, session, message, data):
     try:
         await event.delete()
         await event.answer()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"关闭管理面板失败: {e}")

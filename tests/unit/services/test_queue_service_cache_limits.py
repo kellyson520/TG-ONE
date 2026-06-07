@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from unittest.mock import AsyncMock
 
@@ -91,6 +92,62 @@ async def test_message_queue_processes_falsy_items():
             for task in service._worker_tasks:
                 task.cancel()
             await asyncio.gather(*service._worker_tasks, return_exceptions=True)
+
+
+async def test_message_queue_does_not_sleep_after_draining_last_item(monkeypatch):
+    original_sleep = asyncio.sleep
+    sleep_calls = []
+    processed = asyncio.Event()
+    service = MessageQueueService(max_size=10, workers=1)
+
+    async def fail_on_idle_sleep(delay):
+        sleep_calls.append(delay)
+        raise AssertionError(f"idle worker slept after queue drained: {delay}")
+
+    async def processor(batch):
+        processed.set()
+
+    monkeypatch.setattr("services.queue_service.asyncio.sleep", fail_on_idle_sleep)
+    service.set_processor(processor)
+
+    await service.start()
+    try:
+        await service.enqueue(("persist", {"chat_id": 42}, 50))
+        await asyncio.wait_for(processed.wait(), timeout=1.0)
+        await original_sleep(0)
+        await original_sleep(0)
+
+        assert sleep_calls == []
+    finally:
+        for task in service._worker_tasks:
+            task.cancel()
+        await asyncio.gather(*service._worker_tasks, return_exceptions=True)
+
+
+def test_message_queue_logs_batch_drain_failure(caplog):
+    service = MessageQueueService(max_size=10, workers=1)
+    buffer = ["selected"]
+
+    class BrokenLane:
+        def empty(self):
+            return False
+
+        def get_nowait(self):
+            raise RuntimeError("lane read failed")
+
+    caplog.set_level(logging.WARNING, logger="services.queue_service")
+
+    service._fill_batch_from_lane(
+        lane_name=service.LANE_FAST,
+        q=BrokenLane(),
+        buffer=buffer,
+        batch_size=100,
+    )
+
+    assert buffer == ["selected"]
+    assert "MessageQueueService batch drain failed" in caplog.text
+    assert "lane=fast" in caplog.text
+    assert "lane read failed" in caplog.text
 
 
 async def test_message_queue_retries_batch_after_processor_failure():

@@ -1,5 +1,7 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+import logging
+import asyncio
+from unittest.mock import patch, AsyncMock, MagicMock
 from services.update_service import UpdateService
 
 @pytest.fixture
@@ -11,6 +13,176 @@ def update_service():
         # 强制设置 _is_git_repo 为 True 方便测试
         service._is_git_repo = True
         return service
+
+@pytest.mark.asyncio
+async def test_get_current_version_logs_git_probe_failure(update_service, caplog):
+    with patch("asyncio.create_subprocess_exec", side_effect=RuntimeError("git spawn failed")), \
+         patch.object(update_service, "_get_state", return_value={"current_version": "abcdef1234567890"}):
+
+        with caplog.at_level(logging.WARNING, logger="services.update_service"):
+            version = await update_service.get_current_version()
+
+    assert version == "abcdef12"
+    assert "获取 Git 当前版本失败" in caplog.text
+    assert "git spawn failed" in caplog.text
+
+def test_read_external_signal_status_logs_corrupt_lock(update_service, tmp_path, caplog):
+    lock_file = tmp_path / "UPDATE_LOCK.json"
+    lock_file.write_text("{bad json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="services.update_service"):
+        status = update_service._read_external_signal_status(lock_file)
+
+    assert status is None
+    assert "外部更新信号文件损坏" in caplog.text
+    assert str(lock_file) in caplog.text
+
+@pytest.mark.asyncio
+async def test_watch_external_signals_poll_timeout_is_observable(
+    update_service,
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    timeouts = []
+
+    async def fake_wait_for(awaitable, timeout):
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        timeouts.append(timeout)
+        update_service._stop_event.set()
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(
+        "services.update_service.asyncio.wait_for",
+        fake_wait_for,
+    )
+    monkeypatch.setattr("services.update_service.settings.BASE_DIR", tmp_path)
+    caplog.set_level(logging.DEBUG, logger="services.update_service")
+
+    await update_service._watch_external_signals()
+
+    assert timeouts == [5.0]
+    assert "外部更新信号等待超时" in caplog.text
+
+@pytest.mark.asyncio
+async def test_watch_external_signals_backoff_timeout_is_observable(
+    update_service,
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    original_exists = type(tmp_path).exists
+    timeouts = []
+
+    async def fake_wait_for(awaitable, timeout):
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        timeouts.append(timeout)
+        if timeout == 10.0:
+            update_service._stop_event.set()
+        raise asyncio.TimeoutError
+
+    def fake_exists(path):
+        if path.name == "UPDATE_LOCK.json":
+            raise RuntimeError("lock probe failed")
+        return original_exists(path)
+
+    monkeypatch.setattr(
+        "services.update_service.asyncio.wait_for",
+        fake_wait_for,
+    )
+    monkeypatch.setattr("pathlib.Path.exists", fake_exists)
+    monkeypatch.setattr("services.update_service.settings.BASE_DIR", tmp_path)
+    caplog.set_level(logging.DEBUG, logger="services.update_service")
+
+    await update_service._watch_external_signals()
+
+    assert timeouts == [5.0, 10.0]
+    assert "外部更新信号异常退避等待超时" in caplog.text
+
+@pytest.mark.asyncio
+async def test_periodic_update_check_interval_timeout_is_observable(
+    update_service,
+    monkeypatch,
+    caplog,
+):
+    timeouts = []
+
+    async def fake_wait_for(awaitable, timeout):
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        timeouts.append(timeout)
+        update_service._stop_event.set()
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(
+        "services.update_service.asyncio.wait_for",
+        fake_wait_for,
+    )
+    monkeypatch.setattr(
+        "services.update_service.settings.UPDATE_CHECK_INTERVAL",
+        7.0,
+    )
+    monkeypatch.setattr(
+        update_service,
+        "_check_network",
+        AsyncMock(return_value=False),
+    )
+    caplog.set_level(logging.DEBUG, logger="services.update_service")
+
+    await update_service._run_periodic_update_check()
+
+    assert timeouts == [7.0]
+    assert "周期更新检查等待超时" in caplog.text
+
+@pytest.mark.asyncio
+async def test_periodic_update_check_error_backoff_timeout_is_observable(
+    update_service,
+    monkeypatch,
+    caplog,
+):
+    timeouts = []
+
+    async def fake_wait_for(awaitable, timeout):
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        timeouts.append(timeout)
+        if timeout == 3600:
+            update_service._stop_event.set()
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(
+        "services.update_service.asyncio.wait_for",
+        fake_wait_for,
+    )
+    monkeypatch.setattr(
+        "services.update_service.settings.UPDATE_CHECK_INTERVAL",
+        7.0,
+    )
+    monkeypatch.setattr(
+        update_service,
+        "_check_network",
+        AsyncMock(side_effect=RuntimeError("network probe crashed")),
+    )
+    caplog.set_level(logging.DEBUG, logger="services.update_service")
+
+    await update_service._run_periodic_update_check()
+
+    assert timeouts == [7.0, 3600]
+    assert "周期更新异常退避等待超时" in caplog.text
+
+@pytest.mark.asyncio
+async def test_resolve_http_final_version_logs_api_failure(update_service, caplog):
+    with patch("services.update_service.settings.UPDATE_REMOTE_URL", "https://github.com/acme/project.git"), \
+         patch("httpx.AsyncClient", side_effect=RuntimeError("api unavailable")):
+
+        with caplog.at_level(logging.WARNING, logger="services.update_service"):
+            version = await update_service._resolve_http_final_version("main")
+
+    assert version == "main"
+    assert "解析远端 HTTP 更新版本失败" in caplog.text
+    assert "api unavailable" in caplog.text
 
 @pytest.mark.asyncio
 async def test_check_network_success(update_service):
@@ -74,9 +246,13 @@ async def test_perform_update_sets_restarting_state(update_service):
 async def test_verify_update_health_increments_fail(update_service):
     # 模拟处于 restarting 状态，第一次失败
     initial_state = {"status": "restarting", "fail_count": 0}
+    def close_created_task(coro):
+        coro.close()
+        return MagicMock()
+
     with patch.object(update_service, "_get_state", return_value=initial_state), \
          patch.object(update_service, "_save_state") as mock_save, \
-         patch("asyncio.create_task") as mock_task:
+         patch("asyncio.create_task", side_effect=close_created_task) as mock_task:
         
         await update_service.verify_update_health()
         

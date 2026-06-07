@@ -1,7 +1,6 @@
 import ctypes
 import gc
 import platform
-import shutil
 import tempfile
 
 import asyncio
@@ -72,12 +71,19 @@ class TombstoneManager:
         # 创建临时文件
         fd, temp_path = tempfile.mkstemp(dir=dirname)
         try:
+            payload = json.dumps(state_dump)
+            if isinstance(payload, str):
+                payload = payload.encode("utf-8")
+
             with os.fdopen(fd, "wb") as f:
-                f.write(json.dumps(state_dump))
+                f.write(payload)
             # 原子移动
-            shutil.move(temp_path, self._tombstone_path)
+            os.replace(temp_path, self._tombstone_path)
         except Exception:
-            os.unlink(temp_path)
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                logger.debug("墓碑临时文件已不存在，跳过清理: path=%s", temp_path)
             raise
 
     async def freeze(self) -> None:

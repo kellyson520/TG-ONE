@@ -4,6 +4,7 @@ P6-1/P6-2: UniversalArchiver 单元测试 + 集成测试
 """
 import pytest
 import asyncio
+import logging
 import os
 import sys
 import glob
@@ -51,6 +52,15 @@ def _make_fake_model(tablename_base: str = "test_table"):
                  setattr(self, k, v)
     
     return MockModel
+
+
+def _require_real_duckdb():
+    try:
+        import duckdb
+    except ImportError:
+        pytest.skip("DuckDB not installed")
+    if isinstance(duckdb, MagicMock):
+        pytest.skip("DuckDB is mocked in this test environment")
 
 
 # ─────────────────────────────────────────────
@@ -219,6 +229,90 @@ class TestUniversalArchiverUnit:
         # 检查 batch_session1.execute 被调用了 3+1=4 次（1 次 SELECT + 3 次 DELETE）
         assert mock_batch_session1.execute.call_count == 4  # 1 SELECT + 3 DELETE chunks
 
+    @pytest.mark.asyncio
+    async def test_time_column_probe_failure_logs_and_continues(self, caplog):
+        """时间字段类型探测异常应可观测，并继续按字符串截止时间归档。"""
+        from sqlalchemy import literal_column
+
+        class BrokenTimeAttr:
+            @property
+            def property(self):
+                raise RuntimeError("probe failed")
+
+            def __lt__(self, other):
+                return literal_column("created_at") < other
+
+        class BrokenProbeModel:
+            __tablename__ = "broken_probe"
+            id = literal_column("id")
+            created_at = BrokenTimeAttr()
+
+        archiver = UniversalArchiver()
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_count_res = MagicMock()
+        mock_count_res.scalar.return_value = 0
+        mock_session.execute = AsyncMock(return_value=mock_count_res)
+
+        with patch("core.archive.engine.container") as mock_container:
+            mock_container.db.get_session.return_value = mock_session
+            with caplog.at_level(logging.WARNING, logger="core.archive.engine"):
+                result = await archiver.archive_table(BrokenProbeModel, hot_days=7)
+
+        assert result.success is True
+        assert "归档时间字段类型探测失败" in caplog.text
+        assert "broken_probe" in caplog.text
+        assert "created_at" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_invalid_partition_timestamp_logs_and_continues(self, caplog):
+        """坏分区时间应记录上下文，并继续归档当前批次。"""
+        archiver = UniversalArchiver()
+        archiver.batch_size = 1
+
+        model = _make_fake_model()
+        fake_row = _make_fake_row(1, "not-a-date")
+
+        mock_count_session = AsyncMock()
+        mock_count_session.__aenter__ = AsyncMock(return_value=mock_count_session)
+        mock_count_session.__aexit__ = AsyncMock(return_value=False)
+        mock_count_res = MagicMock()
+        mock_count_res.scalar.return_value = 1
+        mock_count_session.execute = AsyncMock(return_value=mock_count_res)
+
+        mock_batch_session1 = AsyncMock()
+        mock_batch_session1.__aenter__ = AsyncMock(return_value=mock_batch_session1)
+        mock_batch_session1.__aexit__ = AsyncMock(return_value=False)
+        mock_rows_res1 = MagicMock()
+        mock_rows_res1.scalars.return_value.all.return_value = [fake_row]
+        mock_batch_session1.execute = AsyncMock(return_value=mock_rows_res1)
+        mock_batch_session1.commit = AsyncMock()
+
+        mock_batch_session2 = AsyncMock()
+        mock_batch_session2.__aenter__ = AsyncMock(return_value=mock_batch_session2)
+        mock_batch_session2.__aexit__ = AsyncMock(return_value=False)
+        mock_rows_res2 = MagicMock()
+        mock_rows_res2.scalars.return_value.all.return_value = []
+        mock_batch_session2.execute = AsyncMock(return_value=mock_rows_res2)
+        mock_batch_session2.commit = AsyncMock()
+
+        sessions = [mock_count_session, mock_batch_session1, mock_batch_session2]
+
+        with patch("core.archive.engine.container") as mock_container, \
+             patch("core.archive.engine.write_parquet") as mock_write, \
+             patch("core.archive.engine.model_to_dict", return_value={"id": 1, "created_at": "not-a-date"}):
+            mock_container.db.get_session.side_effect = sessions
+            with caplog.at_level(logging.WARNING, logger="core.archive.engine"):
+                result = await archiver.archive_table(model, hot_days=7)
+
+        assert result.success is True
+        assert result.archived_count == 1
+        mock_write.assert_called_once()
+        assert "归档分区时间解析失败" in caplog.text
+        assert "row_id=1" in caplog.text
+
 
 # ─────────────────────────────────────────────
 # UniversalArchiver 集成测试（真实 SQLite）
@@ -238,6 +332,7 @@ class TestUniversalArchiverIntegration:
     @pytest.mark.asyncio
     async def test_archive_creates_parquet_files(self, temp_db_and_archive):
         """归档后应在 archive 目录生成 Parquet 文件"""
+        _require_real_duckdb()
         db_path, archive_path = temp_db_and_archive
 
         # 使用 aiosqlite 创建测试数据
@@ -292,6 +387,7 @@ class TestUniversalArchiverIntegration:
     @pytest.mark.asyncio
     async def test_parquet_data_integrity(self, temp_db_and_archive):
         """验证归档到 Parquet 的数据与原始数据一致"""
+        _require_real_duckdb()
         _, archive_path = temp_db_and_archive
 
         from repositories.archive_store import write_parquet

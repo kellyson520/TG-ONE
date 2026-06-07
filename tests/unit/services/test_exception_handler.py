@@ -180,6 +180,98 @@ class TestGlobalExceptionHandler:
         
         assert asyncio.iscoroutinefunction(my_task)
 
+    @pytest.mark.asyncio
+    async def test_start_does_not_spawn_idle_cleanup_task(self, handler):
+        """启动时没有异常聚合，不应创建空转清理任务。"""
+        handler.start()
+        try:
+            assert handler._running is True
+            assert handler._cleanup_task is None
+        finally:
+            handler.stop()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_loop_exits_without_sleep_when_empty(
+        self,
+        handler,
+        monkeypatch,
+    ):
+        """没有聚合记录时清理循环应直接退出。"""
+        handler._running = True
+        sleep_delays = []
+
+        async def fake_sleep(delay):
+            sleep_delays.append(delay)
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(
+            "services.exception_handler.asyncio.sleep",
+            fake_sleep,
+        )
+
+        await handler._cleanup_loop()
+
+        assert sleep_delays == []
+
+    @pytest.mark.asyncio
+    async def test_cleanup_loop_waits_until_aggregate_expiry(
+        self,
+        handler,
+        monkeypatch,
+    ):
+        """清理循环应按聚合过期时间等待，而不是固定 300 秒轮询。"""
+        from services.exception_handler import ExceptionAggregate
+
+        handler._running = True
+        handler._aggregates["hash"] = ExceptionAggregate("hash", "traceback")
+        sleep_delays = []
+
+        async def fake_sleep(delay):
+            sleep_delays.append(delay)
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(
+            "services.exception_handler.asyncio.sleep",
+            fake_sleep,
+        )
+
+        await handler._cleanup_loop()
+
+        expected = handler.AGGREGATION_WINDOW.total_seconds() * 2
+        assert sleep_delays == [pytest.approx(expected, abs=1.0)]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_loop_cancellation_is_observable(
+        self,
+        handler,
+        monkeypatch,
+        caplog,
+    ):
+        """清理任务被取消时应留下可观测日志。"""
+        from services.exception_handler import ExceptionAggregate
+
+        handler._running = True
+        handler._aggregates["hash"] = ExceptionAggregate("hash", "traceback")
+        sleep_started = asyncio.Event()
+        never_resume = asyncio.Event()
+
+        async def fake_sleep(delay):
+            sleep_started.set()
+            await never_resume.wait()
+
+        monkeypatch.setattr(
+            "services.exception_handler.asyncio.sleep",
+            fake_sleep,
+        )
+        caplog.set_level("DEBUG", logger="services.exception_handler")
+
+        task = asyncio.create_task(handler._cleanup_loop())
+        await asyncio.wait_for(sleep_started.wait(), timeout=0.2)
+        task.cancel()
+        await task
+
+        assert "异常聚合清理任务已取消" in caplog.text
+
 
 class TestExceptionAggregate:
     """ExceptionAggregate 单元测试"""

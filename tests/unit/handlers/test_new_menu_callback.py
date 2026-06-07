@@ -2,6 +2,7 @@
 NewMenuCallback 单元测试
 验证新菜单系统回调的分派逻辑
 """
+import logging
 import pytest
 from unittest.mock import AsyncMock, patch
 
@@ -67,6 +68,32 @@ class TestNewMenuCallback:
 
         mock_dispatch.assert_not_called()
         mock_event.answer.assert_called_once_with()
+
+    async def test_callback_new_menu_handler_logs_action_log_failure_and_dispatches(self, mock_event, caplog):
+        """菜单动作日志失败不应阻断后续分发，但必须可观测"""
+        from handlers.button.callback.menu_entrypoint import callback_new_menu_handler
+
+        with patch(
+            'handlers.button.callback.menu_entrypoint.logger.info',
+            side_effect=RuntimeError("log sink down"),
+        ), patch(
+            'handlers.button.callback.menu_entrypoint.MenuHandlerRegistry.dispatch',
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_dispatch:
+            with caplog.at_level(logging.WARNING, logger="handlers.button.callback.menu_entrypoint"):
+                await callback_new_menu_handler(
+                    mock_event,
+                    "filter_settings",
+                    None,
+                    None,
+                    "new_menu:filter_settings",
+                )
+
+        mock_dispatch.assert_awaited_once()
+        assert "记录菜单动作日志失败" in caplog.text
+        assert "filter_settings" in caplog.text
+        assert "log sink down" in caplog.text
 
     async def test_callback_new_menu_handler_forward_search(self, mock_event):
         """测试转发搜索回调"""

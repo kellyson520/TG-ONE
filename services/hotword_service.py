@@ -240,6 +240,7 @@ class HotwordService:
 
         self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
+        self._activity_event = asyncio.Event()
         self._monitor_task: Optional[asyncio.Task] = None
         # 上次噪声学习发生时间（单调时钟）
         self._last_noise_learn_time: float = asyncio.get_event_loop().time()
@@ -332,11 +333,39 @@ class HotwordService:
         async def _monitor():
             try:
                 while True:
-                    await asyncio.sleep(60)
-                    if not self.is_suspended and (asyncio.get_event_loop().time() - self.last_activity > settings.HOTWORD_IDLE_TIMEOUT):
+                    loop = asyncio.get_event_loop()
+                    idle_for = loop.time() - self.last_activity
+                    idle_remaining = settings.HOTWORD_IDLE_TIMEOUT - idle_for
+
+                    if idle_remaining <= 0:
+                        if not self.is_suspended:
+                            self.suspend()
+
+                        self._activity_event.clear()
+                        if loop.time() - self.last_activity <= settings.HOTWORD_IDLE_TIMEOUT:
+                            continue
+                        await self._activity_event.wait()
+                        continue
+
+                    self._activity_event.clear()
+                    try:
+                        await asyncio.wait_for(
+                            self._activity_event.wait(),
+                            timeout=idle_remaining,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.debug(
+                            "热词监控等待超时: idle_remaining=%.3fs",
+                            idle_remaining,
+                        )
+                    if (
+                        not self.is_suspended
+                        and loop.time() - self.last_activity
+                        > settings.HOTWORD_IDLE_TIMEOUT
+                    ):
                         self.suspend()
             except asyncio.CancelledError:
-                pass
+                logger.debug("热词监控任务已取消")
         self._monitor_task = asyncio.create_task(_monitor())
 
     async def stop_monitoring(self):
@@ -353,6 +382,7 @@ class HotwordService:
         """
         if not items: return
         self.last_activity = asyncio.get_event_loop().time()
+        self._activity_event.set()
         analyzer = await self.ensure_analyzer()
         await analyzer.ensure_engine()
         self.is_suspended = False
@@ -859,6 +889,7 @@ class HotwordService:
             await analyzer.ensure_engine()
             self.is_suspended = False
         self.last_activity = asyncio.get_event_loop().time()
+        self._activity_event.set()
 
 # --- Factory ---
 _service_instance = None

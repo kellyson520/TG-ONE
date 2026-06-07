@@ -103,28 +103,20 @@ class TestCallbackHandlers:
 
     async def test_callback_delete(self, mock_event):
         """测试删除规则 (callback_delete)"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.modules.rule_actions.check_and_clean_chats', new_callable=AsyncMock) as mock_clean, \
-             patch('handlers.button.callback.modules.rule_actions.respond_and_delete', new_callable=AsyncMock) as mock_respond, \
-             patch('importlib.import_module', side_effect=ImportError("aiohttp not found")):
-             
-             mock_clean.return_value = 0
-             
+        with patch('handlers.button.callback.modules.rule_actions.container') as mock_container, \
+             patch('handlers.button.callback.modules.rule_actions.respond_and_delete', new_callable=AsyncMock) as mock_respond:
+
              from handlers.button.callback.modules.rule_actions import callback_delete
-             from models.models import ForwardRule
-             
-             mock_session = AsyncMock()
-             mock_container.db.session.return_value.__aenter__.return_value = mock_session
-             
-             mock_rule = MagicMock(spec=ForwardRule, id=1)
-             mock_session.get.return_value = mock_rule
-             
+
+             mock_container.rule_service.delete_rule = AsyncMock(return_value={"success": True})
              mock_msg = AsyncMock()
-             
-             await callback_delete(mock_event, 1, mock_session, mock_msg, None)
-             
-             mock_session.delete.assert_called_with(mock_rule)
-             mock_session.commit.assert_called()
+
+             await callback_delete(mock_event, 1, None, mock_msg, None)
+
+             mock_container.rule_service.delete_rule.assert_awaited_once_with(1)
+             mock_msg.delete.assert_awaited_once()
+             mock_respond.assert_awaited_once_with(mock_event, "✅ 已删除规则")
+             mock_event.answer.assert_awaited_with("已删除规则")
     
     
     # Removed misplaced test_callback_dedup_scan_now from TestCallbackHandlers
@@ -152,33 +144,25 @@ class TestOtherCallback:
 
     async def test_callback_dedup_scan_now(self, mock_event):
         """测试去重扫描 (callback_dedup_scan_now)"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.other_callback.DBOperations') as mock_db_ops, \
-             patch('core.helpers.common.get_main_module', new_callable=AsyncMock) as mock_get_mm:
+        with patch('handlers.button.callback.other_callback.container') as mock_container, \
+             patch('repositories.db_operations.DBOperations.create', new_callable=AsyncMock) as mock_create_db_ops:
 
             from handlers.button.callback.other_callback import callback_dedup_scan_now
-            from models.models import ForwardRule
-            
+
             mock_session = AsyncMock()
-            mock_container.db.session.return_value.__aenter__.return_value = mock_session
-            
-            mock_rule = MagicMock(spec=ForwardRule, id=1)
-            mock_rule.source_chat.name = "Test Chat"
-            mock_session.get.return_value = mock_rule
-            
-            mock_db_ops.create = AsyncMock()
-            mock_db_instance = mock_db_ops.create.return_value
+            mock_container.db.get_session.return_value.__aenter__.return_value = mock_session
+
+            mock_rule = MagicMock(id=1, target_chat_telegram_id=987654)
+            mock_container.rule_repo.get_by_id = AsyncMock(return_value=mock_rule)
+
+            mock_db_instance = AsyncMock()
             mock_db_instance.scan_duplicate_media = AsyncMock(return_value=(['sig1'], {'sig1': 2}))
-            
-            mock_mm = MagicMock()
-            mock_mm.user_client = AsyncMock()
-            mock_get_mm.return_value = mock_mm
-            
-            mock_msg = AsyncMock()
-            
-            await callback_dedup_scan_now(mock_event, 1, mock_session, mock_msg, None)
-            
-            mock_db_instance.scan_duplicate_media.assert_called_once()
+            mock_create_db_ops.return_value = mock_db_instance
+
+            await callback_dedup_scan_now(mock_event, 1, None, None, None)
+
+            mock_container.rule_repo.get_by_id.assert_awaited_once_with(1)
+            mock_db_instance.scan_duplicate_media.assert_awaited_once_with(mock_session, "987654")
             mock_event.edit.assert_called()
 
 
@@ -194,27 +178,16 @@ class TestMediaCallback:
         return event
 
     async def test_handle_media_callback_main(self, mock_event):
-        """测试媒体设置主菜单显示"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.media_callback.create_media_settings_buttons') as mock_buttons, \
-             patch('handlers.button.callback.media_callback.get_media_settings_text') as mock_text:
-            
+        """测试媒体设置回调交给 Strategy Registry 分发"""
+        with patch('handlers.button.strategies.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=True) as mock_dispatch:
             from handlers.button.callback.media_callback import handle_media_callback
-            from models.models import ForwardRule
-            from telethon import Button
-            
+
             mock_event.data = b"media_settings:1"
-            
-            mock_session = AsyncMock()
-            mock_container.db.session.return_value.__aenter__.return_value = mock_session
-            mock_session.get.return_value = MagicMock(spec=ForwardRule, id=1, max_media_size=100)
-            
-            mock_text.return_value = "Media Text"
-            mock_buttons.return_value = [[Button.inline("Media")]]
-            
+
             await handle_media_callback(mock_event)
-            
-            mock_event.edit.assert_called_once()
+
+            mock_dispatch.assert_awaited_once()
+            assert mock_dispatch.call_args.args[:2] == (mock_event, "media_settings")
 
 
 class TestAdminCallback:
@@ -230,74 +203,47 @@ class TestAdminCallback:
         event.get_message = AsyncMock()
         return event
 
-    async def test_handle_admin_callback_forbidden(self, mock_event):
-        """测试非管理员拒绝访问"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin:
-            
-            mock_is_admin.return_value = False
-            
+    async def test_handle_admin_callback_unknown_action(self, mock_event):
+        """测试未知管理回调给出提示"""
+        with patch('handlers.button.strategies.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=False):
             from handlers.button.callback.admin_callback import handle_admin_callback
-            
+
+            mock_event.data = b"admin_unknown"
             await handle_admin_callback(mock_event)
-            mock_event.answer.assert_called_with("只有管理员可以访问管理面板", alert=True)
+            mock_event.answer.assert_called_with("⚠️ 未知指令", alert=True)
 
     async def test_handle_admin_callback_main(self, mock_event):
-        """测试管理员访问主面板"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin:
-            
-            mock_is_admin.return_value = True
-            
+        """测试管理主面板交给 Strategy Registry 分发"""
+        with patch('handlers.button.strategies.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=True) as mock_dispatch:
             from handlers.button.callback.admin_callback import handle_admin_callback
-            
+
             mock_event.data = b"admin_panel"
-            
-            mock_session = AsyncMock()
-            mock_container.db.session.return_value.__aenter__.return_value = mock_session
-            
+
             await handle_admin_callback(mock_event)
-            
-            mock_event.edit.assert_called_once()
-            assert "系统管理面板" in mock_event.edit.call_args[0][0]
+
+            mock_dispatch.assert_awaited_once()
+            assert mock_dispatch.call_args.args[:2] == (mock_event, "admin_panel")
 
     async def test_handle_admin_callback_db_health(self, mock_event):
-        """测试数据库健康检查回调"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin, \
-             patch('handlers.button.callback.admin_callback.handle_db_health_command', new_callable=AsyncMock) as mock_handle_health:
-            
-            mock_is_admin.return_value = True
-            
+        """测试数据库健康检查回调交给 Strategy Registry 分发"""
+        with patch('handlers.button.strategies.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=True) as mock_dispatch:
             from handlers.button.callback.admin_callback import handle_admin_callback
-            
+
             mock_event.data = b"admin_db_health"
-            
-            mock_session = AsyncMock()
-            mock_container.db.session.return_value.__aenter__.return_value = mock_session
-            
+
             await handle_admin_callback(mock_event)
-            
-            mock_handle_health.assert_called_once_with(mock_event)
-            mock_event.answer.assert_called()
+
+            mock_dispatch.assert_awaited_once()
+            assert mock_dispatch.call_args.args[:2] == (mock_event, "admin_db_health")
 
     async def test_handle_admin_callback_system_status(self, mock_event):
-        """测试系统状态回调"""
-        with patch('core.container.container') as mock_container, \
-             patch('handlers.button.callback.admin_callback.is_admin', new_callable=AsyncMock) as mock_is_admin, \
-             patch('handlers.button.callback.admin_callback.handle_system_status_command', new_callable=AsyncMock) as mock_handle_status:
-            
-            mock_is_admin.return_value = True
-            
+        """测试系统状态回调交给 Strategy Registry 分发"""
+        with patch('handlers.button.strategies.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=True) as mock_dispatch:
             from handlers.button.callback.admin_callback import handle_admin_callback
-            
-            mock_event.data = b"admin_system_status"
-            
-            mock_session = AsyncMock()
-            mock_container.db.session.return_value.__aenter__.return_value = mock_session
-            
-            await handle_admin_callback(mock_event)
-            
-            mock_handle_status.assert_called_once_with(mock_event)
-            mock_event.answer.assert_called()
 
+            mock_event.data = b"admin_system_status"
+
+            await handle_admin_callback(mock_event)
+
+            mock_dispatch.assert_awaited_once()
+            assert mock_dispatch.call_args.args[:2] == (mock_event, "admin_system_status")

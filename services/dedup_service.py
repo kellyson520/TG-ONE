@@ -354,8 +354,16 @@ class DeduplicationService:
             text = getattr(message, 'text', '') or getattr(message, 'raw_text', '')
             if text:
                 return len(str(text))
-        except Exception:
-            pass
+        except Exception as e:
+            try:
+                message_id = getattr(message, "id", "unknown")
+            except Exception:
+                message_id = "unknown"
+            logger.warning(
+                "Failed to get message size for message_id=%s: %s",
+                message_id,
+                e,
+            )
         return 0
         
     async def check_and_lock(self, chat_id: int, message_obj, rule_config: Dict = None, rule_id: int = None) -> Tuple[bool, str]:

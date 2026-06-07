@@ -1,4 +1,8 @@
+import logging
 from typing import Optional, Tuple
+
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_positive_number(value: object) -> Optional[float]:
@@ -36,5 +40,6 @@ def resolve_process_memory_thresholds(
             critical = warning + 128
 
         return warning, critical
-    except Exception:
+    except Exception as exc:
+        logger.warning("内存阈值动态计算失败，使用配置值: %s", exc)
         return int(configured_warning_mb), int(configured_critical_mb)

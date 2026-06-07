@@ -4,9 +4,8 @@
 负责通过 WebSocket 与远程服务器同步配置
 """
 import asyncio
+from contextlib import suppress
 import json
-import os
-from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 
 try:
@@ -35,6 +34,9 @@ class RemoteConfigSyncService:
         self.is_connected = False
         self.on_config_update_callbacks: list[Callable[[Dict[str, Any]], None]] = []
         self.reconnect_task = None
+        self._message_task = None
+        self.reconnect_interval = 10.0
+        self._stop_event = asyncio.Event()
         
         # 确保目录存在
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -100,6 +102,7 @@ class RemoteConfigSyncService:
             logger.warning("websockets 模块不可用，无法启动远程同步")
             return
 
+        self._stop_event.clear()
         self.server_url = server_url
         self.token = token
         
@@ -109,12 +112,17 @@ class RemoteConfigSyncService:
             self.is_connected = True
             logger.info(f"已连接到远程同步服务器: {server_url}")
             
-            if self.reconnect_task:
-                self.reconnect_task.cancel()
+            current_task = asyncio.current_task()
+            if self.reconnect_task and self.reconnect_task is not current_task:
+                await self._cancel_task(self.reconnect_task)
                 self.reconnect_task = None
                 
             # 启动消息处理循环
-            asyncio.create_task(self._handle_messages())
+            if self._message_task and not self._message_task.done():
+                self._message_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._message_task
+            self._message_task = asyncio.create_task(self._handle_messages())
             
             # 发送初始同步请求
             local_config = self.load_local_config()
@@ -126,6 +134,10 @@ class RemoteConfigSyncService:
             
         except Exception as e:
             logger.error(f"连接远程同步服务器失败: {e}")
+            self.is_connected = False
+            await self._cancel_task(self._message_task)
+            self._message_task = None
+            await self._close_websocket()
             await self._start_reconnect()
 
     async def _handle_messages(self):
@@ -145,29 +157,75 @@ class RemoteConfigSyncService:
                         "choice": "useCloud"
                     }))
                     # 下一条消息通常是全量配置
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"WebSocket 消息处理异常: {e}")
+        finally:
             self.is_connected = False
-            await self._start_reconnect()
+            if not self._stop_event.is_set():
+                await self._start_reconnect()
 
     async def _start_reconnect(self):
+        if self._stop_event.is_set():
+            return
         if not self.reconnect_task or self.reconnect_task.done():
             self.reconnect_task = asyncio.create_task(self._reconnect_loop())
 
     async def _reconnect_loop(self):
-        while not self.is_connected and self.server_url:
-            logger.info("尝试重新连接远程同步服务器...")
-            try:
-                await self.connect(self.server_url, self.token)
-                break
-            except Exception:
-                await asyncio.sleep(10)
+        current_task = asyncio.current_task()
+        try:
+            while (
+                not self._stop_event.is_set()
+                and not self.is_connected
+                and self.server_url
+            ):
+                logger.info("尝试重新连接远程同步服务器...")
+                try:
+                    await self.connect(self.server_url, self.token)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.error(f"远程同步重连失败: {e}")
+
+                if self.is_connected:
+                    break
+
+                try:
+                    await asyncio.wait_for(
+                        self._stop_event.wait(),
+                        timeout=self.reconnect_interval,
+                    )
+                except asyncio.TimeoutError:
+                    logger.debug(
+                        "远程同步重连等待超时: interval=%.3fs, server_url=%s",
+                        self.reconnect_interval,
+                        self.server_url,
+                    )
+        finally:
+            if self.reconnect_task is current_task:
+                self.reconnect_task = None
+
+    async def _cancel_task(self, task):
+        if not task or task.done() or task is asyncio.current_task():
+            return
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+    async def _close_websocket(self):
+        if not self.websocket:
+            return
+        await self.websocket.close()
 
     async def stop(self):
-        if self.websocket:
-            await self.websocket.close()
-        if self.reconnect_task:
-            self.reconnect_task.cancel()
+        self._stop_event.set()
+        self.is_connected = False
+        await self._cancel_task(self.reconnect_task)
+        self.reconnect_task = None
+        await self._cancel_task(self._message_task)
+        self._message_task = None
+        await self._close_websocket()
         logger.info("远程配置同步服务已停止")
 
 # 全局单例

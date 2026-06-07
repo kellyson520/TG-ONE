@@ -114,8 +114,13 @@ class EventBus:
                     context={"event_type": event_type, "handler": handler_name},
                     task_name=f"EventHandler:{handler_name}"
                 )
-            except Exception:
-                pass  # 防止循环错误
+            except Exception as handler_error:
+                logger.warning(
+                    "Event exception handler failed [%s] for %s: %s",
+                    handler_name,
+                    event_type,
+                    handler_error,
+                )
 
     def _handler_name(self, handler: Callable) -> str:
         """返回安全的 handler 名称，兼容 callable 实例和 functools.partial。"""

@@ -1,9 +1,12 @@
+import logging
 import os
 import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def backup_database(db_path: str, backup_dir: str) -> str:
@@ -48,4 +51,4 @@ def rotate_backups(backup_dir: str, retention_count: int = 5) -> None:
         try:
             os.remove(stale)
         except FileNotFoundError:
-            pass
+            logger.debug("过期备份文件已不存在，跳过删除: path=%s", stale)

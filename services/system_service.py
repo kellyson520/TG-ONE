@@ -311,7 +311,8 @@ class SystemService:
                 from core.container import container
                 if hasattr(container, 'worker') and container.worker:
                     worker_stats = container.worker.get_performance_stats()
-            except Exception: pass
+            except Exception as e:
+                logger.warning(f"获取 Worker 性能统计失败: {e}")
 
             return {
                 "cpu_percent": cpu_percent,
@@ -499,6 +500,7 @@ class GuardService:
     """
     def __init__(self):
         self._stop_event = asyncio.Event()
+        self._guard_tasks = set()
         self._last_mtimes = {}
         self._watch_paths = [
             settings.BASE_DIR / ".env",
@@ -598,38 +600,95 @@ class GuardService:
     async def start_guards_async(self):
         """启动所有异步守护任务"""
         logger.info("🚀 Initializing All System Guards (Async)...")
+        self._guard_tasks = {task for task in self._guard_tasks if not task.done()}
+        if self._guard_tasks:
+            logger.debug("System Guards already running: %s", len(self._guard_tasks))
+            return
+
         self._stop_event.clear()
         
         # 记录初始文件时间
         self._update_mtimes()
         
-        # 使用 exception_handler 或者 gather 启动所有背景任务
-        # 我们这里让它们作为长驻任务运行
-        tasks = [
-            self.start_config_guard(),
-            self.start_memory_guard(),
-            self.start_db_health_guard(),
-            self.start_temp_guard(),
-            self.start_file_watcher_guard()
+        guard_specs = [
+            ("config", self.start_config_guard),
+            ("memory", self.start_memory_guard),
+            ("db_health", self.start_db_health_guard),
+            ("temp", self.start_temp_guard),
+            ("file_watcher", self.start_file_watcher_guard),
         ]
         
-        # 启动背景任务
-        for task in tasks:
-            asyncio.create_task(task)
+        for name, factory in guard_specs:
+            self._track_guard_task(factory(), name=f"system_guard_{name}")
             
         logger.info("✅ All Guards initiated.")
+
+    def _track_guard_task(self, coro, name: str):
+        task = asyncio.create_task(coro, name=name)
+        self._guard_tasks.add(task)
+
+        def _forget_guard(done_task):
+            self._guard_tasks.discard(done_task)
+            if done_task.cancelled():
+                return
+            exc = done_task.exception()
+            if exc:
+                logger.error(
+                    "System guard task exited unexpectedly: name=%s error=%s",
+                    done_task.get_name(),
+                    exc,
+                )
+
+        task.add_done_callback(_forget_guard)
+        return task
 
     def stop_guards(self):
         """停止所有守护逻辑信号"""
         logger.info("Stopping System Guards...")
         self._stop_event.set()
 
+    async def stop_guards_async(self, timeout: float = 5.0):
+        """停止所有守护任务并等待后台 task 回收。"""
+        self.stop_guards()
+        tasks = [task for task in self._guard_tasks if not task.done()]
+        if not tasks:
+            self._guard_tasks.clear()
+            return
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "System guard shutdown timed out; cancelling remaining tasks: %s",
+                len(tasks),
+            )
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            self._guard_tasks = {task for task in self._guard_tasks if not task.done()}
+
+    async def _wait_for_stop(self, timeout: float) -> bool:
+        if self._stop_event.is_set():
+            return True
+
+        try:
+            await asyncio.wait_for(self._stop_event.wait(), timeout=timeout)
+            return True
+        except asyncio.TimeoutError:
+            return False
+
     async def start_config_guard(self):
         """异步配置同步守护任务"""
         logger.info("[guard] Config hot-load guard initiated.")
         while not self._stop_event.is_set():
             try:
-                await asyncio.sleep(60)
+                if await self._wait_for_stop(60):
+                    break
                 from core.config_initializer import load_dynamic_config_from_db
                 await load_dynamic_config_from_db(settings)
             except Exception as e:
@@ -687,10 +746,12 @@ class GuardService:
                 except Exception as e:
                     logger.error(f"[guard-mem] Memory check error: {e}")
                 
-                await asyncio.sleep(check_interval)
+                if await self._wait_for_stop(check_interval):
+                    break
             except Exception as e:
                 logger.error(f"[guard-mem] Error: {e}")
-                await asyncio.sleep(60)
+                if await self._wait_for_stop(60):
+                    break
 
     async def start_temp_guard(self):
         """异步临时文件清理守护任务"""
@@ -730,10 +791,12 @@ class GuardService:
                         if deleted_count > 0:
                             logger.info(f"[guard-temp] Cleaned {deleted_count} files, freed {deleted_size/1024/1024:.2f}MB")
                 
-                await asyncio.sleep(3600) # 每小时检查
+                if await self._wait_for_stop(3600): # 每小时检查
+                    break
             except Exception as e:
                 logger.error(f"[guard-temp] Error: {e}")
-                await asyncio.sleep(3600)
+                if await self._wait_for_stop(3600):
+                    break
 
     async def start_db_health_guard(self):
         """异步数据库健康检查"""
@@ -744,7 +807,8 @@ class GuardService:
 
         while not self._stop_event.is_set():
             try:
-                await asyncio.sleep(4 * 3600)
+                if await self._wait_for_stop(4 * 3600):
+                    break
                 db_url = db_settings.DATABASE_URL
                 if db_url.startswith("sqlite"):
                     path_str = db_url.split("///")[-1]
@@ -769,12 +833,15 @@ class GuardService:
                         logger.warning(f"⚠️ [guard-watcher] 系统处于更新观察期 (Observation Period)，已忽略文件变更以防止启动循环: {changed}")
                     else:
                         logger.info(f"[guard-watcher] Detected change: {changed}. Triggering hot-restart...")
-                        await asyncio.sleep(1)
+                        if await self._wait_for_stop(1):
+                            break
                         await self._restart_process_async()
-                await asyncio.sleep(5) # 每5秒检查一次
+                if await self._wait_for_stop(5): # 每5秒检查一次
+                    break
             except Exception as e:
                 logger.error(f"[guard-watcher] Error: {e}")
-                await asyncio.sleep(10)
+                if await self._wait_for_stop(10):
+                    break
 
     def _update_mtimes(self):
         for path in self._watch_paths:

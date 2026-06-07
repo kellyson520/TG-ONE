@@ -173,35 +173,60 @@ class MemoryProcessedGroupCache:
         self._cache: Dict[str, float] = {}
         self._lock = asyncio.Lock()
         self._cleanup_task = None
+        self._cleanup_event = asyncio.Event()
 
     async def _ensure_cleanup_task(self):
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
 
     async def _periodic_cleanup(self):
-        while True:
-            await asyncio.sleep(60)
+        try:
+            while True:
+                self._cleanup_event.clear()
+                delay = await self._cleanup_once()
+                if delay is None:
+                    return
+                try:
+                    await asyncio.wait_for(
+                        self._cleanup_event.wait(),
+                        timeout=delay,
+                    )
+                except asyncio.TimeoutError:
+                    continue
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"媒体组缓存清理异常: {e}")
+        finally:
+            if asyncio.current_task() is self._cleanup_task:
+                self._cleanup_task = None
+
+    async def _cleanup_once(self) -> Optional[float]:
+        now = time.time()
+        async with self._lock:
             if not self._cache:
-                continue
-            now = time.time()
-            try:
-                async with self._lock:
-                    expired = [k for k, ts in self._cache.items() if now > ts]
-                    for k in expired:
-                        self._cache.pop(k, None)
-                    if len(self._cache) > PROCESSED_GROUP_MAX:
-                        sorted_items = sorted(self._cache.items(), key=lambda x: x[1])
-                        to_remove = len(self._cache) - PROCESSED_GROUP_MAX
-                        for k, _ in sorted_items[:to_remove]:
-                            self._cache.pop(k, None)
-            except Exception as e:
-                logger.error(f"媒体组缓存清理异常: {e}")
+                return None
+
+            expired = [k for k, ts in self._cache.items() if now >= ts]
+            for k in expired:
+                self._cache.pop(k, None)
+
+            if len(self._cache) > PROCESSED_GROUP_MAX:
+                sorted_items = sorted(self._cache.items(), key=lambda x: x[1])
+                to_remove = len(self._cache) - PROCESSED_GROUP_MAX
+                for k, _ in sorted_items[:to_remove]:
+                    self._cache.pop(k, None)
+
+            if not self._cache:
+                return None
+
+            return max(0.0, min(self._cache.values()) - now)
 
     async def is_processed(self, chat_id: int, group_id: int) -> bool:
         key = f"{chat_id}:{group_id}"
         async with self._lock:
             if key in self._cache:
-                if time.time() > self._cache[key]:
+                if time.time() >= self._cache[key]:
                     del self._cache[key]
                     return False
                 return True
@@ -212,6 +237,7 @@ class MemoryProcessedGroupCache:
         expire_at = time.time() + PROCESSED_GROUP_TTL_SECONDS
         async with self._lock:
             self._cache[key] = expire_at
+        self._cleanup_event.set()
         await self._ensure_cleanup_task()
 
 def extract_message_signature(message) -> Tuple[Optional[str], Optional[Any]]:

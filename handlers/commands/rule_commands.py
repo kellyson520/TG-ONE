@@ -1268,8 +1268,11 @@ async def _common_search_handler(event, parts, search_type):
     # 删除指令并回复
     try:
         await async_delete_user_message(event.client, event.chat_id, event.message.id, 0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(
+            f"搜索命令删除用户消息失败: chat_id={getattr(event, 'chat_id', None)}, "
+            f"message_id={getattr(getattr(event, 'message', None), 'id', None)}, error={e}"
+        )
     await reply_and_delete(event, message_text, buttons=buttons, parse_mode="html")
 
 

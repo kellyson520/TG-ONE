@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import logging
 from core.event_bus import EventBus
 
 
@@ -45,6 +46,28 @@ async def test_event_bus_safe_execute():
     # should not raise even if wait=False (default)
     await bus.publish("test", "data")
     await asyncio.sleep(0.1) # wait for task
+
+
+@pytest.mark.asyncio
+async def test_event_bus_logs_exception_handler_failure(monkeypatch, caplog):
+    bus = EventBus()
+
+    async def failing_handler(data):
+        raise ValueError("Boom")
+
+    async def failing_exception_handler(*args, **kwargs):
+        raise RuntimeError("exception sink down")
+
+    monkeypatch.setattr(
+        "services.exception_handler.exception_handler.handle_exception",
+        failing_exception_handler,
+    )
+    caplog.set_level(logging.WARNING, logger="core.event_bus")
+
+    await bus._safe_execute(failing_handler, "test", "data")
+
+    assert "Event exception handler failed" in caplog.text
+    assert "exception sink down" in caplog.text
 
 
 @pytest.mark.asyncio

@@ -9,15 +9,35 @@ tests/unit/repositories/test_stats_repo.py
   - stop() 优雅排水
 """
 import asyncio
+import ast
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import select, func
+from pathlib import Path
 
 from repositories.stats_repo import StatsRepository, _evict_by_level
 from models.models import RuleLog, RuleStatistics, ChatStatistics
 from core.container import container
 from core.config import settings
 from datetime import date
+
+
+def test_stats_repo_does_not_import_service_layer():
+    """Repository 层不能依赖 services.*，否则会破坏分层门禁。"""
+    source = Path("repositories/stats_repo.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    service_imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            service_imports.extend(
+                alias.name for alias in node.names if alias.name.startswith("services.")
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.startswith("services."):
+                service_imports.append(node.module)
+
+    assert service_imports == []
 
 
 # ─────────────────────────────────────────────────────────────
@@ -289,6 +309,33 @@ class TestLifecycle:
         await repo.start()
         await repo.stop()
         assert repo._flush_task is None
+
+    async def test_cron_flush_timeout_is_observable(
+        self,
+        repo,
+        monkeypatch,
+        caplog,
+    ):
+        """AIMD 计时触发 flush 时应记录 timeout 控制流。"""
+        async def fake_wait_for(awaitable, timeout):
+            if hasattr(awaitable, "close"):
+                awaitable.close()
+            raise asyncio.TimeoutError
+
+        async def flush_stats_and_stop():
+            repo._shutdown_event.set()
+
+        monkeypatch.setattr(
+            "repositories.stats_repo.asyncio.wait_for",
+            fake_wait_for,
+        )
+        monkeypatch.setattr(repo, "flush_logs", AsyncMock())
+        monkeypatch.setattr(repo, "flush_stats", flush_stats_and_stop)
+        caplog.set_level("DEBUG", logger="repositories.stats_repo")
+
+        await repo._cron_flush()
+
+        assert "统计缓冲刷新计时器到期" in caplog.text
 
     async def test_aimd_pressure_shortens_interval(self, repo):
         """高积压时 AIMD 应缩短 current_interval"""

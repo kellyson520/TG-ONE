@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import math
 import time
 from typing import Any, Callable, Dict, List, Optional, Set
 
@@ -33,13 +34,14 @@ class HashedTimingWheel:
         self.tasks: Dict[str, TimingWheelTask] = {}
         self._running = False
         self._loop_task: Optional[asyncio.Task] = None
+        self._new_task_event: Optional[asyncio.Event] = None
 
     def add_task(self, task_id: str, delay_seconds: float, callback: Callable, *args, **kwargs) -> str:
         """添加一个定时任务"""
         if task_id in self.tasks:
             self.cancel_task(task_id)
 
-        total_ticks = int(delay_seconds / self.tick_ms)
+        total_ticks = math.ceil(delay_seconds / self.tick_ms)
         if total_ticks <= 0:
             total_ticks = 1
             
@@ -52,6 +54,8 @@ class HashedTimingWheel:
         # 记录到槽位
         self.wheel[target_slot].add(task)
         self.tasks[task_id] = task
+        if self._new_task_event:
+            self._new_task_event.set()
         return task_id
 
     def cancel_task(self, task_id: str):
@@ -66,6 +70,8 @@ class HashedTimingWheel:
         if self._running:
             return
         self._running = True
+        if self._new_task_event is None:
+            self._new_task_event = asyncio.Event()
         self._loop_task = asyncio.create_task(self._run_loop())
 
     async def stop(self):
@@ -80,41 +86,76 @@ class HashedTimingWheel:
 
     async def _run_loop(self):
         while self._running:
+            await self._wait_for_tasks()
+            if not self._running:
+                break
+
             start_time = time.time()
-            
+
             # 处理当前槽位的任务
             slot_tasks = self.wheel[self.current_slot]
             to_remove = set()
             ready_tasks = []
-            
+
             for task in slot_tasks:
                 if task.cancelled:
                     to_remove.add(task)
                     continue
-                
+
                 if task.remaining_rounds > 0:
                     task.remaining_rounds -= 1
                 else:
                     ready_tasks.append(task)
                     to_remove.add(task)
-            
+
             # 清理已完成/已取消的任务
             for t in to_remove:
                 slot_tasks.remove(t)
-                if t.task_id in self.tasks:
+                if self.tasks.get(t.task_id) is t:
                     del self.tasks[t.task_id]
-                    
+
             # 异步执行到期的任务
             for t in ready_tasks:
                 asyncio.create_task(t.callback(*t.args, **t.kwargs))
-                
+
             # 推进指针
             self.current_slot = (self.current_slot + 1) % self.slots
-            
+
+            if not self._has_active_tasks():
+                continue
+
             # 等待下一个刻度
             elapsed = time.time() - start_time
             sleep_time = max(0, self.tick_ms - elapsed)
             await asyncio.sleep(sleep_time)
+
+    async def _wait_for_tasks(self):
+        if self._has_active_tasks():
+            return
+
+        self._prune_cancelled_tasks()
+        if self._has_active_tasks():
+            return
+
+        if self._new_task_event is None:
+            self._new_task_event = asyncio.Event()
+
+        self._new_task_event.clear()
+        if not self._has_active_tasks():
+            await self._new_task_event.wait()
+
+    def _has_active_tasks(self) -> bool:
+        return any(not task.cancelled for task in self.tasks.values())
+
+    def _prune_cancelled_tasks(self):
+        for slot in self.wheel:
+            cancelled = {task for task in slot if task.cancelled}
+            if not cancelled:
+                continue
+            slot.difference_update(cancelled)
+            for task in cancelled:
+                if self.tasks.get(task.task_id) is task:
+                    del self.tasks[task.task_id]
 
     def get_stats(self) -> Dict[str, Any]:
         """获取时间轮统计信息"""

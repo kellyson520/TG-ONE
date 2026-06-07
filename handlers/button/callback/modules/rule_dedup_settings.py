@@ -7,6 +7,58 @@ from services.dedup_service import dedup_service
 
 logger = logging.getLogger(__name__)
 
+
+def _load_rule_custom_config(rule_id, raw_config, context):
+    if not raw_config:
+        return None
+
+    try:
+        config = json.loads(raw_config)
+    except (TypeError, json.JSONDecodeError) as e:
+        logger.warning(
+            "规则去重配置解析失败: rule_id=%s, context=%s, error=%s",
+            rule_id,
+            context,
+            e,
+        )
+        return None
+
+    if not isinstance(config, dict):
+        logger.warning(
+            "规则去重配置格式无效: rule_id=%s, context=%s, type=%s",
+            rule_id,
+            context,
+            type(config).__name__,
+        )
+        return None
+
+    return config
+
+
+def _coerce_rule_config_value(rule_id, key, value):
+    if not isinstance(value, str):
+        return value
+
+    if value.lower() == 'true':
+        return True
+    if value.lower() == 'false':
+        return False
+
+    try:
+        if '.' in value:
+            return float(value)
+        return int(value)
+    except ValueError as e:
+        logger.warning(
+            "规则去重配置值转换失败: rule_id=%s, key=%s, value=%r, error=%s",
+            rule_id,
+            key,
+            value,
+            e,
+        )
+        return value
+
+
 async def callback_rule_dedup_settings(event, rule_id, message, data=None):
     """显示单条规则的去重详细设置 - 使用 Service 层"""
     # 使用 Repository 获取规则
@@ -23,10 +75,13 @@ async def callback_rule_dedup_settings(event, rule_id, message, data=None):
     # 解析规则自定义配置
     rule_config = {}
     if hasattr(rule, 'custom_config') and rule.custom_config:
-        try:
-            rule_config = json.loads(rule.custom_config)
-        except:
-            pass
+        parsed_config = _load_rule_custom_config(
+            rule_id,
+            rule.custom_config,
+            "show",
+        )
+        if parsed_config is not None:
+            rule_config = parsed_config
     
     def get_val(key, default):
         return rule_config.get(key, default)
@@ -134,22 +189,16 @@ async def callback_update_rule_dedup(event, rule_id, key, value, message):
 
     current_config = {}
     if hasattr(rule, 'custom_config') and rule.custom_config:
-        try:
-            current_config = json.loads(rule.custom_config)
-        except:
-            pass
+        parsed_config = _load_rule_custom_config(
+            rule_id,
+            rule.custom_config,
+            "update",
+        )
+        if parsed_config is not None:
+            current_config = parsed_config
     
     # 类型转换
-    val = value
-    if isinstance(value, str):
-        if value.lower() == 'true': val = True
-        elif value.lower() == 'false': val = False
-        elif '.' in value: 
-            try: val = float(value)
-            except: pass
-        else: 
-            try: val = int(value)
-            except: pass
+    val = _coerce_rule_config_value(rule_id, key, value)
 
     current_config[key] = val
     
@@ -171,8 +220,12 @@ async def callback_reset_rule_dedup(event, rule_id, message):
     
     if rule:
         if hasattr(rule, 'custom_config') and rule.custom_config:
-            try:
-                cfg = json.loads(rule.custom_config)
+            cfg = _load_rule_custom_config(
+                rule_id,
+                rule.custom_config,
+                "reset",
+            )
+            if cfg is not None:
                 keys_to_remove = [
                     "enable_smart_similarity", "similarity_threshold", 
                     "enable_content_hash", "time_window_hours",
@@ -181,7 +234,7 @@ async def callback_reset_rule_dedup(event, rule_id, message):
                 for k in keys_to_remove:
                     if k in cfg: del cfg[k]
                 new_config = json.dumps(cfg)
-            except:
+            else:
                 new_config = None
         else:
             new_config = None

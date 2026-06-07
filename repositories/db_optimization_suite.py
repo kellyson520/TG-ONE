@@ -33,6 +33,7 @@ from core.logging import get_logger
 from repositories.query_optimizer import (
     get_query_performance_stats,
     start_query_optimization,
+    stop_query_optimization,
 )
 
 logger = get_logger(__name__)
@@ -113,7 +114,9 @@ class DatabaseOptimizationSuite:
 
         try:
             # 停止各种服务
-            stop_database_monitoring()
+            if self.optimization_config.get("enable_query_cache", True):
+                await stop_query_optimization()
+            await stop_database_monitoring()
             await stop_batch_processing()
 
             self.is_initialized = False

@@ -113,7 +113,7 @@ class TestSystemMenuStrategyHandle:
     @pytest.mark.asyncio
     async def test_handle_log_viewer(self, system_strategy, mock_event):
         """测试日志查看器"""
-        with patch('handlers.button.strategies.system.menu_controller') as mock_controller:
+        with patch('controllers.menu_controller.menu_controller') as mock_controller:
             mock_controller.show_system_logs = AsyncMock()
             
             await system_strategy.handle(mock_event, "log_viewer")
@@ -123,7 +123,7 @@ class TestSystemMenuStrategyHandle:
     @pytest.mark.asyncio
     async def test_handle_system_status(self, system_strategy, mock_event):
         """测试系统状态"""
-        with patch('handlers.button.strategies.system.new_menu_system') as mock_menu:
+        with patch('handlers.button.new_menu_system.new_menu_system') as mock_menu:
             mock_menu.show_system_status = AsyncMock()
             
             await system_strategy.handle(mock_event, "system_status")
@@ -137,7 +137,7 @@ class TestSystemMenuStrategyWithExtraData:
     @pytest.mark.asyncio
     async def test_handle_backup_page_with_page_number(self, system_strategy, mock_event):
         """测试带页码的备份列表"""
-        with patch('handlers.button.strategies.system.new_menu_system') as mock_menu:
+        with patch('handlers.button.new_menu_system.new_menu_system') as mock_menu:
             mock_menu.show_backup_history = AsyncMock()
             
             await system_strategy.handle(
@@ -151,7 +151,7 @@ class TestSystemMenuStrategyWithExtraData:
     @pytest.mark.asyncio
     async def test_handle_restore_backup_with_id(self, system_strategy, mock_event):
         """测试恢复特定备份"""
-        with patch('handlers.button.strategies.system.new_menu_system') as mock_menu:
+        with patch('handlers.button.new_menu_system.new_menu_system') as mock_menu:
             mock_menu.confirm_restore_backup = AsyncMock()
             
             await system_strategy.handle(

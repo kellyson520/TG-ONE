@@ -6,7 +6,7 @@ from datetime import date, datetime
 import asyncio
 from core.helpers.db_utils import async_db_retry
 import logging
-from services.network.aimd import AIMDScheduler
+from core.algorithms.aimd import AIMDScheduler
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,10 @@ class StatsRepository:
                 await asyncio.wait_for(self._flush_event.wait(), timeout=interval)
                 self._flush_event.clear()
             except asyncio.TimeoutError:
-                pass  # 正常超时，执行定时 flush
+                logger.debug(
+                    "统计缓冲刷新计时器到期: interval=%.3fs",
+                    interval,
+                )
 
             if self._shutdown_event.is_set():
                 break

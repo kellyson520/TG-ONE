@@ -117,6 +117,39 @@ def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
         logger.debug("S3 配置失败详细信息", exc_info=True)
 
 
+def _configure_duckdb_resource_limits(
+    con: "duckdb.DuckDBPyConnection", context: str
+) -> None:
+    """按配置限制 DuckDB 资源；失败只降级并记录原因。"""
+    try:
+        threads = int(settings.DUCKDB_THREADS)
+        con.execute(f"PRAGMA threads={max(1, threads)}")
+    except Exception as e:
+        logger.warning(f"配置 DuckDB 线程数失败: context={context}, error={e}")
+        logger.debug("配置 DuckDB 线程数失败详细信息", exc_info=True)
+
+    try:
+        mem_limit = settings.DUCKDB_MEMORY_LIMIT
+        if mem_limit:
+            safe_mem_limit = str(mem_limit).replace("'", "''")
+            con.execute(f"PRAGMA memory_limit='{safe_mem_limit}'")
+    except Exception as e:
+        logger.warning(f"配置 DuckDB 内存限制失败: context={context}, error={e}")
+        logger.debug("配置 DuckDB 内存限制失败详细信息", exc_info=True)
+
+
+def _remove_file_best_effort(path: str, context: str) -> bool:
+    """尽力删除归档临时/小文件；失败必须可观测但不改变调用方降级语义。"""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            return True
+    except Exception as e:
+        logger.warning(f"删除归档临时文件失败: context={context}, path={path}, error={e}")
+        logger.debug("删除归档临时文件失败详细信息", exc_info=True)
+    return False
+
+
 def _partition_path(table: str, dt: datetime) -> str:
     year = dt.strftime("%Y")
     month = dt.strftime("%m")
@@ -175,18 +208,7 @@ def write_parquet(
         con = duckdb.connect(database=":memory:")
         try:
             logger.debug("配置 DuckDB 连接")
-            try:
-                threads = settings.DUCKDB_THREADS
-                con.execute(f"PRAGMA threads={max(1, threads)}")
-            except Exception:
-                pass
-            try:
-                mem_limit = settings.DUCKDB_MEMORY_LIMIT
-                if mem_limit:
-                    con.execute(f"PRAGMA memory_limit='{mem_limit}'")
-            except Exception:
-                pass
-            
+            _configure_duckdb_resource_limits(con, context="write_parquet")
             _configure_httpfs_and_s3(con)
 
             success = False
@@ -243,11 +265,7 @@ def write_parquet(
         return out_dir
 
     except Exception as e:
-        if os.path.exists(tmp_file):
-            try:
-                os.remove(tmp_file)
-            except Exception:
-                pass
+        _remove_file_best_effort(tmp_file, context="write_parquet cleanup")
         raise e
 
 
@@ -286,11 +304,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
 
     except Exception as e:
         logger.error(f"写入分块失败: {e}")
-        if os.path.exists(tmp_file):
-            try:
-                os.remove(tmp_file)
-            except Exception:
-                pass
+        _remove_file_best_effort(tmp_file, context="write_parquet_chunk cleanup")
         raise e
 
 
@@ -374,11 +388,7 @@ def query_parquet_duckdb(
     con = duckdb.connect(database=":memory:")
     try:
         logger.debug("配置 DuckDB 连接")
-        try:
-            threads = settings.DUCKDB_THREADS
-            con.execute(f"PRAGMA threads={max(1, threads)}")
-        except Exception:
-            pass
+        _configure_duckdb_resource_limits(con, context="query_parquet_duckdb")
         _configure_httpfs_and_s3(con)
         
         logger.debug("执行查询")
@@ -445,15 +455,16 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
             # 删除已合并的小文件
             removed = 0
             for fp in small_files:
-                try:
-                    os.remove(fp)
+                if _remove_file_best_effort(
+                    fp, context=f"compact_small_files part_dir={part_dir}"
+                ):
                     removed += 1
-                except Exception:
-                    pass
             results.append((part_dir, removed))
         except Exception as e:
             logger.error(f"压实分区失败 {part_dir}: {e}")
             if 'tmp_file' in locals() and os.path.exists(tmp_file):
-                os.remove(tmp_file)
+                _remove_file_best_effort(
+                    tmp_file, context=f"compact_small_files cleanup part_dir={part_dir}"
+                )
             continue
     return results

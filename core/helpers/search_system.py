@@ -200,26 +200,38 @@ class SearchCache:
                 elif isinstance(item, (dict, list)):
                     self._serialize_datetime_objects(item)
 
-    def _deserialize_datetime_objects(self, obj: Any) -> None:
+    def _deserialize_datetime_objects(self, obj: Any, path: str = "") -> None:
         """递归处理字典中的datetime字符串，转换回datetime对象"""
         if isinstance(obj, dict):
             for key, value in obj.items():
+                child_path = f"{path}.{key}" if path else str(key)
                 if isinstance(value, str) and self._is_datetime_string(value):
                     try:
                         obj[key] = datetime.fromisoformat(value)
-                    except ValueError:
-                        pass  # 如果转换失败，保持原值
+                    except ValueError as e:
+                        logger.warning(
+                            "搜索缓存时间反序列化失败: path=%s, value=%r, error=%s",
+                            child_path,
+                            value,
+                            e,
+                        )
                 elif isinstance(value, (dict, list)):
-                    self._deserialize_datetime_objects(value)
+                    self._deserialize_datetime_objects(value, child_path)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
+                child_path = f"{path}[{i}]" if path else f"[{i}]"
                 if isinstance(item, str) and self._is_datetime_string(item):
                     try:
                         obj[i] = datetime.fromisoformat(item)
-                    except ValueError:
-                        pass  # 如果转换失败，保持原值
+                    except ValueError as e:
+                        logger.warning(
+                            "搜索缓存时间反序列化失败: path=%s, value=%r, error=%s",
+                            child_path,
+                            item,
+                            e,
+                        )
                 elif isinstance(item, (dict, list)):
-                    self._deserialize_datetime_objects(item)
+                    self._deserialize_datetime_objects(item, child_path)
 
     def _is_datetime_string(self, value: str) -> bool:
         """检查字符串是否是datetime格式"""

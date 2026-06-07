@@ -39,6 +39,27 @@ class RuleRepository:
             selectinload(ForwardRule.push_config)
         ]
 
+    @staticmethod
+    def _merge_priority_candidates(
+        priority_map: Dict[int, int],
+        candidates,
+        priority: int,
+        source_chat_id,
+    ) -> None:
+        for cand in candidates:
+            try:
+                key = int(cand)
+            except (TypeError, ValueError) as e:
+                logger.warning(
+                    "Rule priority map candidate is not numeric: "
+                    "source_chat_id=%s candidate=%r error=%s",
+                    source_chat_id,
+                    cand,
+                    e,
+                )
+                continue
+            priority_map[key] = max(priority_map.get(key, 0), priority)
+
     async def find_chat(self, chat_id, session=None) -> ChatDTO:
         """根据telegram_chat_id查找聊天"""
         async with self.db.get_session(session, readonly=True) as session:
@@ -437,8 +458,8 @@ class RuleRepository:
             if raw:
                 data = loads_json(raw)
                 return {int(k): v for k, v in data.items()}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Rule priority map cache read failed: %s", e)
             
         priority_map = {}
         async with self.db.get_session(session, readonly=True) as session:
@@ -452,12 +473,12 @@ class RuleRepository:
             for row in (await session.execute(stmt1)):
                 if row[0]:
                     candidates = build_candidate_telegram_ids(row[0])
-                    for cand in candidates:
-                        try:
-                            key = int(cand)
-                            priority_map[key] = max(priority_map.get(key, 0), row[1])
-                        except ValueError:
-                            pass
+                    self._merge_priority_candidates(
+                        priority_map,
+                        candidates,
+                        row[1],
+                        row[0],
+                    )
 
             # 2. Mapped Rules
             stmt2 = (
@@ -471,16 +492,16 @@ class RuleRepository:
             for row in (await session.execute(stmt2)):
                  if row[0]:
                     candidates = build_candidate_telegram_ids(row[0])
-                    for cand in candidates:
-                        try:
-                            key = int(cand)
-                            priority_map[key] = max(priority_map.get(key, 0), row[1])
-                        except ValueError:
-                            pass
+                    self._merge_priority_candidates(
+                        priority_map,
+                        candidates,
+                        row[1],
+                        row[0],
+                    )
             
         try:
             pc.set("rules:priority_map", dumps_json(priority_map), ttl=60)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Rule priority map cache write failed: %s", e)
             
         return priority_map

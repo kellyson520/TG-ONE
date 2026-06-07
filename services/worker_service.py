@@ -33,6 +33,8 @@ class WorkerService:
         # [NEW] 中央分发资源
         self.task_queue = asyncio.Queue(maxsize=settings.WORKER_QUEUE_SIZE)
         self.dispatcher = None # 在 start() 中初始化
+        self._dispatcher_wake_unsubscribe = None
+        self._stop_event = asyncio.Event()
         self._scale_down_requests = 0
         
         # [NEW] 资源阈值
@@ -53,6 +55,7 @@ class WorkerService:
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""
         self.running = True
+        self._stop_event.clear()
         logger.info(f"WorkerService 启动 (Min: {settings.WORKER_MIN_CONCURRENCY}, Max: {settings.WORKER_MAX_CONCURRENCY})")
         
         self.workers = {} # task -> worker_id
@@ -68,6 +71,10 @@ class WorkerService:
         # [Phase 14] 启动中央分发器 (Dispatcher)
         from services.task_dispatcher import TaskDispatcher
         self.dispatcher = TaskDispatcher(self.repo, self.task_queue)
+        if hasattr(self.repo, "register_pending_task_listener"):
+            self._dispatcher_wake_unsubscribe = (
+                self.repo.register_pending_task_listener(self.dispatcher.wake)
+            )
         await self.dispatcher.start()
 
         # 启动初始 Workers
@@ -80,9 +87,8 @@ class WorkerService:
         # [NEW] 启动 Loop Lag 监控
         self._lag_monitor_task = asyncio.create_task(self._monitor_loop_lag(), name="loop_lag_monitor")
         
-        # 保持主任务运行（用于接收停止信号）
-        while self.running:
-            await asyncio.sleep(1)
+        # 保持主任务运行（用于接收停止信号），空闲时不做周期性唤醒。
+        await self._stop_event.wait()
 
     def _spawn_worker(self):
         """Spawn a new worker"""
@@ -108,6 +114,27 @@ class WorkerService:
         except asyncio.QueueFull:
             logger.debug("Scaling down deferred: task queue is full")
 
+    def _probe_scaling_resources(self):
+        """Return CPU usage, process RSS, and load ratio for scaling decisions."""
+        try:
+            cpu_usage = psutil.cpu_percent(interval=None)
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024
+        except Exception as e:
+            logger.warning("Worker resource probe unavailable: %s", e)
+            return 0, 0, 0
+
+        try:
+            load_1, _load_5, _load_15 = psutil.getloadavg()
+            cpu_count = psutil.cpu_count()
+            load_ratio = load_1 / cpu_count if cpu_count else 0
+        except Exception as e:
+            logger.debug("Worker load average unavailable: %s", e)
+            load_ratio = 0
+
+        return cpu_usage, memory_mb, load_ratio
+
     async def _monitor_scaling(self):
         """
         智能化动态伸缩监控 (Resource-Aware & Load-Adaptive)
@@ -132,26 +159,7 @@ class WorkerService:
                 current_workers = len(self.workers)
                 
                 # --- 第一步：资源守卫 (Resource Guard) ---
-                try:
-                    # 使用 psutil 获取更准确的 CPU 使用率 (指定 interval)
-                    # 但是在 async 循环中不能长时间阻塞，改用非阻塞获取
-                    # interval=None 会返回上一秒到现在的时间差
-                    cpu_usage = psutil.cpu_percent(interval=None)
-                    process = psutil.Process()
-                    memory_info = process.memory_info()
-                    memory_mb = memory_info.rss / 1024 / 1024
-                    
-                    # 获取系统总体负载 (Load Average)
-                    try:
-                        load_1, load_5, load_15 = psutil.getloadavg()
-                        cpu_count = psutil.cpu_count()
-                        load_ratio = load_1 / cpu_count if cpu_count else 0
-                    except (AttributeError, Exception):
-                        load_ratio = 0
-                except Exception:
-                    cpu_usage = 0
-                    memory_mb = 0
-                    load_ratio = 0
+                cpu_usage, memory_mb, load_ratio = self._probe_scaling_resources()
                     
                 # 计算内存增速 (用于 Adaptive GC)
                 mem_growth = memory_mb - getattr(self, 'last_memory_mb', 0)
@@ -295,6 +303,8 @@ class WorkerService:
                       # [Optimization] 改为从中央队列获取任务批次，彻底消除 DB 锁竞争
                       tasks = await self.task_queue.get()
                       queue_item_acquired = True
+                      if self.dispatcher:
+                          self.dispatcher.wake()
                       if tasks is None:
                           self._scale_down_requests = max(0, self._scale_down_requests - 1)
                           logger.debug(f"[{worker_id}] Graceful scale-down requested")
@@ -619,8 +629,8 @@ class WorkerService:
             }
             if hasattr(mem, 'swap_used'):
                 stats["memory"]["swap_used_mb"] = round(mem.swap_used / (1024*1024), 1)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Worker memory stats unavailable: %s", e)
             
         return stats
 
@@ -628,10 +638,14 @@ class WorkerService:
         """优雅停止 Worker"""
         logger.info("worker_stopping")
         self.running = False
+        self._stop_event.set()
         if getattr(self, '_monitor_task', None):
             self._monitor_task.cancel()
         if getattr(self, '_lag_monitor_task', None):
             self._lag_monitor_task.cancel()
+        if self._dispatcher_wake_unsubscribe:
+            self._dispatcher_wake_unsubscribe()
+            self._dispatcher_wake_unsubscribe = None
         
         # Stop dispatcher
         if self.dispatcher:

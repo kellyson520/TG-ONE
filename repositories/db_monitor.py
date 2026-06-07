@@ -5,7 +5,7 @@
 
 import threading
 from collections import defaultdict, deque
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -522,6 +522,7 @@ class PerformanceAnalyzer:
 query_profiler = QueryProfiler()
 db_monitor = DatabaseMonitor()
 performance_analyzer = PerformanceAnalyzer()
+_monitoring_task: Optional[asyncio.Task] = None
 
 
 # SQLAlchemy事件监听器
@@ -563,13 +564,29 @@ def query_timing(query_name: str):
 
 async def start_database_monitoring():
     """启动数据库监控"""
-    await db_monitor.start_monitoring(interval=60)
+    global _monitoring_task
+
+    if _monitoring_task and not _monitoring_task.done():
+        logger.debug("Database monitoring services already running")
+        return
+
+    _monitoring_task = asyncio.create_task(
+        db_monitor.start_monitoring(interval=60),
+        name="database_monitoring",
+    )
     logger.info("Database monitoring services started")
 
 
-def stop_database_monitoring():
+async def stop_database_monitoring():
     """停止数据库监控"""
+    global _monitoring_task
+
     db_monitor.stop_monitoring()
+    if _monitoring_task and not _monitoring_task.done():
+        _monitoring_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _monitoring_task
+    _monitoring_task = None
 
 
 def get_performance_dashboard() -> Dict[str, Any]:

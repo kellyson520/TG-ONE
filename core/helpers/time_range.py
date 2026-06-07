@@ -2,19 +2,31 @@
 
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime, timedelta, timezone
 
-from typing import Dict, Optional, Tuple
+from typing import Mapping, Optional, Tuple
 
 
-def clamp_time_component(value: int, unit: str) -> int:
-    """约束时间分量到合法范围。
-    unit: 'year' | 'month' | 'day' | 'seconds'
-    """
+logger = logging.getLogger(__name__)
+
+
+def _safe_time_component_int(value: object, component: str) -> int:
     try:
-        v = int(value or 0)
-    except Exception:
-        v = 0
+        return int(value or 0)
+    except Exception as exc:
+        logger.warning(
+            "Invalid time range component %s (%s): %s; using 0",
+            component,
+            type(value).__name__,
+            exc,
+        )
+        return 0
+
+
+def _clamp_time_component_value(value: object, unit: str, component: str) -> int:
+    v = _safe_time_component_int(value, component)
     if unit == "year":
         return max(0, v)
     if unit == "month":
@@ -26,7 +38,14 @@ def clamp_time_component(value: int, unit: str) -> int:
     return v
 
 
-def format_time_range_display(time_range: Dict[str, int]) -> str:
+def clamp_time_component(value: object, unit: str) -> int:
+    """约束时间分量到合法范围。
+    unit: 'year' | 'month' | 'day' | 'seconds'
+    """
+    return _clamp_time_component_value(value, unit, unit)
+
+
+def format_time_range_display(time_range: Mapping[str, object]) -> str:
     """格式化时间范围显示文本（与历史/会话时间范围展示一致）。
     期望字段：start_year/start_month/start_day/start_hour/start_minute/start_second
             end_year/end_month/end_day/end_hour/end_minute/end_second
@@ -49,22 +68,38 @@ def format_time_range_display(time_range: Dict[str, int]) -> str:
             parts.append(f"{day}天")
         return "".join(parts) if parts else "不限"
 
-    sy = int(time_range.get("start_year", 0) or 0)
-    sm = int(time_range.get("start_month", 0) or 0)
-    sd = int(time_range.get("start_day", 0) or 0)
-    sh = int(time_range.get("start_hour", 0) or 0)
-    smin = int(time_range.get("start_minute", 0) or 0)
-    ss = int(time_range.get("start_second", 0) or 0)
-    ey = int(time_range.get("end_year", 0) or 0)
-    em = int(time_range.get("end_month", 0) or 0)
-    ed = int(time_range.get("end_day", 0) or 0)
-    eh = int(time_range.get("end_hour", 0) or 0)
-    emin = int(time_range.get("end_minute", 0) or 0)
-    es = int(time_range.get("end_second", 0) or 0)
+    sy = _clamp_time_component_value(
+        time_range.get("start_year", 0), "year", "start_year"
+    )
+    sm = _clamp_time_component_value(
+        time_range.get("start_month", 0), "month", "start_month"
+    )
+    sd = _clamp_time_component_value(
+        time_range.get("start_day", 0), "day", "start_day"
+    )
+    sh = _safe_time_component_int(time_range.get("start_hour", 0), "start_hour")
+    smin = _safe_time_component_int(
+        time_range.get("start_minute", 0), "start_minute"
+    )
+    ss = _safe_time_component_int(time_range.get("start_second", 0), "start_second")
+    ey = _clamp_time_component_value(
+        time_range.get("end_year", 0), "year", "end_year"
+    )
+    em = _clamp_time_component_value(
+        time_range.get("end_month", 0), "month", "end_month"
+    )
+    ed = _clamp_time_component_value(time_range.get("end_day", 0), "day", "end_day")
+    eh = _safe_time_component_int(time_range.get("end_hour", 0), "end_hour")
+    emin = _safe_time_component_int(time_range.get("end_minute", 0), "end_minute")
+    es = _safe_time_component_int(time_range.get("end_second", 0), "end_second")
 
     # 使用秒展示（end_second==0 视为 ∞）
-    start_seconds = sh * 3600 + smin * 60 + ss
-    end_seconds = eh * 3600 + emin * 60 + es
+    start_seconds = _clamp_time_component_value(
+        sh * 3600 + smin * 60 + ss, "seconds", "start_seconds"
+    )
+    end_seconds = _clamp_time_component_value(
+        eh * 3600 + emin * 60 + es, "seconds", "end_seconds"
+    )
 
     # 全零显示“全部时间”
     if (
@@ -92,31 +127,49 @@ def format_time_range_display(time_range: Dict[str, int]) -> str:
 
 
 def parse_time_range_to_dates(
-    time_range: Dict[str, int], now: Optional[datetime] = None
+    time_range: Mapping[str, object], now: Optional[datetime] = None
 ) -> Tuple[datetime, Optional[datetime], int, int]:
     """从时间范围配置解析出 begin_date/end_date 以及 start_s/end_s（当天秒）。
     返回: (begin_date, end_date, start_s, end_s)
     """
     now = now or datetime.now(timezone.utc)
 
-    sy = clamp_time_component(time_range.get("start_year", 0), "year")
-    sm = clamp_time_component(time_range.get("start_month", 0), "month")
-    sd = clamp_time_component(time_range.get("start_day", 0), "day")
-    ss = clamp_time_component(
-        (time_range.get("start_hour", 0) or 0) * 3600
-        + (time_range.get("start_minute", 0) or 0) * 60
-        + (time_range.get("start_second", 0) or 0),
+    sy = _clamp_time_component_value(
+        time_range.get("start_year", 0), "year", "start_year"
+    )
+    sm = _clamp_time_component_value(
+        time_range.get("start_month", 0), "month", "start_month"
+    )
+    sd = _clamp_time_component_value(
+        time_range.get("start_day", 0), "day", "start_day"
+    )
+    start_hour = _safe_time_component_int(time_range.get("start_hour", 0), "start_hour")
+    start_minute = _safe_time_component_int(
+        time_range.get("start_minute", 0), "start_minute"
+    )
+    start_second = _safe_time_component_int(
+        time_range.get("start_second", 0), "start_second"
+    )
+    ss = _clamp_time_component_value(
+        start_hour * 3600 + start_minute * 60 + start_second,
         "seconds",
+        "start_seconds",
     )
 
-    ey = clamp_time_component(time_range.get("end_year", 0), "year")
-    em = clamp_time_component(time_range.get("end_month", 0), "month")
-    ed = clamp_time_component(time_range.get("end_day", 0), "day")
-    es = clamp_time_component(
-        (time_range.get("end_hour", 0) or 0) * 3600
-        + (time_range.get("end_minute", 0) or 0) * 60
-        + (time_range.get("end_second", 0) or 0),
+    ey = _clamp_time_component_value(
+        time_range.get("end_year", 0), "year", "end_year"
+    )
+    em = _clamp_time_component_value(
+        time_range.get("end_month", 0), "month", "end_month"
+    )
+    ed = _clamp_time_component_value(time_range.get("end_day", 0), "day", "end_day")
+    end_hour = _safe_time_component_int(time_range.get("end_hour", 0), "end_hour")
+    end_minute = _safe_time_component_int(time_range.get("end_minute", 0), "end_minute")
+    end_second = _safe_time_component_int(time_range.get("end_second", 0), "end_second")
+    es = _clamp_time_component_value(
+        end_hour * 3600 + end_minute * 60 + end_second,
         "seconds",
+        "end_seconds",
     )
 
     # begin_date 计算

@@ -52,6 +52,7 @@ class SmartDeduplicator:
         # 写缓冲队列 (Batch Insert)
         self._write_buffer = []
         self._buffer_lock = asyncio.Lock()
+        self._flush_event = asyncio.Event()
         self._flush_task = None
 
         # 策略链
@@ -112,7 +113,12 @@ class SmartDeduplicator:
                 # 在分配前先创建，防止中途被清空导致的 KeyError
                 forest = LSHForest(num_trees=4, prefix_length=64)
                 self.lsh_forests[chat_id] = forest
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "LSH Forest初始化失败 (%s): %s",
+                    chat_id,
+                    exc,
+                )
                 return None
         return self.lsh_forests.get(chat_id)
 
@@ -281,13 +287,28 @@ class SmartDeduplicator:
             if chash:
                 # 检查 PCache 全局项
                 global_pcache_key = f"global_hash:{chash}"
-                if await ctx.pcache_repo.get(global_pcache_key):
+                try:
+                    global_cache_hit = await ctx.pcache_repo.get(
+                        global_pcache_key,
+                    )
+                except Exception as cache_exc:
+                    logger.debug(f"全局共振PCache读取失败: {cache_exc}")
+                    global_cache_hit = None
+
+                if global_cache_hit:
                     return True, "全局内容传播命中 (PCache)"
 
                 # 检查数据库全局 (已在 repo 中实现 chat_id=None 支持)
                 is_dup, reason = await ctx.repo.check_content_hash_duplicate(chash, chat_id=None, config=ctx.config)
                 if is_dup:
-                    await ctx.pcache_repo.set(global_pcache_key, "1", expire=3600*2) # 缓存2小时
+                    try:
+                        await ctx.pcache_repo.set(
+                            global_pcache_key,
+                            "1",
+                            expire=3600 * 2,
+                        )
+                    except Exception as cache_exc:
+                        logger.debug(f"全局共振PCache回填失败: {cache_exc}")
                     return True, f"全局内容传播命中 ({reason})"
             
             return False, ""
@@ -419,9 +440,15 @@ class SmartDeduplicator:
             async with self._buffer_lock:
                 self._write_buffer.append(payload)
                 should_flush = len(self._write_buffer) > 100
+                if not should_flush:
+                    self._flush_event.set()
 
             if should_flush:
+                self._flush_event.clear()
                 await self._flush_buffer()
+
+            async with self._buffer_lock:
+                has_pending_writes = bool(self._write_buffer)
             
             # 6. 内存 L1 滚动淘汰 (防止 OOM)
             max_sig_size = config.get("max_signature_cache_size", 5000)
@@ -438,7 +465,7 @@ class SmartDeduplicator:
 
 
             # 确保后台刷写任务启动
-            if self._flush_task is None or self._flush_task.done():
+            if has_pending_writes and (self._flush_task is None or self._flush_task.done()):
                 self._flush_task = asyncio.create_task(self._buffer_flush_worker())
 
         except Exception as e:
@@ -488,16 +515,50 @@ class SmartDeduplicator:
             logger.warning(f"移除消息失败: {e}")
 
     async def _buffer_flush_worker(self):
-        """后台低频刷写任务"""
+        """后台低频刷写任务；缓冲排空后退出，避免待机空转。"""
+        should_flush_now = True
         while True:
             try:
-                await asyncio.sleep(5.0)
+                async with self._buffer_lock:
+                    if not self._write_buffer:
+                        self._flush_event.clear()
+                        if asyncio.current_task() is self._flush_task:
+                            self._flush_task = None
+                        break
+
+                if not should_flush_now:
+                    interval = float(
+                        getattr(settings, "DEDUP_FLUSH_INTERVAL", 5.0) or 5.0
+                    )
+                    try:
+                        await asyncio.wait_for(
+                            self._flush_event.wait(),
+                            timeout=max(0.01, interval),
+                        )
+                    except asyncio.TimeoutError:
+                        logger.debug("去重引擎刷写间隔到期，执行重试")
+                should_flush_now = False
+
+                self._flush_event.clear()
                 await self._flush_buffer()
+
+                async with self._buffer_lock:
+                    if not self._write_buffer:
+                        if asyncio.current_task() is self._flush_task:
+                            self._flush_task = None
+                        break
+                    if self._flush_event.is_set():
+                        should_flush_now = True
             except asyncio.CancelledError:
+                if asyncio.current_task() is self._flush_task:
+                    self._flush_task = None
                 break
             except Exception as e:
                 logger.error(f"去重引擎刷写线程异常: {e}")
-                await asyncio.sleep(1.0) # 避退一下
+                interval = float(
+                    getattr(settings, "DEDUP_FLUSH_INTERVAL", 5.0) or 5.0
+                )
+                await asyncio.sleep(min(1.0, max(0.01, interval)))
 
     async def _flush_buffer(self):
         batch = []

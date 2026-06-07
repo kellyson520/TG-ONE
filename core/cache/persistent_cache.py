@@ -73,14 +73,16 @@ class RedisPersistentCache(BasePersistentCache):
                 self._client.delete(key)
                 count += 1
             return count
-        except Exception:
+        except Exception as exc:
+            logger.debug("Redis缓存前缀删除失败 (%s): %s", prefix, exc)
             return 0
 
     def count_prefix(self, prefix: str) -> int:
         try:
             pattern = f"{prefix}*"
             return sum(1 for _ in self._client.scan_iter(match=pattern))
-        except Exception:
+        except Exception as exc:
+            logger.debug("Redis缓存前缀计数失败 (%s): %s", prefix, exc)
             return 0
 
 
@@ -172,19 +174,33 @@ class SQLitePersistentCache(BasePersistentCache):
         now = int(time.time())
         try:
             conn = self._conn()
-        except Exception: 
+        except Exception as exc:
+            logger.debug("SQLite缓存读取连接失败 (%s): %s", key, exc)
             return None
 
         try:
             cur = conn.cursor()
             cur.execute(
-                "DELETE FROM kv_cache WHERE expires_at IS NOT NULL AND expires_at < ?",
-                (now,),
+                "SELECT value, expires_at FROM kv_cache WHERE key = ?",
+                (key,),
             )
-            conn.commit()
-            cur.execute("SELECT value FROM kv_cache WHERE key = ?", (key,))
             row = cur.fetchone()
-            return row[0] if row else None
+            if not row:
+                return None
+
+            value, expires_at = row
+            try:
+                is_expired = expires_at is not None and int(expires_at) < now
+            except (TypeError, ValueError):
+                logger.debug("SQLite缓存过期时间损坏，按miss处理: %s", key)
+                is_expired = True
+
+            if is_expired:
+                cur.execute("DELETE FROM kv_cache WHERE key = ?", (key,))
+                conn.commit()
+                return None
+
+            return value
         except sqlite3.DatabaseError:
             # If error happens during query (even if connect worked)
             conn.close()
@@ -197,7 +213,8 @@ class SQLitePersistentCache(BasePersistentCache):
         expires_at = int(time.time()) + max(1, int(ttl))
         try:
             conn = self._conn()
-        except Exception:
+        except Exception as exc:
+            logger.debug("SQLite缓存写入连接失败 (%s): %s", key, exc)
             return
 
         try:
@@ -216,7 +233,8 @@ class SQLitePersistentCache(BasePersistentCache):
     def delete(self, key: str) -> None:
         try:
             conn = self._conn()
-        except Exception:
+        except Exception as exc:
+            logger.debug("SQLite缓存删除连接失败 (%s): %s", key, exc)
             return
 
         try:
@@ -299,7 +317,7 @@ def get_persistent_cache() -> BasePersistentCache:
             return _persistent_cache
         except Exception as e:
             # Redis 连接失败，回退到 SQLite
-            pass
+            logger.warning("Redis持久化缓存连接失败，回退到SQLite: %s", e)
             
     # fallback: local sqlite file
     db_path = str(settings.PERSIST_CACHE_SQLITE)
@@ -316,5 +334,6 @@ def loads_json(s: Optional[str]) -> Any:
         return None
     try:
         return json_loads(s)
-    except Exception:
+    except Exception as exc:
+        logger.debug("缓存JSON反序列化失败，按miss处理: %s", exc)
         return None

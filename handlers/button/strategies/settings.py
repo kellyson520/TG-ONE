@@ -161,8 +161,8 @@ class SettingsMenuStrategy(BaseMenuHandler):
             # 占位：此处可落库保存筛选配置，当前仅提示成功并返回
             try:
                 await event.answer("✅ 已保存筛选配置")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"保存筛选配置提示发送失败: {e}")
             await new_menu_system.show_delete_session_messages_menu(event)
             
         elif action == "toggle_allow_emoji":

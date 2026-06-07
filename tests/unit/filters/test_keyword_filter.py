@@ -27,6 +27,7 @@ def mock_context():
     context.sender_id = 123
     context.sender_name = "John Doe"
     context.should_forward = True
+    context.errors = []
     return context
 
 @pytest.mark.asyncio
@@ -70,17 +71,28 @@ async def test_keyword_filter_sender_regex_mismatch(keyword_filter, mock_context
         assert result is False
 
 @pytest.mark.asyncio
-async def test_keyword_filter_dedup(keyword_filter, mock_context):
+async def test_keyword_filter_does_not_run_smart_dedup(keyword_filter, mock_context):
+    """Smart dedup is handled by DedupMiddleware, not KeywordFilter._process."""
     mock_context.rule.enable_dedup = True
     
-    # Patch RuleFilterService.check_keywords to return True so we reach the dedup logic
-    with patch("services.rule.filter.RuleFilterService.check_keywords", new_callable=AsyncMock) as mock_check:
+    with patch(
+        "services.rule.filter.RuleFilterService.check_keywords",
+        new_callable=AsyncMock,
+    ) as mock_check:
         mock_check.return_value = True
-        with patch.object(KeywordFilter, "_check_smart_duplicate", return_value=True):
-            with patch.object(KeywordFilter, "_handle_duplicate_message_deletion", return_value=None):
+        with patch.object(
+            KeywordFilter, "_check_smart_duplicate", new_callable=AsyncMock
+        ) as mock_dedup:
+            with patch.object(
+                KeywordFilter,
+                "_handle_duplicate_message_deletion",
+                new_callable=AsyncMock,
+            ) as mock_delete:
                 result = await keyword_filter._process(mock_context)
-                assert result is False
-                assert mock_context.should_forward is False
+                assert result is True
+                assert mock_context.should_forward is True
+                mock_dedup.assert_not_called()
+                mock_delete.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_keyword_filter_smart_duplicate_call(keyword_filter, mock_context):

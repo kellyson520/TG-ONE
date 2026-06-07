@@ -1,8 +1,8 @@
-from datetime import timedelta
 import time
 from typing import Optional
 from services.dedup.strategies.base import BaseDedupStrategy
 from services.dedup.types import DedupContext, DedupResult
+
 
 class SignatureStrategy(BaseDedupStrategy):
     async def process(self, ctx: DedupContext) -> Optional[DedupResult]:
@@ -12,18 +12,18 @@ class SignatureStrategy(BaseDedupStrategy):
         message_obj = ctx.message_obj
         target_chat_id = ctx.target_chat_id
         config = ctx.config
-        
+
         # 1. 检查是否跳过签名
         if config.get("skip_media_sig", False):
             return None
-            
+
         # 2. 生成签名
         from services.dedup.tools import generate_signature
         signature = generate_signature(message_obj)
-        
+
         if not signature:
             return None
-            
+
         if ctx.bloom_filter:
             # 格式兼容：某些地方存 sig:chat:val，某些地方存 val
             # 这里对应 engine.py:351 存的是 sig:{target_chat_id}:{signature}
@@ -31,11 +31,16 @@ class SignatureStrategy(BaseDedupStrategy):
             if bloom_key not in ctx.bloom_filter:
                 # 只有未命中才确定不重复，命中则继续深挖 (L1, L2, L3)
                 return None
-        
+
         # 4. 检查持久化缓存 (L2)
         pcache_key = f"sig:{target_chat_id}:{signature}"
-        if await ctx.pcache_repo.get(pcache_key):
-             return DedupResult(True, "签名重复: persistent cache 命中", "signature", signature)
+        if await self._get_pcache_best_effort(ctx, pcache_key):
+            return DedupResult(
+                True,
+                "签名重复: persistent cache 命中",
+                "signature",
+                signature,
+            )
 
         # 5. 检查内存缓存 (L1) - 时间窗口
         if config.get("enable_time_window", True):
@@ -47,24 +52,58 @@ class SignatureStrategy(BaseDedupStrategy):
                     # 检查是否在窗口内
                     window_hours = config.get("time_window_hours", 24)
                     diff = time.time() - last_seen_ts
-                    
-                    if window_hours < 0: # 永久
-                        return DedupResult(True, "时间窗口内重复 (永久)", "signature", signature)
+
+                    if window_hours < 0:
+                        # 永久窗口命中也只缓存一段时间，避免无界 KV 残留。
+                        await self._set_pcache_best_effort(
+                            ctx,
+                            pcache_key,
+                            expire=86400 * 30,
+                        )
+                        return DedupResult(
+                            True,
+                            "时间窗口内重复 (永久)",
+                            "signature",
+                            signature,
+                        )
                     elif diff < window_hours * 3600:
-                         return DedupResult(True, f"时间窗口内重复 ({window_hours}小时)", "signature", signature)
-        
+                        ttl = max(1, int(window_hours * 3600 - diff))
+                        await self._set_pcache_best_effort(
+                            ctx,
+                            pcache_key,
+                            expire=ttl,
+                        )
+                        return DedupResult(
+                            True,
+                            f"时间窗口内重复 ({window_hours}小时)",
+                            "signature",
+                            signature,
+                        )
+
         # 6. 检查数据库 (L3)
-        exists = await ctx.repo.exists_media_signature(str(target_chat_id), signature)
+        exists = await ctx.repo.exists_media_signature(
+            str(target_chat_id),
+            signature,
+        )
         if exists:
             # 数据库命中
+            await self._set_pcache_best_effort(
+                ctx,
+                pcache_key,
+                expire=86400 * 7,
+            )
             return DedupResult(True, "数据库中存在", "signature", signature)
-            
+
         # 7. 冷区检查 (Archive/DuckDB)
         # 逻辑：只有当时间窗口设置为永久(<=0)时，才进行深度挖掘
-        if config.get("time_window_hours", 24) <= 0: 
+        if config.get("time_window_hours", 24) <= 0:
             try:
                 from repositories.bloom_index import bloom
-                if bloom.probably_contains("media_signatures", str(target_chat_id), str(signature)):
+                if bloom.probably_contains(
+                    "media_signatures",
+                    str(target_chat_id),
+                    str(signature),
+                ):
                     from repositories.archive_store import query_parquet_duckdb
                     # 限制检索范围，避免全量扫描
                     rows = query_parquet_duckdb(
@@ -75,7 +114,12 @@ class SignatureStrategy(BaseDedupStrategy):
                         limit=1
                     )
                     if rows:
-                        return DedupResult(True, "归档冷区命中 (DuckDB)", "signature", signature)
+                        return DedupResult(
+                            True,
+                            "归档冷区命中 (DuckDB)",
+                            "signature",
+                            signature,
+                        )
             except Exception as e:
                 ctx.logger.warning(f"归档冷区查询失败: {e}")
 

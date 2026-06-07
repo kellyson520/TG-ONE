@@ -122,3 +122,62 @@ async def test_record_message_flush_threshold_does_not_deadlock(dedup):
     if dedup._flush_task and not dedup._flush_task.done():
         dedup._flush_task.cancel()
         await asyncio.gather(dedup._flush_task, return_exceptions=True)
+
+@pytest.mark.asyncio
+async def test_flush_worker_exits_after_buffer_drains(dedup, monkeypatch):
+    """Idle dedup flush worker should not wake forever after all data is persisted."""
+    monkeypatch.setattr("services.dedup.engine.settings.DEDUP_FLUSH_INTERVAL", 0.01)
+    dedup.strategies = []
+    msg = MagicMock()
+    msg.id = 1
+    msg.message = "hello world unique text"
+    msg.text = "hello world unique text"
+    msg.video = None
+    msg.photo = None
+    msg.document = None
+    msg.type = "text"
+
+    with patch("services.dedup.tools.generate_signature", return_value="sig:idle"), \
+         patch("services.dedup.tools.generate_content_hash", return_value="hash:idle"):
+        await dedup._record_message(dedup._create_context(msg, 12345))
+
+    assert dedup._flush_task is not None
+    try:
+        await asyncio.wait_for(asyncio.shield(dedup._flush_task), timeout=0.2)
+    finally:
+        if dedup._flush_task and not dedup._flush_task.done():
+            dedup._flush_task.cancel()
+            await asyncio.gather(dedup._flush_task, return_exceptions=True)
+
+    assert dedup._repo.batch_add_media_signatures.await_count == 1
+    assert dedup._write_buffer == []
+
+
+@pytest.mark.asyncio
+async def test_flush_worker_flushes_pending_buffer_before_long_interval(dedup, monkeypatch):
+    """Pending writes should wake the flush worker without waiting the full interval."""
+    monkeypatch.setattr("services.dedup.engine.settings.DEDUP_FLUSH_INTERVAL", 60.0)
+    dedup.strategies = []
+    msg = MagicMock()
+    msg.id = 2
+    msg.message = "hello world immediate flush text"
+    msg.text = "hello world immediate flush text"
+    msg.video = None
+    msg.photo = None
+    msg.document = None
+    msg.type = "text"
+
+    with patch("services.dedup.tools.generate_signature", return_value="sig:wake"), \
+         patch("services.dedup.tools.generate_content_hash", return_value="hash:wake"):
+        await dedup._record_message(dedup._create_context(msg, 12345))
+
+    assert dedup._flush_task is not None
+    try:
+        await asyncio.wait_for(asyncio.shield(dedup._flush_task), timeout=0.2)
+    finally:
+        if dedup._flush_task and not dedup._flush_task.done():
+            dedup._flush_task.cancel()
+            await asyncio.gather(dedup._flush_task, return_exceptions=True)
+
+    assert dedup._repo.batch_add_media_signatures.await_count == 1
+    assert dedup._write_buffer == []

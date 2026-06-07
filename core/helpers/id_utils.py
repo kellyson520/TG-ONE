@@ -31,8 +31,18 @@ def normalize_chat_id(chat_id: Union[int, str]) -> str:
         标准化后的字符串格式 ID
     """
     try:
+        raw = str(chat_id)
+    except Exception as e:
+        logger.warning(
+            "无法标准化 Chat ID type=%s: %s",
+            type(chat_id).__name__,
+            e,
+        )
+        return f"<{type(chat_id).__name__}>"
+
+    try:
         # 转换为整数
-        n = int(str(chat_id))
+        n = int(raw)
         
         # 如果是负数
         if n < 0:
@@ -49,10 +59,12 @@ def normalize_chat_id(chat_id: Union[int, str]) -> str:
         else:
             # 正数直接返回
             return str(n)
+    except (TypeError, ValueError) as e:
+        logger.debug("Non-numeric chat ID %r; keeping original string: %s", raw, e)
+        return raw
     except Exception as e:
-        logger.warning(f"无法标准化 Chat ID {chat_id}: {e}")
-        # 降级:返回原值的字符串形式
-        return str(chat_id)
+        logger.warning("无法标准化 Chat ID %r: %s", raw, e)
+        return raw
 
 
 def build_candidate_telegram_ids(raw_id: Union[int, str]) -> Set[str]:
@@ -84,6 +96,7 @@ def build_candidate_telegram_ids(raw_id: Union[int, str]) -> Set[str]:
         # 获取绝对值的基础数字 (去掉负号和 -100 标识)
         abs_val = abs(n)
         abs_s = str(abs_val)
+        candidates.add(abs_s)
         
         # 如果原始数字已经包含 100 前缀 (如 100123 或 -100123)
         if abs_s.startswith('100') and len(abs_s) > 3:
@@ -97,9 +110,15 @@ def build_candidate_telegram_ids(raw_id: Union[int, str]) -> Set[str]:
             candidates.add(f"-{abs_s}")
             candidates.add(f"-100{abs_s}")
 
-    except Exception:
+    except (TypeError, ValueError) as e:
         # 非数字场景仅保留原字符串
-        pass
+        logger.debug(
+            "Skipping numeric Telegram ID variants for raw_id=%r: %s",
+            s,
+            e,
+        )
+    except Exception as e:
+        logger.warning("Failed to build Telegram ID variants for raw_id=%r: %s", s, e)
     return candidates
 
 
@@ -125,7 +144,15 @@ async def resolve_entity_by_id_variants(
 
         if entity_resolver:
             # 使用批量解析器
-            entity = await entity_resolver.resolve_single_entity(raw_id)
+            try:
+                entity = await entity_resolver.resolve_single_entity(raw_id)
+            except Exception as e:
+                logger.warning(
+                    "Optimized entity resolver failed for raw_id=%r: %s; falling back",
+                    raw_id,
+                    e,
+                )
+                entity = None
             if entity:
                 # 获取数值ID
                 resolved_numeric: Optional[int] = None
@@ -135,7 +162,12 @@ async def resolve_entity_by_id_variants(
                     else:
                         val = getattr(entity, "id", None)
                         resolved_numeric = int(val) if val is not None else None
-                except Exception:
+                except Exception as e:
+                    logger.debug(
+                        "Failed to derive numeric Telegram ID raw_id=%r: %s",
+                        raw_id,
+                        e,
+                    )
                     resolved_numeric = None
 
                 return entity, resolved_numeric
@@ -149,8 +181,13 @@ async def resolve_entity_by_id_variants(
             try_order.append(int(f"-100{abs(n)}"))
             # 常规负数群组格式
             try_order.append(int(f"-{abs(n)}"))
-        except Exception:
+        except Exception as e:
             # 非数字则仅尝试原字符串（如用户名）
+            logger.debug(
+                "Using raw Telegram entity lookup for non-numeric raw_id=%r: %s",
+                raw_id,
+                e,
+            )
             try_order.append(str(raw_id))
 
         # 如果没有实体解析器，使用传统方法
@@ -165,10 +202,22 @@ async def resolve_entity_by_id_variants(
                     try:
                         val = getattr(entity, "id", None)
                         numeric_id = int(val) if val is not None else None
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(
+                            "Failed to derive numeric Telegram ID from variant=%r: %s",
+                            variant,
+                            e,
+                        )
                         numeric_id = None
                 return entity, numeric_id
-            except Exception:
+            except Exception as e:
+                logger.debug(
+                    "Failed to resolve Telegram entity variant raw_id=%r "
+                    "variant=%r: %s",
+                    raw_id,
+                    variant,
+                    e,
+                )
                 continue
 
         return None, None
@@ -294,5 +343,6 @@ async def get_display_name_async(chat_id: Union[int, str]) -> str:
     try:
         from core.container import container
         return str(await container.chat_info_service.get_chat_name(chat_id))
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to get chat display name chat_id=%r: %s", chat_id, e)
         return str(chat_id)

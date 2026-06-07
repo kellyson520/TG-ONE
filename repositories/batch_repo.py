@@ -68,6 +68,9 @@ class AsyncBatchProcessor:
         self.pending_operations = deque()
         self.processing_queue = asyncio.Queue()
         self.results = {}
+        self._batch_event = asyncio.Event()
+        self._result_events: Dict[str, asyncio.Event] = {}
+        self._pending_since: Optional[float] = None
 
         self.is_running = False
         self.worker_tasks = []
@@ -149,8 +152,15 @@ class AsyncBatchProcessor:
             priority=priority,
         )
 
+        should_wake_timer = False
         async with self.lock:
+            if not self.pending_operations:
+                self._pending_since = time.time()
+                should_wake_timer = True
             self.pending_operations.append(operation)
+
+        if should_wake_timer:
+            self._batch_event.set()
 
         return operation_id
 
@@ -158,19 +168,39 @@ class AsyncBatchProcessor:
         self, operation_id: str, timeout: float = 30.0
     ) -> Optional[BatchResult]:
         """获取操作结果"""
-        start_time = time.time()
+        result = self._pop_result(operation_id)
+        if result is not None:
+            return result
 
-        while time.time() - start_time < timeout:
-            if operation_id in self.results:
-                # 解包元组
-                data = self.results.pop(operation_id)
-                if isinstance(data, tuple):
-                    return data[1]
-                return data
+        event = self._result_events.setdefault(operation_id, asyncio.Event())
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            self._result_events.pop(operation_id, None)
+            return None
 
-            await asyncio.sleep(0.1)
+        self._result_events.pop(operation_id, None)
+        return self._pop_result(operation_id)
 
-        return None
+    def _pop_result(self, operation_id: str) -> Optional[BatchResult]:
+        if operation_id not in self.results:
+            return None
+
+        data = self.results.pop(operation_id)
+        if isinstance(data, tuple):
+            return data[1]
+        return data
+
+    def _store_result(
+        self,
+        operation_id: str,
+        timestamp: float,
+        result: BatchResult,
+    ) -> None:
+        self.results[operation_id] = (timestamp, result)
+        event = self._result_events.get(operation_id)
+        if event:
+            event.set()
 
     async def _worker(self, worker_name: str):
         """工作协程"""
@@ -196,7 +226,27 @@ class AsyncBatchProcessor:
         """批量计时器 + 结果清理"""
         while self.is_running:
             try:
-                await asyncio.sleep(self.batch_timeout)
+                delay = await self._seconds_until_timer_deadline()
+                if delay is None:
+                    self._batch_event.clear()
+                    if await self._seconds_until_timer_deadline() is None:
+                        await self._batch_event.wait()
+                    continue
+
+                self._batch_event.clear()
+                delay = await self._seconds_until_timer_deadline()
+                if delay is None:
+                    continue
+
+                if delay > 0:
+                    timed_out = False
+                    try:
+                        await asyncio.wait_for(self._batch_event.wait(), timeout=delay)
+                    except asyncio.TimeoutError:
+                        timed_out = True
+                    if not timed_out:
+                        continue
+
                 await self._flush_pending_operations()
                 # 新增：清理过期结果
                 self._cleanup_stale_results()
@@ -204,6 +254,28 @@ class AsyncBatchProcessor:
                 break
             except Exception as e:
                 logger.error(f"Batch timer error: {e}")
+
+    async def _seconds_until_timer_deadline(self) -> Optional[float]:
+        now = time.time()
+        deadlines: List[float] = []
+
+        async with self.lock:
+            if self.pending_operations:
+                if self._pending_since is None:
+                    self._pending_since = now
+                deadlines.append(self._pending_since + self.batch_timeout)
+
+        for data in list(self.results.values()):
+            if isinstance(data, tuple) and len(data) == 2:
+                ts, _ = data
+                deadlines.append(float(ts) + self.result_ttl)
+            elif isinstance(data, BatchResult):
+                deadlines.append(now + self.result_ttl)
+
+        if not deadlines:
+            return None
+
+        return max(0.0, min(deadlines) - now)
 
     def _cleanup_stale_results(self):
         """清理未被领取的过期结果"""
@@ -214,7 +286,7 @@ class AsyncBatchProcessor:
             # 兼容处理：检查data是否是元组
             if isinstance(data, tuple) and len(data) == 2:
                 ts, _ = data
-                if now - ts > self.result_ttl:
+                if now - ts >= self.result_ttl:
                     expired_ids.append(op_id)
             # 如果是旧格式直接存储的Result对象，强制清理
             elif isinstance(data, BatchResult):
@@ -223,6 +295,7 @@ class AsyncBatchProcessor:
 
         for op_id in expired_ids:
             self.results.pop(op_id, None)
+            self._result_events.pop(op_id, None)
 
         if expired_ids:
             logger.debug(f"清理了 {len(expired_ids)} 个过期批量结果")
@@ -230,15 +303,19 @@ class AsyncBatchProcessor:
     async def _flush_pending_operations(self):
         """刷新待处理操作"""
         async with self.lock:
-            if self.pending_operations:
-                operations = list(self.pending_operations)
-                self.pending_operations.clear()
+            if not self.pending_operations:
+                self._pending_since = None
+                return
 
-                # 按表和操作类型分组
-                grouped = self._group_operations(operations)
+            operations = list(self.pending_operations)
+            self.pending_operations.clear()
+            self._pending_since = None
 
-                for group in grouped:
-                    await self.processing_queue.put(group)
+        # 按表和操作类型分组
+        grouped = self._group_operations(operations)
+
+        for group in grouped:
+            await self.processing_queue.put(group)
 
     def _group_operations(
         self, operations: List[BatchOperation]
@@ -258,10 +335,7 @@ class AsyncBatchProcessor:
 
     async def _get_batch_from_queue(self) -> Optional[List[BatchOperation]]:
         """从队列获取批量操作"""
-        try:
-            return await asyncio.wait_for(self.processing_queue.get(), timeout=1.0)
-        except asyncio.TimeoutError:
-            return None
+        return await self.processing_queue.get()
 
     async def _process_batch(self, operations: List[BatchOperation], worker_name: str):
         """处理批量操作"""
@@ -295,7 +369,8 @@ class AsyncBatchProcessor:
             # 存储结果时带上时间戳
             current_ts = time.time()
             for op, result in zip(operations, results):
-                self.results[op.operation_id] = (current_ts, result)
+                self._store_result(op.operation_id, current_ts, result)
+            self._batch_event.set()
 
             logger.debug(f"Batch processing completed in {duration:.3f}s")
 
@@ -313,7 +388,8 @@ class AsyncBatchProcessor:
                     duration=time.time() - start_time,
                     errors=[str(e)],
                 )
-                self.results[op.operation_id] = (current_ts, error_result)
+                self._store_result(op.operation_id, current_ts, error_result)
+            self._batch_event.set()
 
     async def _batch_insert(
         self, operations: List[BatchOperation]

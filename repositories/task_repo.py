@@ -1,6 +1,7 @@
 from sqlalchemy import and_, or_, select, update, func
 from models.models import TaskQueue, ForwardRule, Chat
 from datetime import datetime, timedelta
+from typing import Callable, List
 import logging
 from core.states import validate_transition
 from core.config import settings
@@ -13,6 +14,40 @@ logger = logging.getLogger(__name__)
 class TaskRepository:
     def __init__(self, db):
         self.db = db
+        self._pending_task_listeners: List[Callable[[], None]] = []
+
+    def register_pending_task_listener(self, callback: Callable[[], None]):
+        """Register a callback fired when immediately runnable tasks are inserted."""
+        self._pending_task_listeners.append(callback)
+
+        def unsubscribe():
+            try:
+                self._pending_task_listeners.remove(callback)
+            except ValueError:
+                logger.debug(
+                    "待处理任务监听器已不存在，忽略重复取消: callback=%r",
+                    callback,
+                )
+
+        return unsubscribe
+
+    def _notify_pending_task_available(self):
+        for callback in list(self._pending_task_listeners):
+            try:
+                callback()
+            except Exception as exc:
+                logger.warning(
+                    "Task pending listener failed: %s",
+                    exc,
+                )
+
+    @staticmethod
+    def _is_due_now(scheduled_at: datetime = None) -> bool:
+        return scheduled_at is None or scheduled_at <= datetime.utcnow()
+
+    @staticmethod
+    def _rowcount_may_have_inserted(rowcount) -> bool:
+        return rowcount is None or rowcount > 0
 
     async def archive_old_tasks(self, hot_days: int = 7, batch_size: int = 10000) -> dict:
         """归档旧任务记录。"""
@@ -60,8 +95,12 @@ class TaskRepository:
             result = await session.execute(stmt)
             await session.commit()
             
-            if result.rowcount > 0:
+            if self._rowcount_may_have_inserted(
+                getattr(result, "rowcount", None),
+            ):
                 logger.info(f"✅ 任务入列成功 (Key: {unique_key})")
+                if self._is_due_now(scheduled_at):
+                    self._notify_pending_task_available()
             else:
                 if unique_key:
                     logger.warning(f"⚠️ 任务已存在，跳过入列: {unique_key}")
@@ -112,9 +151,13 @@ class TaskRepository:
         async with AsyncSessionManager() as session:
              # 使用 Core Insert + OR IGNORE (SQLite) 实现高性能批量去重写入
              stmt = insert(TaskQueue).values(values_list).prefix_with('OR IGNORE')
-             await session.execute(stmt)
+             result = await session.execute(stmt)
              # AsyncSessionManager handles commit automatically
              logger.info(f"✅ 批量聚合写入: {len(values_list)} 条任务")
+             if self._rowcount_may_have_inserted(
+                 getattr(result, "rowcount", None),
+             ):
+                 self._notify_pending_task_available()
 
     @async_db_retry(max_retries=5)
     async def fetch_next(self, limit: int = 1):
@@ -402,7 +445,11 @@ class TaskRepository:
                 if results:
                     total_delay = sum((r.started_at - r.created_at).total_seconds() for r in results)
                     avg_delay = total_delay / len(results)
-            except Exception: pass
+            except Exception as exc:
+                logger.warning(
+                    "队列平均延迟统计失败，使用默认值: %s",
+                    exc,
+                )
 
             # 计算错误率
             err_rate = 0.0

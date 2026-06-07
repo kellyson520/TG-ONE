@@ -274,7 +274,8 @@ class AnalyticsService:
                 active_queues = queue_status.get("active_queues", 0)
                 pending_tasks = queue_status.get("pending_tasks", 0)
                 avg_delay = queue_status.get("avg_delay", "0s")
-            except Exception: pass
+            except Exception as e:
+                logger.warning(f"获取队列状态失败: {e}")
 
             return {
                 "system_resources": {
@@ -501,19 +502,27 @@ class AnalyticsService:
             # 尝试从数据库获取
             from models.models import Chat
             from sqlalchemy import select
+
             async with self.container.db.get_session() as session:
                 stmt = select(Chat).where(Chat.telegram_chat_id == str(chat_id))
                 res = await session.execute(stmt)
                 chat = res.scalar_one_or_none()
                 if chat and chat.name:
                     return chat.name
-            
+        except Exception as e:
+            logger.warning("数据库查询聊天名称失败 chat_id=%r: %s", chat_id, e)
+
+        try:
             # 尝试从 chat_info_service 获取
             name = await self.container.chat_info_service.get_chat_name(int(chat_id))
             if name:
                 return name
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "chat_info_service 查询聊天名称失败 chat_id=%r: %s",
+                chat_id,
+                e,
+            )
         return str(chat_id)[:12]
 
     async def detect_anomalies(self) -> Dict[str, Any]:

@@ -26,7 +26,11 @@ class ResourceGate:
                 int(settings.MEMORY_CRITICAL_THRESHOLD_MB),
             )
             return critical_mb * 1024 * 1024
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "ResourceGate: configured memory limit fallback: %s",
+                exc,
+            )
             return ResourceGate.DEFAULT_MAX_RAM_BYTES
 
     @staticmethod

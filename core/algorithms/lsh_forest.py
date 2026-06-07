@@ -111,9 +111,31 @@ class LSHForest:
                         search_key = [permuted_query, ""]
                 
                 idx = bisect.bisect_left(tree, search_key)
-            except (TypeError, IndexError):
+            except (TypeError, IndexError) as e:
                 # Fallback for mixed or empty trees
+                logger.warning(
+                    "LSH Forest检索定位失败: tree=%s, size=%s, key_type=%s, error=%s",
+                    i,
+                    N,
+                    type(search_key).__name__,
+                    e,
+                )
                 continue
+
+            def add_candidate(item, direction: str, position: int) -> None:
+                try:
+                    p_val, d_id = item[0], item[1]
+                    if d_id not in candidate_hashes:
+                        candidate_hashes[d_id] = self._unpermute(p_val, i)
+                except (TypeError, IndexError) as e:
+                    logger.warning(
+                        "LSH Forest候选项损坏: tree=%s, direction=%s, index=%s, item_type=%s, error=%s",
+                        i,
+                        direction,
+                        position,
+                        type(item).__name__,
+                        e,
+                    )
             
             # Bidirectional expansion
             left, right = idx - 1, idx
@@ -122,25 +144,14 @@ class LSHForest:
                 valid_step = False
                 if right < N:
                     item = tree[right]
-                    # Robust unpacking (works for [p, d] and (p, d))
-                    try:
-                        p_val, d_id = item[0], item[1]
-                        if d_id not in candidate_hashes:
-                            candidate_hashes[d_id] = self._unpermute(p_val, i)
-                    except (TypeError, IndexError):
-                        pass
+                    add_candidate(item, "right", right)
                     right += 1
                     count += 1
                     valid_step = True
                 
                 if left >= 0 and count < limit_per_tree:
                     item = tree[left]
-                    try:
-                        p_val, d_id = item[0], item[1]
-                        if d_id not in candidate_hashes:
-                            candidate_hashes[d_id] = self._unpermute(p_val, i)
-                    except (TypeError, IndexError):
-                        pass
+                    add_candidate(item, "left", left)
                     left -= 1
                     count += 1
                     valid_step = True
@@ -181,4 +192,3 @@ class LSHForest:
                 logger.info(f"LSH Forest loaded from {filepath}")
             except Exception as e:
                 logger.error(f"Failed to load LSH Forest: {e}")
-

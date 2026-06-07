@@ -1,8 +1,29 @@
 import pytest
 import time
+import logging
 from unittest.mock import MagicMock, AsyncMock, patch
-from services.dedup_service import dedup_service
+from services.dedup_service import DeduplicationService, dedup_service
 from models.models import MediaSignature
+
+
+class MessageWithBrokenFile:
+    id = 321
+
+    @property
+    def file(self):
+        raise RuntimeError("file metadata unavailable")
+
+
+def test_get_message_size_logs_metadata_access_failure(caplog):
+    service = DeduplicationService()
+
+    with caplog.at_level(logging.WARNING, logger="services.dedup_service"):
+        size = service._get_message_size(MessageWithBrokenFile())
+
+    assert size == 0
+    assert "Failed to get message size" in caplog.text
+    assert "message_id=321" in caplog.text
+
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("clear_data")

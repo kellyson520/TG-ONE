@@ -107,15 +107,21 @@ class Database:
             if session and session.in_transaction():
                 try:
                     await session.rollback()
-                except Exception:
-                    pass  # 关闭期间回滚失败可忽略
+                except Exception as rollback_err:
+                    logger.debug(
+                        f"[Database] 取消期间回滚失败（可忽略）: "
+                        f"{id(session)}，错误={rollback_err}"
+                    )
         except Exception as e:
             is_locked = 'database is locked' in str(e).lower()
             if session and session.in_transaction():
                 try:
                     await session.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.warning(
+                        f"[Database] 事务回滚失败: "
+                        f"{id(session)}，错误={rollback_err}"
+                    )
                 if not is_locked:
                     logger.error(f"[Database] 事务回滚: {id(session)}，错误={e}")
             
@@ -155,4 +161,3 @@ class Database:
         if self.read_engine and self.read_engine is not self.engine:
             await asyncio.shield(self.read_engine.dispose())
         logger.info(f"[Database] 数据库引擎已关闭")
-

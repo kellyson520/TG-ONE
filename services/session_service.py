@@ -830,8 +830,14 @@ class SessionService:
                 limit = runtime_limit or stored_limit
                 if limit > 0 and count > 0:
                     count = min(count, limit)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "History message limit lookup failed: "
+                    "user_id=%s rule_id=%s error=%s",
+                    user_id,
+                    rule_id,
+                    e,
+                )
             
             # 显示时间
             time_str = time_config.get('display_text', '全部时间')

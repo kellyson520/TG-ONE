@@ -474,5 +474,5 @@ async def handle_callback(event):
         logger.error(f"回调处理异常: {e}\n{traceback.format_exc()}")
         try:
             await event.answer("操作处理出错，请重试", alert=True)
-        except Exception:
-            pass
+        except Exception as answer_error:
+            logger.warning(f"回调错误提示发送失败: {answer_error}")

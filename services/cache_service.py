@@ -38,6 +38,63 @@ class CacheService:
             self._cache_map[name] = get_smart_cache(name, l1_ttl=300, l2_ttl=3600)
         return self._cache_map[name]
 
+    async def _safe_cache_get(
+        self, cache: MultiLevelCache, key: str, cache_name: str
+    ) -> Any:
+        try:
+            return await asyncio.to_thread(cache.get, key)
+        except Exception as e:
+            logger.warning(
+                "Cache get failed cache=%s key=%r: %s",
+                cache_name,
+                key,
+                e,
+            )
+            return None
+
+    async def _safe_cache_set(
+        self,
+        cache: MultiLevelCache,
+        key: str,
+        value: Any,
+        ttl: int,
+        cache_name: str,
+    ) -> None:
+        try:
+            await asyncio.to_thread(cache.set, key, value, ttl)
+        except Exception as e:
+            logger.warning(
+                "Cache set failed cache=%s key=%r: %s",
+                cache_name,
+                key,
+                e,
+            )
+
+    async def _safe_cache_delete(
+        self, cache: MultiLevelCache, key: str, cache_name: str
+    ) -> None:
+        try:
+            await asyncio.to_thread(cache.delete, key)
+        except Exception as e:
+            logger.warning(
+                "Cache delete failed cache=%s key=%r: %s",
+                cache_name,
+                key,
+                e,
+            )
+
+    async def _safe_cache_clear(
+        self, cache: MultiLevelCache, cache_name: str
+    ) -> None:
+        try:
+            await asyncio.to_thread(cache.clear)
+        except Exception as e:
+            logger.warning(
+                "Cache clear failed cache=%s: %s",
+                cache_name,
+                e,
+            )
+
     async def _get_lock(self, key: str) -> asyncio.Lock:
         """获取用于防击穿的锁"""
         if key not in self._locks:
@@ -56,22 +113,28 @@ class CacheService:
         """异步获取缓存值"""
         cache = self._get_cache(cache_name)
         # 将潜在的阻塞 L2 读取放入线程池
-        return await asyncio.to_thread(cache.get, key)
+        return await self._safe_cache_get(cache, key, cache_name)
 
-    async def set(self, key: str, value: Any, ttl: int = 300, cache_name: str = "default"):
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: int = 300,
+        cache_name: str = "default",
+    ):
         """异步设置缓存值"""
         cache = self._get_cache(cache_name)
-        await asyncio.to_thread(cache.set, key, value, ttl)
+        await self._safe_cache_set(cache, key, value, ttl, cache_name)
 
     async def delete(self, key: str, cache_name: str = "default"):
         """异步删除缓存值"""
         cache = self._get_cache(cache_name)
-        await asyncio.to_thread(cache.delete, key)
+        await self._safe_cache_delete(cache, key, cache_name)
 
     async def clear(self, cache_name: str = "default"):
         """异步清空缓存"""
         cache = self._get_cache(cache_name)
-        await asyncio.to_thread(cache.clear)
+        await self._safe_cache_clear(cache, cache_name)
         
     async def get_or_compute(
         self, 
@@ -92,7 +155,7 @@ class CacheService:
         # 为简单起见，统一用 to_thread，或者假设 L1 get 极快可以直接调用？
         # MultiLevelCache.get 若 L1 Miss 会查 L2 (Blocking)。
         # 所以第一次 check 也应该是 async 的。
-        val = await asyncio.to_thread(cache.get, key)
+        val = await self._safe_cache_get(cache, key, cache_name)
         if val is not None:
             return val
             
@@ -101,7 +164,7 @@ class CacheService:
         
         async with lock:
             # 3. 双重检查 (Double Check)
-            val = await asyncio.to_thread(cache.get, key)
+            val = await self._safe_cache_get(cache, key, cache_name)
             if val is not None:
                 return val
             
@@ -114,14 +177,17 @@ class CacheService:
                 
                 # 5. 回填缓存
                 if val is not None:
-                    await asyncio.to_thread(cache.set, key, val, ttl)
+                    await self._safe_cache_set(cache, key, val, ttl, cache_name)
                 
                 return val
             except Exception as e:
-                logger.error(f"Error computing value for cache key '{key}': {e}", exc_info=True)
+                logger.error(
+                    "Error computing value for cache key '%s': %s",
+                    key,
+                    e,
+                    exc_info=True,
+                )
                 raise
-            finally:
-                pass
 
     # 装饰器支持
     @classmethod

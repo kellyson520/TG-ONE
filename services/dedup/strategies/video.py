@@ -43,15 +43,21 @@ class VideoStrategy(BaseDedupStrategy):
         if file_id and config.get('enable_video_file_id_check', True):
             # 1.1 PCache 命中
             pcache_key = f"video:id:{file_id}"
-            if await ctx.pcache_repo.get(pcache_key):
+            if await self._get_pcache_best_effort(ctx, pcache_key):
                  return DedupResult(True, "视频FileID重复 (PCache)", "video_file_id", str(file_id))
 
             # 1.2 DB 查重
             if await ctx.repo.exists_video_file_id(str(target_chat_id), str(file_id)):
-                try: DEDUP_HITS_TOTAL.labels(method="video_file_id").inc()
-                except: pass
+                try:
+                    DEDUP_HITS_TOTAL.labels(method="video_file_id").inc()
+                except Exception as exc:
+                    logger.debug("视频FileID指标记录失败: %s", exc)
                 # 检测到重复，回填 PCache
-                await ctx.pcache_repo.set(pcache_key, "1", expire=86400 * 30)
+                await self._set_pcache_best_effort(
+                    ctx,
+                    pcache_key,
+                    expire=86400 * 30,
+                )
                 return DedupResult(True, "视频FileID重复", "video_file_id", str(file_id))
 
         # 2. 深度 SSH v4 (Sparse-Sentinel Hash) 内容检查
@@ -60,11 +66,16 @@ class VideoStrategy(BaseDedupStrategy):
             vhash = None
             if file_id:
                 pcache_hash_key = f"vhash:{file_id}"
-                vhash_raw = await ctx.pcache_repo.get(pcache_hash_key)
+                vhash_raw = await self._get_pcache_best_effort(
+                    ctx,
+                    pcache_hash_key,
+                )
                 if vhash_raw:
                     vhash = vhash_raw.decode() if isinstance(vhash_raw, bytes) else vhash_raw
-                    try: VIDEO_HASH_PCACHE_HITS_TOTAL.labels(algo="ssh_v4").inc()
-                    except: pass
+                    try:
+                        VIDEO_HASH_PCACHE_HITS_TOTAL.labels(algo="ssh_v4").inc()
+                    except Exception as exc:
+                        logger.debug("视频哈希PCache指标记录失败: %s", exc)
 
             # 2.2 如果没有缓存，决定是否启动后台计算
             if not vhash:
@@ -86,8 +97,10 @@ class VideoStrategy(BaseDedupStrategy):
                 if is_hash_dup:
                     # 严格校验时长/分辨率
                     if await self._strict_verify(ctx, vhash, config):
-                        try: DEDUP_HITS_TOTAL.labels(method="video_ssh_v4").inc()
-                        except: pass
+                        try:
+                            DEDUP_HITS_TOTAL.labels(method="video_ssh_v4").inc()
+                        except Exception as exc:
+                            logger.debug("视频SSH指标记录失败: %s", exc)
                         return DedupResult(True, "视频内容哈希重复", "video_hash", vhash)
 
         return None
@@ -189,7 +202,12 @@ class VideoStrategy(BaseDedupStrategy):
             vhash = h.hexdigest()
             # 写入 PCache
             if file_id:
-                await ctx.pcache_repo.set(f"vhash:{file_id}", vhash, expire=86400 * 180) # 180天
+                await self._set_pcache_best_effort(
+                    ctx,
+                    f"vhash:{file_id}",
+                    vhash,
+                    expire=86400 * 180,
+                )
             
             # 记录到 DB
             await ctx.repo.add_media_signature(str(ctx.target_chat_id), f"video_hash:{vhash}", getattr(ctx.message_obj, 'id', 0))

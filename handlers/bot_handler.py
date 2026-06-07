@@ -1,4 +1,4 @@
-
+import asyncio
 import logging
 import os
 from telethon import events
@@ -289,7 +289,11 @@ async def handle_command(client, event):
             else:
                 # 长时间限制，仅记录不强行 sleep
                 pass
-        except Exception: pass
+        except Exception as notify_e:
+            logger.warning(
+                "⚠️ [Bot命令] FloodWait恢复提示发送失败: "
+                f"TraceID={trace_id}, 错误={notify_e}"
+            )
     except Exception as e:
         logger.error(f"❌ [Bot命令] 处理命令失败: TraceID={trace_id}, 命令={message.text if message else '未知'}, 错误={str(e)}", exc_info=True)
         # 向用户发送错误信息

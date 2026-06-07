@@ -70,11 +70,11 @@ class GlobalExceptionHandler:
         self._active_tasks: Set[asyncio.Task] = weakref.WeakSet()
     
     def start(self):
-        """启动异常处理器 (启动清理任务)"""
+        """启动异常处理器"""
         if self._running:
             return
         self._running = True
-        self._cleanup_task = self.create_task(self._cleanup_loop(), name="exception_handler_cleanup")
+        self._ensure_cleanup_task()
         logger.info("GlobalExceptionHandler started")
     
     def stop(self):
@@ -82,19 +82,51 @@ class GlobalExceptionHandler:
         self._running = False
         if self._cleanup_task:
             self._cleanup_task.cancel()
+            self._cleanup_task = None
         logger.info("GlobalExceptionHandler stopped")
-    
+
+    def _ensure_cleanup_task(self):
+        if not self._running or not self._aggregates:
+            return
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = self.create_task(
+                self._cleanup_loop(),
+                name="exception_handler_cleanup",
+            )
+
     async def _cleanup_loop(self):
-        """定期清理过期的异常聚合记录"""
-        while self._running:
-            try:
-                await asyncio.sleep(300)  # 每 5 分钟清理一次
+        """按聚合过期时间清理异常聚合记录。"""
+        try:
+            while self._running:
+                delay = await self._seconds_until_next_cleanup()
+                if delay is None:
+                    return
+                if delay <= 0:
+                    await self._cleanup_expired()
+                    continue
+                await asyncio.sleep(delay)
                 await self._cleanup_expired()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Exception handler cleanup error: {e}")
-    
+        except asyncio.CancelledError:
+            logger.debug("异常聚合清理任务已取消")
+        except Exception as e:
+            logger.error(f"Exception handler cleanup error: {e}")
+        finally:
+            if asyncio.current_task() is self._cleanup_task:
+                self._cleanup_task = None
+
+    async def _seconds_until_next_cleanup(self) -> Optional[float]:
+        async with self._lock:
+            if not self._aggregates:
+                return None
+
+            now = datetime.utcnow()
+            retention = self.AGGREGATION_WINDOW * 2
+            next_expiry = min(
+                agg.last_occurrence + retention
+                for agg in self._aggregates.values()
+            )
+            return max(0.0, (next_expiry - now).total_seconds())
+
     async def _cleanup_expired(self):
         """清理过期的异常聚合记录"""
         async with self._lock:
@@ -136,6 +168,7 @@ class GlobalExceptionHandler:
         """
         exc_hash = self._compute_exception_hash(exc)
         tb_str = traceback.format_exc()
+        should_log = True
         
         async with self._lock:
             if exc_hash in self._aggregates:
@@ -149,17 +182,22 @@ class GlobalExceptionHandler:
                             f"Exception aggregated ({agg.count}x in {self.AGGREGATION_WINDOW}): "
                             f"{type(exc).__name__}: {str(exc)[:100]}"
                         )
-                    return False
+                    should_log = False
                 else:
                     # 窗口过期，重新开始
                     self._aggregates[exc_hash] = ExceptionAggregate(exc_hash, tb_str)
             else:
                 # 新异常
                 self._aggregates[exc_hash] = ExceptionAggregate(exc_hash, tb_str)
-        
+
+            self._ensure_cleanup_task()
+
+        if not should_log:
+            return False
+
         # 记录异常
         await self._log_exception(exc, tb_str, context, task_name)
-        
+
         # 调用回调
         await self._invoke_callbacks(exc, context, task_name)
         
@@ -247,7 +285,11 @@ class GlobalExceptionHandler:
         Returns:
             asyncio.Task 对象
         """
+        started = False
+
         async def wrapped():
+            nonlocal started
+            started = True
             try:
                 return await coro
             except asyncio.CancelledError:
@@ -255,8 +297,14 @@ class GlobalExceptionHandler:
             except Exception as e:
                 await self.handle_exception(e, context, name)
                 raise  # 重新抛出以便调用者处理
+
+        def close_unstarted_coroutine(task: asyncio.Task) -> None:
+            if started or not task.cancelled() or not asyncio.iscoroutine(coro):
+                return
+            coro.close()
         
         task = asyncio.create_task(wrapped(), name=name)
+        task.add_done_callback(close_unstarted_coroutine)
         # 记录关键属性
         setattr(task, '_tg_is_critical', critical)
         setattr(task, '_tg_created_at', datetime.utcnow())

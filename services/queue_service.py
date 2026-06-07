@@ -206,6 +206,26 @@ class MessageQueueService:
         self._requeue_tasks.add(task)
         task.add_done_callback(self._requeue_tasks.discard)
 
+    def _fill_batch_from_lane(self, lane_name, q, buffer, batch_size):
+        """Drain extra items from the selected lane into the current batch."""
+        try:
+            while len(buffer) < batch_size and not q.empty():
+                buffer.append(q.get_nowait())
+        except asyncio.QueueEmpty:
+            logger.debug(
+                "MessageQueueService lane became empty during batch drain: "
+                "lane=%s buffered=%s",
+                lane_name,
+                len(buffer),
+            )
+        except Exception as e:
+            logger.warning(
+                "MessageQueueService batch drain failed: lane=%s buffered=%s error=%s",
+                lane_name,
+                len(buffer),
+                e,
+            )
+
     async def _worker_loop(self, worker_id: int):
         """Consumer process with Strict Priority Logic (Event-Based)."""
         logger.debug(f"Worker-{worker_id} started (QoS 4.0).")
@@ -249,11 +269,7 @@ class MessageQueueService:
                     # Batching Optimization (Same Lane Only)
                     # Grab more from the SAME lane to batch process
                     q = self.lanes[selected_lane]
-                    try:
-                        while len(buffer) < BATCH_SIZE and not q.empty():
-                            buffer.append(q.get_nowait())
-                    except Exception:
-                        pass
+                    self._fill_batch_from_lane(selected_lane, q, buffer, BATCH_SIZE)
                         
                     # Process Batch
                     retry_items = []
@@ -292,7 +308,7 @@ class MessageQueueService:
                         # Yield control briefly to avoid starving event loop if processing is synchronous-heavy
                         # But with pure async, it's fine. 
                         # Using PID delay to pace usage if needed
-                        if q_deep == 0 and self._current_delay > 0.01:
+                        if q_deep > 0 and self._current_delay > 0.01:
                              await asyncio.sleep(self._current_delay)
             
             except asyncio.CancelledError:

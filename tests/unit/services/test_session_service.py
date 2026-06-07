@@ -1,4 +1,5 @@
 import pytest
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
@@ -214,6 +215,51 @@ async def test_start_history_task_respects_message_limit(
     progress = await session_service.get_history_progress(user_id)
     assert progress["done"] == 2
     assert mock_container.task_repo.push.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_quick_stats_logs_history_limit_failure(
+    session_service,
+    mock_forward_settings,
+    monkeypatch,
+    caplog,
+):
+    user_id = 12345
+    rule_id = 10
+    session_service._get_user_session(user_id)["selected_rule_id"] = rule_id
+    session_service.set_time_range(user_id, {})
+    monkeypatch.setattr(
+        session_service,
+        "_estimate_message_count",
+        AsyncMock(return_value=25),
+    )
+
+    rule = MagicMock()
+    rule.source_chat = MagicMock()
+    rule.source_chat.telegram_chat_id = 999
+    rule.source_chat.name = "Source"
+    rule.target_chat = MagicMock()
+    rule.target_chat.name = "Target"
+
+    fake_container = MagicMock()
+    fake_container.rule_repo.get_by_id = AsyncMock(return_value=rule)
+    fake_container.user_client = MagicMock()
+    import core.container as container_module
+
+    monkeypatch.setattr(container_module, "container", fake_container)
+    monkeypatch.setattr("services.session_service.container", fake_container)
+    mock_forward_settings.get_global_media_settings = AsyncMock(
+        side_effect=RuntimeError("history limit settings unavailable")
+    )
+    caplog.set_level(logging.WARNING, logger="services.session_service")
+
+    result = await session_service.get_quick_stats(user_id)
+
+    assert result["success"] is True
+    assert result["count"] == 25
+    assert "History message limit lookup failed" in caplog.text
+    assert "history limit settings unavailable" in caplog.text
+
 
 @pytest.mark.asyncio
 async def test_backpressure_logic(session_service, mock_container, mock_rule_mgmt, mock_forward_settings):

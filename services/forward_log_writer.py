@@ -99,18 +99,20 @@ class ForwardLogBatchWriter:
         if self._running:
             return
         self._running = True
-        self._flush_task = asyncio.create_task(self._flush_loop())
+        if self._queue:
+            self._schedule_delayed_flush()
         logger.info("ForwardLogBatchWriter started")
     
     async def stop(self):
         """停止服务 (刷新剩余日志)"""
         self._running = False
-        if self._flush_task:
+        if self._flush_task and not self._flush_task.done():
             self._flush_task.cancel()
             try:
                 await self._flush_task
             except asyncio.CancelledError as e:
                 logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+        self._flush_task = None
         if self._flush_trigger_task and not self._flush_trigger_task.done():
             await self._flush_trigger_task
         # 刷新剩余日志
@@ -129,8 +131,13 @@ class ForwardLogBatchWriter:
         
         # 达到批量阈值立即刷新
         if len(self._queue) >= self.BATCH_SIZE:
+            if self._flush_task and not self._flush_task.done():
+                self._flush_task.cancel()
+                self._flush_task = None
             if self._flush_trigger_task is None or self._flush_trigger_task.done():
                 self._flush_trigger_task = asyncio.create_task(self._flush())
+        else:
+            self._schedule_delayed_flush()
     
     async def log_forward(
         self,
@@ -171,17 +178,26 @@ class ForwardLogBatchWriter:
         )
         await self.log(entry)
     
-    async def _flush_loop(self):
-        """定时刷新循环"""
-        while self._running:
-            try:
-                await asyncio.sleep(self.FLUSH_INTERVAL)
-                if self._queue:
-                    await self._flush()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Flush loop error: {e}")
+    def _schedule_delayed_flush(self):
+        if not self._running:
+            return
+        if self._flush_task is None or self._flush_task.done():
+            self._flush_task = asyncio.create_task(self._delayed_flush())
+
+    async def _delayed_flush(self):
+        """一次性延迟刷新；队列排空后退出，避免后台空转。"""
+        try:
+            await asyncio.sleep(self.FLUSH_INTERVAL)
+            await self._flush()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Flush task error: {e}")
+        finally:
+            if self._flush_task is asyncio.current_task():
+                self._flush_task = None
+            if self._running and self._queue:
+                self._schedule_delayed_flush()
     
     async def _flush(self):
         """刷新队列到数据库"""
@@ -210,6 +226,9 @@ class ForwardLogBatchWriter:
                 for entry in batch[:50]:  # 只保留部分避免死循环
                     if len(self._queue) < self._queue.maxlen:
                         self._queue.append(entry)
+
+        if self._running and self._queue:
+            self._schedule_delayed_flush()
     
     async def _batch_insert(self, batch: List[ForwardLogEntry]) -> bool:
         """批量插入到数据库"""

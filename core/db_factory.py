@@ -269,8 +269,12 @@ async def AsyncSessionManager(readonly: bool = False) -> AsyncGenerator[AsyncSes
             if session.in_transaction():
                 try:
                     await session.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(
+                        "[DbFactory] AsyncSessionManager rollback failed "
+                        "during cancellation: %s",
+                        rollback_err,
+                    )
         except Exception:
             if session.in_transaction():
                 await session.rollback()
@@ -278,8 +282,12 @@ async def AsyncSessionManager(readonly: bool = False) -> AsyncGenerator[AsyncSes
         finally:
             try:
                 await session.close()
-            except Exception:
-                pass  # 关闭期间异常可忽略
+            except Exception as close_err:
+                logger.debug(
+                    "[DbFactory] AsyncSessionManager close failed during "
+                    "cleanup: %s",
+                    close_err,
+                )
             if cancelled:
                 raise asyncio.CancelledError()
 
@@ -435,8 +443,11 @@ async def async_cleanup_old_logs(days: int) -> int:
                         tasks_removed=0,  # 任务清理现归属于归档流程
                         logs_removed=logs_removed
                     )
-                except ImportError:
-                    pass
+                except ImportError as import_err:
+                    logger.debug(
+                        "清理统计模块不可用，跳过统计持久化: %s",
+                        import_err,
+                    )
                 except Exception as stats_err:
                     logger.warning(f"Failed to persist cleanup stats: {stats_err}")
             

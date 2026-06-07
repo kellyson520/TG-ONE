@@ -1,18 +1,20 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import select
 from telethon import TelegramClient
 
 from core.container import container
 from models.models import RSSSubscription
-from services.network.aimd import AIMDScheduler
+from core.algorithms.aimd import AIMDScheduler
 from services.network.timing_wheel import HashedTimingWheel
 from services.network.circuit_breaker import CircuitBreaker, CircuitOpenException
 import aiohttp
 
 logger = logging.getLogger(__name__)
+RSS_PULL_ERROR_RETRY_SECONDS = 60
 
 class RSSPullService:
     """
@@ -55,7 +57,11 @@ class RSSPullService:
         await self.timing_wheel.stop()
         logger.info("RSS Pull Service 已停止")
 
-    async def schedule_subscription(self, sub: RSSSubscription):
+    async def schedule_subscription(
+        self,
+        sub: RSSSubscription,
+        delay_seconds: Optional[float] = None,
+    ):
         """将订阅加入调度轮"""
         # 初始化 AIMD 调度器
         if sub.id not in self.schedulers:
@@ -69,14 +75,18 @@ class RSSPullService:
             self.schedulers[sub.id].current_interval = sub.current_interval
 
         # 计算下次运行延迟
-        delay = self.schedulers[sub.id].current_interval
+        delay = (
+            delay_seconds
+            if delay_seconds is not None
+            else self.schedulers[sub.id].current_interval
+        )
         
         # 添加任务到时间轮
         task_id = f"rss_pull_{sub.id}"
         self.timing_wheel.add_task(
-            delay_ms=int(delay * 1000),
-            callback=self.pull_task,
             task_id=task_id,
+            delay_seconds=delay,
+            callback=self.pull_task,
             sub_id=sub.id
         )
         logger.debug(f"[RSS Pull] 订阅 {sub.id} 已排期: {delay:.1f}s 后运行")
@@ -109,12 +119,15 @@ class RSSPullService:
 
         except Exception as e:
             logger.error(f"RSS Pull {sub_id} 任务执行出错: {e}", exc_info=True)
-            # 即使出错也重新排期，使用惩罚性延迟或保持现状
-            await asyncio.sleep(60)
+            # 即使出错也重新排期，使用惩罚性延迟，但不创建额外 sleeper。
             if self._running:
                 async with container.db.get_session() as session:
                     sub = await session.get(RSSSubscription, sub_id)
-                    if sub: await self.schedule_subscription(sub)
+                    if sub:
+                        await self.schedule_subscription(
+                            sub,
+                            delay_seconds=RSS_PULL_ERROR_RETRY_SECONDS,
+                        )
 
     async def _do_pull(self, sub: RSSSubscription) -> bool:
         """执行 HTTP 拉取并解析 (核心逻辑) - 接入熔断器保护"""
