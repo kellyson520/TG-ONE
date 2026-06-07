@@ -201,9 +201,7 @@ class ArchiveManager:
                 except Exception as e:
                     await session.rollback()
                     logger.error(f"归档表 {table_name} 分块处理失败: {e}")
-                    # 如果是致命错误（非锁定），则中断本表处理
-                    if not isinstance(e, OperationalError) or "locked" not in str(e).lower():
-                        break
+                    break
 
             # 归档后主库空间释放 (注意：VACUUM 不建议在常规事务中运行)
             # logger.info(f"执行表 {table_name} 的空间优化...")
