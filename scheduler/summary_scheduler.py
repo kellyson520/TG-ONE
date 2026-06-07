@@ -33,7 +33,8 @@ class SummaryScheduler:
     def __init__(self, user_client: TelegramClient, bot_client: TelegramClient, task_repo, db):
         """初始化总结调度器 - 集成统一优化工具"""
         self.tasks = {}  # 存储所有定时任务 {rule_id: task}
-        self.timezone = pytz.timezone(DEFAULT_TIMEZONE)
+        timezone_name = getattr(settings, "TIMEZONE", None) or DEFAULT_TIMEZONE
+        self.timezone = pytz.timezone(timezone_name)
         self.user_client = user_client
         self.bot_client = bot_client
         self.task_repo = task_repo
@@ -146,6 +147,32 @@ class SummaryScheduler:
         if target <= now:
             target = target.replace(year=target.year + 1)
         return (target - now).total_seconds()
+
+    def _monthly_rollup_catchup_due(self) -> bool:
+        now = datetime.now(self.timezone)
+        boundary = now.replace(day=1, hour=1, minute=0, second=0, microsecond=0)
+        return now >= boundary
+
+    def _yearly_rollup_catchup_due(self) -> bool:
+        now = datetime.now(self.timezone)
+        boundary = now.replace(month=1, day=1, hour=2, minute=0, second=0, microsecond=0)
+        return now >= boundary
+
+    async def _hotword_startup_rollup_catchup(self, hotword_service):
+        """Recompute closed hotword rollups after restart; repo writes are idempotent."""
+        if self._monthly_rollup_catchup_due():
+            try:
+                await hotword_service.aggregate_monthly()
+                logger.info("🔥 热词月榜启动补偿已完成")
+            except Exception as e:
+                logger.error(f"热词月榜启动补偿失败: {e}")
+
+        if self._yearly_rollup_catchup_due():
+            try:
+                await hotword_service.aggregate_yearly()
+                logger.info("🔥 热词年榜启动补偿已完成")
+            except Exception as e:
+                logger.error(f"热词年榜启动补偿失败: {e}")
 
     @log_performance("执行总结任务", threshold_seconds=30.0)
     @handle_errors(default_return=None)
@@ -532,6 +559,7 @@ class SummaryScheduler:
             if settings.ENABLE_HOTWORD:
                 from services.hotword_service import get_hotword_service
                 hotword_service = get_hotword_service()
+                await self._hotword_startup_rollup_catchup(hotword_service)
                 
                 self.timing_wheel.add_task(
                     "hotword_aggregate_daily",

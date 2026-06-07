@@ -1,4 +1,5 @@
 import pytest
+from filters.ai_filter import AIFilter
 from filters.factory import FilterChainFactory
 from filters.filter_chain import FilterChain
 from types import SimpleNamespace
@@ -45,6 +46,21 @@ def test_create_chain_for_rule_basic(factory, mock_rule):
     # 'init' and 'global' don't have flags in _get_default_filters_for_rule, so they are enabled by default.
     # 'keyword' and 'replace' also don't have flags in that method, so they are enabled too.
     # Let's verify.
+
+def test_default_chain_for_ai_rule_does_not_duplicate_ai_middleware(factory, mock_rule):
+    mock_rule.is_ai = True
+
+    chain = factory.create_chain_for_rule(mock_rule)
+
+    assert not any(isinstance(filter_obj, AIFilter) for filter_obj in chain.filters)
+
+def test_rule_explicit_config_strips_pipeline_owned_ai_filter(factory, mock_rule):
+    mock_rule.is_ai = True
+    mock_rule.enabled_filters = '["init", "keyword", "ai"]'
+
+    chain = factory.create_chain_for_rule(mock_rule, use_cache=False)
+
+    assert not any(isinstance(filter_obj, AIFilter) for filter_obj in chain.filters)
 
 def test_create_chain_with_explicit_config(factory, mock_rule):
     mock_rule.enabled_filters = '["init", "keyword"]'

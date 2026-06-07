@@ -228,6 +228,30 @@ async def test_open_telegram_circuit_raises_transient_without_attempt_increment(
     assert exc_info.value.context["retry_delay_seconds"] == service._telegram_breaker.recovery_timeout
 
 
+async def test_retryable_network_error_exhaustion_raises_transient(monkeypatch):
+    service = TelegramQueueService()
+    monkeypatch.setattr("services.queue_service.asyncio.sleep", AsyncMock())
+    attempts = 0
+
+    async def operation():
+        nonlocal attempts
+        attempts += 1
+        raise TimeoutError("telegram read timed out")
+
+    with pytest.raises(TransientError) as exc_info:
+        await service.run_guarded_operation(
+            "target",
+            None,
+            "GetMsgs",
+            operation,
+            handle_flood_wait_sleep=False,
+        )
+
+    assert attempts == 3
+    assert isinstance(exc_info.value.__cause__, TimeoutError)
+    assert exc_info.value.context == {}
+
+
 async def test_get_messages_entity_recovery_propagates_flood_wait(monkeypatch):
     monkeypatch.setattr("services.queue_service.asyncio.sleep", AsyncMock())
     client = AsyncMock()

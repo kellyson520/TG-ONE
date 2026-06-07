@@ -87,8 +87,8 @@ async def test_dynamic_chain_basic(pipeline_env):
     assert 'MockAiFilter' not in trace_names
 
 @pytest.mark.asyncio
-async def test_dynamic_chain_ai_enabled(pipeline_env):
-    """测试启用 AI 功能"""
+async def test_dynamic_chain_ai_enabled_leaves_ai_to_middleware(pipeline_env):
+    """AI 默认不在 FilterChain 中执行，避免与 AIMiddleware 重复调用"""
     pipeline, _ = pipeline_env
     
     rule = ForwardRule(id=2, enable_rule=True)
@@ -106,7 +106,8 @@ async def test_dynamic_chain_ai_enabled(pipeline_env):
     await pipeline.execute(ctx)
     
     trace_names = getattr(rule, 'trace_filters', [])
-    assert 'MockAiFilter' in trace_names
+    assert 'MockAiFilter' not in trace_names
+    assert ctx.rules == [rule]
 
 @pytest.mark.asyncio
 async def test_dynamic_chain_rss_only(pipeline_env):

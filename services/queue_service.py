@@ -13,6 +13,40 @@ logger = logging.getLogger(__name__)
 # 全局限流状态记录，供测试和监控使用
 _flood_wait_until = {}
 
+
+def _is_retryable_telegram_operation_error(error: Exception) -> bool:
+    if isinstance(error, (TransientError, TimeoutError, ConnectionError)):
+        return True
+
+    try:
+        from telethon.errors import RPCError, RpcCallFailError, ServerError
+    except ImportError:
+        RPCError = None
+        retryable_rpc_error_types = ()
+    else:
+        retryable_rpc_error_types = (RpcCallFailError, ServerError)
+
+    if retryable_rpc_error_types and isinstance(error, retryable_rpc_error_types):
+        return True
+
+    if RPCError and isinstance(error, RPCError):
+        try:
+            return int(getattr(error, "code", 0) or 0) >= 500
+        except (TypeError, ValueError):
+            return False
+
+    return False
+
+
+def _raise_retry_exhausted(operation_name: str, error: Exception) -> None:
+    if isinstance(error, TransientError):
+        raise error
+
+    if _is_retryable_telegram_operation_error(error):
+        raise TransientError(f"{operation_name} failed after retries: {error}") from error
+
+    raise error
+
 class FloodWaitException(Exception):
     """Telegram FloodWait 异常的统一包装"""
     def __init__(self, seconds):
@@ -378,7 +412,7 @@ class TelegramQueueService:
                     # 3. 其他错误则继续重试（根据 backoff 策略）
                     continue
             if last_exc:
-                raise last_exc
+                _raise_retry_exhausted(operation_name, last_exc)
         if handle_flood_wait_sleep:
             await self._sleep_or_raise_flood_wait(target_key)
 

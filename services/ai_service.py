@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, List, Dict, Optional
 from ai import get_ai_provider
@@ -36,11 +37,14 @@ class AIService:
             
             # 2. 调用 Provider
             provider = await get_ai_provider(model)
-            response = await provider.process_message(
-                message=text,
-                prompt=final_prompt,
-                model=model,
-                images=images
+            response = await asyncio.wait_for(
+                provider.process_message(
+                    message=text,
+                    prompt=final_prompt,
+                    model=model,
+                    images=images
+                ),
+                timeout=_setting_float("AI_REQUEST_TIMEOUT_SECONDS", 30.0),
             )
             
             # 3. 错误处理与清洗
@@ -53,6 +57,9 @@ class AIService:
 
             return response_text
             
+        except asyncio.TimeoutError:
+            logger.warning("AI Service processing timed out")
+            return text
         except Exception as e:
             logger.error(f"AI Service processing failed: {e}", exc_info=True)
             return text
@@ -101,6 +108,15 @@ def _setting_text(name: str, fallback: str) -> str:
     if isinstance(value, (str, int, float)) and str(value):
         return str(value)
     return fallback
+
+
+def _setting_float(name: str, fallback: float) -> float:
+    value = getattr(settings, name, fallback)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return parsed if parsed > 0 else fallback
 
 
 def _bool_attr(obj: Any, name: str) -> bool:

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class FilterChainFactory:
     """过滤器链工厂类"""
+    _pipeline_owned_filters = {"ai"}
     
     def __init__(self):
         """初始化工厂"""
@@ -64,6 +65,7 @@ class FilterChainFactory:
         
         # 获取规则的过滤器配置
         enabled_filters = self._get_enabled_filters_for_rule(rule)
+        enabled_filters = self._strip_pipeline_owned_filters(enabled_filters)
         
         # 应用全局禁用过滤器
         enabled_filters = [f for f in enabled_filters if f not in self._global_disabled_filters]
@@ -74,6 +76,7 @@ class FilterChainFactory:
             logger.warning(f"规则 {rule.id} 的过滤器配置无效: {errors}")
             # 回退到默认配置
             enabled_filters = self._get_default_filters_for_rule(rule)
+            enabled_filters = self._strip_pipeline_owned_filters(enabled_filters)
         
         # 优化过滤器顺序
         optimized_filters = self._registry.optimize_filter_order(enabled_filters)
@@ -87,6 +90,9 @@ class FilterChainFactory:
             logger.debug(f"缓存过滤器链: {cache_key} -> {optimized_filters}")
         
         return chain
+
+    def _strip_pipeline_owned_filters(self, enabled_filters: List[str]) -> List[str]:
+        return [f for f in enabled_filters if f not in self._pipeline_owned_filters]
     
     def _generate_cache_key(self, rule: ForwardRule) -> str:
         """
@@ -166,7 +172,9 @@ class FilterChainFactory:
             # 基于规则字段判断是否启用特定过滤器
             if filter_name == 'delay' and not rule.enable_delay:
                 should_enable = False
-            elif filter_name == 'ai' and not rule.is_ai:
+            elif filter_name == 'ai':
+                # AI 处理由生产管线中的 AIMiddleware 统一执行；默认链再加入
+                # AIFilter 会导致同一规则重复调用 provider 和重复写入记忆。
                 should_enable = False
             elif filter_name == 'push' and not rule.enable_push:
                 should_enable = False

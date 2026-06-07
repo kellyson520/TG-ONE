@@ -605,6 +605,10 @@ class Settings(BaseSettings):
         default="",
         description="AI 默认人格/角色设定，留空表示不注入"
     )
+    AI_REQUEST_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        description="单次 AI provider 请求超时时间，防止流式响应卡住 worker"
+    )
     AI_MEMORY_ENABLED: bool = Field(
         default=False,
         description="是否启用 AI 跨消息短期记忆"

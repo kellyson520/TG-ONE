@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -120,6 +121,37 @@ async def test_ai_empty_or_failed_response_does_not_pollute_memory(monkeypatch):
     memory_key = service.memory.make_key(rule, context)
 
     assert await service.process_message("original", rule, context=context) == "original"
+    assert service.memory.turn_count(memory_key) == 0
+
+
+@pytest.mark.asyncio
+async def test_ai_provider_timeout_returns_original_and_keeps_memory_clean(monkeypatch):
+    monkeypatch.setattr(settings, "AI_MEMORY_ENABLED", True)
+    monkeypatch.setattr(settings, "AI_REQUEST_TIMEOUT_SECONDS", 0.01, raising=False)
+
+    class HangingProvider(FakeProvider):
+        async def process_message(self, message, prompt=None, model=None, images=None):
+            self.calls.append({"message": message, "prompt": prompt})
+            await asyncio.Event().wait()
+
+    provider = HangingProvider()
+
+    async def fake_get_provider(_model):
+        return provider
+
+    monkeypatch.setattr("services.ai_service.get_ai_provider", fake_get_provider)
+    service = AIService()
+    rule = _rule()
+    context = _context()
+    memory_key = service.memory.make_key(rule, context)
+
+    result = await asyncio.wait_for(
+        service.process_message("original", rule, context=context),
+        timeout=0.1,
+    )
+
+    assert result == "original"
+    assert provider.calls
     assert service.memory.turn_count(memory_key) == 0
 
 
