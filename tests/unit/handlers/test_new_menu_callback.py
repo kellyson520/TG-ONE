@@ -57,6 +57,17 @@ class TestNewMenuCallback:
             await callback_new_menu_handler(mock_event, "set_duration_start", None, None, "new_menu:set_duration_start")
             mock_show.assert_called_once_with(mock_event, "min")
 
+    @pytest.mark.parametrize("action", ["noop", "ignore"])
+    async def test_callback_new_menu_handler_noop_actions_ack_without_dispatch(self, mock_event, action):
+        """测试只读按钮回调只确认，不触发未知指令提示"""
+        from handlers.button.callback.menu_entrypoint import callback_new_menu_handler
+
+        with patch('handlers.button.callback.menu_entrypoint.MenuHandlerRegistry.dispatch', new_callable=AsyncMock, return_value=False) as mock_dispatch:
+            await callback_new_menu_handler(mock_event, action, None, None, f"new_menu:{action}")
+
+        mock_dispatch.assert_not_called()
+        mock_event.answer.assert_called_once_with()
+
     async def test_callback_new_menu_handler_forward_search(self, mock_event):
         """测试转发搜索回调"""
         from handlers.button.callback.menu_entrypoint import callback_new_menu_handler

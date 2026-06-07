@@ -160,15 +160,26 @@ class TaskRepository:
         
         # 2. 第二步：若存在 grouped_id，扩展并确定最终任务集合 (Read Phase - 不加锁)
         if group_ids:
+            max_group_expansion = max(1, int(getattr(settings, "TASK_FETCH_GROUP_EXPANSION_MAX", 20) or 20))
             async with AsyncSessionManager(readonly=True) as session:
-                stmt_groups = (
-                    select(TaskQueue.id)
-                    .where(TaskQueue.grouped_id.in_(group_ids))
-                    .where(TaskQueue.status == 'pending')
-                )
-                group_result = await session.execute(stmt_groups)
-                for row in group_result:
-                    final_task_ids.add(row[0])
+                for group_id in set(group_ids):
+                    stmt_groups = (
+                        select(TaskQueue.id)
+                        .where(TaskQueue.grouped_id == group_id)
+                        .where(
+                            (TaskQueue.status == 'pending') |
+                            (
+                                (TaskQueue.status == 'running') &
+                                (TaskQueue.locked_until != None) &
+                                (TaskQueue.locked_until <= now)
+                            )
+                        )
+                        .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
+                        .limit(max_group_expansion)
+                    )
+                    group_result = await session.execute(stmt_groups)
+                    for row in group_result:
+                        final_task_ids.add(row[0])
 
         final_task_ids = list(final_task_ids)
         

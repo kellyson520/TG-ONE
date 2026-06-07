@@ -143,6 +143,21 @@ jobs:
             --strict-markers \
             --maxfail=1 \
             --tb=short --durations=20
+      - name: Run regression smoke tests
+        run: |
+          python -m pytest \
+            tests/unit/handlers/test_new_menu_callback.py \
+            tests/unit/utils/test_circuit_breaker.py \
+            -m "not stress and not slow" \
+            --strict-markers \
+            --maxfail=1 \
+            --tb=short --durations=10
+          python -m pytest \
+            tests/unit/repositories/test_task_repo_extended.py \
+            -m "not stress and not slow" \
+            --strict-markers \
+            --maxfail=1 \
+            --tb=short --durations=10
       - name: Run bounded AI long conversation check
         run: |
           python -m pytest \

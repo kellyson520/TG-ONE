@@ -223,6 +223,63 @@ async def test_hotword_global_month_prefers_direct_global_archive():
 
 
 @pytest.mark.asyncio
+async def test_hotword_all_rankings_do_not_double_count_rollups():
+    from services.hotword_service import HotwordService
+    from models.hotword import HotRawStats, HotPeriodStats
+    from sqlalchemy import text
+
+    service = HotwordService()
+    channel = "all_rollup_overlap_chan"
+
+    async with service.repo.session_factory() as session:
+        await session.execute(
+            text("DELETE FROM hot_period_stats WHERE channel = :channel"),
+            {"channel": channel},
+        )
+        await session.execute(
+            text("DELETE FROM hot_raw_stats WHERE channel = :channel"),
+            {"channel": channel},
+        )
+        session.add_all([
+            HotPeriodStats(
+                channel=channel,
+                word="重复热词",
+                period="day",
+                date_key="20260501",
+                score=8.0,
+                user_count=2,
+            ),
+            HotPeriodStats(
+                channel=channel,
+                word="重复热词",
+                period="month",
+                date_key="202605",
+                score=8.0,
+                user_count=2,
+            ),
+            HotPeriodStats(
+                channel=channel,
+                word="重复热词",
+                period="year",
+                date_key="2026",
+                score=8.0,
+                user_count=2,
+            ),
+            HotRawStats(
+                channel=channel,
+                word="重复热词",
+                score=2.0,
+                unique_users=1,
+            ),
+        ])
+        await session.commit()
+
+    ranks = dict(await service.get_rankings(channel, period="all"))
+
+    assert ranks["重复热词"] == 10
+
+
+@pytest.mark.asyncio
 async def test_hotword_load_rankings_parses_period_from_suffix_not_channel_name():
     from repositories.hotword_repo import HotwordRepository
     from models.hotword import HotPeriodStats
@@ -230,16 +287,26 @@ async def test_hotword_load_rankings_parses_period_from_suffix_not_channel_name(
 
     repo = HotwordRepository()
     month_key = datetime.now().strftime("%Y%m")
+    today = datetime.now().strftime("%Y%m%d")
     numeric_channel = "RED讨论组【2025复活版】"
     day_named_channel = "daydream频道"
+    temp_named_channel = "foo_temp_bar"
 
     async with repo.session_factory() as session:
         await session.execute(
-            text("DELETE FROM hot_period_stats WHERE channel IN (:numeric_channel, :day_named_channel)"),
+            text(
+                "DELETE FROM hot_period_stats "
+                "WHERE channel IN (:numeric_channel, :day_named_channel, :temp_named_channel)"
+            ),
             {
                 "numeric_channel": numeric_channel,
                 "day_named_channel": day_named_channel,
+                "temp_named_channel": temp_named_channel,
             },
+        )
+        await session.execute(
+            text("DELETE FROM hot_raw_stats WHERE channel = :temp_named_channel"),
+            {"temp_named_channel": temp_named_channel},
         )
         session.add_all([
             HotPeriodStats(
@@ -258,6 +325,14 @@ async def test_hotword_load_rankings_parses_period_from_suffix_not_channel_name(
                 score=5.0,
                 user_count=1,
             ),
+            HotPeriodStats(
+                channel=temp_named_channel,
+                word="temp命名频道日榜",
+                period="day",
+                date_key=today,
+                score=6.0,
+                user_count=1,
+            ),
         ])
         await session.commit()
 
@@ -269,9 +344,14 @@ async def test_hotword_load_rankings_parses_period_from_suffix_not_channel_name(
         day_named_channel,
         f"{day_named_channel}_month_{month_key}.json",
     )
+    temp_named_data = await repo.load_rankings(
+        temp_named_channel,
+        f"{temp_named_channel}_day_{today}.json",
+    )
 
     assert numeric_data["数字频道月榜"]["f"] == 7.0
     assert day_named_data["day频道月榜"]["f"] == 5.0
+    assert temp_named_data["temp命名频道日榜"]["f"] == 6.0
 
 
 @pytest.mark.asyncio
@@ -374,6 +454,42 @@ async def test_hotword_temp_counts_batch_upsert_accumulates():
 
     assert data["批量写入"]["f"] == 15.0
     assert data["批量写入"]["u"] == 5
+
+
+@pytest.mark.asyncio
+async def test_hotword_flush_keeps_l1_cache_when_temp_save_fails():
+    from services.hotword_service import HotwordService
+
+    class FlakyRepo:
+        def __init__(self):
+            self.calls = 0
+            self.saved = []
+
+        async def save_temp_counts(self, channel, counts):
+            self.calls += 1
+            if self.calls == 1:
+                return False
+            self.saved.append((channel, counts))
+            return True
+
+    service = HotwordService()
+    service.repo = FlakyRepo()
+    service.l1_cache = {
+        "flush_retry_chan": {
+            "缓存热词": {"f": 3.0, "u": 2},
+        }
+    }
+
+    await service.flush_to_disk()
+
+    assert service.l1_cache["flush_retry_chan"]["缓存热词"]["f"] == 3.0
+
+    await service.flush_to_disk()
+
+    assert service.l1_cache == {}
+    assert service.repo.saved == [
+        ("flush_retry_chan", {"缓存热词": {"f": 3.0, "u": 2}})
+    ]
 
 
 @pytest.mark.asyncio

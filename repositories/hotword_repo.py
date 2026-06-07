@@ -39,6 +39,11 @@ class HotwordRepository:
             return value, "current"
         return "day", "current"
 
+    def _is_temp_key(self, filename_or_period: str) -> bool:
+        """Detect temp ranking keys by suffix only, not by channel name contents."""
+        value = str(filename_or_period or "")
+        return value in {"_temp", "temp"} or value.endswith("_temp") or value.endswith("_temp.json")
+
     async def save_temp_counts(self, channel: str, counts: Dict[str, Dict[str, Any]]):
         """
         异步 UPSERT 写入原始统计数据。
@@ -55,7 +60,7 @@ class HotwordRepository:
             if word
         ]
         if not rows:
-            return
+            return True
 
         async with self.session_factory() as session:
             try:
@@ -71,9 +76,11 @@ class HotwordRepository:
                 )
                 await session.execute(stmt)
                 await session.commit()
+                return True
             except Exception as e:
                 await session.rollback()
                 logger.error(f"Hotword DB Save Error ({channel}): {e}")
+                return False
 
     async def load_rankings(self, channel: str, filename_or_period: str) -> Dict[str, Any]:
         """
@@ -83,7 +90,7 @@ class HotwordRepository:
         如果是 'channel_day_xxx.json' -> 读取 HotPeriodStats
         """
         async with self.session_factory() as session:
-            if "_temp" in filename_or_period:
+            if self._is_temp_key(filename_or_period):
                 # 读取实时表
                 stmt = select(HotRawStats).where(HotRawStats.channel == channel)
                 result = await session.execute(stmt)

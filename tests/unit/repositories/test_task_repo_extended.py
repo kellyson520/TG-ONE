@@ -50,6 +50,21 @@ class TestTaskRepositoryExtended:
         tasks3 = await repo.fetch_next(limit=1)
         assert len(tasks3) == 2
         assert tasks3[0].grouped_id == "g2"
+
+    async def test_fetch_next_caps_large_group_expansion(self, repo, db, monkeypatch):
+        monkeypatch.setattr(
+            "repositories.task_repo.settings.TASK_FETCH_GROUP_EXPANSION_MAX",
+            10,
+            raising=False,
+        )
+
+        for i in range(50):
+            await repo.push("huge_group", {"id": i, "grouped_id": "huge"}, priority=10)
+
+        tasks = await repo.fetch_next(limit=1)
+
+        assert len(tasks) == 10
+        assert {task.grouped_id for task in tasks} == {"huge"}
         
     async def test_fetch_next_mixed_status(self, repo, db):
         # Insert tasks where some are running (stuck/expired) and some pending in same group
@@ -88,4 +103,3 @@ class TestTaskRepositoryExtended:
         assert tasks[0].grouped_id == "g3"
         assert tasks[0].status == "running"
         assert tasks[0].locked_until > now # Lock refreshed
-

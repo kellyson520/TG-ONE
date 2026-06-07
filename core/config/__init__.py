@@ -733,6 +733,10 @@ class Settings(BaseSettings):
         default=10,
         description="Dispatcher 每次拉取任务的批次大小"
     )
+    TASK_FETCH_GROUP_EXPANSION_MAX: int = Field(
+        default=20,
+        description="fetch_next 扩展同一 grouped_id 时最多锁定的任务数，防止异常媒体组造成内存尖峰"
+    )
     WORKER_QUEUE_SIZE: int = Field(
         default=30,
         description="内存任务队列的最大容量 (配合 Dispatcher 使用)"

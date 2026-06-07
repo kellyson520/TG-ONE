@@ -7,6 +7,8 @@ from handlers.button.strategies import MenuHandlerRegistry
 
 logger = logging.getLogger(__name__)
 
+NOOP_ACTIONS = {"noop", "ignore"}
+
 # [MIGRATED] Standalone functions moved to handlers/button/strategies/settings.py
 # - handle_toggle_setting
 # - handle_toggle_extension_mode
@@ -58,6 +60,10 @@ async def callback_new_menu_handler(event, action_data, maybe_message=None, mayb
         else:
             action = action_data
             extra_data = []
+
+        if action in NOOP_ACTIONS:
+            await event.answer()
+            return
 
         if action == "set_duration_start":
             await new_menu_system.show_duration_range_picker(event, "min")

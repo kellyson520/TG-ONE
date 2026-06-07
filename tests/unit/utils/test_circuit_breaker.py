@@ -86,6 +86,66 @@ async def test_circuit_breaker_relapse():
         await cb.call(service.risky_operation)
 
 @pytest.mark.asyncio
+async def test_half_open_allows_only_one_probe_request():
+    cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01, expected_exceptions=(ValueError,))
+
+    async def failing_operation():
+        raise ValueError("open circuit")
+
+    with pytest.raises(ValueError):
+        await cb.call(failing_operation)
+
+    await asyncio.sleep(0.02)
+
+    entered = 0
+    probe_started = asyncio.Event()
+    release_probe = asyncio.Event()
+
+    async def slow_success():
+        nonlocal entered
+        entered += 1
+        probe_started.set()
+        await release_probe.wait()
+        return "Success"
+
+    async def attempt():
+        try:
+            return await cb.call(slow_success)
+        except CircuitOpenException:
+            return "open"
+
+    tasks = [asyncio.create_task(attempt()) for _ in range(5)]
+    await asyncio.wait_for(probe_started.wait(), timeout=1)
+    await asyncio.sleep(0.01)
+
+    assert entered == 1
+
+    release_probe.set()
+    results = await asyncio.gather(*tasks)
+
+    assert results.count("Success") == 1
+    assert results.count("open") == 4
+    assert cb.state.value == "CLOSED"
+
+@pytest.mark.asyncio
+async def test_ignored_exceptions_do_not_increment_failure_count():
+    cb = CircuitBreaker(
+        failure_threshold=1,
+        recovery_timeout=0.1,
+        expected_exceptions=(Exception,),
+        ignored_exceptions=(KeyError,),
+    )
+
+    async def ignored_failure():
+        raise KeyError("terminal")
+
+    with pytest.raises(KeyError):
+        await cb.call(ignored_failure)
+
+    assert cb.failure_count == 0
+    assert cb.state.value == "CLOSED"
+
+@pytest.mark.asyncio
 async def test_decorator_usage():
     service = MockService()
     

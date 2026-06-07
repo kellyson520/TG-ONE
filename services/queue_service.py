@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 from typing import Any, Callable, Awaitable, Dict, Tuple
 from collections import defaultdict, OrderedDict
 from core.exceptions import TransientError
@@ -153,6 +154,10 @@ class MessageQueueService:
             logger.error(f"Failed to enqueue item: {e}")
             raise
 
+    async def _requeue_batch(self, items):
+        for item in items:
+            await self.enqueue(item)
+
     async def _worker_loop(self, worker_id: int):
         """Consumer process with Strict Priority Logic (Event-Based)."""
         logger.debug(f"Worker-{worker_id} started (QoS 4.0).")
@@ -207,6 +212,8 @@ class MessageQueueService:
                         await self._processor_callback(buffer)
                     except Exception as e:
                         logger.error(f"Worker-{worker_id} failed to process batch: {e}", exc_info=True)
+                        await self._requeue_batch(list(buffer))
+                        await asyncio.sleep(min(1.0, max(0.05, self._current_delay)))
                     finally:
                         # Cleanup & State Update
                         for item in buffer:
@@ -262,7 +269,13 @@ class TelegramQueueService:
         self._global_next_at = 0.0
         self._target_next_at = {}
         self._pair_next_at = {}
-        self._telegram_breaker = CircuitBreaker(name="telegram_api_global", failure_threshold=10, recovery_timeout=60.0)
+        from telethon.errors import MessageIdInvalidError, PeerIdInvalidError, ChatAdminRequiredError
+        self._telegram_breaker = CircuitBreaker(
+            name="telegram_api_global",
+            failure_threshold=10,
+            recovery_timeout=60.0,
+            ignored_exceptions=(MessageIdInvalidError, PeerIdInvalidError, ChatAdminRequiredError),
+        )
 
     def _get_target_sem(self, target_key: str):
         return self._get_cached_sem(self._target_semaphores, target_key, self._target_limit)
@@ -350,19 +363,16 @@ class TelegramQueueService:
                     continue
             if last_exc:
                 raise last_exc
+        if handle_flood_wait_sleep:
+            await self._sleep_or_raise_flood_wait(target_key)
+
         async with self._global_sem:
             async with self._get_target_sem(target_key):
                 async with self._get_pair_sem(pair_key):
                     if handle_flood_wait_sleep:
-                        until = self._flood_wait_until.get(target_key, 0)
-                        now = time.time()
-                        if now < until:
-                            wait_seconds = until - now
-                            if wait_seconds > 60:
-                                # 等待时间过长，不建议在工作线程中直接 sleep，否则会挂起整个 Worker
-                                logger.warning(f"Target {target_key} is in long FloodWait ({wait_seconds:.1f}s). Skipping sleep and raising.")
-                                raise FloodWaitException(int(wait_seconds))
-                            await asyncio.sleep(wait_seconds)
+                        wait_seconds = self._flood_wait_remaining(target_key)
+                        if wait_seconds > 0:
+                            raise FloodWaitException(max(1, int(wait_seconds)))
                     try:
                         return await self._telegram_breaker.call(_run_with_retry)
                     except CircuitOpenException as e:
@@ -376,9 +386,46 @@ class TelegramQueueService:
 
     def _update_next_at(self, target_key, pair_key):
         now = time.time()
-        self._global_next_at = now + 0.01
-        self._target_next_at[target_key] = now + 0.25
-        self._pair_next_at[pair_key] = now + 0.1
+        self._global_next_at = now + self._with_pacing_jitter(
+            self._pacing_interval_seconds("FORWARD_GLOBAL_MIN_INTERVAL_MS", 10)
+        )
+        self._target_next_at[target_key] = now + self._with_pacing_jitter(
+            self._pacing_interval_seconds("FORWARD_TARGET_MIN_INTERVAL_MS", 250)
+        )
+        self._pair_next_at[pair_key] = now + self._with_pacing_jitter(
+            self._pacing_interval_seconds("FORWARD_PAIR_MIN_INTERVAL_MS", 100)
+        )
+
+    def _pacing_interval_seconds(self, setting_name: str, default_ms: float) -> float:
+        try:
+            interval_ms = float(getattr(settings, setting_name, default_ms) or 0.0)
+        except (TypeError, ValueError):
+            interval_ms = float(default_ms)
+        return max(0.0, interval_ms / 1000.0)
+
+    def _with_pacing_jitter(self, seconds: float) -> float:
+        if seconds <= 0:
+            return 0.0
+        try:
+            jitter = float(getattr(settings, "FORWARD_PACING_JITTER", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            jitter = 0.0
+        if jitter <= 0:
+            return seconds
+        return seconds * random.uniform(max(0.0, 1.0 - jitter), 1.0 + jitter)
+
+    def _flood_wait_remaining(self, target_key: str) -> float:
+        return max(0.0, self._flood_wait_until.get(target_key, 0) - time.time())
+
+    async def _sleep_or_raise_flood_wait(self, target_key: str) -> None:
+        wait_seconds = self._flood_wait_remaining(target_key)
+        if wait_seconds <= 0:
+            return
+        if wait_seconds > 60:
+            # 等待时间过长，不建议在工作线程中直接 sleep，否则会挂起整个 Worker
+            logger.warning(f"Target {target_key} is in long FloodWait ({wait_seconds:.1f}s). Skipping sleep and raising.")
+            raise FloodWaitException(int(wait_seconds))
+        await asyncio.sleep(wait_seconds)
 
     def _handle_flood_wait(self, target_key, pair_key, seconds):
         import random

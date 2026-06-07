@@ -28,7 +28,8 @@ class CircuitBreaker:
         name: str = "default",
         failure_threshold: int = 5, 
         recovery_timeout: float = 30.0,
-        expected_exceptions: tuple = (Exception,)
+        expected_exceptions: tuple = (Exception,),
+        ignored_exceptions: tuple = ()
     ):
         """
         Args:
@@ -36,21 +37,26 @@ class CircuitBreaker:
             failure_threshold: 连续失败多少次触发熔断
             recovery_timeout: 熔断后等待多少秒进入半开状态
             expected_exceptions: 哪些异常算作"失败"
+            ignored_exceptions: 哪些异常直接透传且不计入失败
         """
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.expected_exceptions = expected_exceptions
+        self.ignored_exceptions = ignored_exceptions
         
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.last_failure_time = 0.0
+        self._probe_in_flight = False
         self._lock = asyncio.Lock()
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """
         执行受保护的函数调用
         """
+        probe_acquired = False
+
         async with self._lock:
             if self.state == CircuitState.OPEN:
                 # 检查是否冷却完毕，可以进入半开
@@ -59,8 +65,11 @@ class CircuitBreaker:
                 else:
                     raise CircuitOpenException(f"Circuit {self.name} is OPEN")
             
-            # HALF_OPEN 状态只允许一个请求通过（由于锁的存在，天然串行）
-            # 如果是 HALF_OPEN，我们尝试执行。成功则关闭，失败则重新打开。
+            if self.state == CircuitState.HALF_OPEN:
+                if self._probe_in_flight:
+                    raise CircuitOpenException(f"Circuit {self.name} is HALF_OPEN")
+                self._probe_in_flight = True
+                probe_acquired = True
 
         try:
             result = await func(*args, **kwargs)
@@ -77,10 +86,16 @@ class CircuitBreaker:
             
             return result
             
+        except self.ignored_exceptions:
+            raise
         except self.expected_exceptions as e:
             # 捕获已知异常，记录失败
             await self._on_failure()
             raise e
+        finally:
+            if probe_acquired:
+                async with self._lock:
+                    self._probe_in_flight = False
 
     async def _on_success(self):
         async with self._lock:
@@ -106,6 +121,8 @@ class CircuitBreaker:
         # 实际项目中这里可以加日志
         # print(f"Circuit {self.name} changed state: {self.state} -> {new_state}")
         self.state = new_state
+        if new_state != CircuitState.HALF_OPEN:
+            self._probe_in_flight = False
 
     @property
     def is_open(self) -> bool:

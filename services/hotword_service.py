@@ -424,13 +424,25 @@ class HotwordService:
         # ── 锁已释放，以下全是无竞争的 IO ────────────────────────────────
 
         # 1. 刷写热词得分 (含多样性元数据)
+        failed_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
         for channel, stats in snapshot_cache.items():
             disk_data = {
                 w: {"f": round(v["f"], 2), "u": v["u"]}
                 for w, v in stats.items() if v["f"] >= 0.5
             }
             if disk_data:
-                await self.repo.save_temp_counts(channel, disk_data)
+                try:
+                    saved = await self.repo.save_temp_counts(channel, disk_data)
+                except Exception as e:
+                    saved = False
+                    logger.error(f"Hotword temp save failed ({channel}): {e}", exc_info=True)
+                if saved is False:
+                    failed_cache[channel] = stats
+
+        if failed_cache:
+            async with self._lock:
+                self._merge_l1_cache_unlocked(failed_cache)
+            logger.warning(f"热词数据部分落盘失败，已回填内存等待重试: {len(failed_cache)} channels")
 
         # 2. 噪声候选词：合并到持久累积池，不再同步读盘，改由 _noise_learning_job 信号驱动处理
         if snapshot_noise:
@@ -443,6 +455,14 @@ class HotwordService:
 
         logger.log_operation("热词数据落盘完成")
         gc.collect()
+
+    def _merge_l1_cache_unlocked(self, snapshot_cache: Dict[str, Dict[str, Dict[str, Any]]]) -> None:
+        for channel, stats in snapshot_cache.items():
+            target_stats = self.l1_cache.setdefault(channel, {})
+            for word, value in stats.items():
+                entry = target_stats.setdefault(word, {"f": 0.0, "u": 0})
+                entry["f"] += float(value.get("f", 0.0) or 0.0)
+                entry["u"] += int(value.get("u", 0) or 0)
 
     async def _check_and_trigger_noise_learning(self, latest_noise: Dict[str, int]) -> None:
         """
@@ -740,9 +760,9 @@ class HotwordService:
                     or await self.repo.load_latest_period(channel_name, "day")
                 )
         else:
+            # day 是历史归档的 leaf 数据；month/year 是由 day 汇总出的 rollup。
+            # all 榜单不能同时叠加 leaf 与 rollup，否则会重复计数同一批热词。
             data = self._merge_period_data(
-                await self.repo.load_period_summary(channel_name, "year", ""),
-                await self.repo.load_period_summary(channel_name, "month", ""),
                 await self.repo.load_period_summary(channel_name, "day", ""),
                 await self.repo.load_rankings(channel_name, f"{channel_name}_temp.json"),
             )
