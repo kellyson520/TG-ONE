@@ -346,6 +346,7 @@ class HotwordService:
         self.last_activity = asyncio.get_event_loop().time()
         analyzer = await self.ensure_analyzer()
         await analyzer.ensure_engine()
+        self.is_suspended = False
         
         loop = asyncio.get_running_loop()
         

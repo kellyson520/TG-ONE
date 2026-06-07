@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import psutil
+
 from core.exceptions import TransientError
 from services import worker_service as worker_module
 from services.worker_service import WorkerService
@@ -31,11 +33,7 @@ def test_worker_memory_thresholds_scale_down_on_small_vps(monkeypatch):
         MEMORY_WARNING_THRESHOLD_MB=512,
         MEMORY_CRITICAL_THRESHOLD_MB=1024,
     )
-    monkeypatch.setattr(
-        worker_module,
-        "psutil",
-        SimpleNamespace(virtual_memory=lambda: SimpleNamespace(total=1024 * 1024 * 1024)),
-    )
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(total=1024 * 1024 * 1024))
 
     worker = WorkerService(
         client=MagicMock(),

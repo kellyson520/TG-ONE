@@ -9,6 +9,7 @@ from core.pipeline import MessageContext
 from services.queue_service import FloodWaitException
 from core.exceptions import TransientError, PermanentError
 from core.config import settings
+from core.helpers.memory_policy import resolve_process_memory_thresholds
 
 from core.logging import get_logger, short_id
 from services.queue_service import get_messages_queued, send_file_queued
@@ -44,19 +45,10 @@ class WorkerService:
         self._reconnect_cooldown_seconds = 5.0
 
     def _resolve_memory_thresholds(self):
-        configured_warning = settings.MEMORY_WARNING_THRESHOLD_MB
-        configured_critical = settings.MEMORY_CRITICAL_THRESHOLD_MB
-        try:
-            total_mb = psutil.virtual_memory().total / 1024 / 1024
-            dynamic_warning = max(256, int(total_mb * 0.45))
-            dynamic_critical = max(dynamic_warning + 128, int(total_mb * 0.70))
-            warning = min(configured_warning, dynamic_warning)
-            critical = min(configured_critical, dynamic_critical)
-            if critical <= warning:
-                critical = warning + 128
-            return warning, critical
-        except Exception:
-            return configured_warning, configured_critical
+        return resolve_process_memory_thresholds(
+            settings.MEMORY_WARNING_THRESHOLD_MB,
+            settings.MEMORY_CRITICAL_THRESHOLD_MB,
+        )
 
     async def start(self):
         """启动 Worker 服务 (动态并发池)"""

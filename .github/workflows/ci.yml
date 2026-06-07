@@ -122,6 +122,8 @@ jobs:
             tests/unit/services/test_hotword_learn.py \
             tests/unit/ui/renderers/test_hotword_renderer.py \
             tests/unit/services/test_worker_service.py \
+            tests/unit/services/test_system_guard_service.py \
+            tests/unit/core/helpers/test_resource_gate.py \
             tests/unit/handlers/commands/test_hotword_commands.py \
             tests/unit/handlers/button/strategies/test_hotword_strategy.py \
             tests/unit/middlewares/test_sender.py \

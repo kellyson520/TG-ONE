@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 from core.config import settings
+from core.helpers.memory_policy import resolve_process_memory_thresholds
 
 logger = logging.getLogger(__name__)
 
@@ -509,10 +510,14 @@ class GuardService:
         # Maintenance settings
         self._temp_guard_max = settings.TEMP_GUARD_MAX
         self._temp_guard_path = settings.TEMP_DIR
-        self._memory_limit_mb = settings.MEMORY_CRITICAL_THRESHOLD_MB
-        self._memory_warning_mb = settings.MEMORY_WARNING_THRESHOLD_MB
+        self._memory_warning_mb, self._memory_limit_mb = resolve_process_memory_thresholds(
+            settings.MEMORY_WARNING_THRESHOLD_MB,
+            settings.MEMORY_CRITICAL_THRESHOLD_MB,
+        )
         self._last_memory_warning_at = 0.0
         self._memory_warning_interval = 300.0
+        self._last_memory_release_at = 0.0
+        self._memory_release_interval = 300.0
 
     def get_stats(self) -> Dict[str, Any]:
         """获取守护服务的当前统计状态"""
@@ -577,6 +582,15 @@ class GuardService:
             logger.debug("[guard-mem] Failed to clear entity resolver memory", exc_info=True)
 
         return result
+
+    def _should_release_memory_pressure(self, now: float) -> bool:
+        return (
+            self._last_memory_release_at <= 0
+            or now - self._last_memory_release_at >= self._memory_release_interval
+        )
+
+    def _mark_memory_pressure_released(self, now: float) -> None:
+        self._last_memory_release_at = now
 
     def start_guards(self):
         """Deprecated: Use start_guards_async instead."""
@@ -648,17 +662,24 @@ class GuardService:
                     rss_mb = process.memory_info().rss / 1024 / 1024
                     
                     if rss_mb > self._memory_limit_mb and not tombstone._is_frozen:
-                        unreachable = gc.collect()
-                        if unreachable > 0:
-                            logger.debug(f"[guard-mem] GC collected {unreachable} objects before freeze")
-                        pressure_result = self._release_memory_pressure()
-                        tombstone.force_release_memory()
-                        if now - self._last_memory_warning_at >= self._memory_warning_interval:
-                            logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB), release={pressure_result}")
-                            self._last_memory_warning_at = now
+                        if self._should_release_memory_pressure(now):
+                            unreachable = gc.collect()
+                            if unreachable > 0:
+                                logger.debug(f"[guard-mem] GC collected {unreachable} objects before freeze")
+                            pressure_result = self._release_memory_pressure()
+                            tombstone.force_release_memory()
+                            self._mark_memory_pressure_released(now)
+                            if now - self._last_memory_warning_at >= self._memory_warning_interval:
+                                logger.warning(f"[guard-mem] Memory threshold exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB), release={pressure_result}")
+                                self._last_memory_warning_at = now
+                            else:
+                                logger.debug(f"[guard-mem] Memory threshold still exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
+                            await tombstone.freeze()
                         else:
-                            logger.debug(f"[guard-mem] Memory threshold still exceeded ({rss_mb:.2f}MB > {self._memory_limit_mb}MB)")
-                        await tombstone.freeze()
+                            logger.debug(
+                                f"[guard-mem] Memory threshold still exceeded "
+                                f"({rss_mb:.2f}MB > {self._memory_limit_mb}MB), release skipped by cooldown"
+                            )
                     elif rss_mb < (self._memory_limit_mb * 0.7) and tombstone._is_frozen:
                         # 内存降下来后尝试复苏
                         await tombstone.resurrect()

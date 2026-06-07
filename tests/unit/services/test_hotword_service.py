@@ -399,3 +399,19 @@ async def test_hotword_suspend_resume():
     await service.ensure_active()
     assert not service.is_suspended
     assert service.analyzer._jieba is not None
+
+
+@pytest.mark.asyncio
+async def test_hotword_process_batch_resumes_suspended_state():
+    from services.hotword_service import HotwordService
+    service = HotwordService()
+
+    await service.process_batch("resume_chan", ["这是一个足够长的测试热词文本"])
+    service.suspend()
+    assert service.is_suspended
+    assert service.analyzer._jieba is None
+
+    await service.process_batch("resume_chan", ["这是另一个足够长的测试热词文本"])
+
+    assert not service.is_suspended
+    assert service.analyzer._jieba is not None

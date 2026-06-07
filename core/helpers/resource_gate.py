@@ -2,6 +2,8 @@ import os
 import logging
 from typing import Optional
 
+from core.helpers.memory_policy import resolve_process_memory_thresholds
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -19,7 +21,11 @@ class ResourceGate:
     def _configured_limit_bytes() -> int:
         try:
             from core.config import settings
-            return int(settings.MEMORY_CRITICAL_THRESHOLD_MB) * 1024 * 1024
+            _, critical_mb = resolve_process_memory_thresholds(
+                int(settings.MEMORY_WARNING_THRESHOLD_MB),
+                int(settings.MEMORY_CRITICAL_THRESHOLD_MB),
+            )
+            return critical_mb * 1024 * 1024
         except Exception:
             return ResourceGate.DEFAULT_MAX_RAM_BYTES
 
