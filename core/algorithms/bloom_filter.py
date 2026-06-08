@@ -1,7 +1,7 @@
 import hashlib
+import json
 import math
 import os
-import pickle
 import logging
 from typing import List, Any, Optional
 
@@ -90,9 +90,9 @@ class BloomFilter:
                     'capacity': self.capacity,
                     'error_rate': self.error_rate,
                     'count': self.count,
-                    'bit_array': self.bit_array
+                    'bit_array': self.bit_array.hex(),
                 }
-                pickle.dump(data, f)
+                f.write(json.dumps(data).encode('utf-8'))
             logger.info(f"Bloom Filter saved to {self.filepath} (Count: {self.count})")
         except Exception as e:
             logger.error(f"Failed to save Bloom Filter: {e}")
@@ -103,9 +103,9 @@ class BloomFilter:
             return
         try:
             with open(self.filepath, 'rb') as f:
-                data = pickle.load(f)
+                data = json.loads(f.read().decode('utf-8'))
                 if data.get('capacity') == self.capacity and data.get('error_rate') == self.error_rate:
-                    self.bit_array = data['bit_array']
+                    self.bit_array = bytearray.fromhex(data['bit_array'])
                     self.count = data.get('count', 0)
                     logger.info(f"Bloom Filter loaded from {self.filepath}. Count: {self.count}")
                 else:

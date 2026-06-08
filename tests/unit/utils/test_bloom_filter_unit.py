@@ -67,6 +67,18 @@ class TestBloomFilter:
         assert "test" in bf
         assert bf.count == 3  # 计数会增加
 
+    def test_save_and_load_uses_json(self, tmp_path):
+        bloom_file = tmp_path / "bloom.json"
+        bf = BloomFilter(capacity=100, error_rate=0.01, filepath=str(bloom_file))
+        bf.add("persisted")
+
+        bf.save()
+
+        assert bloom_file.read_text().startswith("{")
+        loaded = BloomFilter(capacity=100, error_rate=0.01, filepath=str(bloom_file))
+        assert "persisted" in loaded
+        assert loaded.count == 1
+
 
 class TestGlobalBloomFilter:
     """测试全局布隆过滤器管理器"""
