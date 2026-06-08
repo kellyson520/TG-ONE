@@ -102,9 +102,11 @@ class UpdateService:
                 # 尝试解析地址，测试 DNS 和基础网络
                 await loop.run_in_executor(None, lambda: socket.gethostbyname("github.com"))
                 return True
-            except Exception:
+            except Exception as e:
+                logger.warning("更新网络预检 DNS 解析失败: %s", e)
                 return False
-        except Exception:
+        except Exception as e:
+            logger.error("更新网络预检执行失败: %s", e, exc_info=True)
             return False
 
     async def trigger_update(self, target_version: str = "origin/main"):
