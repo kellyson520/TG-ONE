@@ -270,6 +270,10 @@ class Settings(BaseSettings):
         default=10,
         description="保留的自动更新备份数量"
     )
+    UPDATE_LOCK_FILE: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data" / "UPDATE_LOCK.json",
+        description="升级维护锁文件路径"
+    )
 
     # === 灰度发布与通道配置 ===
     UPDATE_CHANNEL: str = Field(
@@ -810,6 +814,7 @@ class Settings(BaseSettings):
     @field_validator(
         "BASE_DIR", "DATA_ROOT", "DOWNLOAD_DIR", "SESSION_DIR", 
         "TEMP_DIR", "HOT_DIR", "LOG_DIR", "DB_DIR", "BACKUP_DIR", "FORWARD_RECORDER_DIR",
+        "UPDATE_LOCK_FILE",
         mode="after"
     )
     @classmethod

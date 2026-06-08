@@ -4,10 +4,9 @@
 """
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, HTMLResponse
-from pathlib import Path
+from core.config import get_settings
 
-# 锁文件路径
-LOCK_FILE = Path("/app/data/UPDATE_LOCK.json")
+settings = get_settings()
 
 class MaintenanceMiddleware(BaseHTTPMiddleware):
     """
@@ -19,7 +18,7 @@ class MaintenanceMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request, call_next):
         # 如果锁文件存在，说明系统正在升级或刚刚启动正在迁移DB
-        if LOCK_FILE.exists():
+        if settings.UPDATE_LOCK_FILE.exists():
             # 放行静态资源，否则维护页面也加载不出来
             if request.url.path.startswith("/static") or request.url.path.startswith("/favicon"):
                 return await call_next(request)
