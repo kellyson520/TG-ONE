@@ -16,7 +16,7 @@ def get_checkbox_stats(file_path):
         try:
             with open(file_path, 'r', encoding='gb18030') as f:
                 content = f.read()
-        except:
+        except (OSError, UnicodeDecodeError):
             return 0, 0 # Skip file if unreadable
 
     # Find all checkboxes: - [ ] or - [x]
