@@ -5,7 +5,7 @@ services:
     build: .
     container_name: telegram-forwarder-opt
     ports:
-      - "9810:9000"
+      - "${FORWARDER_HOST_PORT:-9810}:9000"
     restart: always
     environment:
       - ARCHIVE_ROOT=/app/data/archive/parquet
