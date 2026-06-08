@@ -152,75 +152,72 @@ class RSSPullService:
 
     async def _do_pull_internal(self, sub: RSSSubscription) -> bool:
         """实际的 HTTP 请求逻辑"""
+        from core.container import container
+        session = container.http_session
+        if not session or session.closed:
+            # Fallback if container session is not ready (e.g. standalone tests)
+            timeout = aiohttp.ClientTimeout(total=30)
+            session = aiohttp.ClientSession(timeout=timeout)
+            should_close = True
+        else:
+            should_close = False
+
         try:
-            from core.container import container
-            session = container.http_session
-            if not session or session.closed:
-                # Fallback if container session is not ready (e.g. standalone tests)
-                timeout = aiohttp.ClientTimeout(total=30)
-                session = aiohttp.ClientSession(timeout=timeout)
-                should_close = True
-            else:
-                should_close = False
+            headers = {}
+            if sub.last_etag: headers['If-None-Match'] = sub.last_etag
+            if sub.last_modified: headers['If-Modified-Since'] = sub.last_modified
 
-            try:
-                headers = {}
-                if sub.last_etag: headers['If-None-Match'] = sub.last_etag
-                if sub.last_modified: headers['If-Modified-Since'] = sub.last_modified
-                
-                async with session.get(sub.url, headers=headers, timeout=30) as resp:
-                    if resp.status == 304:
-                        logger.debug(f"[RSS Pull] {sub.url} 无变化 (304)")
-                        return False
-                    
-                    if resp.status != 200:
-                        logger.warning(f"[RSS Pull] {sub.url} 返回状态码 {resp.status}")
-                        return False
-                    
-                    # 更新 ETag/Modified
-                    sub.last_etag = resp.headers.get('ETag')
-                    sub.last_modified = resp.headers.get('Last-Modified')
-                    
-                    text = await resp.text()
-                    
-                    # 使用 RSSParser 解析
-                    from core.parsers.rss_parser import rss_parser
-                    parsed_feed = rss_parser.parse(text)
-                    
-                    if not parsed_feed or not parsed_feed.entries:
-                        logger.warning(f"[RSS Pull] 解析失败或空 Feed: {sub.url}")
-                        return False
+            async with session.get(sub.url, headers=headers, timeout=30) as resp:
+                if resp.status == 304:
+                    logger.debug(f"[RSS Pull] {sub.url} 无变化 (304)")
+                    return False
 
-                    # 增量去重
-                    new_entries = []
-                    last_published = sub.latest_post_date
-                    max_published = last_published
+                if resp.status != 200:
+                    logger.warning(f"[RSS Pull] {sub.url} 返回状态码 {resp.status}")
+                    return False
 
-                    for entry in parsed_feed.entries:
-                        if not entry.published:
-                            continue
-                        
-                        entry_time = entry.published.replace(tzinfo=None) if entry.published.tzinfo else entry.published
-                        last_time_naive = last_published.replace(tzinfo=None) if last_published and last_published.tzinfo else (last_published or datetime.min)
+                # 更新 ETag/Modified
+                sub.last_etag = resp.headers.get('ETag')
+                sub.last_modified = resp.headers.get('Last-Modified')
 
-                        if entry_time > last_time_naive:
-                            new_entries.append(entry)
-                            if not max_published or entry_time > (max_published.replace(tzinfo=None) if max_published.tzinfo else max_published):
-                                max_published = entry.published
+                text = await resp.text()
 
-                    if new_entries:
-                        logger.info(f"[RSS Pull] 发现 {len(new_entries)} 条新内容")
-                        sub.latest_post_date = max_published
-                        sub.fail_count = 0 
-                        return True
-                    else:
-                        logger.debug(f"[RSS Pull] 无新内容 (Latest: {last_published})")
-                        return False
-            finally:
-                if should_close:
-                    await session.close()
-        except Exception:
-            raise # 抛出给上层 breaker 捕获
+                # 使用 RSSParser 解析
+                from core.parsers.rss_parser import rss_parser
+                parsed_feed = rss_parser.parse(text)
+
+                if not parsed_feed or not parsed_feed.entries:
+                    logger.warning(f"[RSS Pull] 解析失败或空 Feed: {sub.url}")
+                    return False
+
+                # 增量去重
+                new_entries = []
+                last_published = sub.latest_post_date
+                max_published = last_published
+
+                for entry in parsed_feed.entries:
+                    if not entry.published:
+                        continue
+
+                    entry_time = entry.published.replace(tzinfo=None) if entry.published.tzinfo else entry.published
+                    last_time_naive = last_published.replace(tzinfo=None) if last_published and last_published.tzinfo else (last_published or datetime.min)
+
+                    if entry_time > last_time_naive:
+                        new_entries.append(entry)
+                        if not max_published or entry_time > (max_published.replace(tzinfo=None) if max_published.tzinfo else max_published):
+                            max_published = entry.published
+
+                if new_entries:
+                    logger.info(f"[RSS Pull] 发现 {len(new_entries)} 条新内容")
+                    sub.latest_post_date = max_published
+                    sub.fail_count = 0
+                    return True
+                else:
+                    logger.debug(f"[RSS Pull] 无新内容 (Latest: {last_published})")
+                    return False
+        finally:
+            if should_close:
+                await session.close()
 
     def add_new_subscription(self, sub_id: int):
         """当外部添加新订阅时被调用"""
