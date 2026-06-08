@@ -20,7 +20,12 @@ class Database:
             try:
                 from core.db_factory import DbFactory
                 self.read_engine = DbFactory.get_async_engine(readonly=True)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "[Database] 获取只读引擎失败，回退到共享写引擎: %s",
+                    exc,
+                    exc_info=True,
+                )
                 self.read_engine = self.engine
         elif db_url:
             # 自动修正 SQLite URL 以使用 aiosqlite 驱动
