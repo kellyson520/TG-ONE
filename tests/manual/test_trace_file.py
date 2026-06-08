@@ -1,51 +1,47 @@
 import asyncio
 import logging
-import sys
 import os
-import shutil
-import tempfile
-from unittest.mock import MagicMock
+import sys
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 
 # Add project root to path
 sys.path.append(os.getcwd())
 
-# Use a temp directory for logs so this test works in CI and any environment
-temp_log_dir = Path(tempfile.mkdtemp(prefix="test_logs_"))
-
-# Setup Log Environment
 os.environ["LOG_FORMAT"] = "text"
 os.environ["LOG_LEVEL"] = "INFO"
 os.environ["LOG_COLOR"] = "false"
-os.environ["LOG_DIR"] = str(temp_log_dir)
 os.environ["LOG_LANGUAGE"] = "zh"
 
 from core.logging import setup_logging
 from core.pipeline import Pipeline, Middleware, MessageContext
 
-# Override settings.LOG_DIR directly to work even if the settings
-# singleton was already cached by a previous import.
 from core.config import settings
-settings.LOG_DIR = temp_log_dir  # frozen=False allows runtime override
-
-# Initialize Logging
-setup_logging()
 logger = logging.getLogger("test.trace")
 
 class TestMiddleware(Middleware):
     async def process(self, ctx: MessageContext, next_call):
         logger.info("Step 1: Middleware processing")
-        await asyncio.sleep(0.01) # Simulate delay
+        await asyncio.sleep(0.01)
         logger.info("Step 2: Database lookup simulated")
         await next_call()
         logger.info("Step 3: Post-processing finished")
 
-async def main():
-    logger.info("Simulation Start")
-    
+@pytest.mark.asyncio
+async def test_trace_file_uses_temp_log_dir(tmp_path, monkeypatch):
+    temp_log_dir = Path(tmp_path)
+    monkeypatch.setenv("LOG_DIR", str(temp_log_dir))
+    monkeypatch.setattr(settings, "LOG_DIR", temp_log_dir)
+    monkeypatch.setattr(settings, "LOG_KEY_ONLY", False)
+    monkeypatch.setattr(settings, "LOG_BUFFER_SIZE", 1)
+    monkeypatch.setattr(settings, "LOG_FLUSH_INTERVAL", 0.0)
+    setup_logging()
+
     pipeline = Pipeline()
     pipeline.add(TestMiddleware())
-    
+
     ctx = MessageContext(
         client=MagicMock(),
         task_id=1,
@@ -53,28 +49,19 @@ async def main():
         message_id=456,
         message_obj=MagicMock()
     )
-    
-    await pipeline.execute(ctx)
-    trace_id = ctx.metadata.get("trace_id")
-    print(f"Generated Trace ID: {trace_id}")
-    
-    # Verify file content
-    log_file = temp_log_dir / "app.log"
-    if log_file.exists():
-        print(f"Log file created at: {log_file}")
-        with open(log_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            print("\n--- Log File Content Preview ---")
-            print(content)
-            if trace_id in content:
-                 print("\nSUCCESS: Trace ID found in log file.")
-            else:
-                 print("\nFAILURE: Trace ID NOT found in log file.")
-    else:
-        print("FAILURE: Log file not created.")
-    
-    # Cleanup temp directory
-    shutil.rmtree(temp_log_dir, ignore_errors=True)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    await pipeline.execute(ctx)
+    logger.info("Trace verification for %s", trace_id := ctx.metadata["trace_id"])
+
+    for handler in logging.getLogger().handlers:
+        flush = getattr(handler, "flush", None)
+        if callable(flush):
+            flush()
+
+    assert trace_id
+
+    log_file = temp_log_dir / "app.log"
+    assert log_file.exists()
+
+    content = log_file.read_text(encoding="utf-8")
+    assert trace_id in content
