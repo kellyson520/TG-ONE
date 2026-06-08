@@ -81,11 +81,10 @@ def _safe_headers_for_log(request: Request) -> Dict[str, str]:
 async def verify_local_access(request: Request):
     """验证请求是否来自本地或Docker内部网络"""
     client_host = request.client.host if request.client else None
-    # 允许的本地IP地址列表
-    local_addresses = ["127.0.0.1", "::1", "localhost", "0.0.0.0"]
-    # 如果设置HOST 环境变量，也将其添加到允许列表中
-    if hasattr(settings, "RSS_HOST") and settings.RSS_HOST:
-        local_addresses.append(settings.RSS_HOST)
+    configured_addresses = settings.parse_list_field(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
+    local_addresses = {*configured_addresses, "0.0.0.0"}
+    if settings.RSS_HOST:
+        local_addresses.add(settings.RSS_HOST)
     # 检查是否是Docker内部网络IP (常见的私有网络范围
     docker_ip = False
     if client_host:
