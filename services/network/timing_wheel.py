@@ -116,7 +116,8 @@ class HashedTimingWheel:
 
             # 异步执行到期的任务
             for t in ready_tasks:
-                asyncio.create_task(t.callback(*t.args, **t.kwargs))
+                callback_task = asyncio.create_task(t.callback(*t.args, **t.kwargs))
+                callback_task.add_done_callback(self._log_callback_error)
 
             # 推进指针
             self.current_slot = (self.current_slot + 1) % self.slots
@@ -146,6 +147,15 @@ class HashedTimingWheel:
 
     def _has_active_tasks(self) -> bool:
         return any(not task.cancelled for task in self.tasks.values())
+
+    @staticmethod
+    def _log_callback_error(task: asyncio.Task):
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Timing wheel callback failed")
 
     def _prune_cancelled_tasks(self):
         for slot in self.wheel:
