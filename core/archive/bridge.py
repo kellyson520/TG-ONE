@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional, Union
 import logging
+import re
 from datetime import datetime, timedelta
 from core.helpers.lazy_import import LazyImport
 duckdb = LazyImport("duckdb")
@@ -7,6 +8,21 @@ from core.config import settings
 from repositories.archive_store import ARCHIVE_ROOT, _configure_httpfs_and_s3
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_TABLES = frozenset({
+    "audit_logs",
+    "chat_statistics",
+    "rule_logs",
+    "rule_statistics",
+    "task_queue",
+})
+_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_table_name(table_name: str) -> None:
+    if table_name not in _ALLOWED_TABLES or not _TABLE_NAME_RE.fullmatch(table_name):
+        raise ValueError(f"Unsupported archive table: {table_name!r}")
+
 
 class UnifiedQueryBridge:
     """热冷统一查询桥接器，使用 DuckDB 联邦查询 SQLite 和 Parquet。"""
@@ -34,6 +50,7 @@ class UnifiedQueryBridge:
         use_cold: bool = True
     ) -> List[Dict[str, Any]]:
         """跨热冷数据库执行聚合查询 (如 COUNT, SUM)"""
+        _validate_table_name(table_name)
         con = self._get_connection()
         params = params or []
         

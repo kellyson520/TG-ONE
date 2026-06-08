@@ -47,6 +47,16 @@ class TestUnifiedQueryBridgeUnit:
             mock_duckdb.connect.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_query_aggregate_rejects_unsupported_table_name(self, bridge):
+        mock_con = MagicMock()
+        bridge._con = mock_con
+
+        with pytest.raises(ValueError):
+            await bridge.query_aggregate("rule_logs; DROP TABLE users;--", "SELECT COUNT(*) FROM {table}")
+
+        mock_con.execute.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_query_unified_hot_only_when_no_cold(self, bridge):
         """当没有 Parquet 文件时，应仅查询热数据"""
         bridge.archive_root = "/nonexistent/path"
