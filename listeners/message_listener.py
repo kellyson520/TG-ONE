@@ -228,8 +228,14 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                     msg_ts = event.message.date.timestamp()
                     if time.time() - msg_ts > 300: # 5 minutes
                         base_priority = 0
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(
+                        "[监听器] 无法解析消息时间戳: 聊天ID=%s, 消息ID=%s, 错误=%s",
+                        event.chat_id,
+                        event.id,
+                        e,
+                        exc_info=True,
+                    )
             
             # 2. Rule based Priority
             rule_priority = await _get_chat_priority(event.chat_id)
