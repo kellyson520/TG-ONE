@@ -33,8 +33,7 @@ class WebSocketLogHandler(logging.Handler):
                 # 没有运行中的 loop，忽略（通常在启动/关闭阶段）
                 pass
         except Exception:
-            # 日志处理器本身不应抛出异常干扰主逻辑
-            pass
+            self.handleError(record)
 
 def install_websocket_log_handler():
     """安装 WebSocket 日志显示到 root logger"""
