@@ -54,9 +54,11 @@ def init_archive_system() -> bool:
         import duckdb
 
         con = duckdb.connect(database=":memory:")
-        con.execute("SELECT 1 as test")
-        result = con.fetchone()
-        con.close()
+        try:
+            con.execute("SELECT 1 as test")
+            result = con.fetchone()
+        finally:
+            con.close()
         logger.debug(f"DuckDB test result: {result} (type: {type(result)})")
         # 确保结果正确解包并转换为整数对比
         if result and int(result[0]) == 1:

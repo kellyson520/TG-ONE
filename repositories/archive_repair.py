@@ -138,8 +138,10 @@ def check_dependencies() -> bool:
         import duckdb
 
         con = duckdb.connect(":memory:")
-        con.execute("SELECT 1")
-        con.close()
+        try:
+            con.execute("SELECT 1")
+        finally:
+            con.close()
         dependencies.append(("DuckDB", True, ""))
     except Exception as e:
         dependencies.append(("DuckDB", False, str(e)))
