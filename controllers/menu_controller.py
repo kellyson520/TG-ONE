@@ -3,13 +3,8 @@
 负责接收菜单操作请求，处理业务逻辑，可以调用 View(NewMenuSystem) 进行渲染
 此文件作为中央调度中心，将请求委派给 RuleController, MediaController, AdminController 等领域控制器。
 """
-import asyncio
 import logging
-from telethon import Button, events
-from telethon.errors import FloodWaitError
-
 from services.menu_service import menu_service
-from services.session_service import session_service
 from .base import ControllerAbort
 
 logger = logging.getLogger(__name__)
@@ -667,7 +662,5 @@ class MenuController:
     async def toggle_history_dedup(self, event):
         """切换历史迁移过程中的动态去重开关"""
         await self.container.media_controller.toggle_dedup(event)
-
-
 # 全局单例持有者
 menu_controller = MenuController()

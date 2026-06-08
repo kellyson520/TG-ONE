@@ -4,7 +4,7 @@
 """
 
 import weakref
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import asyncio
 import logging

@@ -2,7 +2,6 @@ import logging
 from core.helpers.common import get_main_module
 from filters.base_filter import BaseFilter
 
-from services.network.telegram_api_optimizer import api_optimizer
 from core.helpers.error_handler import handle_errors
 
 logger = logging.getLogger(__name__)

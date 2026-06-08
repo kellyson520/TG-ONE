@@ -1,11 +1,8 @@
-from telethon import events
 import logging
 from typing import Optional
 from services.rule.facade import rule_management_service
 from core.container import container
 from core.helpers.common import is_admin_or_owner
-from core.config import settings
-from services.queue_service import MessageQueueService
 
 logger = logging.getLogger(__name__)
 

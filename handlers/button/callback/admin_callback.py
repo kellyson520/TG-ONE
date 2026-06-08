@@ -2,7 +2,6 @@
 管理面板回调处理器
 """
 
-import asyncio
 import logging
 from telethon import Button
 

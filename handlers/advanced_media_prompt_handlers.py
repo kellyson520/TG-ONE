@@ -8,7 +8,6 @@ import logging
 from services.session_service import session_manager
 # Removed: from models.models import ForwardRule (Handler Purity Compliance)
 from core.helpers.auto_delete import reply_and_delete
-from core.container import container
 
 logger = logging.getLogger(__name__)
 

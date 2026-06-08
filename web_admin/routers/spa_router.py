@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from web_admin.core.templates import BASE_DIR
 
