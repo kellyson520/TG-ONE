@@ -6,6 +6,7 @@ import sys
 import os
 import logging
 from pathlib import Path
+import tempfile
 
 # 确保项目根目录在 sys.path 最前面
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -79,7 +80,7 @@ import unittest.mock
 # ============================================================
 # PHASE 1: Mock 缺失的 C 扩展库 (仅当无法导入时)
 # ============================================================
-for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "apprise"]:
+for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "pandas", "apprise"]:
     try:
         __import__(lib)
     except ImportError:
@@ -127,7 +128,9 @@ mock_settings.BOT_MESSAGE_DELETE_TIMEOUT = 300
 mock_settings.DB_DIR = Path("./temp_test_db")
 _pytest_worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
 mock_settings.HOT_DIR = Path("tests/temp/hot")
-mock_settings.HOT_DB_PATH = Path(f"tests/temp/db/hotwords_test_{_pytest_worker_id}_{os.getpid()}.db")
+_pytest_temp_root = Path(tempfile.gettempdir()) / "tg-one-tests"
+_pytest_temp_root.mkdir(parents=True, exist_ok=True)
+mock_settings.HOT_DB_PATH = _pytest_temp_root / f"hotwords_test_{_pytest_worker_id}_{os.getpid()}.db"
 mock_settings.HOT_DATABASE_URL = f"sqlite+aiosqlite:///{mock_settings.HOT_DB_PATH.as_posix()}"
 if not mock_settings.DB_DIR.exists():
     mock_settings.DB_DIR.mkdir(parents=True, exist_ok=True)

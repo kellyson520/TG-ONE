@@ -138,7 +138,7 @@ def get_size_bucket(size: int) -> int:
         # 每 2 倍大小增加 8 个等级，覆盖 0 到 1TB
         val = int(math.log2(size) * 8)
         return min(max(val, 0), 255)
-    except:
+    except Exception:
         return 0
 
 def get_size_range(size: int) -> str:
@@ -159,7 +159,7 @@ def extract_stream_vector(doc: Any) -> int:
         w = getattr(doc, "w", 0) or 0
         h = getattr(doc, "h", 0) or 0
         return ((w & 0xFFFF) << 16) | (h & 0xFFFF)
-    except:
+    except Exception:
         return 0
 
 def generate_v3_fingerprint(message_obj: Any) -> Optional[int]:

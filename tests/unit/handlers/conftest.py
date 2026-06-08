@@ -11,9 +11,12 @@ from unittest.mock import MagicMock, AsyncMock
 # ============================================================
 
 # Mock C 扩展库和异步库
-for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "uvloop", "pandas", "apprise", "psutil"]:
-    sys.modules[lib] = MagicMock()
-    sys.modules[f"{lib}.fuzz"] = MagicMock()
+for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "pandas", "apprise", "psutil"]:
+    try:
+        __import__(lib)
+    except ImportError:
+        sys.modules[lib] = MagicMock()
+        sys.modules[f"{lib}.fuzz"] = MagicMock()
 
 # 异步文件操作
 mock_aiofiles = MagicMock()

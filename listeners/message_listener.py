@@ -228,7 +228,7 @@ async def setup_listeners(user_client: Any, bot_client: Any) -> None:
                     msg_ts = event.message.date.timestamp()
                     if time.time() - msg_ts > 300: # 5 minutes
                         base_priority = 0
-                except:
+                except Exception:
                     pass
             
             # 2. Rule based Priority

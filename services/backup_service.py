@@ -225,7 +225,7 @@ class BackupService:
                     dt = datetime.strptime(date_str, "%Y%m%d_%H%M%S")
                 else:
                     raise ValueError()
-            except:
+            except (ValueError, IndexError):
                 dt = datetime.fromtimestamp(stat.st_mtime)
                 
             results.append({

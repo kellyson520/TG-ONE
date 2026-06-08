@@ -76,7 +76,10 @@ async def init_hotword_db() -> None:
     logger.info("Initializing hotword database tables...")
     from core.db_factory import DbFactory
     from models.hotword import Base as HotwordBase
-    
+    from core.config import settings
+
+    settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     engine = DbFactory.get_hotword_async_engine()
     try:
         async with engine.begin() as conn:
