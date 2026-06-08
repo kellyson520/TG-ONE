@@ -28,7 +28,7 @@ class PickerMenu(BaseMenu):
         if day_buttons: buttons.append(day_buttons)
 
         try: ctx = session_manager.get_time_picker_context(event.chat_id)
-        except: ctx = "session"
+        except Exception: ctx = "session"
         back_action = "new_menu:history_time_range" if ctx == "history" else "new_menu:time_range_selection"
         buttons.extend([
             [Button.inline("⬅️ 上一页", "new_menu:day_page:prev"), Button.inline("下一页 ➡️", "new_menu:day_page:next")],
