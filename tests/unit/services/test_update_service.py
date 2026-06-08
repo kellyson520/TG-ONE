@@ -199,9 +199,11 @@ async def test_http_update_rejects_oversized_download(update_service, monkeypatc
         async def aiter_bytes(self):
             yield b"x" * 6
 
+    client_kwargs = []
+
     class FakeClient:
         def __init__(self, *args, **kwargs):
-            pass
+            client_kwargs.append(kwargs)
 
         async def __aenter__(self):
             return self
@@ -226,6 +228,11 @@ async def test_http_update_rejects_oversized_download(update_service, monkeypatc
 
     assert success is False
     assert msg == "下载文件超过大小限制"
+    timeout = client_kwargs[0]["timeout"]
+    assert timeout.connect == 10.0
+    assert timeout.read == 30.0
+    assert timeout.write == 10.0
+    assert timeout.pool == 5.0
     mock_backup.assert_not_called()
 
 @pytest.mark.asyncio

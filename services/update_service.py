@@ -895,7 +895,8 @@ class UpdateService:
                  return False, f"安全校验失败: 版本 {version[:8]} 未在官方仓库验证通过"
 
             logger.info(f"正在从 HTTP 下载更新包: {zip_url}")
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            download_timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=download_timeout, follow_redirects=True) as client:
                 async with client.stream("GET", zip_url) as resp:
                     if resp.status_code != 200:
                         return False, f"下载失败 ({resp.status_code})"
