@@ -19,11 +19,11 @@ class TestLoggingOptimization(unittest.TestCase):
         for h in self.handlers_to_close:
             try:
                 h.close()
-            except: pass
+            except Exception: pass
         if self.test_dir.exists():
             try:
                 shutil.rmtree(self.test_dir, ignore_errors=True)
-            except: pass
+            except Exception: pass
 
     def test_buffer_logic(self):
         print("\nStarting test_buffer_logic...")
