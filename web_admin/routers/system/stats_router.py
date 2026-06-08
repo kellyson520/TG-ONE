@@ -43,7 +43,7 @@ async def get_tasks_list(
                     rule_ids.add(int(payload['rule_id']))
                 if payload.get('target_rule_id'):
                     rule_ids.add(int(payload['target_rule_id']))
-            except: pass
+            except (TypeError, ValueError, json.JSONDecodeError): pass
         
         rules_map = await rule_repo.get_by_ids(list(rule_ids)) if rule_ids else {}
 
