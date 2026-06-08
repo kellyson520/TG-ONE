@@ -6,6 +6,7 @@ import zipfile
 import sqlite3
 import glob
 import asyncio
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Literal
@@ -58,14 +59,10 @@ class BackupService:
 
     def _sqlite_backup_sync(self, src_path: str, dst_path: str):
         """同步执行 sqlite 备份"""
-        src_conn = sqlite3.connect(src_path)
-        dst_conn = sqlite3.connect(dst_path)
-        try:
-            with dst_conn:
-                src_conn.backup(dst_conn)
-        finally:
-            dst_conn.close()
-            src_conn.close()
+        with closing(sqlite3.connect(src_path)) as src_conn:
+            with closing(sqlite3.connect(dst_path)) as dst_conn:
+                with dst_conn:
+                    src_conn.backup(dst_conn)
 
     def backup_db_sync(self, label: str = "manual") -> Optional[Path]:
         """
