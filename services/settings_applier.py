@@ -16,7 +16,7 @@ class SettingsApplier:
                 # 尝试设置属性，Pydantic BaseSettings (frozen=False) 允许直接设置
                 setattr(settings, key, value)
             except Exception as e:
-                logger.error(f"无法应用配置项 {key}={value}: {e}")
+                logger.error("无法应用配置项 %s: %s", key, e)
 
         # 2. 处理特殊的运行时副作用 (比如 logging 级别这种不是单靠属性就能改变的)
         if key == 'LOG_LEVEL':
