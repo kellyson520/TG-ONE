@@ -53,7 +53,8 @@ async def safe_edit(
         try:
             current_msg = await event.get_message()
             message_id = current_msg.id if current_msg else hash(str(event))
-        except Exception:
+        except Exception as e:
+            logger.debug(f"safe_edit: 获取消息 ID 失败，使用事件哈希作为锁键: {e}")
             message_id = hash(str(event))
 
         # 获取编辑锁
