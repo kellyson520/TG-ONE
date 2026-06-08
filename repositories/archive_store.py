@@ -44,6 +44,7 @@ def model_to_dict(obj: Any) -> Dict[str, Any]:
 
 # 归档根路径
 ARCHIVE_ROOT = str(settings.ARCHIVE_ROOT)
+ARCHIVE_TEMP_DIR = os.fspath(settings.ARCHIVE_TEMP_DIR or (settings.TEMP_DIR / "archive"))
 
 # Parquet 写入选项
 _PARQUET_COMPRESSION = settings.ARCHIVE_PARQUET_COMPRESSION.upper()
@@ -60,6 +61,18 @@ def _ensure_dir(path: str) -> None:
         logger.error(f"创建目录失败 {path}: {e}")
         logger.debug("创建目录失败详细信息", exc_info=True)
         raise
+
+
+def _archive_temp_file(suffix: str) -> Tuple[int, str]:
+    _ensure_dir(ARCHIVE_TEMP_DIR)
+    return tempfile.mkstemp(suffix=suffix, dir=ARCHIVE_TEMP_DIR)
+
+
+def _archive_json_temp_file():
+    _ensure_dir(ARCHIVE_TEMP_DIR)
+    return tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, dir=ARCHIVE_TEMP_DIR
+    )
 
 
 def _duckdb_string_literal(value: str) -> str:
@@ -201,7 +214,7 @@ def write_parquet(
     out_file = os.path.normpath(os.path.join(out_dir, fname))
     
     # 策略：先写入系统临时目录 (避免中文路径 Lock 问题)，再移动到目标目录
-    fd, tmp_file = tempfile.mkstemp(suffix=".parquet.tmp")
+    fd, tmp_file = _archive_temp_file(suffix=".parquet.tmp")
     os.close(fd) # Windows 必须立即关闭 fd
     
     # DuckDB 需要正斜杠路径且转义单引号
@@ -231,7 +244,7 @@ def write_parquet(
                 # 方案B：JSON 临时文件 (最稳妥的 DuckDB 原生方式)
                 try:
                     import json
-                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as fjson:
+                    with _archive_json_temp_file() as fjson:
                         json.dump(rows, fjson)
                         fjson.flush() # 强制落盘
                         json_tmp_path = fjson.name
@@ -280,7 +293,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
     fname = f"part-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}-{os.getpid()}-{random.randint(1000, 9999)}.parquet"
     out_file = os.path.normpath(os.path.join(out_dir, fname))
     
-    fd, tmp_file = tempfile.mkstemp(suffix=".parquet.tmp")
+    fd, tmp_file = _archive_temp_file(suffix=".parquet.tmp")
     os.close(fd)
     safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
     
@@ -288,7 +301,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
         con = duckdb.connect(database=":memory:")
         try:
             import json
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as fjson:
+            with _archive_json_temp_file() as fjson:
                 json.dump(rows, fjson)
                 json_tmp_path = fjson.name
             
@@ -440,7 +453,7 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
                 part_dir, f"compact-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}.parquet"
             ))
             
-            fd, tmp_file = tempfile.mkstemp(suffix=".parquet.compact.tmp")
+            fd, tmp_file = _archive_temp_file(suffix=".parquet.compact.tmp")
             os.close(fd)
             
             safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")

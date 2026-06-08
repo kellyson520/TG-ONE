@@ -358,8 +358,12 @@ class Settings(BaseSettings):
 
     # === 归档存储与 S3 (DuckDB/Parquet) ===
     ARCHIVE_ROOT: str = Field(
-        default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "archive" / "parquet"), 
+        default_factory=lambda: str(Path(__file__).resolve().parent.parent.parent / "data" / "archive" / "parquet"),
         description="归档数据根路径 (本地路径或 S3 URL)"
+    )
+    ARCHIVE_TEMP_DIR: Optional[Path] = Field(
+        default=None,
+        description="归档写入临时文件目录；未设置时使用 TEMP_DIR/archive"
     )
     ARCHIVE_PARQUET_COMPRESSION: str = Field(default="ZSTD")
     ARCHIVE_PARQUET_ROW_GROUP_SIZE: int = Field(default=20000)
