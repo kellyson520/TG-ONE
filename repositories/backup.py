@@ -28,6 +28,7 @@ def backup_database(db_path: str, backup_dir: str) -> str:
                 with dst_conn:
                     src_conn.backup(dst_conn)
     except Exception:
+        logger.warning("SQLite 备份失败，降级为文件复制: source=%s target=%s", source, target, exc_info=True)
         shutil.copy2(source, target)
 
     return str(target)
