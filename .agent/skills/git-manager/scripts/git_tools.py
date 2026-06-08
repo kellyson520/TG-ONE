@@ -128,7 +128,7 @@ def generate_changelog(since_tag: str = None) -> List[str]:
     try:
         range_spec = f"{since_tag}..HEAD" if since_tag else "HEAD"
         logs = run_git(["log", range_spec, "--pretty=format:%h|%an|%ad|%s", "--date=short"], check=False).splitlines()
-    except: logs = []
+    except Exception: logs = []
 
     categorized: Dict[str, List[str]] = {k: [] for k in ["feat", "fix", "perf", "refactor", "chore", "test", "other"]}
     pattern = re.compile(r"^(\w+)(?:\(([^)]+)\))?:\s*(.+)$")
