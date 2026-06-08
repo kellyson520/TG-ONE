@@ -671,7 +671,8 @@ class MediaController(BaseController):
                     try:
                         await event.edit(f"🚀 **扫描进行中...**\n\n📊 已遍历: **{proc:,}** 条\n🔍 已发现: **{found:,}** 组重复", buttons=[[Button.inline("❌ 取消", "new_menu:session_dedup")]])
                         last_update_msg = now
-                    except Exception: pass
+                    except Exception:
+                        logger.debug("Failed to update duplicate scan progress UI", exc_info=True)
             
             # 3. 调用服务执行
             results = await self.container.session_service.scan_duplicate_messages(event, progress_callback=progress_cb)
