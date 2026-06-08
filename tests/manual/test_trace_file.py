@@ -1,29 +1,32 @@
-
 import asyncio
 import logging
 import sys
 import os
 import shutil
+import tempfile
 from unittest.mock import MagicMock
 from pathlib import Path
 
 # Add project root to path
 sys.path.append(os.getcwd())
 
-# Ensure clean state
-temp_log_dir = Path("tests/temp_logs")
-if temp_log_dir.exists():
-    shutil.rmtree(temp_log_dir)
+# Use a temp directory for logs so this test works in CI and any environment
+temp_log_dir = Path(tempfile.mkdtemp(prefix="test_logs_"))
 
 # Setup Log Environment
 os.environ["LOG_FORMAT"] = "text"
 os.environ["LOG_LEVEL"] = "INFO"
 os.environ["LOG_COLOR"] = "false"
-os.environ["LOG_DIR"] = str(temp_log_dir) # Enable file logging
+os.environ["LOG_DIR"] = str(temp_log_dir)
 os.environ["LOG_LANGUAGE"] = "zh"
 
 from core.logging import setup_logging
 from core.pipeline import Pipeline, Middleware, MessageContext
+
+# Override settings.LOG_DIR directly to work even if the settings
+# singleton was already cached by a previous import.
+from core.config import settings
+settings.LOG_DIR = temp_log_dir  # frozen=False allows runtime override
 
 # Initialize Logging
 setup_logging()
@@ -69,6 +72,9 @@ async def main():
                  print("\nFAILURE: Trace ID NOT found in log file.")
     else:
         print("FAILURE: Log file not created.")
+    
+    # Cleanup temp directory
+    shutil.rmtree(temp_log_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
