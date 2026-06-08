@@ -33,7 +33,7 @@ def _parse_audit_details(details: Optional[str]) -> str:
                 }
                 return mapping.get(reason, reason)
         return str(data)
-    except:
+    except json.JSONDecodeError:
         return details
 
 router = APIRouter(prefix="/api/system", tags=["System Logs"])
