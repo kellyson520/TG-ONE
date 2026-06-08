@@ -17,32 +17,30 @@ def check_db(path):
 
     print(f"Checking {FULL_PATH}...")
     try:
-        conn = sqlite3.connect(FULL_PATH)
-        cursor = conn.cursor()
-        
-        # Check Journal Mode
-        cursor.execute("PRAGMA journal_mode;")
-        mode = cursor.fetchone()[0]
-        print(f"  Journal Mode: {mode}")
-        
-        # Check Tables
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = [row[0] for row in cursor.fetchall()]
-        print(f"  Tables: {tables}")
-        
-        # specific check for chats/forward_rules
-        if 'chats' in tables and 'forward_rules' in tables:
-            print("  This IS the correct database (has chats and forward_rules).")
-            
-            # Check Integrity
-            print("  Checking integrity...")
-            cursor.execute("PRAGMA integrity_check;")
-            integrity_result = cursor.fetchone()[0]
-            print(f"  Integrity Check: {integrity_result}")
-        else:
-            print("  Required tables NOT found.")
-        
-        conn.close()
+        with sqlite3.connect(FULL_PATH) as conn:
+            cursor = conn.cursor()
+
+            # Check Journal Mode
+            cursor.execute("PRAGMA journal_mode;")
+            mode = cursor.fetchone()[0]
+            print(f"  Journal Mode: {mode}")
+
+            # Check Tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in cursor.fetchall()]
+            print(f"  Tables: {tables}")
+
+            # specific check for chats/forward_rules
+            if 'chats' in tables and 'forward_rules' in tables:
+                print("  This IS the correct database (has chats and forward_rules).")
+
+                # Check Integrity
+                print("  Checking integrity...")
+                cursor.execute("PRAGMA integrity_check;")
+                integrity_result = cursor.fetchone()[0]
+                print(f"  Integrity Check: {integrity_result}")
+            else:
+                print("  Required tables NOT found.")
     except sqlite3.Error as e:
         print(f"  SQLite Error: {e}")
     except Exception as e:
