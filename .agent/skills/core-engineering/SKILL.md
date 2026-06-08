@@ -1,4 +1,4 @@
- ---
+---
 name: core-engineering
 description: TG ONE 核心工程规范。涵盖架构分层验证、TDD 流程、安全扫描及 PSB 系统中 Build/Verify 阶段的详细技术指标。
 version: 1.1
@@ -48,7 +48,10 @@ version: 1.1
 - **No Silent Failures**: 严禁在 `except` 块中仅使用 `pass`。
     - ❌ `except Exception: pass`
     - ✅ `except Exception as e: logger.warning(f"Error: {e}")`
+    - 批处理/预解析循环中跳过单条坏数据时，必须记录可定位上下文（如 `task_id`、key、chat_id），并继续处理同批次有效数据。
+    - 回归测试应覆盖：坏输入被记录、有效输入不受影响继续处理。
 - **Graceful Degradation**: 统计获取失败不应导致 API 500。应记录错误并返回默认值/空值。
+- **Metrics Best-Effort**: 指标上报失败不得影响主业务路径，但必须记录 debug 日志；回归测试应覆盖指标后端异常时业务结果不变且失败可观测。
 
 ## 5. 质量门禁 (Quality Gate)
 在 Verify 阶段，**必须** 运行并验证以下指标（如果环境支持）：
@@ -63,6 +66,15 @@ version: 1.1
 - **Silent Pass**: 必须修复为 Log Warning。
 
 ## 7. 资源安全与反脆弱 (Resource Safety & Anti-Fragility)
+- **Idle Loop Discipline**:
+    - 后台 flush/cleanup/monitor worker 不得在无待处理数据时永久 `while True + sleep` 空转。
+    - 若任务只服务于缓冲区/队列，应在缓冲排空后退出，并由下一次有效写入按需重启；若必须常驻，则必须用 `asyncio.Event`/队列阻塞等待新工作，空闲时不得周期性调用 `flush()`。
+    - 防抖/最大等待类计时器不得用固定短间隔轮询；应计算最近截止时间，并用 `asyncio.wait_for(event.wait(), timeout=deadline)` 等待，新消息只负责 `event.set()` 触发重算。
+    - TTL/缓存清理类 worker 必须先清理/判空，再按最近过期时间计算下一次休眠；缓存为空时必须退出，不得先固定周期 sleep 再检查状态。
+    - 事件驱动 worker 必须保证所有入队路径和失败重入队列路径都会触发唤醒信号，避免改造后出现队列非空但 worker 睡死。
+    - 任何 `start_*`/初始化函数创建后台任务时，必须保存任务句柄并提供幂等 `stop_*`/shutdown 路径；上层 Suite/Container shutdown 必须调用对应 stop，测试需覆盖启动后可回收且不遗留周期任务。
+    - 休眠间隔必须读取 `settings` 配置，不得硬编码固定秒数。
+    - 必须增加回归测试证明：数据刷完后后台任务会结束或进入事件阻塞等待、空闲期不会周期性 flush、失败重试时仍保留数据并继续处理。
 - **Windows 并发红线**:
     - **严禁** 直接 Mock `asyncio` 事件循环或底层调度器 (`run_in_executor`)。这在 Proactor 模式下会导致致命的死锁与资源耗尽。
     - **替代方案**: 使用 "Logic Separation" 模式，将业务逻辑抽离为纯函数测试，或依赖 `get_service()` 进行高层 Mock。
@@ -72,6 +84,16 @@ version: 1.1
 - **Fail-Safe IO**:
     - 所有核心 IO 操作（写日志、存数据库）必须具备 "Crash Safety"。
     - **Mandate**: 关键文件写入必须使用 "Write-Temp-Move" 原子操作 (`os.replace`)。
+- **Cache Access Discipline**:
+    - 缓存读写必须是 best-effort；缓存层 `get/set/delete` 失败不得改变主业务判定结果。
+    - 异步 Repository/Service 包装同步 Redis/SQLite/文件缓存时，必须使用 `asyncio.to_thread` 或等价隔离方式，避免阻塞事件循环；同时提供可注入缓存后端/工厂，方便测试验证真实读写与失败降级。
+    - 缓存 `get` 失败必须降级为 miss，并继续执行 L1/DB/正常业务路径。
+    - 缓存 `get` 在普通命中/未命中路径上应保持只读；过期清理应定点处理当前 key 或节流批量执行，禁止每次读取都做全表过期清理/commit。SQLite 类缓存应使用 trace 测试证明普通 miss/hit 不产生写 SQL。
+    - 缓存载荷不可被视为可信输入；`json.loads`/反序列化失败、类型不匹配或结构损坏必须降级为默认空状态，并记录 debug 日志。
+    - 只有在 DB/L1/高置信策略确认重复后才允许写入 PCache，严禁在“记录新消息”路径写入重复判定缓存。
+    - PCache key 必须与读取路径完全一致，并用测试覆盖 key 格式，避免写入不可命中的死缓存。
+    - TTL 必须匹配业务窗口：时间窗口命中应使用剩余窗口 TTL；永久或 DB 命中也必须设置有界 TTL，避免无界 KV 残留。
+    - 回归测试必须同时覆盖：新消息不写缓存、重复命中回填缓存、缓存读写失败降级、缓存载荷损坏降级、不同内容不会互相污染。
 
 ## 8. 架构正交化与极致工程原则 (Orthogonality & Engineering Excellence)
 

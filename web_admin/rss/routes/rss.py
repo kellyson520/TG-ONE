@@ -262,7 +262,8 @@ async def delete_rss(rule_id: int, user=Depends(get_current_user)):
                 # 构建删除API的URL
                 rss_url = f"http://{RSS_HOST}:{RSS_PORT}/api/rule/{rule_id}"
                 # 调用删除API
-                async with aiohttp.ClientSession() as client_session:
+                timeout = aiohttp.ClientTimeout(total=10)
+                async with aiohttp.ClientSession(timeout=timeout) as client_session:
                     async with client_session.delete(rss_url) as response:
                         if response.status == 200:
                             logger.info(f"成功删除规则 {rule_id} 的媒体和数据文件")

@@ -66,7 +66,13 @@ class AccessControlService:
                     if ip_address_str == rule.ip_address:
                         logger.warning(f"Access denied for blocked IP: {ip_address_str}")
                         return False
-            except Exception:
+            except Exception as e:
+                logger.debug(
+                    "AccessControlService skipped invalid block rule: rule_ip=%s client_ip=%s error=%s",
+                    getattr(rule, "ip_address", None),
+                    ip_address_str,
+                    e,
+                )
                 continue
 
         # 2. Check Whitelist
@@ -82,7 +88,13 @@ class AccessControlService:
                         if ip_address_str == rule.ip_address:
                             allowed = True
                             break
-                except Exception:
+                except Exception as e:
+                    logger.debug(
+                        "AccessControlService skipped invalid allow rule: rule_ip=%s client_ip=%s error=%s",
+                        getattr(rule, "ip_address", None),
+                        ip_address_str,
+                        e,
+                    )
                     continue
             
             if not allowed:

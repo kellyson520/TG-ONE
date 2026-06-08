@@ -233,7 +233,8 @@ class RssService:
         
         url = f"{self.rss_base_url}/api/entries/{rule_id}/add"
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(url, json=entry_data) as response:
                     if response.status == 200:
                         logger.info(f"RSS Push Success Rule={rule_id}")

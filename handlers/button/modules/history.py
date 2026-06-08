@@ -26,19 +26,35 @@ class HistoryModule(BaseMenu):
             date_range_text = ""
             if earliest_date and latest_date:
                 date_range_text = f"📊 消息范围: {earliest_date.strftime('%Y年%m月%d日')} - {latest_date.strftime('%Y年%m月%d日')}\n"
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to get message date range: chat_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                e,
+            )
             date_range_text = ""
 
         try:
             context = session_manager.get_time_picker_context(event.chat_id)
             owner_id = event.sender_id if context == "history" else event.chat_id
             display = await session_manager.get_time_range_display(owner_id)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to get time range display: chat_id=%s sender_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                getattr(event, "sender_id", None),
+                e,
+            )
             display = "0天 00:00:00 - ∞" # Default display if fetching fails
         # 获取返回路径
         try:
             context = session_manager.get_time_picker_context(event.chat_id)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to get time picker context: chat_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                e,
+            )
             context = "history"
         if context == "dedup":
             back_target = "new_menu:session_dedup"
@@ -126,10 +142,16 @@ class HistoryModule(BaseMenu):
         )
 
         try:
-            from utils.telegram_utils import safe_edit
+            from services.network.telegram_utils import safe_edit
 
             await safe_edit(event, text, buttons)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to edit message filter menu: chat_id=%s sender_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                getattr(event, "sender_id", None),
+                e,
+            )
             await event.respond(text, buttons=buttons)
 
     async def show_media_types(self, event):
@@ -171,10 +193,16 @@ class HistoryModule(BaseMenu):
         text = "🎬 **历史模式 - 媒体类型**\n\n点击切换状态："
 
         try:
-            from utils.telegram_utils import safe_edit
+            from services.network.telegram_utils import safe_edit
 
             await safe_edit(event, text, buttons)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to edit media types menu: chat_id=%s sender_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                getattr(event, "sender_id", None),
+                e,
+            )
             await event.respond(text, buttons=buttons)
 
     async def show_media_duration_settings(self, event):
@@ -191,10 +219,16 @@ class HistoryModule(BaseMenu):
         text = "⏱️ **历史模式 - 媒体时长**\n\n配置媒体时长相关设置："
 
         try:
-            from utils.telegram_utils import safe_edit
+            from services.network.telegram_utils import safe_edit
 
             await safe_edit(event, text, buttons)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to edit media duration settings: chat_id=%s sender_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                getattr(event, "sender_id", None),
+                e,
+            )
             await event.respond(text, buttons=buttons)
 
     async def show_message_limit_menu(self, event):
@@ -239,10 +273,16 @@ class HistoryModule(BaseMenu):
         )
 
         try:
-            from utils.telegram_utils import safe_edit
+            from services.network.telegram_utils import safe_edit
 
             await safe_edit(event, text, buttons)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "HistoryModule failed to edit message limit menu: chat_id=%s sender_id=%s error=%s",
+                getattr(event, "chat_id", None),
+                getattr(event, "sender_id", None),
+                e,
+            )
             await event.respond(text, buttons=buttons)
 
 

@@ -50,6 +50,13 @@ Action: view_file(AbsolutePath=".../SKILL.md") before proceeding.
   </skill>
 
   <skill>
+    <name>core-engineering</name>
+    <description>TG ONE 核心工程规范。涵盖架构分层验证、TDD 流程、安全扫描及 PSB 系统中 Build/Verify 阶段的详细技术指标。</description>
+    <path>.agent/skills/core-engineering/SKILL.md</path>
+    <location>project</location>
+  </skill>
+
+  <skill>
     <name>database</name>
     <description>Expert database development, SQL optimization, and Schema management.</description>
     <path>.agent/skills/database/SKILL.md</path>

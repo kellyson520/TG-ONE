@@ -10,6 +10,7 @@ tests/unit/repositories/test_stats_repo.py
 """
 import asyncio
 import ast
+from contextlib import suppress
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import select, func
@@ -117,6 +118,14 @@ class TestIncrementStats:
             await repo.increment_stats(chat_id=11)
         today = date.today().isoformat()
         assert repo._chat_stats_buffer[(11, today)]["forward_count"] == 3
+
+    async def test_first_stats_increment_wakes_flush_timer(self, repo):
+        """首条低水位 stats 也应唤醒后台循环启动 flush 计时窗口。"""
+        repo._flush_event.clear()
+
+        await repo.increment_stats(chat_id=123)
+
+        assert repo._flush_event.is_set()
 
     async def test_bytes_accumulation(self, repo):
         """saved_bytes 参数应累加到 saved_traffic_bytes"""
@@ -238,6 +247,14 @@ class TestLogActionWatermarks:
         count = (await db.execute(stmt)).scalar()
         assert count == 0
 
+    async def test_first_log_wakes_flush_timer(self, repo):
+        """首条低水位日志也应唤醒后台循环启动 flush 计时窗口。"""
+        repo._flush_event.clear()
+
+        await repo.log_action(rule_id=1, msg_id=1, status="success")
+
+        assert repo._flush_event.is_set()
+
     async def test_flush_event_set_at_warn_watermark(self, repo):
         """黄色水位时应唤醒 _flush_event"""
         repo._flush_event.clear()
@@ -309,6 +326,43 @@ class TestLifecycle:
         await repo.start()
         await repo.stop()
         assert repo._flush_task is None
+
+    async def test_cron_flush_waits_without_timeout_when_idle(
+        self,
+        repo,
+        monkeypatch,
+    ):
+        """空缓冲时不应定时 timeout 空跑。"""
+        wait_for_calls = 0
+
+        async def fail_if_wait_for(awaitable, timeout):
+            nonlocal wait_for_calls
+            wait_for_calls += 1
+            if hasattr(awaitable, "close"):
+                awaitable.close()
+            raise AssertionError("idle cron flush should wait for work without timeout")
+
+        monkeypatch.setattr(
+            "repositories.stats_repo.asyncio.wait_for",
+            fail_if_wait_for,
+        )
+        monkeypatch.setattr(repo, "flush_logs", AsyncMock())
+        monkeypatch.setattr(repo, "flush_stats", AsyncMock())
+
+        task = asyncio.create_task(repo._cron_flush())
+        try:
+            await asyncio.sleep(0)
+            assert wait_for_calls == 0
+            assert repo.flush_logs.await_count == 0
+            assert repo.flush_stats.await_count == 0
+        finally:
+            repo._shutdown_event.set()
+            repo._flush_event.set()
+            await asyncio.sleep(0)
+            if not task.done():
+                task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     async def test_cron_flush_timeout_is_observable(
         self,

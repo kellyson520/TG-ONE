@@ -68,6 +68,13 @@ class StatsRepository:
         self._flush_task = None
         self._shutdown_event = asyncio.Event()
 
+    def _has_pending_flush_work(self) -> bool:
+        return bool(
+            self._log_buffer
+            or self._chat_stats_buffer
+            or self._rule_stats_buffer
+        )
+
     async def archive_old_logs(self, hot_days_log: int = 30, hot_days_stats: int = 180) -> dict:
         """归档旧日志和统计数据。"""
         from core.archive.engine import UniversalArchiver
@@ -120,8 +127,18 @@ class StatsRepository:
     async def _cron_flush(self):
         """AIMD 自适应双触发刷新循环"""
         while not self._shutdown_event.is_set():
-            interval = self._flush_scheduler.current_interval
             try:
+                if not self._has_pending_flush_work():
+                    self._flush_event.clear()
+                    if not self._has_pending_flush_work():
+                        await self._flush_event.wait()
+                    self._flush_event.clear()
+                    if self._shutdown_event.is_set():
+                        break
+                    if not self._has_pending_flush_work():
+                        continue
+
+                interval = self._flush_scheduler.current_interval
                 # 等待计时器超时，或被水位触发器提前唤醒
                 await asyncio.wait_for(self._flush_event.wait(), timeout=interval)
                 self._flush_event.clear()
@@ -267,6 +284,7 @@ class StatsRepository:
         should_wake = False
         async with self._buffer_lock:
             size = len(self._log_buffer)
+            was_empty = size == 0
 
             if size >= settings.STATS_LOG_BUFFER_HARD_CAP:
                 # 🔴 红色水位：强制驱逐，保留 ERROR/CRITICAL
@@ -287,6 +305,9 @@ class StatsRepository:
 
             self._log_buffer.append(log_entry)
 
+            if was_empty:
+                should_wake = True
+
             # 原有阈值触发（100 条）
             if len(self._log_buffer) >= 100:
                 should_wake = True
@@ -300,6 +321,10 @@ class StatsRepository:
         key = (chat_id, today)
 
         async with self._stats_lock:
+            was_empty = (
+                not self._chat_stats_buffer
+                and not self._rule_stats_buffer
+            )
             if key not in self._chat_stats_buffer:
                 self._chat_stats_buffer[key] = {"forward_count": 0, "saved_traffic_bytes": 0}
             if saved_bytes == 0:
@@ -312,7 +337,7 @@ class StatsRepository:
         if key_count > settings.STATS_BUFFER_CAP:
             # 🔴 红色：同步阻塞 flush，stats 累加值不允许丢弃
             await self.flush_stats()
-        elif key_count > settings.STATS_BUFFER_WARN:
+        elif was_empty or key_count > settings.STATS_BUFFER_WARN:
             # 🟡 黄色：异步唤醒
             self._flush_event.set()
 
@@ -322,6 +347,10 @@ class StatsRepository:
         key = (rule_id, today)
 
         async with self._stats_lock:
+            was_empty = (
+                not self._chat_stats_buffer
+                and not self._rule_stats_buffer
+            )
             if key not in self._rule_stats_buffer:
                 self._rule_stats_buffer[key] = {
                     "success_count": 0, "error_count": 0,
@@ -337,7 +366,7 @@ class StatsRepository:
         # 水位检测（锁外执行）
         if key_count > settings.STATS_BUFFER_CAP:
             await self.flush_stats()
-        elif key_count > settings.STATS_BUFFER_WARN:
+        elif was_empty or key_count > settings.STATS_BUFFER_WARN:
             self._flush_event.set()
 
     async def get_error_logs(self, page: int = 1, size: int = 20, level: str = None):

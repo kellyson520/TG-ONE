@@ -157,7 +157,8 @@ class RSSPullService:
             session = container.http_session
             if not session or session.closed:
                 # Fallback if container session is not ready (e.g. standalone tests)
-                session = aiohttp.ClientSession()
+                timeout = aiohttp.ClientTimeout(total=30)
+                session = aiohttp.ClientSession(timeout=timeout)
                 should_close = True
             else:
                 should_close = False

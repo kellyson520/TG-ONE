@@ -1,0 +1,36 @@
+graph TD
+    User((User)) -->|HTTPS/WSS| WebAdmin[Web Admin (FastAPI)]
+    User -->|Telegram| BotClient[Bot Client (Telethon)]
+    Monitor((Monitor)) -->|WatchDog| Lifecycle[Lifecycle Manager]
+
+    subgraph Core [Core Domain]
+        Lifecycle --> Bootstrap
+        Bootstrap --> Container
+        Container -->|DI| Services
+        Container -->|DI| Handlers
+        Container -->|DI| Listeners
+    end
+
+    subgraph Logic [Business Logic]
+        Listeners -->|Queue| MessageQueue
+        MessageQueue -->|Worker| MessagePipeline
+        MessagePipeline --> Filters
+        MessagePipeline --> Processors
+        Processors --> Actions
+    end
+
+    subgraph Data [Data Persistence]
+        Actions -->|ORM| Database[(SQLite/DuckDB)]
+        Actions -->|Cache| Redis[(Redis/Memory)]
+        Database --> Archive[Archive System]
+    end
+
+    subgraph Aux [Auxiliary Services]
+        Cron[Cron Service]
+        Guard[Guard Service]
+        Sleep[Sleep Manager]
+        Perf[Resource Gate]
+    end
+
+    Bootstrap --> Aux
+    Services --> Logic

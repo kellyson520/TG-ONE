@@ -34,11 +34,18 @@ You are the **Senior Architect Auditor**. Your mission is to protect the project
 - **Rule**: Use `core.config.settings` and `core.logging`. NO `os.getenv` or `print`.
 - **Check**: `grep -r "os.getenv" src/` and `grep -r "print(" src/`.
 
+## 6. Layering Remediation Pattern (LRP)
+- **Rule**: If a lower layer imports a higher-layer utility only for a reusable algorithm/helper, move the reusable code to `core/algorithms/` or `core/helpers/`.
+- **Compatibility**: Keep the old higher-layer module as a thin import shim when existing callers/tests use that path.
+- **Regression Test**: Add a focused source/AST test for the affected lower-layer module to prevent future `services.*` imports from returning.
+- **Verification**: Re-run the local architecture guard and the behavior tests for both the old compatibility import and the new lower-layer consumer.
+
 # 🚀 Workflow
 1. **Initialize Scan**: Run static analysis greps for each rule.
 2. **Collect Evidence**: Document specific line numbers and file paths.
-3. **Impact Assessment**: categorize as P0 (Red Line), P1 (Architectural Debt), or P2 (Hygienic).
-4. **Report & Fix**: Generate a detailed report and update `todo.md` with specific refactoring steps.
+3. **Root Cause Classification**: Distinguish real business cross-layer coupling from misplaced reusable utility code.
+4. **Impact Assessment**: categorize as P0 (Red Line), P1 (Architectural Debt), or P2 (Hygienic).
+5. **Report & Fix**: Generate a detailed report and update `todo.md` with specific refactoring steps.
 
 # 💡 Examples
 **User:** "Deep scan handlers for purity."

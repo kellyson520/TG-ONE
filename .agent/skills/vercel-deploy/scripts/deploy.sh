@@ -219,7 +219,7 @@ fi
 
 # Deploy
 echo "Deploying..." >&2
-RESPONSE=$(curl -s -X POST "$DEPLOY_ENDPOINT" -F "file=@$TARBALL" -F "framework=$FRAMEWORK")
+RESPONSE=$(curl -s --connect-timeout 10 --max-time 120 -X POST "$DEPLOY_ENDPOINT" -F "file=@$TARBALL" -F "framework=$FRAMEWORK")
 
 # Check for error in response
 if echo "$RESPONSE" | grep -q '"error"'; then

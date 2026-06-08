@@ -1,18 +1,19 @@
 
-import glob
-import pytest
 import os
 import time
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 from unittest.mock import MagicMock, patch
 
 import duckdb
+import glob
+import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import sessionmaker
 from models.models import Base, MediaSignature, ErrorLog
 from scheduler import db_archive_job
-from repositories import archive_store
+from repositories.archive_manager import ArchiveManager
 
 pytestmark = pytest.mark.stress
 
@@ -47,13 +48,40 @@ def boom_session(boom_db_engine):
         session.close()
 
 @pytest.fixture
-def temp_archive_root_stress(tmp_path):
+def temp_archive_env_stress(tmp_path):
     archive_dir = tmp_path / "stress_archive"
+    bloom_dir = tmp_path / "stress_bloom"
     archive_dir.mkdir()
-    original_root = archive_store.ARCHIVE_ROOT
+    bloom_dir.mkdir()
+
+    original_archive_checked = db_archive_job._archive_system_checked
+
+    import repositories.archive_store as archive_store
+    import repositories.archive_init as archive_init
+    import repositories.bloom_index as bloom_index
+
+    original_store_root = archive_store.ARCHIVE_ROOT
+    original_init_archive_root = archive_init.ARCHIVE_ROOT
+    original_init_bloom_root = archive_init.BLOOM_ROOT
+    original_bloom_root = bloom_index.BLOOM_ROOT
+
     archive_store.ARCHIVE_ROOT = str(archive_dir)
-    yield str(archive_dir)
-    archive_store.ARCHIVE_ROOT = original_root
+    archive_init.ARCHIVE_ROOT = str(archive_dir)
+    archive_init.BLOOM_ROOT = str(bloom_dir)
+    bloom_index.BLOOM_ROOT = str(bloom_dir)
+    db_archive_job._archive_system_checked = False
+
+    try:
+        yield {
+            "archive_dir": archive_dir,
+            "bloom_dir": bloom_dir,
+        }
+    finally:
+        archive_store.ARCHIVE_ROOT = original_store_root
+        archive_init.ARCHIVE_ROOT = original_init_archive_root
+        archive_init.BLOOM_ROOT = original_init_bloom_root
+        bloom_index.BLOOM_ROOT = original_bloom_root
+        db_archive_job._archive_system_checked = original_archive_checked
 
 class TestDBBoom:
     
@@ -87,7 +115,7 @@ class TestDBBoom:
         session.bulk_save_objects(logs)
         session.commit()
 
-    def test_archive_force_boom(self, boom_db_engine, boom_session, temp_archive_root_stress):
+    def test_archive_force_boom(self, boom_db_engine, boom_session, temp_archive_env_stress):
         """
         Populate DB with significant data -> Force Archive -> Verify Vacuum
         """
@@ -111,6 +139,16 @@ class TestDBBoom:
         mock_get_session = MagicMock(return_value=MockSessionCtx(boom_session))
         mock_get_engine = MagicMock(return_value=engine)
         
+        async_engine = create_async_engine(
+            f"sqlite+aiosqlite:///{db_path}",
+            future=True,
+        )
+        async_session_factory = async_sessionmaker(
+            async_engine,
+            expire_on_commit=False,
+        )
+        manager = ArchiveManager(async_session_factory)
+
         write_parquet_patch = (
             patch('scheduler.db_archive_job.write_parquet', return_value="/fake/path")
             if IS_DUCKDB_MOCKED
@@ -120,6 +158,7 @@ class TestDBBoom:
         with patch('scheduler.db_archive_job.get_session', mock_get_session), \
              patch('scheduler.db_archive_job.get_dedup_session', mock_get_session), \
              patch('models.models.get_engine', mock_get_engine), \
+             patch('scheduler.db_archive_job.get_archive_manager', return_value=manager), \
              patch('scheduler.db_archive_job.analyze_database'), \
              patch('scheduler.db_archive_job.vacuum_database') as mock_vacuum, \
              write_parquet_patch:
@@ -145,7 +184,7 @@ class TestDBBoom:
         
         # 5. Check Parquet Files (Only if real)
         if not IS_DUCKDB_MOCKED:
-            media_files = glob.glob(os.path.join(temp_archive_root_stress, "media_signatures", "**", "*.parquet"), recursive=True)
+            media_files = glob.glob(os.path.join(temp_archive_env_stress["archive_dir"], "media_signatures", "**", "*.parquet"), recursive=True)
             assert len(media_files) > 0
         else:
             print("[BOOM] Skipping Parquet check due to Mock DuckDB")
@@ -156,3 +195,5 @@ class TestDBBoom:
         
         # With VACUUM, size should decrease significantly
         assert size_after < size_before, "Expected DB size to decrease after VACUUM"
+        import asyncio
+        asyncio.run(async_engine.dispose())

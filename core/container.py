@@ -368,7 +368,8 @@ class Container:
         # Initialize global HTTP session
         import aiohttp
         if self.http_session is None or self.http_session.closed:
-            self.http_session = aiohttp.ClientSession()
+            timeout = aiohttp.ClientTimeout(total=30)
+            self.http_session = aiohttp.ClientSession(timeout=timeout)
             logger.info("全局 HTTP 会话已初始化")
         
         # Start Hotword Collector Worker only when enabled; on small VPS this avoids

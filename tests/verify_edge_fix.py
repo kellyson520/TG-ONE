@@ -59,7 +59,8 @@ async def test_api_response_time():
         print(f"请求 URL: {url}")
         print("注意: 需要先启动 Web 服务器并登录")
         
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             start = time.time()
             async with session.get(url) as response:
                 elapsed = time.time() - start
@@ -100,7 +101,8 @@ async def test_concurrent_requests():
         
         print(f"发送 {num_requests} 个并发请求...")
         
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             start = time.time()
             
             tasks = [
