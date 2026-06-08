@@ -6,6 +6,8 @@ import logging
 from collections import defaultdict, deque
 import asyncio
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -21,11 +23,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._cleanup_task = None
 
     async def dispatch(self, request: Request, call_next):
-        # Allow loopback for dev
         ip = request.client.host if request.client else "unknown"
         path = request.url.path
+        trusted_ips = settings.WEB_RATE_LIMIT_TRUSTED_IPS
+        if isinstance(trusted_ips, str):
+            trusted_ips = [item.strip() for item in trusted_ips.split(",") if item.strip()]
 
-        if ip in ["127.0.0.1", "localhost", "::1"]:
+        if ip in trusted_ips:
             return await call_next(request)
 
         for p in self.exclude_paths:

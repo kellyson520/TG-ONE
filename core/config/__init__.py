@@ -565,6 +565,10 @@ class Settings(BaseSettings):
         default_factory=list,
         description="允许跨域访问 Web 管理接口的 Origin 列表；留空时仅允许本机常见 Origin"
     )
+    WEB_RATE_LIMIT_TRUSTED_IPS: Union[List[str], str] = Field(
+        default_factory=lambda: ["127.0.0.1", "localhost", "::1"],
+        description="跳过 Web 管理接口限流的可信客户端 IP 列表"
+    )
     
     # === UI 与分页配置 ===
     PROJECT_NAME: str = Field(default="TG Forwarder RSS")

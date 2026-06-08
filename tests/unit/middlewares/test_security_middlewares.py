@@ -109,8 +109,9 @@ async def test_rate_limit_middleware_allow():
     assert resp.status_code == 429
 
 @pytest.mark.asyncio
-async def test_rate_limit_bypass_localhost():
+async def test_rate_limit_bypass_configured_trusted_ip(monkeypatch):
     app = FastAPI()
+    monkeypatch.setattr("web_admin.middlewares.rate_limit_middleware.settings.WEB_RATE_LIMIT_TRUSTED_IPS", ["127.0.0.1"])
     middleware = RateLimitMiddleware(app, max_requests=1)
     
     async def call_next(request):
@@ -126,7 +127,32 @@ async def test_rate_limit_bypass_localhost():
     }
     request = Request(scope)
     
-    # Should allow infinite
     for _ in range(5):
         resp = await middleware.dispatch(request, call_next)
         assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_applies_to_untrusted_loopback(monkeypatch):
+    app = FastAPI()
+    monkeypatch.setattr("web_admin.middlewares.rate_limit_middleware.settings.WEB_RATE_LIMIT_TRUSTED_IPS", [])
+    middleware = RateLimitMiddleware(app, max_requests=1, window_seconds=60)
+
+    async def call_next(request):
+        return Response("OK")
+
+    scope = {
+        "type": "http",
+        "client": ("127.0.0.1", 12345),
+        "headers": [],
+        "scheme": "http",
+        "path": "/api/test",
+        "method": "GET"
+    }
+    request = Request(scope)
+
+    resp = await middleware.dispatch(request, call_next)
+    assert resp.status_code == 200
+
+    resp = await middleware.dispatch(request, call_next)
+    assert resp.status_code == 429
