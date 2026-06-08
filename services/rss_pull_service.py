@@ -219,8 +219,8 @@ class RSSPullService:
             finally:
                 if should_close:
                     await session.close()
-        except Exception as e:
-            raise e # 抛出给上层 breaker 捕获
+        except Exception:
+            raise # 抛出给上层 breaker 捕获
 
     def add_new_subscription(self, sub_id: int):
         """当外部添加新订阅时被调用"""
