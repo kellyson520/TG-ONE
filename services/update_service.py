@@ -949,9 +949,9 @@ class UpdateService:
                     # Atomic Write with Retry (Windows Robustness)
                     for i in range(3):
                         try:
-                            source = z.open(member)
-                            with open(target_path, "wb") as f:
-                                shutil.copyfileobj(source, f)
+                            with z.open(member) as source:
+                                with open(target_path, "wb") as f:
+                                    shutil.copyfileobj(source, f)
                             break
                         except PermissionError:
                             if i == 2: 
