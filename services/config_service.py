@@ -24,14 +24,16 @@ class _AsyncDbProvider:
         if t == 'integer':
             try:
                 return int(value)
-            except Exception:
+            except (TypeError, ValueError) as exc:
+                logger.warning("Invalid integer configuration value: %r", value, exc_info=exc)
                 return None
         if t == 'boolean':
             return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
         if t == 'json':
             try:
                 return json.loads(value)
-            except Exception:
+            except (TypeError, json.JSONDecodeError) as exc:
+                logger.warning("Invalid JSON configuration value: %r", value, exc_info=exc)
                 return None
         return value
 
@@ -101,7 +103,8 @@ class _JsonProvider:
             if self.path.exists():
                 data = json.loads(self.path.read_text(encoding='utf-8'))
                 if isinstance(data, dict): self._cache = data
-        except Exception:
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load JSON configuration from %s", self.path, exc_info=exc)
             self._cache = {}
         self._loaded = True
 

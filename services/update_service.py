@@ -575,8 +575,8 @@ class UpdateService:
                 manager = DatabaseHealthManager(str(db_path))
                 if not manager.check_health():
                     return False, "数据库完整性校验未通过"
-            except Exception:
-                # 如果 health_check 导入失败或运行出错，回滚最基础的检查
+            except Exception as e:
+                logger.warning("数据库健康检查执行失败，降级为文件存在性检查: %s", e)
                 if not (settings.DB_DIR / "forward.db").exists():
                     return False, "数据库文件丢失"
             
