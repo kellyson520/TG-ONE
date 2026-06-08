@@ -518,7 +518,8 @@ class AdminController(BaseController):
                         elif os.path.isdir(file_path):
                             shutil.rmtree(file_path)
                             deleted_count += 1
-                    except: continue
+                    except OSError:
+                        continue
             await self.notify(event, f"✅ 清理完成: {deleted_count}个文件, {deleted_size/1024/1024:.2f}MB")
             await self.show_cache_cleanup(event)
         except Exception as e:
