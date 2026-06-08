@@ -29,7 +29,7 @@ async def test_full_2fa_flow(client, db):
         print(f"\n[DEBUG] {label} Status: {r.status_code}")
         try:
             print(f"[DEBUG] {label} Body: {r.json()}")
-        except:
+        except ValueError:
             print(f"[DEBUG] {label} Text: {r.text[:200]}")
 
     # 2. Login (Initial - No 2FA)
