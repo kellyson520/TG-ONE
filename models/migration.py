@@ -29,7 +29,8 @@ def migrate_db(engine):
     
     # 连接数据库
     try:
-        connection = engine.connect()
+        with engine.connect():
+            pass
     except Exception as e:
         logger.error(f"无法连接到数据库进行迁移: {e}")
         return
