@@ -26,7 +26,7 @@ def setup_test_env():
     if os.path.exists(TEST_DATA_DIR):
         try:
             shutil.rmtree(TEST_DATA_DIR)
-        except:
+        except OSError:
             pass
 
 class TestAlgorithmRefinedSuite:
