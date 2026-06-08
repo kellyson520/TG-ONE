@@ -104,13 +104,14 @@ class BackupService:
                 ".pytest_cache", "logs", "temp", "data", "sessions",
                 "node_modules", "dist", ".agent"
             }
-            excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz", ".bak")
+            excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz", ".bak", ".key", ".pem")
+            excluded_names = {".env", ".env.local", ".env.production", "secret.key"}
 
             with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as z:
                 for root, dirs, files in os.walk(settings.BASE_DIR):
                     dirs[:] = [d for d in dirs if d not in excluded_dirs]
                     for file in files:
-                        if file.endswith(excluded_exts):
+                        if file in excluded_names or file.endswith(excluded_exts):
                             continue
                         file_path = Path(root) / file
                         arcname = str(file_path.relative_to(settings.BASE_DIR))
@@ -137,14 +138,15 @@ class BackupService:
                 ".pytest_cache", "logs", "temp", "data", "sessions",
                 "node_modules", "dist", ".agent"
             }
-            excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz", ".bak")
+            excluded_exts = (".pyc", ".pyo", ".log", ".zip", ".tar.gz", ".bak", ".key", ".pem")
+            excluded_names = {".env", ".env.local", ".env.production", "secret.key"}
 
             def _zip_sync():
                 with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as z:
                     for root, dirs, files in os.walk(settings.BASE_DIR):
                         dirs[:] = [d for d in dirs if d not in excluded_dirs]
                         for file in files:
-                            if file.endswith(excluded_exts):
+                            if file in excluded_names or file.endswith(excluded_exts):
                                 continue
                             file_path = Path(root) / file
                             arcname = str(file_path.relative_to(settings.BASE_DIR))

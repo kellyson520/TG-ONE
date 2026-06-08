@@ -73,3 +73,33 @@ async def test_restore_code_skips_symlink_escape(tmp_path, monkeypatch):
 
     assert ok
     assert not (outside_dir / "escaped.txt").exists()
+
+
+def test_backup_code_excludes_secret_files(tmp_path, monkeypatch):
+    import zipfile
+
+    from services.backup_service import BackupService
+    from services import backup_service as backup_module
+
+    base_dir = tmp_path / "base"
+    backup_dir = tmp_path / "backups"
+    base_dir.mkdir()
+    backup_dir.mkdir()
+    (base_dir / "app.py").write_text("print('ok')", encoding="utf-8")
+    (base_dir / ".env").write_text("TOKEN=secret", encoding="utf-8")
+    (base_dir / "secret.key").write_text("secret", encoding="utf-8")
+    (base_dir / "private.pem").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(backup_module.settings, "BASE_DIR", base_dir)
+    monkeypatch.setattr(backup_module.settings, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(backup_module.settings, "UPDATE_BACKUP_LIMIT", 3)
+
+    backup_path = BackupService().backup_code_sync()
+
+    assert backup_path is not None
+    with zipfile.ZipFile(backup_path) as archive:
+        names = set(archive.namelist())
+    assert "app.py" in names
+    assert ".env" not in names
+    assert "secret.key" not in names
+    assert "private.pem" not in names
