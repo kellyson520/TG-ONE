@@ -281,7 +281,7 @@ class HotwordRepository:
         try:
             float(val)
             return True
-        except:
+        except (TypeError, ValueError, OverflowError):
             return False
 
     async def save_config(self, name: str, data: Any) -> bool:
