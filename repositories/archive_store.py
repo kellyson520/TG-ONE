@@ -213,7 +213,7 @@ def write_parquet(
     fname = f"part-{int(datetime.utcnow().timestamp())}-{int(datetime.utcnow().microsecond)}-{os.getpid()}-{random.randint(1000, 9999)}.parquet"
     out_file = os.path.normpath(os.path.join(out_dir, fname))
     
-    # 策略：先写入系统临时目录 (避免中文路径 Lock 问题)，再移动到目标目录
+    # 策略：先写入归档临时目录，再移动到目标目录
     fd, tmp_file = _archive_temp_file(suffix=".parquet.tmp")
     os.close(fd) # Windows 必须立即关闭 fd
     
