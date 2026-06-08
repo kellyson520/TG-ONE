@@ -8,6 +8,11 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _sqlite_string_literal(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 class DatabaseHealthManager:
     """
     Manage SQLite database health including integrity checks and auto-repair.
@@ -74,7 +79,7 @@ class DatabaseHealthManager:
             with sqlite3.connect(str(self.db_path)) as conn:
                 # Try VACUUM INTO first (safer)
                 try:
-                    conn.execute(f"VACUUM INTO '{rebuilt_path}'")
+                    conn.execute(f"VACUUM INTO {_sqlite_string_literal(rebuilt_path)}")
                     logger.info(f"VACUUM INTO successful: {rebuilt_path}")
                 except Exception as vacuum_into_err:
                     logger.warning(f"VACUUM INTO failed ({vacuum_into_err}), attempting in-place VACUUM...")
