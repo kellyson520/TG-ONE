@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -22,14 +23,10 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     target = target_dir / f"{source.stem}_{timestamp}.bak"
 
     try:
-        src_conn = sqlite3.connect(str(source))
-        dst_conn = sqlite3.connect(str(target))
-        try:
-            with dst_conn:
-                src_conn.backup(dst_conn)
-        finally:
-            dst_conn.close()
-            src_conn.close()
+        with closing(sqlite3.connect(str(source))) as src_conn:
+            with closing(sqlite3.connect(str(target))) as dst_conn:
+                with dst_conn:
+                    src_conn.backup(dst_conn)
     except Exception:
         shutil.copy2(source, target)
 
