@@ -110,12 +110,10 @@ def _get_cors_allowed_origins() -> list[str]:
         return list(dict.fromkeys(configured))
 
     port = settings.WEB_PORT
-    origins = [
-        f"http://127.0.0.1:{port}",
-        f"http://localhost:{port}",
-        f"https://127.0.0.1:{port}",
-        f"https://localhost:{port}",
-    ]
+    default_hosts = getattr(settings, "WEB_CORS_DEFAULT_HOSTS", None) or []
+    if isinstance(default_hosts, str):
+        default_hosts = [host.strip() for host in default_hosts.split(",") if host.strip()]
+    origins = [origin for host in default_hosts for origin in (f"http://{host}:{port}", f"https://{host}:{port}")]
     host = settings.WEB_HOST
     if host and host not in {"0.0.0.0", "::", "*"}:
         origins.extend([f"http://{host}:{port}", f"https://{host}:{port}"])
