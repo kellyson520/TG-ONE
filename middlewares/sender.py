@@ -105,7 +105,7 @@ class SenderMiddleware(Middleware):
                 # === Copy Mode ===
                 if summary and getattr(rule, 'is_summary', False):
                     final_text = summary
-                    logger.debug(f"Using AI summary for rule {rule.id}: {final_text[:50]}...")
+                    logger.debug(f"Using AI summary for rule {rule.id} (length={len(final_text)})")
                 else:
                     final_text = modified_text or ctx.message_obj.text or ""
                 

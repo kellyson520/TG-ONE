@@ -41,7 +41,7 @@ class AIMiddleware(Middleware):
                     ctx.metadata["ai_summary"] = result
                 if first_modified_text is None:
                     first_modified_text = result
-                logger.info(f"🤖 AI 处理完成 (Rule {rule_id or 'unknown'}): {result[:30]}...")
+                logger.info(f"🤖 AI 处理完成 (Rule {rule_id or 'unknown'}, length={len(result)})")
 
             # 只有全部剩余规则都走 AI 时才写全局兜底，避免污染同源普通转发规则。
             if first_modified_text and len(ai_rules) == len(ctx.rules):
