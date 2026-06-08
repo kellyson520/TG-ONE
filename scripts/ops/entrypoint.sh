@@ -208,17 +208,23 @@ perform_update() {
 echo "🚀 [守护进程] TG ONE 守护进程启动 (v3.0)"
 
 # 内存优化
-JEMALLOC_PATH=""
-if [ -f "/usr/lib/libjemalloc.so.2" ]; then
-    JEMALLOC_PATH="/usr/lib/libjemalloc.so.2"
-elif [ -f "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2" ]; then
-    JEMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+JEMALLOC_PATH="${JEMALLOC_PATH:-}"
+if [ -z "$JEMALLOC_PATH" ]; then
+    if [ -f "/usr/lib/libjemalloc.so.2" ]; then
+        JEMALLOC_PATH="/usr/lib/libjemalloc.so.2"
+    elif [ -f "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2" ]; then
+        JEMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+    fi
 fi
 
 if [ -n "$JEMALLOC_PATH" ]; then
-    export LD_PRELOAD="$JEMALLOC_PATH"
-    export MALLOC_CONF="background_thread:true,metadata_thp:auto,dirty_decay_ms:30000,muzzy_decay_ms:30000"
-    echo "✅ [守护进程] 内存优化已启用: Jemalloc"
+    if [ -f "$JEMALLOC_PATH" ]; then
+        export LD_PRELOAD="$JEMALLOC_PATH"
+        export MALLOC_CONF="background_thread:true,metadata_thp:auto,dirty_decay_ms:30000,muzzy_decay_ms:30000"
+        echo "✅ [守护进程] 内存优化已启用: Jemalloc"
+    else
+        echo "⚠️ [守护进程] JEMALLOC_PATH 不存在，跳过内存优化: $JEMALLOC_PATH"
+    fi
 fi
 
 export PYTHONDONTWRITEBYTECODE=1
