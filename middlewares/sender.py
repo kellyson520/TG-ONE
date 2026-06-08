@@ -145,7 +145,8 @@ class SenderMiddleware(Middleware):
                             p = json.loads(t.task_data)
                             if p.get('message_id'):
                                 messages_to_forward.append(p.get('message_id'))
-                        except Exception: pass
+                        except Exception as e:
+                            logger.debug(f"Skipping related task with invalid forwarding payload: {e}")
                 
                 messages_to_forward.sort()
 
