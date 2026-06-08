@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # 官方认证的仓库地址
 OFFICIAL_REPO = "kellyson520/TG-ONE"
+MAX_HTTP_UPDATE_DOWNLOAD_BYTES = 50 * 1024 * 1024
 
 # 退出码约定
 EXIT_CODE_UPDATE = 10  # 请求系统级更新
@@ -891,19 +892,25 @@ class UpdateService:
                  return False, f"安全校验失败: 版本 {version[:8]} 未在官方仓库验证通过"
 
             logger.info(f"正在从 HTTP 下载更新包: {zip_url}")
-            # [安全] 限制最大下载大小 (防止炸弹包)
             async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                resp = await client.get(zip_url)
-                if resp.status_code != 200:
-                    return False, f"下载失败 ({resp.status_code})"
-                
-                # 检查内容类型
-                content_type = resp.headers.get("content-type", "")
-                if "zip" not in content_type and "octet-stream" not in content_type:
-                     return False, f"下载内容类型异常: {content_type}"
-                
-                zip_data = io.BytesIO(resp.content)
-                
+                async with client.stream("GET", zip_url) as resp:
+                    if resp.status_code != 200:
+                        return False, f"下载失败 ({resp.status_code})"
+
+                    # 检查内容类型
+                    content_type = resp.headers.get("content-type", "")
+                    if "zip" not in content_type and "octet-stream" not in content_type:
+                         return False, f"下载内容类型异常: {content_type}"
+
+                    zip_data = io.BytesIO()
+                    downloaded = 0
+                    async for chunk in resp.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > MAX_HTTP_UPDATE_DOWNLOAD_BYTES:
+                            return False, "下载文件超过大小限制"
+                        zip_data.write(chunk)
+                    zip_data.seek(0)
+
             # 备份当前版本
             from .backup_service import backup_service
             backup_path = await backup_service.backup_code(label="pre_http_update")

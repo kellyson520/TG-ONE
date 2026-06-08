@@ -185,6 +185,50 @@ async def test_resolve_http_final_version_logs_api_failure(update_service, caplo
     assert "api unavailable" in caplog.text
 
 @pytest.mark.asyncio
+async def test_http_update_rejects_oversized_download(update_service, monkeypatch):
+    class FakeStreamResponse:
+        status_code = 200
+        headers = {"content-type": "application/zip"}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def aiter_bytes(self):
+            yield b"x" * 6
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def stream(self, method, url):
+            return FakeStreamResponse()
+
+    update_service._is_git_repo = False
+    update_service._git_available = False
+
+    monkeypatch.setattr("services.update_service.MAX_HTTP_UPDATE_DOWNLOAD_BYTES", 5)
+    monkeypatch.setattr("services.update_service.settings.UPDATE_REMOTE_URL", "https://github.com/kellyson520/TG-ONE.git")
+    monkeypatch.setattr("services.update_service.settings.UPDATE_BRANCH", "main")
+    monkeypatch.setattr("httpx.AsyncClient", FakeClient)
+    monkeypatch.setattr(update_service, "_cross_verify_sha", AsyncMock(return_value=True))
+
+    with patch("services.backup_service.backup_service.backup_code") as mock_backup:
+        success, msg = await update_service._perform_http_update("main")
+
+    assert success is False
+    assert msg == "下载文件超过大小限制"
+    mock_backup.assert_not_called()
+
+@pytest.mark.asyncio
 async def test_check_network_success(update_service):
     # 模拟 socket.gethostbyname 返回成功
     with patch("asyncio.get_running_loop") as mock_loop:
