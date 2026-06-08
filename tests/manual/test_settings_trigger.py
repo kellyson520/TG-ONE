@@ -5,7 +5,11 @@ import os
 from unittest.mock import MagicMock, AsyncMock
 
 # Add project root to sys.path
-sys.path.append(os.path.abspath('.'))
+project_root = os.environ.get(
+    "TG_ONE_PROJECT_ROOT",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
+sys.path.append(project_root)
 
 async def test_settings_trigger():
     print("🚀 Starting /settings trigger verification (Mock)...")
