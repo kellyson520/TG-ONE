@@ -1,7 +1,7 @@
 
 import json
 import os
-import time
+import tempfile
 import logging
 import asyncio
 from typing import Dict, Any
@@ -61,23 +61,38 @@ class StatsManager:
 
     def _save_stats(self, stats: Dict[str, Any]):
         """原子写入统计数据"""
+        temp_file = None
         try:
             # 更新元数据
             stats["meta"]["last_updated"] = datetime.utcnow().isoformat()
-            
-            # 1. 写入临时文件
-            temp_file = self.stats_file.with_suffix('.tmp')
-            with open(temp_file, 'w', encoding='utf-8') as f:
+
+            # 1. 写入同目录唯一临时文件，避免并发保存互相覆盖
+            fd, temp_file = tempfile.mkstemp(
+                prefix=f".{self.stats_file.name}.",
+                suffix=".tmp",
+                dir=self.stats_dir,
+                text=True,
+            )
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(stats, f, indent=2, ensure_ascii=False)
                 f.flush()
                 # 2. 强制刷盘 (Fsync)
                 os.fsync(f.fileno())
-                
+
             # 3. 原子替换
             os.replace(temp_file, self.stats_file)
-            
+            temp_file = None
+
         except Exception as e:
             logger.error(f"Failed to save stats to {self.stats_file}: {e}")
+        finally:
+            if temp_file:
+                try:
+                    os.unlink(temp_file)
+                except FileNotFoundError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to remove temporary stats file {temp_file}: {e}")
 
     def record_cleanup(self, tasks_removed: int = 0, logs_removed: int = 0):
         """记录一次清理操作"""
