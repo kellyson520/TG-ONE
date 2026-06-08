@@ -8,8 +8,8 @@ services:
       - "${FORWARDER_HOST_PORT:-9810}:9000"
     restart: always
     environment:
-      - ARCHIVE_ROOT=/app/data/archive/parquet
-      - BLOOM_ROOT=/app/data/archive/bloom
+      - ARCHIVE_ROOT=${ARCHIVE_ROOT:-/app/data/archive/parquet}
+      - BLOOM_ROOT=${BLOOM_ROOT:-/app/data/archive/bloom}
       - MALLOC_ARENA_MAX=2
       - PYTHON_MAX_MEMORY=1G
       - PYTHONUNBUFFERED=1
