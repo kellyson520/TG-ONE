@@ -119,7 +119,7 @@ class AuthenticationService:
                 session.add(new_session)
                 await session.commit()
                 
-                logger.info(f"✅ [Auth] 会话创建成功: 用户ID={user_id}, IP={ip_address}, 会话ID={new_session.session_id}")
+                logger.info(f"✅ [Auth] 会话创建成功: 用户ID={user_id}, IP={ip_address}")
             except Exception as e:
                 logger.error(f"❌ [Auth] 会话创建失败: 用户ID={user_id}, IP={ip_address}, 错误={e}")
                 raise e
