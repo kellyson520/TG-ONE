@@ -68,7 +68,7 @@ class DatabaseManager:
                     import subprocess
                     subprocess.run(
                         ["icacls", str(directory), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
-                        capture_output=True, check=False
+                        capture_output=True, check=False, timeout=30
                     )
                 except Exception as e:
                     logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
@@ -90,7 +90,7 @@ class DatabaseManager:
                     import subprocess
                     subprocess.run(
                         ["icacls", str(file_path), "/grant", f'{settings.OS_USERNAME}:F', "/t"],
-                        capture_output=True, check=False
+                        capture_output=True, check=False, timeout=30
                     )
                 except Exception as e:
                     logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
