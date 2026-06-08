@@ -10,6 +10,11 @@ import sqlite3
 from contextlib import closing
 from core.config import settings
 
+
+def quote_sqlite_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
 def analyze_database():
     """分析数据库各表的大小"""
     db_path_str = settings.DB_PATH
@@ -43,7 +48,7 @@ def analyze_database():
         for table in tables:
             try:
                 # 获取记录数
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                cursor.execute(f"SELECT COUNT(*) FROM {quote_sqlite_identifier(table)}")
                 count = cursor.fetchone()[0]
                 
                 table_stats.append({
