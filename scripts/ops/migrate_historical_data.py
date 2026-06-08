@@ -66,8 +66,10 @@ async def migrate_all():
         import sqlite3
         db_path = settings.DB_PATH
         conn = sqlite3.connect(db_path)
-        conn.execute("VACUUM")
-        conn.close()
+        try:
+            conn.execute("VACUUM")
+        finally:
+            conn.close()
         logger.info("✨ VACUUM 完成")
     except Exception as e:
         logger.error(f"VACUUM 失败: {e}")
