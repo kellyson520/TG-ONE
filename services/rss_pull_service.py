@@ -204,7 +204,12 @@ class RSSPullService:
 
                     if entry_time > last_time_naive:
                         new_entries.append(entry)
-                        if not max_published or entry_time > (max_published.replace(tzinfo=None) if max_published.tzinfo else max_published):
+                        max_published_naive = (
+                            max_published.replace(tzinfo=None)
+                            if max_published and max_published.tzinfo
+                            else max_published
+                        )
+                        if not max_published_naive or entry_time > max_published_naive:
                             max_published = entry.published
 
                 if new_entries:
