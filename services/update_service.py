@@ -696,19 +696,18 @@ class UpdateService:
                 return False
             
             # 2. 检查是否为 GitHub (目前主要支持 GitHub)
-            if parsed.netloc != "github.com":
-                logger.warning(f"⚠️ [安全提示] 更新源非 GitHub 官方域: {parsed.netloc}")
+            hostname = parsed.hostname or ""
+            if hostname != "github.com":
+                logger.warning("⚠️ [安全提示] 更新源非 GitHub 官方域: %s", hostname)
                 # 暂时允许非 GitHub 但记录警告 (根据用户需求，这里可以更严格)
-            
+
             # 3. 官方仓库比对
-            normalized_url = url.replace("https://", "").replace("http://", "")
+            normalized_url = parsed.path.lstrip("/")
             if normalized_url.endswith(".git"):
                 normalized_url = normalized_url[:-4]
-            if normalized_url.startswith("github.com/"):
-                 normalized_url = normalized_url[11:]
 
             if normalized_url != OFFICIAL_REPO:
-                logger.warning(f"⚠️ [安全提示] 正在使用非官方仓库更新: {normalized_url} (官方: {OFFICIAL_REPO})")
+                logger.warning("⚠️ [安全提示] 正在使用非官方仓库更新: %s (官方: %s)", _redact_url(url), OFFICIAL_REPO)
             
             return True
         except Exception as e:
