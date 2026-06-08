@@ -14,6 +14,17 @@ from core.container import container
 
 logger = logging.getLogger(__name__)
 
+
+def _redact_url(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    if not parsed.netloc:
+        return url
+    netloc = parsed.hostname or ""
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    return urllib.parse.urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+
+
 # 官方认证的仓库地址
 OFFICIAL_REPO = "kellyson520/TG-ONE"
 MAX_HTTP_UPDATE_DOWNLOAD_BYTES = 50 * 1024 * 1024
@@ -681,7 +692,7 @@ class UpdateService:
             parsed = urllib.parse.urlparse(url)
             # 1. 强制 HTTPS
             if parsed.scheme != "https":
-                logger.warning(f"⚠️ [安全警报] 拒绝使用非加密协议更新: {url}")
+                logger.warning("⚠️ [安全警报] 拒绝使用非加密协议更新: %s", _redact_url(url))
                 return False
             
             # 2. 检查是否为 GitHub (目前主要支持 GitHub)
@@ -894,7 +905,7 @@ class UpdateService:
             if not await self._cross_verify_sha(version[:8], version):
                  return False, f"安全校验失败: 版本 {version[:8]} 未在官方仓库验证通过"
 
-            logger.info(f"正在从 HTTP 下载更新包: {zip_url}")
+            logger.info("正在从 HTTP 下载更新包: %s", _redact_url(zip_url))
             download_timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
             async with httpx.AsyncClient(timeout=download_timeout, follow_redirects=True) as client:
                 async with client.stream("GET", zip_url) as resp:
