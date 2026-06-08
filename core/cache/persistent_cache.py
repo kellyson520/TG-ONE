@@ -91,7 +91,7 @@ class SQLitePersistentCache(BasePersistentCache):
         self._db_path = db_path
         self._ensure_schema()
 
-    def _conn(self):
+    def _connect(self):
         conn = sqlite3.connect(self._db_path, timeout=30)
         try:
             cur = conn.cursor()
@@ -99,15 +99,21 @@ class SQLitePersistentCache(BasePersistentCache):
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA synchronous=NORMAL")
             cur.execute("PRAGMA foreign_keys=ON")
-        except sqlite3.DatabaseError:
+        except Exception:
             conn.close()
+            raise
+        return conn
+
+    def _conn(self):
+        try:
+            return self._connect()
+        except sqlite3.DatabaseError:
             if self._handle_corruption():
-                # Retry connection after reset
-                return sqlite3.connect(self._db_path, timeout=30)
+                return self._connect()
             raise
         except Exception as e:
             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-        return conn
+            raise
 
     def _handle_corruption(self) -> bool:
         """Handle database corruption by deleting the file."""
