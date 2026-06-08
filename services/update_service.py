@@ -700,7 +700,8 @@ class UpdateService:
                 logger.warning(f"⚠️ [安全提示] 正在使用非官方仓库更新: {normalized_url} (官方: {OFFICIAL_REPO})")
             
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning("更新仓库来源校验失败: %s", e)
             return False
 
     async def _check_via_git(self) -> Tuple[bool, str]:
