@@ -172,7 +172,7 @@ class ConfigService:
             db_configs = await self.db.get_all()
             self._memory_cache.update(db_configs)
         except Exception as e:
-            print(f"配置预加载失败: {e}")
+            logger.warning("配置预加载失败: %s", e)
 
     # 保持同步 get 接口以兼容遗留代码（仅查内存/文件/环境变量，不查DB以免阻塞）
     def get_sync(self, key: str, default: Any = None) -> Any:
