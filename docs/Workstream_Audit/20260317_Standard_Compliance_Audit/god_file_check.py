@@ -23,7 +23,7 @@ def find_god_files(root_dir, limit=1000):
                             line_count = sum(1 for _ in f)
                             if line_count > limit:
                                 god_files.append((file_path, line_count))
-                    except:
+                    except (OSError, UnicodeDecodeError):
                         pass
                         
     return god_files
