@@ -17,7 +17,8 @@ def _get_existing_columns(inspector, table_name):
     """获取表中已存在的列名集合"""
     try:
         return {column['name'] for column in inspector.get_columns(table_name)}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"获取表 {table_name} 的列信息失败: {e}")
         return set()
 
 def migrate_db(engine):

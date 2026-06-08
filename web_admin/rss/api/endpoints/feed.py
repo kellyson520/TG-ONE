@@ -153,20 +153,7 @@ async def get_feed(rule_id: int, request: Request):
                 # 记录XML内容的一部分
                 xml_sample = rss_xml[:500] + "..." if len(rss_xml) > 500 else rss_xml
                 logger.info(f"生成的测试RSS XML (前500字符): {xml_sample}")
-                # 检查XML中是否还有硬编码的localhost27.0.0.1地址
-                if "127.0.0.1" in rss_xml or "localhost" in rss_xml:
-                    logger.warning(f"RSS XML中仍包含硬编码的本地地址")
-                    # 替换硬编码的地址
-                    rss_xml = rss_xml.replace(
-                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
-                    )
-                    rss_xml = rss_xml.replace(
-                        f"http://localhost:{settings.RSS_PORT}", base_url
-                    )
-                    rss_xml = rss_xml.replace(
-                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
-                    )
-                    logger.info(f"已替换硬编码的本地地址 {base_url}")
+                rss_xml = _replace_local_rss_urls(rss_xml, base_url)
                 # 确保返回的是字节类型
                 if isinstance(rss_xml, str):
                     rss_xml = rss_xml.encode("utf-8")
@@ -193,20 +180,7 @@ async def get_feed(rule_id: int, request: Request):
                 # 记录XML内容的一部分
                 xml_sample = rss_xml[:500] + "..." if len(rss_xml) > 500 else rss_xml
                 logger.info(f"生成的RSS XML (前500字符): {xml_sample}")
-                # 检查XML中是否还有硬编码的localhost27.0.0.1地址
-                if "127.0.0.1" in rss_xml or "localhost" in rss_xml:
-                    logger.warning(f"RSS XML中仍包含硬编码的本地地址")
-                    # 替换硬编码的地址
-                    rss_xml = rss_xml.replace(
-                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
-                    )
-                    rss_xml = rss_xml.replace(
-                        f"http://localhost:{settings.RSS_PORT}", base_url
-                    )
-                    rss_xml = rss_xml.replace(
-                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
-                    )
-                    logger.info(f"已替换硬编码的本地地址 {base_url}")
+                rss_xml = _replace_local_rss_urls(rss_xml, base_url)
                 # 确保返回的是字节类型
                 if isinstance(rss_xml, str):
                     rss_xml = rss_xml.encode("utf-8")
