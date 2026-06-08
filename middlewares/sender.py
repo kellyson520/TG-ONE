@@ -15,7 +15,8 @@ def _is_retryable_send_error(error: Exception) -> bool:
     try:
         from core.helpers.smart_retry import retry_manager
         return retry_manager.should_retry(error)
-    except Exception:
+    except ImportError:
+        logger.debug("smart retry manager unavailable", exc_info=True)
         return isinstance(error, (TimeoutError, ConnectionError))
 
 class SenderMiddleware(Middleware):
