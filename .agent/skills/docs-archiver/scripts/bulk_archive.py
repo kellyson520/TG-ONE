@@ -38,7 +38,7 @@ def update_process_md():
     try:
         with open(process_file, "r", encoding="utf-8") as f:
             content = f.read()
-    except:
+    except UnicodeDecodeError:
         with open(process_file, "r", encoding="utf-16") as f:
             content = f.read()
             
