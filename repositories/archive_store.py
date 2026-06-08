@@ -62,6 +62,10 @@ def _ensure_dir(path: str) -> None:
         raise
 
 
+def _duckdb_string_literal(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
     """按需启用 httpfs 并配置 S3 访问。
     通过环境变量传入凭据：
@@ -91,23 +95,23 @@ def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
         region = settings.AWS_REGION or settings.S3_REGION
         if region:
             logger.debug(f"设置 S3 区域: {region}")
-            con.execute(f"SET s3_region='{region}';")
+            con.execute(f"SET s3_region={_duckdb_string_literal(region)};")
         # endpoint（如 MinIO）
         endpoint = settings.S3_ENDPOINT
         if endpoint:
             logger.debug(f"设置 S3 endpoint: {endpoint}")
-            con.execute(f"SET s3_endpoint='{endpoint}';")
+            con.execute(f"SET s3_endpoint={_duckdb_string_literal(endpoint)};")
         # 凭据
         ak = settings.AWS_ACCESS_KEY_ID
         sk = settings.AWS_SECRET_ACCESS_KEY
         st = settings.AWS_SESSION_TOKEN
         if ak and sk:
             logger.debug("设置 S3 访问密钥")
-            con.execute(f"SET s3_access_key_id='{ak}';")
-            con.execute(f"SET s3_secret_access_key='{sk}';")
+            con.execute(f"SET s3_access_key_id={_duckdb_string_literal(ak)};")
+            con.execute(f"SET s3_secret_access_key={_duckdb_string_literal(sk)};")
         if st:
             logger.debug("设置 S3 会话令牌")
-            con.execute(f"SET s3_session_token='{st}';")
+            con.execute(f"SET s3_session_token={_duckdb_string_literal(st)};")
         # 允许 SSL 验证开关（默认开启）
         verify = settings.S3_SSL_ENABLE
         logger.debug(f"设置 S3 SSL 验证: {verify}")
