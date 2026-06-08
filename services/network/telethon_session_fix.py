@@ -9,6 +9,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _sqlite_string_literal(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def _get_session_file(base: str) -> Path:
     p = Path(base)
     if p.suffix == ".session":
@@ -118,7 +122,7 @@ def ensure_session_ok(base: str) -> bool:
                     tmp = file.parent / f"{file.stem}.repair{file.suffix}"
 
                     try:
-                        conn.execute(f"VACUUM INTO '{tmp.as_posix()}'")
+                        conn.execute(f"VACUUM INTO {_sqlite_string_literal(tmp.as_posix())}")
                         # 必须先显式关闭当前连接才能在下面操作原文件 (VACUUM INTO 完成后)
                         conn.close() 
 
