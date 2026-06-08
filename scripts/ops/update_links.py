@@ -39,7 +39,7 @@ content = ""
 try:
     with open(process_md, "r", encoding="utf-8") as f:
         content = f.read()
-except:
+except UnicodeDecodeError:
     with open(process_md, "r", encoding="utf-16") as f:
         content = f.read()
 
