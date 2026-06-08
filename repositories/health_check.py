@@ -28,12 +28,11 @@ class DatabaseHealthManager:
             
         logger.info(f"Checking integrity of {self.db_path}...")
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA integrity_check;")
-            rows = cursor.fetchall()
-            conn.close()
-            
+            with sqlite3.connect(str(self.db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA integrity_check;")
+                rows = cursor.fetchall()
+
             for row in rows:
                 if row[0] != "ok":
                     logger.error(f"CORRUPTION DETECTED in {self.db_path}: {row[0]}")
@@ -72,19 +71,17 @@ class DatabaseHealthManager:
 
         # 2. Rebuild using VACUUM
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            # Try VACUUM INTO first (safer)
-            try:
-                conn.execute(f"VACUUM INTO '{rebuilt_path}'")
-                logger.info(f"VACUUM INTO successful: {rebuilt_path}")
-            except Exception as vacuum_into_err:
-                logger.warning(f"VACUUM INTO failed ({vacuum_into_err}), attempting in-place VACUUM...")
-                # Fallback to standard VACUUM
-                conn.execute("VACUUM;")
-                logger.info("Standard VACUUM successful.")
-                rebuilt_path = None # In-place repair
-                
-            conn.close()
+            with sqlite3.connect(str(self.db_path)) as conn:
+                # Try VACUUM INTO first (safer)
+                try:
+                    conn.execute(f"VACUUM INTO '{rebuilt_path}'")
+                    logger.info(f"VACUUM INTO successful: {rebuilt_path}")
+                except Exception as vacuum_into_err:
+                    logger.warning(f"VACUUM INTO failed ({vacuum_into_err}), attempting in-place VACUUM...")
+                    # Fallback to standard VACUUM
+                    conn.execute("VACUUM;")
+                    logger.info("Standard VACUUM successful.")
+                    rebuilt_path = None # In-place repair
         except Exception as e:
             logger.critical(f"Database repair failed during VACUUM: {e}")
             return False
