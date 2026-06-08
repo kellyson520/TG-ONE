@@ -48,7 +48,7 @@ def browser():
     finally:
         try:
             page.quit()
-        except:
+        except Exception:
             pass
 
 class TestWebUI:
@@ -73,7 +73,7 @@ class TestWebUI:
                 logs_link.click()
                 time.sleep(1)
                 assert "/logs" in browser.url
-        except:
+        except Exception:
             pass # Skip if UI doesn't match this assumption
 
     def test_scroll_logs(self, web_server, browser):
