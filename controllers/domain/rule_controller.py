@@ -387,5 +387,5 @@ class RuleController(BaseController):
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
-        except Exception:
-            pass
+        except OSError:
+            logger.exception("Failed to clean up exported rule log file: %s", file_path)
