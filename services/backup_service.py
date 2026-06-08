@@ -269,11 +269,14 @@ class BackupService:
         """还原代码"""
         try:
             def _extract_sync():
+                base_dir = settings.BASE_DIR.resolve()
                 with zipfile.ZipFile(path, 'r') as z:
                     for member in z.namelist():
                         if '..' in member or member.startswith('/') or '\\' in member:
                             continue
-                        target = settings.BASE_DIR / member
+                        target = (base_dir / member).resolve()
+                        if not target.is_relative_to(base_dir):
+                            continue
                         if member.endswith('/'):
                             target.mkdir(parents=True, exist_ok=True)
                         else:

@@ -44,3 +44,32 @@ def test_list_backups_date_parsing_fallback():
         assert isinstance(dt, datetime)
     finally:
         os.unlink(temp_path)
+
+
+@pytest.mark.asyncio
+async def test_restore_code_skips_symlink_escape(tmp_path, monkeypatch):
+    import zipfile
+
+    from services.backup_service import BackupService
+    from services import backup_service as backup_module
+
+    base_dir = tmp_path / "base"
+    outside_dir = tmp_path / "outside"
+    backup_dir = tmp_path / "backups"
+    base_dir.mkdir()
+    outside_dir.mkdir()
+    (base_dir / "link").symlink_to(outside_dir, target_is_directory=True)
+    backup_dir.mkdir()
+
+    archive = tmp_path / "restore.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("link/escaped.txt", "escaped")
+
+    monkeypatch.setattr(backup_module.settings, "BASE_DIR", base_dir)
+    monkeypatch.setattr(backup_module.settings, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(backup_module.settings, "UPDATE_BACKUP_LIMIT", 3)
+
+    ok, _ = await BackupService()._restore_code(archive)
+
+    assert ok
+    assert not (outside_dir / "escaped.txt").exists()
