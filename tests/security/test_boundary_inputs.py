@@ -38,5 +38,5 @@ class TestSecurityBoundary:
         try:
             response = await client.get("/api/logs/download?file=../../etc/passwd%00")
             assert response.status_code in [400, 404, 403, 422]
-        except:
+        except Exception:
             pass
