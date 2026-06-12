@@ -548,7 +548,8 @@ def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[
             return get_smart_cache(cache_name, l1_ttl=ttl, l2_ttl=ttl * 2)
 
         # 用于请求合并的锁字典 (Request Coalescing)
-        _request_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        _request_locks: Dict[str, asyncio.Lock] = {}
+        _MAX_REQUEST_LOCKS = 1024
 
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -566,35 +567,41 @@ def cached(cache_name: Optional[str] = None, ttl: int = 300, key_func: Optional[
                 return cached_result
 
             # 2. 缓存未命中，进入请求锁 (防止惊群效应)
-            # 使用特定键的锁，保证同一时间只有一个请求穿透到原函数
-            async with _request_locks[cache_key]:
-                # 双重检查命中 (Double-Check Locking)
-                cached_result = cache.get(cache_key)
-                if cached_result is not None:
-                    logger.debug(f"[缓存命中-并发保护] {cache_name} - 键: {cache_key}")
-                    return cached_result
+            lock = _request_locks.get(cache_key)
+            if lock is None:
+                lock = asyncio.Lock()
+                _request_locks[cache_key] = lock
 
-                # 执行原函数
-                start_time = time.time()
-                try:
+            try:
+                async with lock:
+                    # 双重检查命中 (Double-Check Locking)
+                    cached_result = cache.get(cache_key)
+                    if cached_result is not None:
+                        logger.debug(f"[缓存命中-并发保护] {cache_name} - 键: {cache_key}")
+                        return cached_result
+
+                    # 执行原函数
+                    start_time = time.time()
                     result = await func(*args, **kwargs)
-                finally:
-                    # 确保清理锁，防止内存泄漏（如果是高频动态键）
-                    # 只有在没有其他人等待锁时才考虑删除，这里采用简单的 try-finally 包装原函数即可
-                    pass
+                    duration = time.time() - start_time
 
-                duration = time.time() - start_time
+                    # 存储到缓存
+                    cache.set(cache_key, result, ttl)
 
-                # 存储到缓存
-                cache.set(cache_key, result, ttl)
+                    logger.log_performance(
+                        f"缓存写入-{cache_name}",
+                        duration,
+                        details=f"键: {cache_key}, 结果大小: {len(str(result))}",
+                    )
 
-                logger.log_performance(
-                    f"缓存写入-{cache_name}",
-                    duration,
-                    details=f"键: {cache_key}, 结果大小: {len(str(result))}",
-                )
-
-                return result
+                    return result
+            finally:
+                if not lock.locked():
+                    _request_locks.pop(cache_key, None)
+                if len(_request_locks) > _MAX_REQUEST_LOCKS:
+                    for k in list(_request_locks)[:len(_request_locks) - _MAX_REQUEST_LOCKS // 2]:
+                        if not _request_locks[k].locked():
+                            del _request_locks[k]
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:

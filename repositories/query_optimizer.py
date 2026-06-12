@@ -28,6 +28,7 @@ class QueryResultCache:
     def __init__(self):
         self.cache = get_smart_cache("query_results", l1_ttl=60, l2_ttl=300)
         self.access_patterns = defaultdict(list)
+        self._keys_by_type: Dict[str, set] = defaultdict(set)
         self.lock = threading.RLock()
 
     def generate_cache_key(self, query_type: str, params: Dict[str, Any]) -> str:
@@ -59,11 +60,17 @@ class QueryResultCache:
         """设置缓存结果"""
         cache_key = self.generate_cache_key(query_type, params)
         self.cache.set(cache_key, result, ttl=ttl)
+        with self.lock:
+            self._keys_by_type[query_type].add(cache_key)
 
     def invalidate_pattern(self, query_type: str) -> None:
         """使某类查询的缓存失效"""
-        # 这里可以实现更精细的失效策略
-        logger.info(f"Query cache invalidated for type: {query_type}")
+        with self.lock:
+            keys = self._keys_by_type.pop(query_type, set())
+            self.access_patterns.pop(query_type, None)
+        for key in keys:
+            self.cache.delete(key)
+        logger.info(f"Invalidated {len(keys)} cache entries for type: {query_type}")
 
     def get_hot_queries(self, limit: int = 10) -> List[Tuple[str, int]]:
         """获取热点查询"""
