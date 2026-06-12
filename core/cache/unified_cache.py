@@ -500,13 +500,16 @@ class SmartCache:
 
 # 全局智能缓存管理器实例 - 延迟初始化
 smart_cache = None
+_smart_cache_lock = threading.Lock()
 
 
 def _init_smart_cache() -> None:
     """延迟初始化智能缓存管理器"""
     global smart_cache
     if smart_cache is None:
-        smart_cache = SmartCache()
+        with _smart_cache_lock:
+            if smart_cache is None:
+                smart_cache = SmartCache()
 
 
 def get_smart_cache(name: str, **config: Any) -> MultiLevelCache:
