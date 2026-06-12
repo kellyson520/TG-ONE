@@ -1,4 +1,5 @@
 from __future__ import annotations
+import threading
 from typing import TYPE_CHECKING, List, Optional, Any, Dict
 if TYPE_CHECKING:
     from repositories.task_repo import TaskRepository
@@ -611,12 +612,16 @@ class UIContainer:
 
 
 _container = None
+_container_lock = threading.Lock()
+
 
 def get_container() -> Container:
     """获取全局容器单例 (极致惰性执行)"""
     global _container
     if _container is None:
-        _container = Container()
+        with _container_lock:
+            if _container is None:
+                _container = Container()
     return _container
 
 # 暂时保留全局变量以保持向后兼容，但通过 get_container() 代理 (不推荐直接使用)
