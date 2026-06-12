@@ -461,26 +461,16 @@ class AsyncBatchProcessor:
 
         for operation in operations:
             start_time = time.time()
-            processed_count = 0
-            error_count = 0
-            errors = []
 
             try:
-                for item in operation.data:
-                    try:
-                        await self._execute_single_update(operation.table_name, item)
-                        processed_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        errors.append(str(e))
-
+                await self._execute_batch_update(operation.table_name, operation.data)
                 result = BatchResult(
                     operation_id=operation.operation_id,
-                    success=error_count == 0,
-                    processed_count=processed_count,
-                    error_count=error_count,
+                    success=True,
+                    processed_count=len(operation.data),
+                    error_count=0,
                     duration=time.time() - start_time,
-                    errors=errors,
+                    errors=[],
                 )
 
             except Exception as e:
@@ -626,6 +616,36 @@ class AsyncBatchProcessor:
         with ThreadPoolExecutor(max_workers=1) as executor:
             await loop.run_in_executor(
                 executor, lambda: self._run_with_session(_update_item)
+            )
+
+    async def _execute_batch_update(self, table_name: str, data: List[Dict[str, Any]]):
+        """批量更新（单次session，按列结构分组执行executemany）"""
+        if not data:
+            return
+
+        _validate_table_name(table_name)
+
+        def _update_batch(session: Session):
+            groups: Dict[tuple, List[Dict[str, Any]]] = defaultdict(list)
+            for item in data:
+                if "id" not in item:
+                    raise ValueError("Update data must contain 'id' field")
+                cols = tuple(sorted(k for k in item if k != "id"))
+                groups[cols].append(item)
+
+            for cols, items in groups.items():
+                if not cols:
+                    continue
+                set_clause = ", ".join([f"{k} = :{k}" for k in cols])
+                sql = f"UPDATE {table_name} SET {set_clause} WHERE id = :id"
+                session.execute(text(sql), items)
+
+            session.commit()
+
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            await loop.run_in_executor(
+                executor, lambda: self._run_with_session(_update_batch)
             )
 
     async def _execute_batch_delete(self, table_name: str, ids: List[int]):
