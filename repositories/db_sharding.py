@@ -14,6 +14,23 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# SQL注入防护：表名白名单
+ALLOWED_TABLE_NAMES = frozenset({
+    'access_control_list', 'active_sessions', 'audit_logs', 'chat_statistics',
+    'chats', 'error_logs', 'forward_mappings', 'forward_rules', 'hot_config',
+    'hot_period_stats', 'hot_raw_stats', 'keywords', 'media_extensions',
+    'media_signatures', 'media_types', 'push_configs', 'replace_rules',
+    'rss_configs', 'rss_patterns', 'rss_subscriptions', 'rule_logs',
+    'rule_statistics', 'rule_syncs', 'system_configurations', 'task_queue', 'users',
+})
+
+
+def _validate_table_name(name: str) -> str:
+    """校验表名，防止SQL注入"""
+    if name not in ALLOWED_TABLE_NAMES:
+        raise ValueError(f"Invalid table name: {name!r}")
+    return name
+
 
 class ShardingStrategy:
     """分片策略基类"""
@@ -259,6 +276,7 @@ class QueryDistributor:
                 where_clause = " AND ".join(query_parts) if query_parts else "1=1"
 
                 # 构建完整查询
+                _validate_table_name(table)
                 sql = f"SELECT * FROM {table} WHERE {where_clause}"
 
                 if order_by:
@@ -318,6 +336,7 @@ class QueryDistributor:
                 where_clause = " AND ".join(query_parts) if query_parts else "1=1"
 
                 # 构建完整查询
+                _validate_table_name(table)
                 sql = f"SELECT {select_clause} FROM {table} WHERE {where_clause}"
 
                 if group_by:
@@ -448,6 +467,7 @@ class PartitionManager:
 
                     # 获取分区大小
                     try:
+                        _validate_table_name(view_name)
                         size_result = session.execute(
                             text(f"SELECT COUNT(*) FROM {view_name}")
                         )
