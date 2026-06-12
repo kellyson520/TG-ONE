@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 import asyncio
 import json
 import time
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, cast
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, cast
 
 from core.helpers.error_handler import handle_errors
 from core.logging import get_logger, log_performance
@@ -24,16 +24,21 @@ class TTLCache:
     def __init__(self, ttl_seconds: int, maxsize: int) -> None:
         self.ttl_seconds = ttl_seconds
         self.maxsize = maxsize
-        self._store: Dict[str, Any] = {}
+        self._store: Dict[str, Tuple[Any, float]] = {}
 
     def get(self, key: str) -> Optional[Any]:
-        return self._store.get(key)
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        value, expiry = entry
+        if time.time() > expiry:
+            del self._store[key]
+            return None
+        return value
 
     def set(self, key: str, value: Any) -> None:
-        self._store[key] = value
-        # 简单的大小限制
+        self._store[key] = (value, time.time() + self.ttl_seconds)
         if len(self._store) > self.maxsize:
-            # 移除最早的条目
             for k in list(self._store.keys())[: len(self._store) - self.maxsize]:
                 del self._store[k]
 
