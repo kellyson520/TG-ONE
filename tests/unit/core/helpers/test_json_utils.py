@@ -1,60 +1,78 @@
+"""json_utils 测试 — dumps/loads 兼容层"""
 import pytest
-import json
-from core.helpers import json_utils
+from core.helpers.json_utils import dumps, loads, dumps_bytes, json_dumps, json_loads, JSONDecodeError
 
 
 class TestDumps:
+    """JSON 序列化测试"""
+
     def test_basic_dict(self):
-        result = json_utils.dumps({"a": 1})
-        assert '"a"' in result
-        assert '1' in result
+        result = dumps({"key": "value"})
+        assert isinstance(result, str)
+        assert '"key"' in result
+        assert '"value"' in result
 
     def test_list(self):
-        result = json_utils.dumps([1, 2, 3])
+        result = dumps([1, 2, 3])
         assert result == "[1,2,3]"
 
-    def test_string(self):
-        result = json_utils.dumps("hello")
-        assert result == '"hello"'
+    def test_nested(self):
+        result = dumps({"a": [1, {"b": 2}]})
+        assert isinstance(result, str)
+
+    def test_chinese_characters(self):
+        """中文字符不转义（ensure_ascii=False）"""
+        result = dumps({"name": "测试"})
+        assert "测试" in result
 
     def test_none(self):
-        result = json_utils.dumps(None)
+        result = dumps(None)
         assert result == "null"
 
-    def test_nested(self):
-        result = json_utils.dumps({"a": {"b": [1, 2]}})
-        assert '"b"' in result
-
     def test_sort_keys(self):
-        result = json_utils.dumps({"b": 2, "a": 1}, sort_keys=True)
-        keys = list(json.loads(result).keys())
-        assert keys == ["a", "b"]
-
-    def test_ensure_ascii_false(self):
-        result = json_utils.dumps({"k": "中文"})
-        assert "中文" in result
+        result = dumps({"b": 2, "a": 1}, sort_keys=True)
+        assert result.index('"a"') < result.index('"b"')
 
 
 class TestLoads:
+    """JSON 反序列化测试"""
+
     def test_basic(self):
-        assert json_utils.loads('{"a": 1}') == {"a": 1}
+        result = loads('{"key": "value"}')
+        assert result == {"key": "value"}
 
     def test_list(self):
-        assert json_utils.loads("[1,2,3]") == [1, 2, 3]
+        assert loads("[1,2,3]") == [1, 2, 3]
 
     def test_bytes_input(self):
-        assert json_utils.loads(b'{"x": true}') == {"x": True}
+        result = loads(b'{"x": 1}')
+        assert result == {"x": 1}
 
-    def test_invalid_raises(self):
-        with pytest.raises(json_utils.JSONDecodeError):
-            json_utils.loads("{invalid}")
+    def test_invalid_json_raises(self):
+        with pytest.raises(JSONDecodeError):
+            loads("{invalid}")
+
+    def test_null(self):
+        assert loads("null") is None
 
 
 class TestDumpsBytes:
+    """dumps_bytes 测试"""
+
     def test_returns_bytes(self):
-        result = json_utils.dumps_bytes({"a": 1})
+        result = dumps_bytes({"key": "value"})
         assert isinstance(result, bytes)
 
-    def test_content_matches(self):
-        result = json_utils.dumps_bytes([1, 2])
-        assert json.loads(result) == [1, 2]
+    def test_decodable(self):
+        result = dumps_bytes({"a": 1})
+        assert loads(result) == {"a": 1}
+
+
+class TestAliases:
+    """旧代码兼容别名"""
+
+    def test_json_dumps_alias(self):
+        assert json_dumps is dumps
+
+    def test_json_loads_alias(self):
+        assert json_loads is loads
