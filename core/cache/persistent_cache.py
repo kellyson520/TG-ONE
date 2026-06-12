@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 
 import time
 import logging
@@ -89,31 +90,43 @@ class RedisPersistentCache(BasePersistentCache):
 class SQLitePersistentCache(BasePersistentCache):
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
+        self._local = threading.local()
         self._ensure_schema()
 
     def _connect(self):
         conn = sqlite3.connect(self._db_path, timeout=30)
-        try:
-            cur = conn.cursor()
-            cur.execute("PRAGMA busy_timeout=30000")
-            cur.execute("PRAGMA journal_mode=WAL")
-            cur.execute("PRAGMA synchronous=NORMAL")
-            cur.execute("PRAGMA foreign_keys=ON")
-        except Exception:
-            conn.close()
-            raise
+        cur = conn.cursor()
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA foreign_keys=ON")
         return conn
 
     def _conn(self):
+        conn = getattr(self._local, 'conn', None)
+        if conn is not None:
+            try:
+                conn.execute("SELECT 1")
+                return conn
+            except Exception:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                self._local.conn = None
+
         try:
-            return self._connect()
+            conn = self._connect()
         except sqlite3.DatabaseError:
             if self._handle_corruption():
-                return self._connect()
-            raise
+                conn = self._connect()
+            else:
+                raise
         except Exception as e:
             logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
             raise
+        self._local.conn = conn
+        return conn
 
     def _handle_corruption(self) -> bool:
         """Handle database corruption by deleting the file."""
@@ -142,7 +155,7 @@ class SQLitePersistentCache(BasePersistentCache):
 
     def _ensure_schema(self) -> None:
         try:
-            conn = self._conn()
+            conn = self._connect()
         except sqlite3.DatabaseError:
             # If _conn fails even after retry logic (recursive risk if not careful, but _conn handles it once)
             # Actually _conn calls _handle_corruption which calls _ensure_schema... recursion risk!
@@ -208,12 +221,9 @@ class SQLitePersistentCache(BasePersistentCache):
 
             return value
         except sqlite3.DatabaseError:
-            # If error happens during query (even if connect worked)
-            conn.close()
+            self._local.conn = None
             self._handle_corruption()
             return None
-        finally:
-            conn.close()
 
     def set(self, key: str, value: str, ttl: int) -> None:
         expires_at = int(time.time()) + max(1, int(ttl))
@@ -231,10 +241,8 @@ class SQLitePersistentCache(BasePersistentCache):
             )
             conn.commit()
         except sqlite3.DatabaseError:
-            conn.close()
+            self._local.conn = None
             self._handle_corruption()
-        finally:
-            conn.close()
 
     def delete(self, key: str) -> None:
         try:
@@ -248,62 +256,48 @@ class SQLitePersistentCache(BasePersistentCache):
             cur.execute("DELETE FROM kv_cache WHERE key = ?", (key,))
             conn.commit()
         except sqlite3.DatabaseError:
-            conn.close()
+            self._local.conn = None
             self._handle_corruption()
-        finally:
-            conn.close()
 
     def clear(self) -> None:
         conn = self._conn()
-        try:
-            cur = conn.cursor()
-            cur.execute("DELETE FROM kv_cache")
-            conn.commit()
-        finally:
-            conn.close()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM kv_cache")
+        conn.commit()
 
     def delete_prefix(self, prefix: str) -> int:
         conn = self._conn()
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT COUNT(*) FROM kv_cache WHERE key LIKE ?", (prefix + "%",)
-            )
-            row = cur.fetchone()
-            cnt = int(row[0]) if row else 0
-            cur.execute("DELETE FROM kv_cache WHERE key LIKE ?", (prefix + "%",))
-            conn.commit()
-            return cnt
-        finally:
-            conn.close()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM kv_cache WHERE key LIKE ?", (prefix + "%",)
+        )
+        row = cur.fetchone()
+        cnt = int(row[0]) if row else 0
+        cur.execute("DELETE FROM kv_cache WHERE key LIKE ?", (prefix + "%",))
+        conn.commit()
+        return cnt
 
     def count_prefix(self, prefix: str) -> int:
         conn = self._conn()
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT COUNT(*) FROM kv_cache WHERE key LIKE ?", (prefix + "%",)
-            )
-            row = cur.fetchone()
-            return int(row[0]) if row else 0
-        finally:
-            conn.close()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM kv_cache WHERE key LIKE ?", (prefix + "%",)
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
 
     def stat_prefix(self, prefix: str) -> dict:
         conn = self._conn()
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT COUNT(*), SUM(LENGTH(value)) FROM kv_cache WHERE key LIKE ?",
-                (prefix + "%",),
-            )
-            row = cur.fetchone()
-            return {
-                "count": int(row[0]) if row and row[0] is not None else 0,
-                "bytes": int(row[1]) if row and row[1] is not None else 0,
-            }
-        finally:
-            conn.close()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*), SUM(LENGTH(value)) FROM kv_cache WHERE key LIKE ?",
+            (prefix + "%",),
+        )
+        row = cur.fetchone()
+        return {
+            "count": int(row[0]) if row and row[0] is not None else 0,
+            "bytes": int(row[1]) if row and row[1] is not None else 0,
+        }
 
 
 from core.config import settings
