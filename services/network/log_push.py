@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import httpx
-from typing import Any, Dict
+import threading
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class TelegramPushHandler(logging.Handler):
-    """使用 httpx 异步推送告警到 Telegram"""
+    """使用 httpx 异步推送告警到 Telegram（复用连接）"""
 
     TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -21,12 +23,27 @@ class TelegramPushHandler(logging.Handler):
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.timeout = timeout
-        self._loop = None
+        self._async_client: Optional[httpx.AsyncClient] = None
+        self._sync_client: Optional[httpx.Client] = None
+        self._client_lock = threading.Lock()
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """延迟初始化复用的异步客户端"""
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(timeout=self.timeout)
+        return self._async_client
+
+    def _get_sync_client(self) -> httpx.Client:
+        """延迟初始化复用的同步客户端（线程安全）"""
+        with self._client_lock:
+            if self._sync_client is None or self._sync_client.is_closed:
+                self._sync_client = httpx.Client(timeout=self.timeout)
+            return self._sync_client
 
     def emit(self, record: logging.LogRecord) -> None:
         if not self.bot_token or not self.chat_id:
             return
-        
+
         try:
             text = self._format_text(record)
             url = self.TG_API.format(token=self.bot_token)
@@ -36,19 +53,17 @@ class TelegramPushHandler(logging.Handler):
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True,
             }
-            
-            # 尝试获取运行中的事件循环
+
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self._async_post(url, data))
             except RuntimeError:
-                # 不在事件循环中，可能是启动阶段或独立脚本
-                # 这里暂时回退到同步请求（或者使用单独的线程，但为了彻底异步化，我们推荐在主循环启动后使用）
-                import threading
-                threading.Thread(target=self._sync_post, args=(url, data), daemon=True).start()
-                
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+                threading.Thread(
+                    target=self._sync_post, args=(url, data), daemon=True
+                ).start()
+
+        except Exception:
+            pass
 
     def _format_text(self, record: logging.LogRecord) -> str:
         level_icon = {
@@ -58,41 +73,64 @@ class TelegramPushHandler(logging.Handler):
             "INFO": "ℹ️",
             "DEBUG": "🐞",
         }.get(record.levelname, "📣")
-        
+
         cid = getattr(record, "correlation_id", None)
-        # 获取 Trace ID (如果存在于 trace_id_var)
         try:
             from core.context import trace_id_var
-            cid = cid or trace_id_var.get()
-        except ImportError as e:
-            logger.debug(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
-        head = f"{level_icon} <b>{record.levelname}</b> | <code>{record.name}</code>"
+            cid = cid or trace_id_var.get()
+        except ImportError:
+            pass
+
+        head = (
+            f"{level_icon} <b>{record.levelname}</b> | <code>{record.name}</code>"
+        )
         body = self.format(record)
-        # HTML 转义，防止标签冲突
         import html
+
         body = html.escape(body)
-        
+
         tail = f"\n关联ID: {cid}" if cid else ""
         return f"{head}\n<pre>{body}</pre>{tail}"
 
     async def _async_post(self, url: str, data: Dict[str, Any]) -> None:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                await client.post(url, data=data)
-        except Exception as e:
-            # 内部错误不再吐给 logger，防止死循环
-            pass
+            client = self._get_async_client()
+            await client.post(url, data=data)
+        except Exception:
+            # 连接可能已失效，重置
+            if self._async_client and not self._async_client.is_closed:
+                await self._async_client.aclose()
+                self._async_client = None
 
     def _sync_post(self, url: str, data: Dict[str, Any]) -> None:
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                client.post(url, data=data)
-        except Exception as e:
-            logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+            client = self._get_sync_client()
+            client.post(url, data=data)
+        except Exception:
+            # 连接可能已失效，重置
+            with self._client_lock:
+                if self._sync_client and not self._sync_client.is_closed:
+                    self._sync_client.close()
+                    self._sync_client = None
+
+    async def close_async(self) -> None:
+        """异步关闭客户端连接"""
+        if self._async_client and not self._async_client.is_closed:
+            await self._async_client.aclose()
+            self._async_client = None
+
+    def close(self) -> None:
+        """关闭同步客户端连接"""
+        with self._client_lock:
+            if self._sync_client and not self._sync_client.is_closed:
+                self._sync_client.close()
+                self._sync_client = None
+        super().close()
 
 
 from core.config import settings
+
 
 def install_log_push_handlers(root_logger: logging.Logger) -> None:
     """按 settings 安装统一日志推送。"""
@@ -100,7 +138,6 @@ def install_log_push_handlers(root_logger: logging.Logger) -> None:
     if not tg_enable:
         return
 
-    # 优先使用具体的 PUSH 配置，回退到主 BOT/USER 配置
     bot_token = settings.LOG_PUSH_TG_BOT_TOKEN or settings.BOT_TOKEN
     chat_id = settings.LOG_PUSH_TG_CHAT_ID or settings.USER_ID
     level_name = settings.LOG_PUSH_TG_LEVEL.upper()
@@ -111,9 +148,10 @@ def install_log_push_handlers(root_logger: logging.Logger) -> None:
         return
 
     try:
-        handler = TelegramPushHandler(bot_token=bot_token, chat_id=chat_id, level=level)
-        # 设置格式化程序，因为 Handler 需要它进行 self.format(record)
-        formatter = logging.Formatter('%(message)s')
+        handler = TelegramPushHandler(
+            bot_token=bot_token, chat_id=chat_id, level=level
+        )
+        formatter = logging.Formatter("%(message)s")
         handler.setFormatter(formatter)
         root_logger.addHandler(handler)
         logger.info(f"Telegram Log Push Handler installed (Level: {level_name})")
