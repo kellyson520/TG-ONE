@@ -103,3 +103,4 @@ web_admin/frontend_legacy/*
 !web_admin/frontend_legacy/dist/
 data.zip
 *.bak
+!requirements-gui.txt
