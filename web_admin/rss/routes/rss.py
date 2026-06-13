@@ -2,15 +2,15 @@ from fastapi import APIRouter, Depends, status, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from models.models import (
-    get_session,
-    get_read_session,
     RSSConfig,
     ForwardRule,
     RSSPattern,
 )
 
 from typing import Optional
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from core.db_factory import AsyncSessionManager
 from .auth import get_current_user
 import logging
 import base64
@@ -39,83 +39,95 @@ async def init_db_ops():
 async def rss_dashboard(request: Request, user=Depends(get_current_user)):
     if not user:
         return RedirectResponse(url="/rss/login", status_code=status.HTTP_302_FOUND)
-    db_session = get_read_session()
     try:
         # 初始化数据库操作对象
         await init_db_ops()
-        # 获取所有RSS配置
-        rss_configs = (
-            db_session.query(RSSConfig).options(joinedload(RSSConfig.rule)).all()
-        )
-        #  RSSConfig 对象转换为字典列表
-        configs_list = []
-        for config in rss_configs:
-            # 处理AI提取提示词，使用Base64编码避免JSON解析问题
-            ai_prompt = config.ai_extract_prompt
-            ai_prompt_encoded = None
-            if ai_prompt:
-                #  使用Base64编码处理提示词
-                ai_prompt_encoded = base64.b64encode(ai_prompt.encode("utf-8")).decode(
-                    "utf-8"
+        async with AsyncSessionManager(readonly=True) as db_session:
+            # 获取所有RSS配置
+            result = await db_session.execute(
+                select(RSSConfig).options(joinedload(RSSConfig.rule))
+            )
+            rss_configs = result.scalars().unique().all()
+
+            #  RSSConfig 对象转换为字典列表
+            configs_list = []
+            for config in rss_configs:
+                # 处理AI提取提示词，使用Base64编码避免JSON解析问题
+                ai_prompt = config.ai_extract_prompt
+                ai_prompt_encoded = None
+                if ai_prompt:
+                    #  使用Base64编码处理提示词
+                    ai_prompt_encoded = base64.b64encode(ai_prompt.encode("utf-8")).decode(
+                        "utf-8"
+                    )
+                    #  添加标记，表示这是Base64编码的内容
+                    ai_prompt_encoded = "BASE64:" + ai_prompt_encoded
+                configs_list.append(
+                    {
+                        "id": config.id,
+                        "rule_id": config.rule_id,
+                        "enable_rss": config.enable_rss,
+                        "rule_title": config.rule_title,
+                        "rule_description": config.rule_description,
+                        "language": config.language,
+                        "max_items": config.max_items,
+                        "is_auto_title": config.is_auto_title,
+                        "is_auto_content": config.is_auto_content,
+                        "is_ai_extract": config.is_ai_extract,
+                        "ai_extract_prompt": ai_prompt_encoded,
+                        "is_auto_markdown_to_html": config.is_auto_markdown_to_html,
+                        "enable_custom_title_pattern": config.enable_custom_title_pattern,
+                        "enable_custom_content_pattern": config.enable_custom_content_pattern,
+                    }
                 )
-                #  添加标记，表示这是Base64编码的内容
-                ai_prompt_encoded = "BASE64:" + ai_prompt_encoded
-            configs_list.append(
+            # 获取所有转发规则（用于创建新的RSS配置）
+            result = await db_session.execute(
+                select(ForwardRule).options(
+                    joinedload(ForwardRule.source_chat), joinedload(ForwardRule.target_chat)
+                )
+            )
+            rules = result.scalars().unique().all()
+
+            #  ForwardRule 对象转换为字典列表
+            rules_list = []
+            for rule in rules:
+                rules_list.append(
+                    {
+                        "id": rule.id,
+                        "source_chat": (
+                            {"id": rule.source_chat.id, "name": rule.source_chat.name}
+                            if rule.source_chat
+                            else None
+                        ),
+                        "target_chat": (
+                            {"id": rule.target_chat.id, "name": rule.target_chat.name}
+                            if rule.target_chat
+                            else None
+                        ),
+                    }
+                )
+            return templates.TemplateResponse(
+                "rss_dashboard.html",
                 {
-                    "id": config.id,
-                    "rule_id": config.rule_id,
-                    "enable_rss": config.enable_rss,
-                    "rule_title": config.rule_title,
-                    "rule_description": config.rule_description,
-                    "language": config.language,
-                    "max_items": config.max_items,
-                    "is_auto_title": config.is_auto_title,
-                    "is_auto_content": config.is_auto_content,
-                    "is_ai_extract": config.is_ai_extract,
-                    "ai_extract_prompt": ai_prompt_encoded,
-                    "is_auto_markdown_to_html": config.is_auto_markdown_to_html,
-                    "enable_custom_title_pattern": config.enable_custom_title_pattern,
-                    "enable_custom_content_pattern": config.enable_custom_content_pattern,
-                }
+                    "request": request,
+                    "user": user,
+                    "rss_configs": configs_list,
+                    "rules": rules_list,
+                    "rss_base_url": RSS_BASE_URL or "",
+                },
             )
-        # 获取所有转发规则（用于创建新的RSS配置）
-        rules = (
-            db_session.query(ForwardRule)
-            .options(
-                joinedload(ForwardRule.source_chat), joinedload(ForwardRule.target_chat)
-            )
-            .all()
-        )
-        #  ForwardRule 对象转换为字典列表
-        rules_list = []
-        for rule in rules:
-            rules_list.append(
-                {
-                    "id": rule.id,
-                    "source_chat": (
-                        {"id": rule.source_chat.id, "name": rule.source_chat.name}
-                        if rule.source_chat
-                        else None
-                    ),
-                    "target_chat": (
-                        {"id": rule.target_chat.id, "name": rule.target_chat.name}
-                        if rule.target_chat
-                        else None
-                    ),
-                }
-            )
+    except Exception as e:
+        logger.error(f"RSS仪表板加载失败: {e}", exc_info=True)
         return templates.TemplateResponse(
             "rss_dashboard.html",
             {
                 "request": request,
                 "user": user,
-                "rss_configs": configs_list,
-                "rules": rules_list,
+                "rss_configs": [],
+                "rules": [],
                 "rss_base_url": RSS_BASE_URL or "",
             },
         )
-    finally:
-        db_session.close()
 
 
 @router.get("/subscriptions/page", response_class=HTMLResponse)
@@ -152,110 +164,112 @@ async def rss_config_save(
     logger.info(f"接收到的AI提取提示词字符数: {len(ai_extract_prompt)}")
     # 初始化数据库操作
     await init_db_ops()
-    db_session = get_read_session()
     try:
-        # 创建或更新RSS配置
-        #  如果有config_id，表示更新
-        if config_id and config_id.strip():
-            config_id = int(config_id)
-            #  检查配置是否存在
-            rss_config = (
-                db_session.query(RSSConfig).filter(RSSConfig.id == config_id).first()
-            )
-            if not rss_config:
-                return JSONResponse(content={"success": False, "message": "配置不存在"})
-            # 更新配置
-            rss_config.rule_id = rule_id
-            rss_config.enable_rss = enable_rss
-            rss_config.rule_title = rule_title
-            rss_config.rule_description = rule_description
-            rss_config.language = language
-            rss_config.max_items = max_items
-            rss_config.is_auto_title = is_auto_title
-            rss_config.is_auto_content = is_auto_content
-            rss_config.is_ai_extract = is_ai_extract
-            rss_config.ai_extract_prompt = ai_extract_prompt
-            rss_config.is_auto_markdown_to_html = is_auto_markdown_to_html
-            rss_config.enable_custom_title_pattern = enable_custom_title_pattern
-            rss_config.enable_custom_content_pattern = enable_custom_content_pattern
-        else:
-            #  检查是否已经存在该规则的配
-            existing_config = (
-                db_session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
-            )
-            if existing_config:
-                return JSONResponse(
-                    content={"success": False, "message": "该规则已经存在RSS配置"}
+        async with AsyncSessionManager(readonly=False) as db_session:
+            # 创建或更新RSS配置
+            #  如果有config_id，表示更新
+            if config_id and config_id.strip():
+                config_id = int(config_id)
+                #  检查配置是否存在
+                result = await db_session.execute(
+                    select(RSSConfig).filter(RSSConfig.id == config_id)
                 )
-            #  创建新配置
-            rss_config = RSSConfig(
-                rule_id=rule_id,
-                enable_rss=enable_rss,
-                rule_title=rule_title,
-                rule_description=rule_description,
-                language=language,
-                max_items=max_items,
-                is_auto_title=is_auto_title,
-                is_auto_content=is_auto_content,
-                is_ai_extract=is_ai_extract,
-                ai_extract_prompt=ai_extract_prompt,
-                is_auto_markdown_to_html=is_auto_markdown_to_html,
-                enable_custom_title_pattern=enable_custom_title_pattern,
-                enable_custom_content_pattern=enable_custom_content_pattern,
+                rss_config = result.scalars().first()
+                if not rss_config:
+                    return JSONResponse(content={"success": False, "message": "配置不存在"})
+                # 更新配置
+                rss_config.rule_id = rule_id
+                rss_config.enable_rss = enable_rss
+                rss_config.rule_title = rule_title
+                rss_config.rule_description = rule_description
+                rss_config.language = language
+                rss_config.max_items = max_items
+                rss_config.is_auto_title = is_auto_title
+                rss_config.is_auto_content = is_auto_content
+                rss_config.is_ai_extract = is_ai_extract
+                rss_config.ai_extract_prompt = ai_extract_prompt
+                rss_config.is_auto_markdown_to_html = is_auto_markdown_to_html
+                rss_config.enable_custom_title_pattern = enable_custom_title_pattern
+                rss_config.enable_custom_content_pattern = enable_custom_content_pattern
+            else:
+                #  检查是否已经存在该规则的配
+                result = await db_session.execute(
+                    select(RSSConfig).filter(RSSConfig.rule_id == rule_id)
+                )
+                existing_config = result.scalars().first()
+                if existing_config:
+                    return JSONResponse(
+                        content={"success": False, "message": "该规则已经存在RSS配置"}
+                    )
+                #  创建新配置
+                rss_config = RSSConfig(
+                    rule_id=rule_id,
+                    enable_rss=enable_rss,
+                    rule_title=rule_title,
+                    rule_description=rule_description,
+                    language=language,
+                    max_items=max_items,
+                    is_auto_title=is_auto_title,
+                    is_auto_content=is_auto_content,
+                    is_ai_extract=is_ai_extract,
+                    ai_extract_prompt=ai_extract_prompt,
+                    is_auto_markdown_to_html=is_auto_markdown_to_html,
+                    enable_custom_title_pattern=enable_custom_title_pattern,
+                    enable_custom_content_pattern=enable_custom_content_pattern,
+                )
+            # 保存配置
+            db_session.add(rss_config)
+            await db_session.flush()
+            return JSONResponse(
+                {
+                    "success": True,
+                    "message": "RSS 配置已保存",
+                    "config_id": rss_config.id,
+                    "rule_id": rss_config.rule_id,
+                }
             )
-        # 保存配置
-        db_session.add(rss_config)
-        db_session.commit()
-        return JSONResponse(
-            {
-                "success": True,
-                "message": "RSS 配置已保存",
-                "config_id": rss_config.id,
-                "rule_id": rss_config.rule_id,
-            }
-        )
     except Exception as e:
         return JSONResponse({"success": False, "message": f"保存配置失败: {str(e)}"})
-    finally:
-        db_session.close()
 
 
 @router.get("/toggle/{rule_id}")
 async def toggle_rss(rule_id: int, user=Depends(get_current_user)):
     if not user:
         return RedirectResponse(url="/rss/login", status_code=status.HTTP_302_FOUND)
-    db_session = get_read_session()
     try:
         # 初始化数据库操作对象
         db_ops_instance = await init_db_ops()
-        # 获取配置
-        config = await db_ops_instance.get_rss_config(db_session, rule_id)
-        if not config:
+        async with AsyncSessionManager(readonly=False) as db_session:
+            # 获取配置
+            config = await db_ops_instance.get_rss_config(db_session, rule_id)
+            if not config:
+                return RedirectResponse(
+                    url="/rss/dashboarderror=配置不存在", status_code=status.HTTP_302_FOUND
+                )
+            #  切换启用/禁用状态
+            config.enable_rss = not config.enable_rss
             return RedirectResponse(
-                url="/rss/dashboarderror=配置不存在", status_code=status.HTTP_302_FOUND
+                url="/rss/dashboardsuccess=RSS状态已切换", status_code=status.HTTP_302_FOUND
             )
-        #  切换启用/禁用状态
-        await db_ops_instance.update_rss_config(
-            db_session, rule_id, enable_rss=not config.enable_rss
-        )
+    except Exception as e:
+        logger.error(f"切换RSS状态失败: {e}", exc_info=True)
         return RedirectResponse(
-            url="/rss/dashboardsuccess=RSS状态已切换", status_code=status.HTTP_302_FOUND
+            url="/rss/dashboarderror=操作失败", status_code=status.HTTP_302_FOUND
         )
-    finally:
-        db_session.close()
 
 
 @router.get("/delete/{rule_id}")
 async def delete_rss(rule_id: int, user=Depends(get_current_user)):
     if not user:
         return RedirectResponse(url="/rss/login", status_code=status.HTTP_302_FOUND)
-    db_session = get_read_session()
     try:
         # 初始化数据库操作对象
         db_ops_instance = await init_db_ops()
-        # 删除配置
-        config_deleted = await db_ops_instance.delete_rss_config(db_session, rule_id)
-        if config_deleted:
+        async with AsyncSessionManager(readonly=False) as db_session:
+            # 删除配置
+            config = await db_ops_instance.get_rss_config(db_session, rule_id)
+            if config:
+                await db_session.delete(config)
             # 删除关联的媒体和数据文件
             try:
                 logger.info(f"开始删除规则{rule_id} 的媒体和数据文件")
@@ -278,8 +292,11 @@ async def delete_rss(rule_id: int, user=Depends(get_current_user)):
         return RedirectResponse(
             url="/rss/dashboardsuccess=RSS配置已删除", status_code=status.HTTP_302_FOUND
         )
-    finally:
-        db_session.close()
+    except Exception as e:
+        logger.error(f"删除RSS配置失败: {e}", exc_info=True)
+        return RedirectResponse(
+            url="/rss/dashboarderror=删除失败", status_code=status.HTTP_302_FOUND
+        )
 
 
 @router.get("/patterns/{config_id}")
@@ -290,33 +307,41 @@ async def get_patterns(config_id: int, user=Depends(get_current_user)):
             {"success": False, "message": "未登录"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    db_session = get_read_session()
     try:
         # 初始化数据库操作对象
         db_ops_instance = await init_db_ops()
-        # 获取所有正则表达式数据
-        config = await db_ops_instance.get_rss_config_with_patterns(
-            db_session, config_id
+        async with AsyncSessionManager(readonly=True) as db_session:
+            # 获取所有正则表达式数据
+            config = await db_ops_instance.get_rss_config(db_session, config_id)
+            if not config:
+                return JSONResponse(
+                    {"success": False, "message": "配置不存在"},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                )
+            # 加载关联的patterns
+            result = await db_session.execute(
+                select(RSSPattern).filter(RSSPattern.rss_config_id == config.id)
+            )
+            patterns = result.scalars().all()
+
+            # 将模式转换为JSON格式
+            patterns_list = []
+            for pattern in patterns:
+                patterns_list.append(
+                    {
+                        "id": pattern.id,
+                        "pattern": pattern.pattern,
+                        "pattern_type": pattern.pattern_type,
+                        "priority": pattern.priority,
+                    }
+                )
+            return JSONResponse({"success": True, "patterns": patterns_list})
+    except Exception as e:
+        logger.error(f"获取模式失败: {e}", exc_info=True)
+        return JSONResponse(
+            {"success": False, "message": f"获取模式失败: {str(e)}"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-        if not config:
-            return JSONResponse(
-                {"success": False, "message": "配置不存在"},
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
-        # 将模式转换为JSON格式
-        patterns = []
-        for pattern in config.patterns:
-            patterns.append(
-                {
-                    "id": pattern.id,
-                    "pattern": pattern.pattern,
-                    "pattern_type": pattern.pattern_type,
-                    "priority": pattern.priority,
-                }
-            )
-        return JSONResponse({"success": True, "patterns": patterns})
-    finally:
-        db_session.close()
 
 
 @router.post("/pattern")
@@ -339,38 +364,37 @@ async def save_pattern(
             {"success": False, "message": "未登录"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    db_session = get_session()
     try:
         # 初始化数据库操作对象
         db_ops_instance = await init_db_ops()
-        # 检查RSS配置是否存在
-        config = await db_ops_instance.get_rss_config(db_session, rss_config_id)
-        if not config:
-            logger.error(f"RSS配置不存在：config_id={rss_config_id}")
-            return JSONResponse({"success": False, "message": "RSS配置不存在"})
-        logger.debug(f"找到RSS配置：{config}")
-        logger.info("创建新模式")
-        # 创建新模式
-        try:
-            pattern_obj = await db_ops_instance.create_rss_pattern(
-                db_session,
-                config.id,
-                pattern=pattern,
-                pattern_type=pattern_type,
-                priority=priority,
-            )
-            logger.info(f"新模式创建成功：{pattern_obj}")
-            return JSONResponse(
-                {"success": True, "message": "模式已创建", "pattern_id": pattern_obj.id}
-            )
-        except Exception as e:
-            logger.error(f"创建模式失败：{str(e)}")
-            raise
+        async with AsyncSessionManager(readonly=False) as db_session:
+            # 检查RSS配置是否存在
+            config = await db_ops_instance.get_rss_config(db_session, rss_config_id)
+            if not config:
+                logger.error(f"RSS配置不存在：config_id={rss_config_id}")
+                return JSONResponse({"success": False, "message": "RSS配置不存在"})
+            logger.debug(f"找到RSS配置：{config}")
+            logger.info("创建新模式")
+            # 创建新模式
+            try:
+                pattern_obj = RSSPattern(
+                    rss_config_id=config.id,
+                    pattern=pattern,
+                    pattern_type=pattern_type,
+                    priority=priority,
+                )
+                db_session.add(pattern_obj)
+                await db_session.flush()
+                logger.info(f"新模式创建成功：{pattern_obj}")
+                return JSONResponse(
+                    {"success": True, "message": "模式已创建", "pattern_id": pattern_obj.id}
+                )
+            except Exception as e:
+                logger.error(f"创建模式失败：{str(e)}")
+                raise
     except Exception as e:
         logger.error(f"保存模式时发生错误：{str(e)}", exc_info=True)
         return JSONResponse({"success": False, "message": f"保存模式失败: {str(e)}"})
-    finally:
-        db_session.close()
 
 
 @router.delete("/pattern/{pattern_id}")
@@ -381,26 +405,23 @@ async def delete_pattern(pattern_id: int, user=Depends(get_current_user)):
             {"success": False, "message": "未登录"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    db_session = get_session()
     try:
         # 初始化数据库操作对象
         await init_db_ops()
-        # 查询模式
-        pattern = (
-            db_session.query(RSSPattern).filter(RSSPattern.id == pattern_id).first()
-        )
-        if not pattern:
-            return JSONResponse({"success": False, "message": "找不到该模式"})
-        # 删除模式
-        db_session.delete(pattern)
-        db_session.commit()
-        return JSONResponse({"success": True, "message": "模式删除成功"})
+        async with AsyncSessionManager(readonly=False) as db_session:
+            # 查询模式
+            result = await db_session.execute(
+                select(RSSPattern).filter(RSSPattern.id == pattern_id)
+            )
+            pattern = result.scalars().first()
+            if not pattern:
+                return JSONResponse({"success": False, "message": "找不到该模式"})
+            # 删除模式
+            await db_session.delete(pattern)
+            return JSONResponse({"success": True, "message": "模式删除成功"})
     except Exception as e:
-        db_session.rollback()
         logger.error(f"删除模式时出错: {str(e)}")
         return JSONResponse({"success": False, "message": f"删除模式失败: {str(e)}"})
-    finally:
-        db_session.close()
 
 
 @router.delete("/patterns/{config_id}")
@@ -411,30 +432,25 @@ async def delete_all_patterns(config_id: int, user=Depends(get_current_user)):
             {"success": False, "message": "未登录"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    db_session = get_session()
     try:
         # 初始化数据库操作对象
         await init_db_ops()
-        #  查询并删除指定配置的所有模式
-        patterns = (
-            db_session.query(RSSPattern)
-            .filter(RSSPattern.rss_config_id == config_id)
-            .all()
-        )
-        count = len(patterns)
-        for pattern in patterns:
-            db_session.delete(pattern)
-        db_session.commit()
-        logger.info(f"已删除配置 {config_id} 的所有模式")
-        return JSONResponse({"success": True, "message": f"已删除所有模式"})
+        async with AsyncSessionManager(readonly=False) as db_session:
+            #  查询并删除指定配置的所有模式
+            result = await db_session.execute(
+                select(RSSPattern).filter(RSSPattern.rss_config_id == config_id)
+            )
+            patterns = result.scalars().all()
+            count = len(patterns)
+            for pattern in patterns:
+                await db_session.delete(pattern)
+            logger.info(f"已删除配置 {config_id} 的所有模式")
+            return JSONResponse({"success": True, "message": f"已删除所有模式"})
     except Exception as e:
-        db_session.rollback()
         logger.error(f"删除配置 {config_id} 的所有模式时出错: {str(e)}")
         return JSONResponse(
             {"success": False, "message": f"删除所有模式失败: {str(e)}"}
         )
-    finally:
-        db_session.close()
 
 
 @router.post("/test-regex")

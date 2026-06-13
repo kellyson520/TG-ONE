@@ -20,7 +20,9 @@ from telethon.tl.types import Chat as TelegramChat
 
 from typing import Any, Dict, List, Optional
 
-from models.models import Chat, ForwardRule, get_session
+from models.models import Chat, ForwardRule
+from sqlalchemy import select
+from core.db_factory import AsyncSessionManager
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -344,12 +346,11 @@ class EnhancedSearchSystem:
         self, query: str, filters: SearchFilter
     ) -> List[SearchResult]:
         """搜索已绑定的聊天"""
-        session = get_session()
-        try:
-            query_obj = session.query(Chat)
+        async with AsyncSessionManager(readonly=True) as session:
+            stmt = select(Chat)
 
             if query.strip():
-                query_obj = query_obj.filter(
+                stmt = stmt.filter(
                     (Chat.name.ilike(f"%{query}%"))
                     | (Chat.telegram_chat_id.ilike(f"%{query}%"))
                     | (Chat.chat_type.ilike(f"%{query}%"))
@@ -357,23 +358,23 @@ class EnhancedSearchSystem:
 
             # 类型筛选
             if filters.chat_types:
-                query_obj = query_obj.filter(Chat.chat_type.in_(filters.chat_types))
+                stmt = stmt.filter(Chat.chat_type.in_(filters.chat_types))
 
-            chats = query_obj.all()
+            result = await session.execute(stmt)
+            chats = result.scalars().all()
             results = []
 
             for chat in chats:
                 # 计算规则数量作为活跃度
-                rule_count = (
-                    session.query(ForwardRule)
-                    .filter(
+                rule_count_result = await session.execute(
+                    select(ForwardRule).filter(
                         (ForwardRule.source_chat_id == chat.id)
                         | (ForwardRule.target_chat_id == chat.id)
                     )
-                    .count()
                 )
+                rule_count = len(rule_count_result.scalars().all())
 
-                result = SearchResult(
+                result_item = SearchResult(
                     id=f"bound_chat_{chat.id}",
                     title=chat.name or "未命名",
                     description=f"ID: {chat.telegram_chat_id} | 类型: {chat.chat_type or '未知'}",
@@ -397,12 +398,9 @@ class EnhancedSearchSystem:
                         "description": chat.description,
                     },
                 )
-                results.append(result)
+                results.append(result_item)
 
             return results
-
-        finally:
-            session.close()
 
     async def _search_public_chats(
         self, query: str, filters: SearchFilter
@@ -478,8 +476,11 @@ class EnhancedSearchSystem:
 
         try:
             # 从数据库获取已绑定的聊天
-            session = get_session()
-            bound_chats = session.query(Chat).filter(Chat.is_active == True).all()
+            async with AsyncSessionManager(readonly=True) as session:
+                result = await session.execute(
+                    select(Chat).filter(Chat.is_active == True)
+                )
+                bound_chats = result.scalars().all()
 
             # 限制搜索的聊天数量，避免太耗时
             max_chats_to_search = 10
@@ -536,7 +537,7 @@ class EnhancedSearchSystem:
                                 query, message.message
                             )
 
-                            result = SearchResult(
+                            result_item = SearchResult(
                                 id=f"message_{chat_id}_{message.id}",
                                 title=f"💬 {chat_record.name or '未知聊天'}",
                                 description=self._truncate_message(
@@ -560,7 +561,7 @@ class EnhancedSearchSystem:
                                     "forwards": getattr(message, "forwards", 0),
                                 },
                             )
-                            results.append(result)
+                            results.append(result_item)
 
                     search_count += 1
 
@@ -573,7 +574,6 @@ class EnhancedSearchSystem:
                     )
                     continue
 
-            session.close()
             logger.info(f"消息搜索完成，找到 {len(results)} 条结果")
             return results
 
@@ -592,8 +592,11 @@ class EnhancedSearchSystem:
 
         try:
             # 从数据库获取已绑定的聊天
-            session = get_session()
-            bound_chats = session.query(Chat).filter(Chat.is_active == True).all()
+            async with AsyncSessionManager(readonly=True) as session:
+                result = await session.execute(
+                    select(Chat).filter(Chat.is_active == True)
+                )
+                bound_chats = result.scalars().all()
 
             # 限制搜索的聊天数量
             max_chats_to_search = 5  # 媒体搜索更耗时，减少聊天数量
@@ -687,7 +690,7 @@ class EnhancedSearchSystem:
                                         ):
                                             continue
 
-                                        result = SearchResult(
+                                        result_item = SearchResult(
                                             id=f"media_{chat_id}_{message.id}",
                                             title=f"{media_info['emoji']} {media_info['filename']}",
                                             description=f"来源: {chat_record.name} | 大小: {self._format_file_size(media_info['size'])}",
@@ -712,7 +715,7 @@ class EnhancedSearchSystem:
                                                 ),
                                             },
                                         )
-                                        results.append(result)
+                                        results.append(result_item)
 
                             # 延迟避免API限制
                             await asyncio.sleep(0.2)
@@ -727,7 +730,6 @@ class EnhancedSearchSystem:
                     logger.warning(f"搜索聊天 {chat_record.name} 的媒体失败: {e}")
                     continue
 
-            session.close()
             logger.info(f"媒体搜索完成，找到 {len(results)} 个结果")
             return results
 

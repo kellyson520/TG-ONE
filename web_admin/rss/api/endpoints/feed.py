@@ -12,7 +12,9 @@ from core.constants import get_rule_media_dir, get_rule_data_dir
 from ...crud.entry import get_entries, create_entry, delete_entry
 from core.cache.unified_cache import cached
 import mimetypes
-from models.models import get_read_session as get_session, RSSConfig
+from models.models import RSSConfig
+from sqlalchemy import select
+from core.db_factory import AsyncSessionManager
 from datetime import datetime
 from ai import get_ai_provider
 from models.models import ForwardRule
@@ -122,20 +124,20 @@ async def root():
 @cached(cache_name="rss.get_feed", ttl=30)
 async def get_feed(rule_id: int, request: Request):
     """返回规则对应的RSS Feed"""
-    session = None
     try:
         # 创建数据库会话
-        session = get_session()
-        # 查询规则配置
-        rss_config = (
-            session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
-        )
-        if not rss_config or not rss_config.enable_rss:
-            logger.warning(f"规则 {rule_id} 的RSS未启用或不存在")
-            raise HTTPException(status_code=404, detail="RSS feed 未启用或不存在")
-        base_url = _get_rss_public_base_url()
-        logger.debug(f"请求客户 {request.client}")
-        logger.info(f"最终使用的媒体基础URL: {base_url}")
+        async with AsyncSessionManager(readonly=True) as session:
+            # 查询规则配置
+            result = await session.execute(
+                select(RSSConfig).filter(RSSConfig.rule_id == rule_id)
+            )
+            rss_config = result.scalars().first()
+            if not rss_config or not rss_config.enable_rss:
+                logger.warning(f"规则 {rule_id} 的RSS未启用或不存在")
+                raise HTTPException(status_code=404, detail="RSS feed 未启用或不存在")
+            base_url = _get_rss_public_base_url()
+            logger.debug(f"请求客户 {request.client}")
+            logger.info(f"最终使用的媒体基础URL: {base_url}")
         # 获取规则对应的条目
         entries = await get_entries(rule_id)
         logger.info(f"获取 {len(entries)} 个条目")
@@ -195,10 +197,7 @@ async def get_feed(rule_id: int, request: Request):
     except Exception as e:
         logger.error(f"生成RSS feed时出错 {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-    finally:
-        # 确保会话被关闭
-        if session:
-            session.close()
+    pass
 
 
 @router.get("/media/{rule_id}/{filename}")
@@ -251,15 +250,14 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
             f"接收到新条目数据: 规则ID={rule_id}, 标题='{entry_data.get('title', '无标题')}', 媒体数量={media_count}, 包含上下文={has_context}"
         )
         # 获取 RSS 配置信息，确定最大条目数
-        session = get_session()
         max_items = None
-        try:
-            rss_config = (
-                session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
+        rss_config = None
+        async with AsyncSessionManager(readonly=True) as session:
+            result = await session.execute(
+                select(RSSConfig).filter(RSSConfig.rule_id == rule_id)
             )
+            rss_config = result.scalars().first()
             max_items = rss_config.max_items
-        finally:
-            session.close()
         # 验证媒体数据
         if media_count > 0:
             media_filenames = []
@@ -355,9 +353,11 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
         # 使用AI提取内容
         if rss_config.is_ai_extract:
             try:
-                rule = (
-                    session.query(ForwardRule).filter(ForwardRule.id == rule_id).first()
-                )
+                async with AsyncSessionManager(readonly=True) as session:
+                    result = await session.execute(
+                        select(ForwardRule).filter(ForwardRule.id == rule_id)
+                    )
+                    rule = result.scalars().first()
                 provider = await get_ai_provider(rule.ai_model)
                 json_text = await provider.process_message(
                     message=entry.content or "",
@@ -407,9 +407,6 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                     logger.error(f"处理JSON数据时出 {str(e)}")
             except Exception as e:
                 logger.error(f"AI提取内容时出 {str(e)}")
-            finally:
-                if session:
-                    session.close()
         logger.info(
             f"启用自定义标题模 {rss_config.enable_custom_title_pattern}, 启用自定义内容模 {rss_config.enable_custom_content_pattern}"
         )
@@ -424,12 +421,13 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                 # 如果启用了标题正则表达式提取
                 if rss_config.enable_custom_title_pattern:
                     # 直接使用会话查询标题模式并按优先级排
-                    title_patterns = (
-                        session.query(RSSPattern)
-                        .filter_by(rss_config_id=rss_config.id, pattern_type="title")
-                        .order_by(RSSPattern.priority)
-                        .all()
-                    )
+                    async with AsyncSessionManager(readonly=True) as session:
+                        result = await session.execute(
+                            select(RSSPattern)
+                            .filter_by(rss_config_id=rss_config.id, pattern_type="title")
+                            .order_by(RSSPattern.priority)
+                        )
+                        title_patterns = result.scalars().all()
                     logger.info(f"找到 {len(title_patterns)} 个标题模")
                     # 设置初始处理文本
                     processing_content = original_content
@@ -466,12 +464,13 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                 # 如果启用了内容正则表达式提取
                 if rss_config.enable_custom_content_pattern:
                     # 直接使用会话查询内容模式并按优先级排
-                    content_patterns = (
-                        session.query(RSSPattern)
-                        .filter_by(rss_config_id=rss_config.id, pattern_type="content")
-                        .order_by(RSSPattern.priority)
-                        .all()
-                    )
+                    async with AsyncSessionManager(readonly=True) as session:
+                        result = await session.execute(
+                            select(RSSPattern)
+                            .filter_by(rss_config_id=rss_config.id, pattern_type="content")
+                            .order_by(RSSPattern.priority)
+                        )
+                        content_patterns = result.scalars().all()
                     logger.info(f"找到 {len(content_patterns)} 个内容模")
                     # 设置初始处理文本
                     processing_content = original_content
