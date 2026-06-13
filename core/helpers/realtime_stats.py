@@ -48,8 +48,7 @@ class RealtimeStatsCache:
             return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
-            mod = __import__('services.forward_service', fromlist=['forward_service'])
-            forward_service = mod.forward_service
+            from services.forward_service import forward_service
 
             stats = await forward_service.get_forward_stats()
 
@@ -84,8 +83,7 @@ class RealtimeStatsCache:
             return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
-            mod = __import__('services.dedup_service', fromlist=['dedup_service'])
-            dedup_service = mod.dedup_service
+            from services.dedup_service import dedup_service
 
             stats = await dedup_service.get_dedup_config()
 
@@ -120,8 +118,7 @@ class RealtimeStatsCache:
             return cast(Dict[str, Any], self._cache[cache_key])
 
         try:
-            mod = __import__('services.analytics_service', fromlist=['analytics_service'])
-            analytics_service = mod.analytics_service
+            from services.analytics_service import analytics_service
 
             stats = await analytics_service.get_system_status()
 

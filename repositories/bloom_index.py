@@ -3,7 +3,6 @@ import hashlib
 import mmap
 import threading
 
-import duckdb
 import logging
 import os
 import time
@@ -332,6 +331,7 @@ class BloomIndex:
             logger.debug("未找到任何文件")
             return 0
         count = 0
+        import duckdb
         con = duckdb.connect(database=":memory:")
         try:
             # 分批读取，避免占用过多内存

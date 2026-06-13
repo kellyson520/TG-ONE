@@ -20,8 +20,7 @@ async def get_user_id() -> int:
 async def get_current_rule(event: Any) -> Optional[Tuple[Any, Any]]:
     """获取当前选中的规则 (Delegate to RuleQueryService)"""
     try:
-        mod = __import__('services.rule_service', fromlist=['RuleQueryService'])
-        RuleQueryService = mod.RuleQueryService
+        from services.rule_service import RuleQueryService
 
         result = await RuleQueryService.get_current_rule_for_chat(event)
 
@@ -42,8 +41,7 @@ async def get_current_rule(event: Any) -> Optional[Tuple[Any, Any]]:
 async def get_all_rules(event: Any) -> Optional[List[Any]]:
     """获取当前聊天的所有规则 (Delegate to RuleQueryService)"""
     try:
-        mod = __import__('services.rule_service', fromlist=['RuleQueryService'])
-        RuleQueryService = mod.RuleQueryService
+        from services.rule_service import RuleQueryService
 
         current_chat = await event.get_chat()
         chat_id = abs(current_chat.id)
@@ -90,8 +88,7 @@ async def get_channel_admins(client: Any, chat_id: Union[int, str]) -> Optional[
 async def is_admin(event: Any, client: Optional[Any] = None) -> bool:
     """检查用户是否为管理员 (Delegate to UserService)"""
     try:
-        mod = __import__('services.user_service', fromlist=['user_service'])
-        user_service = mod.user_service
+        from services.user_service import user_service
         return bool(await user_service.is_admin(event.sender_id, event, client))
     except Exception as e:
         logger.error(f"检查管理员权限时出错: {str(e)}")
@@ -105,8 +102,7 @@ async def is_admin_or_owner(user_id: Union[int, str]) -> bool:
         user_id: 用户的 Telegram ID
     """
     try:
-        mod = __import__('services.user_service', fromlist=['user_service'])
-        user_service = mod.user_service
+        from services.user_service import user_service
         return bool(await user_service.is_admin(int(user_id)))
     except Exception as e:
         logger.error(f"is_admin_or_owner 检查出错: {str(e)}")
@@ -117,10 +113,8 @@ async def is_admin_or_owner(user_id: Union[int, str]) -> bool:
 async def get_sender_info(event: Any, rule_id: Any) -> Optional[str]:
     """获取发送者信息 (保持原逻辑，涉及大量 Telethon 交互)"""
     try:
-        mod_batch = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
-        get_batch_user_service = mod_batch.get_batch_user_service
-        mod_api = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
-        get_api_optimizer = mod_api.get_api_optimizer
+        from services.batch_user_service import get_batch_user_service
+        from services.network.api_optimization import get_api_optimizer
 
         batch_service = get_batch_user_service()
         api_optimizer = get_api_optimizer()
@@ -170,22 +164,21 @@ def get_admin_list() -> List[int]:
 
 async def check_keywords(rule: Any, message_text: str, event: Optional[Any] = None) -> bool:
     """Delegate to RuleFilterService"""
-    mod = __import__('services.rule.filter', fromlist=['RuleFilterService'])
-    return bool(await mod.RuleFilterService.check_keywords(rule, message_text, event))
+    from services.rule.filter import RuleFilterService
+    return bool(await RuleFilterService.check_keywords(rule, message_text, event))
 
 async def process_user_info(event: Any, rule_id: Any, message_text: str) -> str:
     """Delegate to UserService"""
     try:
-        mod = __import__('services.user_service', fromlist=['user_service'])
-        user_service = mod.user_service
+        from services.user_service import user_service
         return str(await user_service.process_user_info(event, rule_id, message_text))
     except Exception as e:
         logger.error(f"处理用户信息失败: {str(e)}")
         return message_text
 
 async def get_db_ops() -> Any:
-    mod = __import__('repositories.db_operations', fromlist=['DBOperations'])
-    return await mod.DBOperations.create()
+    from repositories.db_operations import DBOperations
+    return await DBOperations.create()
 
 async def get_user_client() -> Any:
     from core.container import container
@@ -206,6 +199,6 @@ async def get_main_module() -> Any:
 
 def get_session() -> Any:
     """Delegate to core.db_factory"""
-    mod = __import__('core.db_factory', fromlist=['get_session'])
-    return mod.get_session()
+    from core.db_factory import get_session as _get_session
+    return _get_session()
 
