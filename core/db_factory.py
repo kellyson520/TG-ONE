@@ -275,7 +275,8 @@ async def AsyncSessionManager(readonly: bool = False) -> AsyncGenerator[AsyncSes
                         "during cancellation: %s",
                         rollback_err,
                     )
-        except Exception:
+        except Exception as e:
+            logger.error("[DbFactory] AsyncSessionManager 操作失败: %s", e)
             if session.in_transaction():
                 await session.rollback()
             raise
@@ -300,7 +301,8 @@ def SessionManager(readonly: bool = False) -> Generator[Session, None, None]:
         yield session
         if not readonly:
             session.commit()
-    except Exception:
+    except Exception as e:
+        logger.error("[DbFactory] SessionManager 操作失败: %s", e)
         session.rollback()
         raise
     finally:
@@ -499,7 +501,8 @@ async def async_get_database_info() -> Optional[Dict[str, Any]]:
             "table_count": 0,  # Could be improved
             "index_count": 0
         }
-    except Exception:
+    except Exception as e:
+        logger.error("[DbFactory] async_get_database_info 获取数据库信息失败: %s", e)
         return None
 
 

@@ -222,8 +222,8 @@ class StatsRepository:
                                 forward_count=vals.get("forward_count", 0),
                                 saved_traffic_bytes=vals.get("saved_traffic_bytes", 0)
                             ))
-                        except Exception:
-                            # 并发竞争时可能已被插入，重试 UPDATE
+                        except Exception as e:
+                            logger.error("[StatsFlush] ChatStatistics 并发upsert失败，重试UPDATE: %s", e)
                             await session.execute(stmt)
 
                 # 批量处理 RuleStatistics（upsert 累加）
@@ -248,7 +248,8 @@ class StatsRepository:
                                 error_count=vals.get("error_count", 0),
                                 filtered_count=vals.get("filtered_count", 0),
                             ))
-                        except Exception:
+                        except Exception as e:
+                            logger.error("[StatsFlush] RuleStatistics 并发upsert失败，重试UPDATE: %s", e)
                             await session.execute(stmt)
 
                 await session.commit()
