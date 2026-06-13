@@ -154,6 +154,20 @@ def _configure_duckdb_resource_limits(
     except Exception as e:
         logger.warning(f"配置 DuckDB 内存限制失败: context={context}, error={e}")
         logger.debug("配置 DuckDB 内存限制失败详细信息", exc_info=True)
+# ---------------------------------------------------------------------------
+# Shared DuckDB in-memory connection (lazy singleton)
+# ---------------------------------------------------------------------------
+_duckdb_conn = None
+
+def get_connection():
+    """Return a shared DuckDB in-memory connection, configured once."""
+    global _duckdb_conn
+    if _duckdb_conn is None:
+        _duckdb_conn = duckdb.connect(database=":memory:")
+        _configure_duckdb_resource_limits(_duckdb_conn, context="shared_connection")
+        _configure_httpfs_and_s3(_duckdb_conn)
+        logger.debug("已创建共享 DuckDB 内存连接")
+    return _duckdb_conn
 
 
 def _remove_file_best_effort(path: str, context: str) -> bool:
@@ -223,12 +237,8 @@ def write_parquet(
     logger.debug(f"输出文件: {out_file}, 临时文件: {tmp_file}")
 
     try:
-        con = duckdb.connect(database=":memory:")
+        con = get_connection()
         try:
-            logger.debug("配置 DuckDB 连接")
-            _configure_duckdb_resource_limits(con, context="write_parquet")
-            _configure_httpfs_and_s3(con)
-
             success = False
             # 方案A：优先使用 pandas DataFrame
             try:
@@ -274,8 +284,7 @@ def write_parquet(
                 shutil.move(tmp_file, out_file)
                 
         finally:
-            con.close()
-
+            pass  # shared connection — do not close
         if not os.path.exists(out_file):
             raise IOError(f"目标文件缺失: {out_file}")
 
@@ -299,7 +308,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
     safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
     
     try:
-        con = duckdb.connect(database=":memory:")
+        con = get_connection()
         try:
             import json
             with _archive_json_temp_file() as fjson:
@@ -315,8 +324,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
                 if os.path.exists(json_tmp_path):
                     os.remove(json_tmp_path)
         finally:
-            con.close()
-
+            pass  # shared connection — do not close
         shutil.move(tmp_file, out_file)
         logger.debug(f"写入 Parquet 分块完成: {out_file}")
 
@@ -403,12 +411,8 @@ def query_parquet_duckdb(
         except Exception as e:
             logger.warning(f"记录查询日志时出错: {e}")
             logger.debug("记录查询日志详细信息", exc_info=True)
-    con = duckdb.connect(database=":memory:")
+    con = get_connection()
     try:
-        logger.debug("配置 DuckDB 连接")
-        _configure_duckdb_resource_limits(con, context="query_parquet_duckdb")
-        _configure_httpfs_and_s3(con)
-        
         logger.debug("执行查询")
         if files_param:
             cur = con.execute(sql, [files_param] + params)
@@ -425,9 +429,7 @@ def query_parquet_duckdb(
         logger.debug("查询 Parquet 文件详细信息", exc_info=True)
         return []
     finally:
-        con.close()
-
-
+        pass  # shared connection — do not close
 def _list_day_partitions(table: str) -> List[str]:
     logger.debug(f"列出日分区: table={table}")
     base = os.path.join(ARCHIVE_ROOT, table)
@@ -458,7 +460,7 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
             os.close(fd)
             
             safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
-            con = duckdb.connect(database=":memory:")
+            con = get_connection()
             try:
                 # 使用通配模式仅读取 part-*.parquet
                 con.execute(
@@ -466,8 +468,7 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
                     [pattern]
                 )
             finally:
-                con.close()
-            
+                pass  # shared connection — do not close
             shutil.move(tmp_file, out_file)
             
             # 删除已合并的小文件

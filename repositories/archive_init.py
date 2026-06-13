@@ -48,17 +48,14 @@ def init_archive_system() -> bool:
             logger.debug("创建目录失败详细信息", exc_info=True)
             success = False
 
-    # 2. 验证DuckDB可用性
+    # 2. 验证DuckDB可用性 (reuses shared connection from archive_store)
     try:
         logger.debug("验证 DuckDB 可用性")
-        import duckdb
+        from repositories.archive_store import get_connection
 
-        con = duckdb.connect(database=":memory:")
-        try:
-            con.execute("SELECT 1 as test")
-            result = con.fetchone()
-        finally:
-            con.close()
+        con = get_connection()
+        con.execute("SELECT 1 as test")
+        result = con.fetchone()
         logger.debug(f"DuckDB test result: {result} (type: {type(result)})")
         # 确保结果正确解包并转换为整数对比
         if result and int(result[0]) == 1:
