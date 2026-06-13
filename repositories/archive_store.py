@@ -76,7 +76,8 @@ def _archive_json_temp_file():
 
 
 def _duckdb_string_literal(value: str) -> str:
-    return "'" + str(value).replace("'", "''") + "'"
+    """Properly escape a value for use inside a DuckDB single-quoted string literal."""
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "''") + "'"
 
 
 def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
@@ -218,7 +219,7 @@ def write_parquet(
     os.close(fd) # Windows 必须立即关闭 fd
     
     # DuckDB 需要正斜杠路径且转义单引号
-    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+    safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
     logger.debug(f"输出文件: {out_file}, 临时文件: {tmp_file}")
 
     try:
@@ -235,7 +236,7 @@ def write_parquet(
                 df = pd.DataFrame(rows)
                 con.register("df_rows", df)
                 con.execute(
-                    f"COPY df_rows TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
+                    f"COPY df_rows TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
                 )
                 success = True
             except Exception as e:
@@ -252,7 +253,7 @@ def write_parquet(
                     try:
                         # 使用参数绑定 (?) 代替字符串拼接，自动处理路径中的空格和特殊字符
                         con.execute(
-                            f"COPY (SELECT * FROM read_json_auto(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                            f"COPY (SELECT * FROM read_json_auto(?)) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                             [json_tmp_path]
                         )
                         success = True
@@ -295,7 +296,7 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
     
     fd, tmp_file = _archive_temp_file(suffix=".parquet.tmp")
     os.close(fd)
-    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+    safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
     
     try:
         con = duckdb.connect(database=":memory:")
@@ -306,9 +307,9 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
                 json_tmp_path = fjson.name
             
             try:
-                safe_json_path = json_tmp_path.replace("\\", "/").replace("'", "''")
+                safe_json_path = _duckdb_string_literal(json_tmp_path.replace("\\", "/"))
                 con.execute(
-                    f"COPY (SELECT * FROM read_json_auto('{safe_json_path}')) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                    f"COPY (SELECT * FROM read_json_auto({safe_json_path})) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                 )
             finally:
                 if os.path.exists(json_tmp_path):
@@ -456,12 +457,12 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
             fd, tmp_file = _archive_temp_file(suffix=".parquet.compact.tmp")
             os.close(fd)
             
-            safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+            safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
             con = duckdb.connect(database=":memory:")
             try:
                 # 使用通配模式仅读取 part-*.parquet
                 con.execute(
-                    f"COPY (SELECT * FROM read_parquet(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                    f"COPY (SELECT * FROM read_parquet(?)) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                     [pattern]
                 )
             finally:

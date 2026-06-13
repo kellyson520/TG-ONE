@@ -17,11 +17,42 @@ _ALLOWED_TABLES = frozenset({
     "task_queue",
 })
 _TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_ORDER_BY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*(\s+(ASC|DESC))?(,\s*[A-Za-z_][A-Za-z0-9_.]*(\s+(ASC|DESC))?)*$", re.IGNORECASE)
+_WHERE_SQL_FORBIDDEN_RE = re.compile(
+    r";|/\*|\*/|--\s|(?<!\w)(UNION|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|GRANT|REVOKE|TRUNCATE)\s",
+    re.IGNORECASE,
+)
 
 
 def _validate_table_name(table_name: str) -> None:
     if table_name not in _ALLOWED_TABLES or not _TABLE_NAME_RE.fullmatch(table_name):
         raise ValueError(f"Unsupported archive table: {table_name!r}")
+
+
+def _validate_order_by(order_by: str) -> str:
+    """Whitelist-check ORDER BY clause: only column refs + ASC/DESC."""
+    if not _ORDER_BY_RE.fullmatch(order_by.strip()):
+        raise ValueError(f"Invalid ORDER BY clause: {order_by!r}")
+    return order_by
+
+
+def _validate_where_sql(where_sql: str) -> str:
+    """Reject obviously dangerous patterns in raw WHERE fragments."""
+    if _WHERE_SQL_FORBIDDEN_RE.search(where_sql):
+        raise ValueError(f"Rejected potentially dangerous WHERE clause: {where_sql!r}")
+    return where_sql
+
+
+def _validate_parquet_path(path: str) -> str:
+    """Ensure constructed parquet path does not contain traversal or injection sequences."""
+    # Reject path traversal
+    if ".." in path:
+        raise ValueError(f"Path traversal detected in parquet path: {path!r}")
+    # For local paths, reject shell metacharacters
+    if not ("://" in path):
+        if any(c in path for c in (";", "`", "$", "\n", "\r")):
+            raise ValueError(f"Unsafe characters in parquet path: {path!r}")
+    return path
 
 
 class UnifiedQueryBridge:
@@ -56,6 +87,7 @@ class UnifiedQueryBridge:
         
         sqlite_table = f"sqlite_scan('{self.db_path}', '{table_name}')"
         parquet_path = f"{self.archive_root}/{table_name}/**/*.parquet"
+        _validate_parquet_path(parquet_path)
         
         # 确定可用数据源
         has_cold = False
@@ -114,7 +146,9 @@ class UnifiedQueryBridge:
         use_cold: bool = True
     ) -> List[Dict[str, Any]]:
         """基础统一查询 (复用 query_aggregate)"""
-        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT {limit} OFFSET {offset}"
+        _validate_where_sql(where_sql)
+        _validate_order_by(order_by)
+        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT {int(limit)} OFFSET {int(offset)}"
         return await self.query_aggregate(table_name, sql, params, use_hot, use_cold)
 
     async def get_task_detail(self, task_id: int) -> Optional[Dict[str, Any]]:
