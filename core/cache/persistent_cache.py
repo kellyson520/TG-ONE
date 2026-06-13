@@ -108,11 +108,12 @@ class SQLitePersistentCache(BasePersistentCache):
             try:
                 conn.execute("SELECT 1")
                 return conn
-            except Exception:
+            except Exception as e:
+                logger.debug("连接健康检查失败，将重新连接: %s", e)
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("关闭旧数据库连接失败: %s", e)
                 self._local.conn = None
 
         try:

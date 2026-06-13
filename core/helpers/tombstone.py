@@ -79,7 +79,8 @@ class TombstoneManager:
                 f.write(payload)
             # 原子移动
             os.replace(temp_path, self._tombstone_path)
-        except Exception:
+        except Exception as e:
+            logger.warning("墓碑状态写入磁盘失败: %s", e)
             try:
                 os.unlink(temp_path)
             except FileNotFoundError:
@@ -148,8 +149,8 @@ class TombstoneManager:
                         # 增加容错：如果文件损坏，捕获异常
                         try:
                             state_dump = json.loads(f.read())
-                        except Exception:
-                            logger.error("❌ 墓碑文件损坏，状态丢失！将重置为空状态。")
+                        except Exception as e:
+                            logger.warning("墓碑文件读取/解析失败: %s", e)
                             state_dump = {}
 
                     for obj in self._managed_objects:
