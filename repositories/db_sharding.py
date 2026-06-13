@@ -24,12 +24,32 @@ ALLOWED_TABLE_NAMES = frozenset({
     'rule_statistics', 'rule_syncs', 'system_configurations', 'task_queue', 'users',
 })
 
+# 审计报告第3/4项：分区日期字段白名单
+ALLOWED_PARTITION_DATE_FIELDS = frozenset({
+    'created_at', 'date',
+})
+
 
 def _validate_table_name(name: str) -> str:
     """校验表名，防止SQL注入"""
     if name not in ALLOWED_TABLE_NAMES:
         raise ValueError(f"Invalid table name: {name!r}")
     return name
+
+
+def _validate_view_name(view_name: str, table: str) -> str:
+    """校验分区视图名，防止SQL注入（审计报告第4项）
+    
+    只允许格式为 {table}_p_{partition_key} 的视图名，
+    其中 table 已通过白名单校验，partition_key 仅含字母数字。
+    """
+    expected_prefix = f"{table}_p_"
+    if not view_name.startswith(expected_prefix):
+        raise ValueError(f"Invalid view name: {view_name!r}")
+    suffix = view_name[len(expected_prefix):]
+    if not suffix or not suffix.isalnum():
+        raise ValueError(f"Invalid view name suffix: {view_name!r}")
+    return view_name
 
 
 class ShardingStrategy:
@@ -362,45 +382,63 @@ class PartitionManager:
     def create_time_partitions(
         self, table: str, start_date: datetime, days: int = 30
     ) -> List[str]:
-        """创建时间分区（逻辑分区）"""
+        """创建时间分区（逻辑分区）
+
+        修复N+1连接问题：在单个session内执行所有分区创建（审计报告第1项）
+        修复SQL注入：table白名单 + date_field白名单校验（审计报告第3项）
+        """
+        # 审计报告第3项：校验表名白名单
+        _validate_table_name(table)
+
+        # 确定日期字段并校验白名单
+        if table in ["error_logs"]:
+            date_field = "created_at"
+        elif table in ["chat_statistics", "rule_statistics"]:
+            date_field = "date"
+        else:
+            date_field = "created_at"
+
+        if date_field not in ALLOWED_PARTITION_DATE_FIELDS:
+            raise ValueError(f"Invalid date field: {date_field!r}")
+
         partitions = []
 
-        for i in range(days):
-            date = start_date + timedelta(days=i)
-            partition_key = self.time_partitioner.get_partition_key(date)
+        # 修复N+1：单个session执行所有分区创建，避免每个分区都新建连接
+        try:
+            with get_session() as session:
+                for i in range(days):
+                    date = start_date + timedelta(days=i)
+                    partition_key = self.time_partitioner.get_partition_key(date)
 
-            # 在SQLite中，我们使用视图来模拟分区
-            view_name = f"{table}_p_{partition_key}"
+                    # 在SQLite中，我们使用视图来模拟分区
+                    view_name = f"{table}_p_{partition_key}"
 
-            try:
-                with get_session() as session:
-                    # 创建分区视图
-                    start_time, end_time = self.time_partitioner.get_partition_range(
-                        partition_key
-                    )
+                    try:
+                        # 创建分区视图
+                        start_time, end_time = self.time_partitioner.get_partition_range(
+                            partition_key
+                        )
 
-                    if table in ["error_logs"]:
-                        date_field = "created_at"
-                    elif table in ["chat_statistics", "rule_statistics"]:
-                        date_field = "date"
-                    else:
-                        date_field = "created_at"
+                        view_sql = f"""
+                        CREATE VIEW IF NOT EXISTS {view_name} AS
+                        SELECT * FROM {table}
+                        WHERE {date_field} >= '{start_time.isoformat()}'
+                        AND {date_field} < '{end_time.isoformat()}'
+                        """
 
-                    view_sql = f"""
-                    CREATE VIEW IF NOT EXISTS {view_name} AS
-                    SELECT * FROM {table}
-                    WHERE {date_field} >= '{start_time.isoformat()}'
-                    AND {date_field} < '{end_time.isoformat()}'
-                    """
+                        session.execute(text(view_sql))
 
-                    session.execute(text(view_sql))
-                    session.commit()
+                        partitions.append(view_name)
+                        logger.debug(f"Created partition view: {view_name}")
 
-                    partitions.append(view_name)
-                    logger.debug(f"Created partition view: {view_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to create partition {view_name}: {e}")
+                        session.rollback()
 
-            except Exception as e:
-                logger.error(f"Failed to create partition {view_name}: {e}")
+                session.commit()
+
+        except Exception as e:
+            logger.error(f"Failed to create time partitions for {table}: {e}")
 
         return partitions
 
@@ -441,7 +479,13 @@ class PartitionManager:
         return cleaned
 
     def get_partition_statistics(self, table: str) -> Dict[str, Any]:
-        """获取分区统计信息"""
+        """获取分区统计信息
+
+        修复SQL注入：校验table白名单 + view_name前缀校验（审计报告第4项）
+        """
+        # 审计报告第4项：入口处校验表名白名单
+        _validate_table_name(table)
+
         stats = {
             "total_partitions": 0,
             "partition_sizes": {},
@@ -465,9 +509,9 @@ class PartitionManager:
                     partition_key = view_name.split("_p_")[-1]
                     partition_keys.append(partition_key)
 
-                    # 获取分区大小
+                    # 获取分区大小（审计报告第4项：使用view_name前缀校验替代表名白名单）
                     try:
-                        _validate_table_name(view_name)
+                        _validate_view_name(view_name, table)
                         size_result = session.execute(
                             text(f"SELECT COUNT(*) FROM {view_name}")
                         )
