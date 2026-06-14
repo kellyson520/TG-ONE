@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import httpx
 import threading
 from typing import Any, Dict, Optional
 
@@ -23,21 +22,23 @@ class TelegramPushHandler(logging.Handler):
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.timeout = timeout
-        self._async_client: Optional[httpx.AsyncClient] = None
-        self._sync_client: Optional[httpx.Client] = None
+        self._async_client: Optional["httpx.AsyncClient"] = None
+        self._sync_client: Optional["httpx.Client"] = None
         self._client_lock = threading.Lock()
 
-    def _get_async_client(self) -> httpx.AsyncClient:
+    def _get_async_client(self) -> "httpx.AsyncClient":
         """延迟初始化复用的异步客户端"""
         if self._async_client is None or self._async_client.is_closed:
-            self._async_client = httpx.AsyncClient(timeout=self.timeout)
+            import httpx as _httpx
+            self._async_client = _httpx.AsyncClient(timeout=self.timeout)
         return self._async_client
 
-    def _get_sync_client(self) -> httpx.Client:
+    def _get_sync_client(self) -> "httpx.Client":
         """延迟初始化复用的同步客户端（线程安全）"""
         with self._client_lock:
             if self._sync_client is None or self._sync_client.is_closed:
-                self._sync_client = httpx.Client(timeout=self.timeout)
+                import httpx as _httpx
+                self._sync_client = _httpx.Client(timeout=self.timeout)
             return self._sync_client
 
     def emit(self, record: logging.LogRecord) -> None:

@@ -6,7 +6,6 @@ Dynamically adjusts system concurrency/throughput based on resource usage.
 
 import time
 import logging
-import psutil
 from services.network.pid import PIDController
 
 logger = logging.getLogger(__name__)
@@ -48,6 +47,7 @@ class AdaptiveBackpressure:
         try:
             # Metric: CPU Usage (System wide)
             # interval=None means non-blocking (from last call)
+            import psutil
             cpu = psutil.cpu_percent(interval=None)
             
             # Metric: Memory Usage (Protect against OOM)
@@ -86,5 +86,6 @@ class AdaptiveBackpressure:
 
     def should_throttle(self) -> bool:
         """Returns True if system is overloaded beyond recovery range."""
+        import psutil
         return psutil.cpu_percent(interval=None) > 95.0 or psutil.virtual_memory().percent > 95.0
 

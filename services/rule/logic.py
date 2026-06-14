@@ -11,11 +11,6 @@ from core.helpers.error_handler import handle_errors
 from enums.enums import ForwardMode
 from schemas.sub_rules import KeywordDTO, ReplaceRuleDTO
 
-try:
-    import yaml
-except ImportError:
-    yaml = None
-
 logger = logging.getLogger(__name__)
 
 
@@ -493,7 +488,10 @@ class RuleLogicService:
         }
         
         if format.lower() == "yaml":
-            if not yaml: return {'success': False, 'error': 'PyYAML not installed'}
+            try:
+                import yaml
+            except ImportError:
+                return {'success': False, 'error': 'PyYAML not installed'}
             content = yaml.dump(export_data, allow_unicode=True)
         else:
             content = json.dumps(export_data, ensure_ascii=False, indent=2)
@@ -504,7 +502,10 @@ class RuleLogicService:
     async def import_rule_config(self, rule_id: int, content: str, format: str = "json") -> Dict[str, Any]:
         """导入规则配置"""
         if format.lower() == "yaml":
-            if not yaml: return {'success': False, 'error': 'PyYAML not installed'}
+            try:
+                import yaml
+            except ImportError:
+                return {'success': False, 'error': 'PyYAML not installed'}
             data = yaml.safe_load(content)
         else:
             import json

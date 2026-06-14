@@ -11,7 +11,6 @@ from models.models import RSSSubscription
 from core.algorithms.aimd import AIMDScheduler
 from services.network.timing_wheel import HashedTimingWheel
 from services.network.circuit_breaker import CircuitBreaker, CircuitOpenException
-import aiohttp
 
 logger = logging.getLogger(__name__)
 RSS_PULL_ERROR_RETRY_SECONDS = 60
@@ -156,6 +155,7 @@ class RSSPullService:
         session = container.http_session
         if not session or session.closed:
             # Fallback if container session is not ready (e.g. standalone tests)
+            import aiohttp
             timeout = aiohttp.ClientTimeout(total=30)
             session = aiohttp.ClientSession(timeout=timeout)
             should_close = True
