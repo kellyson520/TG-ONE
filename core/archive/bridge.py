@@ -2,11 +2,9 @@ from typing import List, Dict, Any, Optional, Union
 import logging
 import re
 from datetime import datetime, timedelta
-from core.helpers.lazy_import import LazyImport
-duckdb = LazyImport("duckdb")
 from core.config import settings
 from repositories.archive_store import ARCHIVE_ROOT
-from repositories.duckdb_connection import configure_httpfs_and_s3 as _configure_httpfs_and_s3
+from repositories.duckdb_connection import get_connection as _get_shared_connection
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +64,7 @@ class UnifiedQueryBridge:
 
     def _get_connection(self):
         if self._con is None:
-            self._con = duckdb.connect(database=':memory:')
-            # 配置 S3/HTTP 访问
-            _configure_httpfs_and_s3(self._con)
-            # 安装并加载 sqlite 扩展
+            self._con = _get_shared_connection()
             self._con.execute("INSTALL sqlite; LOAD sqlite;")
         return self._con
 
