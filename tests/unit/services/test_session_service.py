@@ -15,8 +15,9 @@ def session_service():
 
 @pytest.fixture
 def mock_container():
-    # Patch the container in the module where SessionService logic resides
-    with patch("services.session_service.container") as mock:
+    # Patch the container in the modules where SessionService logic resides
+    with patch("services.session_history.container") as mock, \
+         patch("services.session_dedup.container"):
         # Mock DB Session
         mock_db_session = AsyncMock()
         mock.db.session.return_value.__aenter__.return_value = mock_db_session
@@ -43,9 +44,11 @@ def mock_rule_mgmt():
 
 @pytest.fixture
 def mock_forward_settings():
-    with patch("services.session_service.forward_settings_service") as mock:
-        mock.get_global_media_settings = AsyncMock(return_value={})
-        mock.update_global_media_setting = AsyncMock(return_value=True)
+    mock = MagicMock()
+    mock.get_global_media_settings = AsyncMock(return_value={})
+    mock.update_global_media_setting = AsyncMock(return_value=True)
+    with patch("services.session_time.forward_settings_service", mock), \
+         patch("services.session_history.forward_settings_service", mock):
         yield mock
 
 @pytest.mark.asyncio
@@ -221,6 +224,7 @@ async def test_start_history_task_respects_message_limit(
 async def test_get_quick_stats_logs_history_limit_failure(
     session_service,
     mock_forward_settings,
+    mock_rule_mgmt,
     monkeypatch,
     caplog,
 ):
@@ -247,11 +251,11 @@ async def test_get_quick_stats_logs_history_limit_failure(
     import core.container as container_module
 
     monkeypatch.setattr(container_module, "container", fake_container)
-    monkeypatch.setattr("services.session_service.container", fake_container)
+    monkeypatch.setattr("services.session_history.container", fake_container)
     mock_forward_settings.get_global_media_settings = AsyncMock(
         side_effect=RuntimeError("history limit settings unavailable")
     )
-    caplog.set_level(logging.WARNING, logger="services.session_service")
+    caplog.set_level(logging.WARNING, logger="services.session_history")
 
     result = await session_service.get_quick_stats(user_id)
 
