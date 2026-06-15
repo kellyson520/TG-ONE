@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 from core.helpers.lazy_import import LazyImport
 duckdb = LazyImport("duckdb")
 from core.config import settings
-from repositories.archive_store import ARCHIVE_ROOT, _configure_httpfs_and_s3
+from repositories.archive_store import ARCHIVE_ROOT
+from repositories.duckdb_connection import configure_httpfs_and_s3 as _configure_httpfs_and_s3
 
 logger = logging.getLogger(__name__)
 

@@ -331,44 +331,40 @@ class BloomIndex:
             logger.debug("未找到任何文件")
             return 0
         count = 0
-        import duckdb
-        con = duckdb.connect(database=":memory:")
-        try:
-            # 分批读取，避免占用过多内存
-            # 注意：按文件逐个处理
-            for fp in files:
-                try:
-                    logger.debug(f"处理文件: {fp}")
-                    cur = con.execute(
-                        "SELECT chat_id, signature, content_hash FROM read_parquet(?) WHERE signature IS NOT NULL OR content_hash IS NOT NULL",
-                        [fp],
-                    )
-                    rows = cur.fetchall()
-                    logger.debug(f"查询结果: {len(rows)} 行")
-                    if not rows:
-                        continue
-                    # 组装行格式，复用 add_batch
-                    payload: List[Dict[str, Any]] = []
-                    for chat_id, signature, content_hash in rows:
-                        payload.append(
-                            {
-                                "chat_id": str(chat_id),
-                                "signature": signature,
-                                "content_hash": content_hash,
-                            }
-                        )
-                    self.add_batch(
-                        "media_signatures", payload, ["signature", "content_hash"]
-                    )
-                    count += len(rows)
-                    logger.debug(f"处理完成，累计处理 {count} 行")
-                except Exception as e:
-                    logger.error(f"处理文件失败 {fp}: {e}")
-                    logger.debug("处理文件失败详细信息", exc_info=True)
+        from repositories.duckdb_connection import get_connection
+        con = get_connection()
+        # 分批读取，避免占用过多内存
+        # 注意：按文件逐个处理
+        for fp in files:
+            try:
+                logger.debug(f"处理文件: {fp}")
+                cur = con.execute(
+                    "SELECT chat_id, signature, content_hash FROM read_parquet(?) WHERE signature IS NOT NULL OR content_hash IS NOT NULL",
+                    [fp],
+                )
+                rows = cur.fetchall()
+                logger.debug(f"查询结果: {len(rows)} 行")
+                if not rows:
                     continue
-        finally:
-            logger.debug("关闭 DuckDB 连接")
-            con.close()
+                # 组装行格式，复用 add_batch
+                payload: List[Dict[str, Any]] = []
+                for chat_id, signature, content_hash in rows:
+                    payload.append(
+                        {
+                            "chat_id": str(chat_id),
+                            "signature": signature,
+                            "content_hash": content_hash,
+                        }
+                    )
+                self.add_batch(
+                    "media_signatures", payload, ["signature", "content_hash"]
+                )
+                count += len(rows)
+                logger.debug(f"处理完成，累计处理 {count} 行")
+            except Exception as e:
+                logger.error(f"处理文件失败 {fp}: {e}")
+                logger.debug("处理文件失败详细信息", exc_info=True)
+                continue
         logger.debug(f"重建完成，总共处理 {count} 行")
         return count
 
