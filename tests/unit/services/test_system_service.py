@@ -40,11 +40,11 @@ async def test_get_system_status_logs_worker_stats_failure():
         ),
         patch("version.get_version", return_value="test-version"),
         patch("services.update_service.update_service", update_service),
-        patch("core.container.container", container),
         patch("services.system_service.logger.warning") as warning,
     ):
-
-        status = await SystemService().get_system_status()
+        svc = SystemService()
+        svc.set_worker(worker)
+        status = await svc.get_system_status()
 
     assert status["worker"] == {}
     assert any(

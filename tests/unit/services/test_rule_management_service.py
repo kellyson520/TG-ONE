@@ -5,6 +5,11 @@ from models.models import ForwardRule, Chat, Keyword
 from core.container import container
 
 @pytest.fixture(autouse=True)
+def inject_deps():
+    """Inject container dependencies into the global rule_management_service singleton."""
+    _ = container.rule_management_service
+
+@pytest.fixture(autouse=True)
 def mock_audit_service():
     with patch("services.audit_service.audit_service") as mock_audit:
         mock_audit.log_event = AsyncMock()

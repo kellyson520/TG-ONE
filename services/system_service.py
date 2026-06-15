@@ -15,12 +15,16 @@ class SystemService:
     Service for system-wide configurations and state.
     """
     def __init__(self):
-        pass # Settings managed via core.config.settings and config_service
-        
-    @property
-    def container(self):
-        from core.container import container
-        return container
+        self._db = None
+        self._worker = None
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+
+    def set_worker(self, worker):
+        """注入 Worker 服务"""
+        self._worker = worker
 
     async def is_maintenance_mode(self) -> bool:
         """检查系统是否处于维护模式"""
@@ -28,7 +32,7 @@ class SystemService:
             from models.system import SystemConfiguration
             from sqlalchemy import select
             
-            async with self.container.db.get_session() as s:
+            async with self._db.get_session() as s:
                 result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
                 config = result.scalar_one_or_none()
                 return config and config.value.lower() == "true"
@@ -42,7 +46,7 @@ class SystemService:
             from models.system import SystemConfiguration
             from sqlalchemy import select
             
-            async with self.container.db.get_session() as s:
+            async with self._db.get_session() as s:
                 result = await s.execute(select(SystemConfiguration).filter_by(key="maintenance_mode"))
                 config = result.scalar_one_or_none()
                 
@@ -75,7 +79,7 @@ class SystemService:
         try:
             from models.system import SystemConfiguration
             from sqlalchemy import select
-            async with self.container.db.get_session() as s:
+            async with self._db.get_session() as s:
                 result = await s.execute(select(SystemConfiguration).limit(limit))
                 return result.scalars().all()
         except Exception as e:
@@ -87,7 +91,7 @@ class SystemService:
         try:
             from models.system import ErrorLog  # ErrorLog 定义在 models.system，非 models.models
             from sqlalchemy import select, desc
-            async with self.container.db.get_session() as s:
+            async with self._db.get_session() as s:
                 result = await s.execute(
                     select(ErrorLog).order_by(desc(ErrorLog.created_at)).limit(limit)
                 )
@@ -253,9 +257,8 @@ class SystemService:
                 await async_vacuum_database()
             else:
                 # Standard 模式：执行 PRAGMA optimize
-                from core.container import container
                 from sqlalchemy import text
-                async with container.db.get_session() as session:
+                async with self._db.get_session() as session:
                     await session.execute(text("PRAGMA optimize;"))
                     await session.commit()
             
@@ -308,9 +311,8 @@ class SystemService:
             # 获取 Worker 性能统计
             worker_stats = {}
             try:
-                from core.container import container
-                if hasattr(container, 'worker') and container.worker:
-                    worker_stats = container.worker.get_performance_stats()
+                if self._worker:
+                    worker_stats = self._worker.get_performance_stats()
             except Exception as e:
                 logger.warning(f"获取 Worker 性能统计失败: {e}")
 
@@ -352,7 +354,7 @@ class SystemService:
         from services.network.api_optimization import get_api_optimizer
         from core.algorithms.hll import GlobalHLL
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             # 1. 基础规则统计
             stmt_count = select(func.count()).select_from(ForwardRule)
             rule_count = (await s.execute(stmt_count)).scalar() or 0
@@ -399,7 +401,7 @@ class SystemService:
             from models.models import RuleLog
             from sqlalchemy import select, func
             
-            async with self.container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 # 检查最近 1 小时的失败数
                 one_hour_ago = datetime.now() - timedelta(hours=1)
                 stmt_total = select(func.count(RuleLog.id)).where(RuleLog.created_at >= one_hour_ago)
@@ -437,7 +439,7 @@ class SystemService:
             export_path = settings.TEMP_DIR / f"analytics_export_{int(time.time())}.csv"
             one_day_ago = datetime.now() - timedelta(days=1)
             
-            async with self.container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 stmt = select(RuleLog).where(RuleLog.created_at >= one_day_ago).order_by(RuleLog.created_at.desc()).limit(1000)
                 logs = (await session.execute(stmt)).scalars().all()
                 
@@ -466,7 +468,7 @@ class SystemService:
         """获取 SQLite 的 PRAGMA 配置信息"""
         try:
             from sqlalchemy import text
-            async with self.container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 # 获取 auto_vacuum
                 res_v = await session.execute(text("PRAGMA auto_vacuum;"))
                 auto_vacuum = res_v.scalar()
@@ -930,7 +932,7 @@ class GuardService:
         """获取数据库健康状态 (Handler Purity 兼容)"""
         try:
             from sqlalchemy import text
-            async with self.container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 # 简单的连接测试
                 await session.execute(text("SELECT 1"))
                 return {

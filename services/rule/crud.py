@@ -19,10 +19,20 @@ logger = logging.getLogger(__name__)
 class RuleCRUDService:
     def __init__(self):
         self._db = None
+        self._rule_repo = None
+        self._bus = None
 
     def set_db(self, db):
         """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
         self._db = db
+
+    def set_rule_repo(self, rule_repo):
+        """注入规则仓储"""
+        self._rule_repo = rule_repo
+
+    def set_bus(self, bus):
+        """注入事件总线"""
+        self._bus = bus
     
     @handle_errors(default_return={'rules': [], 'total': 0, 'page': 0, 'page_size': 10})
     @log_execution()
@@ -98,7 +108,7 @@ class RuleCRUDService:
     async def get_rule_detail(self, rule_id: int) -> Dict[str, Any]:
         """获取规则详情"""
         # Delegate to Repository for fetch
-        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        rule_dto = await self._rule_repo.get_by_id(rule_id)
         
         if not rule_dto:
              return {'success': False, 'error': '规则不存在'}
@@ -181,8 +191,8 @@ class RuleCRUDService:
             async with self._db.get_session() as session:
                 # 验证源聊天和目标聊天是否存在
                 # Use Repo find_chat
-                source_chat_dto = await self.container.rule_repo.find_chat(source_chat_id)
-                target_chat_dto = await self.container.rule_repo.find_chat(target_chat_id)
+                source_chat_dto = await self._rule_repo.find_chat(source_chat_id)
+                target_chat_dto = await self._rule_repo.find_chat(target_chat_id)
                 
                 if not source_chat_dto:
                     return {'success': False, 'error': f'源聊天 {source_chat_id} 不存在'}
@@ -212,11 +222,11 @@ class RuleCRUDService:
                 await session.refresh(new_rule)
                 
                 # Invalidate Caches
-                self.container.rule_repo.clear_cache(int(source_chat_dto.telegram_chat_id))
-                self.container.rule_repo.clear_cache(int(target_chat_dto.telegram_chat_id))
+                self._rule_repo.clear_cache(int(source_chat_dto.telegram_chat_id))
+                self._rule_repo.clear_cache(int(target_chat_dto.telegram_chat_id))
                 
                 # [QoS Fix] 发送更新事件
-                await self.container.bus.publish("RULE_UPDATED", {"rule_id": new_rule.id, "action": "create"})
+                await self._bus.publish("RULE_UPDATED", {"rule_id": new_rule.id, "action": "create"})
                 
                 return {'success': True, 'rule_id': new_rule.id}
 
@@ -253,11 +263,11 @@ class RuleCRUDService:
             
             # Cache Invalidation
             if source_id: 
-                self.container.rule_repo.clear_cache(source_id)
-            if target_id: self.container.rule_repo.clear_cache(target_id)
+                self._rule_repo.clear_cache(source_id)
+            if target_id: self._rule_repo.clear_cache(target_id)
             
             # [QoS Fix] 发送更新事件，触发监听器刷新优先级映射
-            await self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "update"})
+            await self._bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "update"})
             
             return {'success': True, 'rule_id': rule_id, 'source_chat_id': source_id, 'target_chat_id': target_id}
 
@@ -279,10 +289,10 @@ class RuleCRUDService:
             await session.delete(rule)
             await session.commit()
             
-            if source_id: self.container.rule_repo.clear_cache(source_id)
-            if target_id: self.container.rule_repo.clear_cache(target_id)
+            if source_id: self._rule_repo.clear_cache(source_id)
+            if target_id: self._rule_repo.clear_cache(target_id)
             
             # [QoS Fix] 发送更新事件
-            await self.container.bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
+            await self._bus.publish("RULE_UPDATED", {"rule_id": rule_id, "action": "delete"})
             
             return {'success': True, 'message': 'Deleted successfully', 'source_chat_id': source_id, 'target_chat_id': target_id}

@@ -93,17 +93,13 @@ async def test_pull_error_reschedules_without_sleep(monkeypatch):
     service.timing_wheel = FakeTimingWheel()
     sub = make_subscription(current_interval=20)
     session = FakeSession(sub)
+    service.set_db(FakeDB(session))
     sleep_calls = []
 
     async def fail_sleep(delay):
         sleep_calls.append(delay)
         raise AssertionError(f"RSS pull error path slept instead of rescheduling: {delay}")
 
-    monkeypatch.setattr(
-        rss_module,
-        "container",
-        SimpleNamespace(db=FakeDB(session)),
-    )
     monkeypatch.setattr(rss_module.asyncio, "sleep", fail_sleep)
     service._do_pull = AsyncMock(side_effect=RuntimeError("network down"))
 

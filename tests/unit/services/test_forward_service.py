@@ -3,12 +3,16 @@ from unittest.mock import AsyncMock, patch
 from services.forward_service import ForwardService
 from sqlalchemy import select
 from models.models import ForwardRule, Chat
+from core.container import container
 
 @pytest.mark.asyncio
 class TestForwardService:
     @pytest.fixture
     def service(self):
-        return ForwardService()
+        svc = ForwardService()
+        svc.set_db(container.db)
+        svc.set_rule_repo(container.rule_repo)
+        return svc
 
     async def test_get_forward_stats_empty(self, service):
         # Patch services.analytics_service.analytics_service which is used inside the method

@@ -169,7 +169,11 @@ class Container:
         if not hasattr(self, '_dedup_service'):
             from services.dedup_service import dedup_service
             dedup_service.set_db(self.db)
+            dedup_service.set_repos(self.dedup_repo, self.stats_repo)
             dedup_service.set_coordinator(self.group_commit_coordinator)
+            # Inject db into the dedup engine (SmartDeduplicator)
+            from services.dedup.engine import smart_deduplicator
+            smart_deduplicator.set_db(self.db)
             # 延迟注册监听
             self.bus.subscribe("FORWARD_SUCCESS", dedup_service.on_forward_success)
             self._dedup_service = dedup_service
@@ -205,6 +209,8 @@ class Container:
     def forward_service(self) -> ForwardService:
         if not hasattr(self, '_forward_service'):
             from services.forward_service import forward_service
+            forward_service.set_db(self.db)
+            forward_service.set_rule_repo(self.rule_repo)
             self._forward_service = forward_service
         return self._forward_service
 
@@ -226,15 +232,22 @@ class Container:
     @property
     def rule_management_service(self) -> RuleManagementService:
         if not hasattr(self, '_rule_management_service'):
-            from services.rule.facade import RuleManagementService
-            self._rule_management_service = RuleManagementService()
+            from services.rule.facade import rule_management_service as svc
+            svc.set_db(self.db)
+            svc.set_rule_repo(self.rule_repo)
+            svc.set_bus(self.bus)
+            if self.scheduler:
+                svc.set_scheduler(self.scheduler)
+            self._rule_management_service = svc
         return self._rule_management_service
 
     @property
     def rule_query_service(self) -> RuleQueryService:
         if not hasattr(self, '_rule_query_service'):
             from services.rule.query import RuleQueryService
-            self._rule_query_service = RuleQueryService()
+            svc = RuleQueryService()
+            svc.set_repos(self.rule_repo, self.db)
+            self._rule_query_service = svc
         return self._rule_query_service
         
     @property
@@ -255,7 +268,11 @@ class Container:
     def system_service(self) -> Any:
         if not hasattr(self, '_system_service'):
             from services.system_service import SystemService
-            self._system_service = SystemService()
+            svc = SystemService()
+            svc.set_db(self.db)
+            if self.worker:
+                svc.set_worker(self.worker)
+            self._system_service = svc
         return self._system_service
 
     @property
@@ -289,7 +306,6 @@ class Container:
     def ui(self) -> Any:
         """UI 渲染器集合"""
         if not hasattr(self, '_ui'):
-            from core.container import UIContainer
             self._ui = UIContainer(self)
         return self._ui
 
@@ -300,6 +316,10 @@ class Container:
         # 挂载生命周期管理器 (为了让 update_service 等能够访问)
         from core.lifecycle import get_lifecycle
         self._lifecycle = get_lifecycle(user_client, bot_client)
+        
+        # 注入生命周期到 update_service (打破循环依赖)
+        from services.update_service import update_service
+        update_service.set_lifecycle(self._lifecycle)
         
         # 初始化服务
         from services.download_service import DownloadService
@@ -334,10 +354,18 @@ class Container:
         self.worker = WorkerService(user_client, self.task_repo, pipeline, self.downloader)
         logger.info("WorkerService 已初始化 (依赖注入完成)")
         
+        # Inject worker into system_service if already initialized
+        if hasattr(self, '_system_service'):
+            self._system_service.set_worker(self.worker)
+        
         # 初始化调度器
         from scheduler.summary_scheduler import SummaryScheduler
         self.scheduler = SummaryScheduler(user_client, bot_client, self.task_repo, self.db)
         logger.info("总结调度器已初始化 (依赖注入完成)")
+        
+        # Inject scheduler into rule_management_service if already initialized
+        if hasattr(self, '_rule_management_service'):
+            self._rule_management_service.set_scheduler(self.scheduler)
         
         # 初始化优化的聊天更新器
         from scheduler.optimized_chat_updater import OptimizedChatUpdater
@@ -352,6 +380,7 @@ class Container:
         # 初始化 RSS 拉取服务 (AIMD)
         from services.rss_pull_service import RSSPullService
         self.rss_puller = RSSPullService(user_client, bot_client)
+        self.rss_puller.set_db(self.db)
         logger.info("RSS 拉取服务已初始化")
 
         # 让 ChatInfoService 能够调用 Telegram API
@@ -372,6 +401,10 @@ class Container:
             timeout = aiohttp.ClientTimeout(total=30)
             self.http_session = aiohttp.ClientSession(timeout=timeout)
             logger.info("全局 HTTP 会话已初始化")
+        
+        # Inject http_session into services that need it
+        if self.rss_puller:
+            self.rss_puller.set_http_session(self.http_session)
         
         # Start Hotword Collector Worker only when enabled; on small VPS this avoids
         # an idle heartbeat/monitor task when hotword analysis is disabled.

@@ -24,6 +24,20 @@ class RuleManagementService:
         self.crud.set_db(db)
         self.logic.set_db(db)
 
+    def set_rule_repo(self, rule_repo):
+        """注入规则仓储"""
+        self.crud.set_rule_repo(rule_repo)
+        self.logic.set_rule_repo(rule_repo)
+
+    def set_bus(self, bus):
+        """注入事件总线"""
+        self.crud.set_bus(bus)
+        self.logic.set_bus(bus)
+
+    def set_scheduler(self, scheduler):
+        """注入调度器"""
+        self.logic.set_scheduler(scheduler)
+
     # --- CRUD Delegates ---
     async def get_rule_list(self, page: int = 0, page_size: int = 10, search_query: str = None) -> Dict[str, Any]:
         return await self.crud.get_rule_list(page, page_size, search_query)

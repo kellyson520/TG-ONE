@@ -10,7 +10,6 @@ from datetime import datetime
 
 from core.config import settings
 from services.system_service import guard_service
-from core.container import container
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +44,15 @@ class UpdateService:
         self._is_updating = False
         self._state_file = settings.BASE_DIR / "data" / "update_state.json"
         self._bus = None
+        self._lifecycle = None
         self._tasksList = []  # 管理本服务启动的任务
         
         # 确保数据目录存在
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def set_lifecycle(self, lifecycle):
+        """注入生命周期管理器 (由 Container 调用，打破循环依赖)"""
+        self._lifecycle = lifecycle
 
     def set_bus(self, bus):
         """注入事件总线"""
@@ -167,8 +171,8 @@ class UpdateService:
             await self._emit_event("SYSTEM_ALERT", {"message": f"🚀 系统更新已触发 (目标: {target_version})，正在准备环境并重启..."})
             
             # 4. 退出进程，移交控制权给 entrypoint.sh
-            if container.lifecycle:
-                container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+            if self._lifecycle:
+                self._lifecycle.shutdown(EXIT_CODE_UPDATE)
             else:
                 sys.exit(EXIT_CODE_UPDATE)
 
@@ -202,8 +206,8 @@ class UpdateService:
                 json.dump(state, f, indent=2)
                 
             await self._emit_event("SYSTEM_ALERT", {"message": "🚑 系统紧急回滚已触发，正在重启恢复..."})
-            if container.lifecycle:
-                container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+            if self._lifecycle:
+                self._lifecycle.shutdown(EXIT_CODE_UPDATE)
             else:
                 sys.exit(EXIT_CODE_UPDATE)
         except SystemExit:
@@ -397,14 +401,14 @@ class UpdateService:
 
                         # 如果系统已经在关闭流程中，我们只尝试更新退出码，不再发送事件（防止 EventBus 关闭导致的挂起）
                         is_closing = False
-                        if container.lifecycle and container.lifecycle.stop_event.is_set():
+                        if self._lifecycle and self._lifecycle.stop_event.is_set():
                             is_closing = True
 
                         if not is_closing:
                             await self._emit_event("SYSTEM_ALERT", {"message": "📡 检测到外部更新指令，系统正在重启以应用变更..."})
 
-                        if container.lifecycle:
-                            container.lifecycle.shutdown(EXIT_CODE_UPDATE)
+                        if self._lifecycle:
+                            self._lifecycle.shutdown(EXIT_CODE_UPDATE)
                         else:
                             sys.exit(EXIT_CODE_UPDATE)
 

@@ -18,6 +18,8 @@ class RuleLogicService:
     def __init__(self):
         self._db = None
         self._rule_repo = None
+        self._bus = None
+        self._scheduler = None
 
     def set_db(self, db):
         """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
@@ -26,6 +28,14 @@ class RuleLogicService:
     def set_rule_repo(self, rule_repo):
         """注入规则仓储"""
         self._rule_repo = rule_repo
+
+    def set_bus(self, bus):
+        """注入事件总线"""
+        self._bus = bus
+
+    def set_scheduler(self, scheduler):
+        """注入调度器"""
+        self._scheduler = scheduler
         
     @handle_errors(default_return={'success': False, 'error': 'Rule copy failed'})
     async def copy_rule(self, source_rule_id: int, target_rule_id: Optional[int] = None) -> Dict[str, Any]:
@@ -34,11 +44,11 @@ class RuleLogicService:
              return {'success': False, 'error': 'Target Rule ID required'}
              
         # Use Repository to get ORM for deep modification
-        source_rule = await self.container.rule_repo.get_full_rule_orm(source_rule_id)
+        source_rule = await self._rule_repo.get_full_rule_orm(source_rule_id)
         if not source_rule:
             return {'success': False, 'error': f'Source rule {source_rule_id} not found'}
             
-        target_rule = await self.container.rule_repo.get_full_rule_orm(target_rule_id)
+        target_rule = await self._rule_repo.get_full_rule_orm(target_rule_id)
         if not target_rule:
             return {'success': False, 'error': f'Target rule {target_rule_id} not found'}
 
@@ -87,10 +97,10 @@ class RuleLogicService:
                 target_rule.rule_syncs.append(RuleSync(sync_rule_id=sync.sync_rule_id))
             
         source_chat_id = int(target_rule.source_chat.telegram_chat_id) if target_rule.source_chat else None
-        await self.container.rule_repo.save_rule(target_rule)
+        await self._rule_repo.save_rule(target_rule)
         
         if source_chat_id:
-            self.container.rule_repo.clear_cache(source_chat_id)
+            self._rule_repo.clear_cache(source_chat_id)
         
         return {'success': True, 'message': 'Rule copied successfully'}
 
@@ -110,11 +120,11 @@ class RuleLogicService:
              return {'success': False, 'error': f'无法获取源聊天信息: {source_input}'}
              
         # 3. 检查规则是否存在
-        existing_rule = await self.container.rule_repo.get_rule_by_source_target(source_chat_obj.id, target_chat_obj.id)
+        existing_rule = await self._rule_repo.get_rule_by_source_target(source_chat_obj.id, target_chat_obj.id)
         
         is_new = False
         if not existing_rule:
-            new_rule = await self.container.rule_repo.create_rule(
+            new_rule = await self._rule_repo.create_rule(
                 source_chat_id=source_chat_obj.id,
                 target_chat_id=target_chat_obj.id,
                 enable_rule=True,
@@ -127,7 +137,7 @@ class RuleLogicService:
             rule_id = existing_rule.id
         
         # Clear Cache
-        self.container.rule_repo.clear_cache(int(source_chat_id))
+        self._rule_repo.clear_cache(int(source_chat_id))
         
         return {
             'success': True,
@@ -141,7 +151,7 @@ class RuleLogicService:
     async def add_keywords(self, rule_id: int, keywords: List[str], is_regex: bool = False, is_blacklist: bool = False) -> Dict[str, Any]:
         """批量添加关键字"""
         from models.models import Keyword
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -157,8 +167,8 @@ class RuleLogicService:
                 added_count += 1
         
         if added_count > 0:
-            await self.container.rule_repo.save_rule(rule)
-            self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(rule)
+            self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count}
 
@@ -166,8 +176,8 @@ class RuleLogicService:
     async def copy_keywords_from_rule(self, source_rule_id: int, target_rule_id: int, is_regex: Optional[bool] = None) -> Dict[str, Any]:
         """从源规则复制关键字到目标规则"""
         from models.models import Keyword
-        source_rule = await self.container.rule_repo.get_full_rule_orm(source_rule_id)
-        target_rule = await self.container.rule_repo.get_full_rule_orm(target_rule_id)
+        source_rule = await self._rule_repo.get_full_rule_orm(source_rule_id)
+        target_rule = await self._rule_repo.get_full_rule_orm(target_rule_id)
         
         if not source_rule or not target_rule:
             return {'success': False, 'error': 'Source or Target rule not found'}
@@ -193,15 +203,15 @@ class RuleLogicService:
                 skip_count += 1
                 
         if added_count > 0:
-            await self.container.rule_repo.save_rule(target_rule)
-            self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(target_rule)
+            self._rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count, 'skipped': skip_count}
 
     @handle_errors(default_return={'success': False, 'error': 'Deleting keywords failed'})
     async def delete_keywords(self, rule_id: int, keywords: List[str]) -> Dict[str, Any]:
         """批量删除关键字"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -210,15 +220,15 @@ class RuleLogicService:
         deleted_count = initial_count - len(rule.keywords)
         
         if deleted_count > 0:
-            await self.container.rule_repo.save_rule(rule)
-            self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(rule)
+            self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
 
     @handle_errors(default_return={'success': False, 'error': 'Deleting keywords by index failed'})
     async def delete_keywords_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
         """通过 1-indexed 序号批量删除关键字"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -231,15 +241,15 @@ class RuleLogicService:
         for idx in valid_indices:
             del rule.keywords[idx - 1]
             
-        await self.container.rule_repo.save_rule(rule)
-        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        await self._rule_repo.save_rule(rule)
+        self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'deleted': len(valid_indices)}
 
     @handle_errors(default_return={'success': False, 'error': 'Clearing keywords failed'})
     async def clear_keywords(self, rule_id: int) -> Dict[str, Any]:
         """清空规则的所有关键字"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
         
@@ -249,14 +259,14 @@ class RuleLogicService:
         
         rule.keywords.clear()
         
-        await self.container.rule_repo.save_rule(rule)
-        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        await self._rule_repo.save_rule(rule)
+        self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'deleted': initial_count}
 
     async def get_keywords(self, rule_id: int, is_blacklist: Optional[bool] = True) -> List[KeywordDTO]:
         """获取关键字列表"""
-        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        rule_dto = await self._rule_repo.get_by_id(rule_id)
         if not rule_dto: return []
         if is_blacklist is None:
             return rule_dto.keywords
@@ -264,20 +274,20 @@ class RuleLogicService:
 
     async def get_replace_rules(self, rule_id: int) -> List[ReplaceRuleDTO]:
         """获取替换规则列表"""
-        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        rule_dto = await self._rule_repo.get_by_id(rule_id)
         if not rule_dto: return []
         return rule_dto.replace_rules
 
     @handle_errors(default_return={'success': False, 'error': 'Clear all data failed'})
     async def clear_all_data(self) -> Dict[str, Any]:
         """清空所有规则 data (危险操作)"""
-        count = await self.container.rule_repo.delete_all_rules()
-        self.container.rule_repo.clear_cache()
+        count = await self._rule_repo.delete_all_rules()
+        self._rule_repo.clear_cache()
         return {'success': True, 'message': f'所有规则数据已清空 (影响 {count} 条)'}
         
     async def get_rule_statistics(self) -> Dict[str, Any]:
         """获取规则统计信息"""
-        count = await self.container.rule_repo.get_rule_count()
+        count = await self._rule_repo.get_rule_count()
         return {'total_rules': count}
 
     async def cleanup_orphan_chats(self, rule_deleted=None) -> int:
@@ -290,28 +300,28 @@ class RuleLogicService:
             if hasattr(rule_deleted, 'target_chat_id') and rule_deleted.target_chat_id:
                 chat_ids_to_check.append(rule_deleted.target_chat_id)
         else:
-            chat_ids_to_check = await self.container.rule_repo.get_all_chat_ids()
+            chat_ids_to_check = await self._rule_repo.get_all_chat_ids()
 
         orphan_ids = []
         for chat_id in chat_ids_to_check:
-            refs = await self.container.rule_repo.count_rule_refs_for_chat(chat_id)
+            refs = await self._rule_repo.count_rule_refs_for_chat(chat_id)
             if refs['as_source'] == 0 and refs['as_target'] == 0:
-                chat_dto = await self.container.rule_repo.find_chat_by_id_internal(chat_id)
+                chat_dto = await self._rule_repo.find_chat_by_id_internal(chat_id)
                 if chat_dto:
-                    affected_chats = await self.container.rule_repo.get_chats_using_add_id(chat_dto.telegram_chat_id)
+                    affected_chats = await self._rule_repo.get_chats_using_add_id(chat_dto.telegram_chat_id)
                     for other in affected_chats:
-                        await self.container.rule_repo.update_chat_current_add_id(other.id, None)
+                        await self._rule_repo.update_chat_current_add_id(other.id, None)
                     orphan_ids.append(chat_id)
         
         if orphan_ids:
-            return await self.container.rule_repo.delete_orphan_chats(orphan_ids)
+            return await self._rule_repo.delete_orphan_chats(orphan_ids)
         return 0
 
     @handle_errors(default_return={'success': False, 'error': 'Adding replace rules failed'})
     async def add_replace_rules(self, rule_id: int, patterns: List[str], replacements: List[str], is_regex: bool = False) -> Dict[str, Any]:
         """批量添加替换规则"""
         from models.models import ReplaceRule
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -327,8 +337,8 @@ class RuleLogicService:
                 added_count += 1
         
         if added_count > 0:
-            await self.container.rule_repo.save_rule(rule)
-            self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(rule)
+            self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count}
 
@@ -336,8 +346,8 @@ class RuleLogicService:
     async def copy_replace_rules_from_rule(self, source_rule_id: int, target_rule_id: int) -> Dict[str, Any]:
         """从源规则复制替换规则到目标规则"""
         from models.models import ReplaceRule
-        source_rule = await self.container.rule_repo.get_full_rule_orm(source_rule_id)
-        target_rule = await self.container.rule_repo.get_full_rule_orm(target_rule_id)
+        source_rule = await self._rule_repo.get_full_rule_orm(source_rule_id)
+        target_rule = await self._rule_repo.get_full_rule_orm(target_rule_id)
         
         if not source_rule or not target_rule:
             return {'success': False, 'error': 'Source or Target rule not found'}
@@ -359,15 +369,15 @@ class RuleLogicService:
                 skip_count += 1
                 
         if added_count > 0:
-            await self.container.rule_repo.save_rule(target_rule)
-            self.container.rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(target_rule)
+            self._rule_repo.clear_cache(int(target_rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'added': added_count, 'skipped': skip_count}
 
     @handle_errors(default_return={'success': False, 'error': 'Deleting replace rules failed'})
     async def delete_replace_rules(self, rule_id: int, patterns: List[str]) -> Dict[str, Any]:
         """批量删除替换规则"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -376,15 +386,15 @@ class RuleLogicService:
         deleted_count = initial_count - len(rule.replace_rules)
         
         if deleted_count > 0:
-            await self.container.rule_repo.save_rule(rule)
-            self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+            await self._rule_repo.save_rule(rule)
+            self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
             
         return {'success': True, 'deleted': deleted_count}
 
     @handle_errors(default_return={'success': False, 'error': 'Deleting replace rules by index failed'})
     async def delete_replace_rules_by_indices(self, rule_id: int, indices: List[int]) -> Dict[str, Any]:
         """通过 1-indexed 序号批量删除替换规则"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -399,8 +409,8 @@ class RuleLogicService:
             # SQLAlchemy will handle the deletion from list
             del rule.replace_rules[idx - 1]
             
-        await self.container.rule_repo.save_rule(rule)
-        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        await self._rule_repo.save_rule(rule)
+        self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'deleted': len(valid_indices)}
 
@@ -410,7 +420,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule:
                 return {'success': False, 'error': 'Rule not found'}
@@ -453,14 +463,14 @@ class RuleLogicService:
             
             await s.commit()
             if rule.source_chat:
-                self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+                self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
                 
             return {'success': True}
 
     @handle_errors(default_return={'success': False, 'error': 'Clearing replace rules failed'})
     async def clear_replace_rules(self, rule_id: int) -> Dict[str, Any]:
         """清空规则的所有替换规则"""
-        rule = await self.container.rule_repo.get_full_rule_orm(rule_id)
+        rule = await self._rule_repo.get_full_rule_orm(rule_id)
         if not rule:
             return {'success': False, 'error': 'Rule not found'}
         
@@ -470,15 +480,15 @@ class RuleLogicService:
 
         rule.replace_rules.clear()
         
-        await self.container.rule_repo.save_rule(rule)
-        self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+        await self._rule_repo.save_rule(rule)
+        self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
         
         return {'success': True, 'deleted': initial_count}
 
     @handle_errors(default_return={'success': False, 'error': 'Export failed'})
     async def export_rule_config(self, rule_id: int, format: str = "json") -> Dict[str, Any]:
         """导出规则配置"""
-        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        rule_dto = await self._rule_repo.get_by_id(rule_id)
         if not rule_dto:
             return {'success': False, 'error': 'Rule not found'}
             
@@ -539,7 +549,7 @@ class RuleLogicService:
         from sqlalchemy import select
         from core.helpers.common import get_main_module
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
             
@@ -571,7 +581,7 @@ class RuleLogicService:
         from models.models import ForwardRule, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
             
@@ -592,7 +602,7 @@ class RuleLogicService:
         from models.models import ForwardRule, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
             if not hasattr(rule, field):
@@ -617,8 +627,8 @@ class RuleLogicService:
                         setattr(target, field, new_val)
             
             await s.commit()
-            self.container.rule_repo.clear_cache()
-            bus = getattr(self.container, "bus", None)
+            self._rule_repo.clear_cache()
+            bus = self._bus
             if bus:
                 await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
                 
@@ -631,7 +641,7 @@ class RuleLogicService:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             stmt = select(ForwardRule).options(selectinload(ForwardRule.media_types)).filter_by(id=int(rule_id))
             rule = (await s.execute(stmt)).scalar_one_or_none()
             if not rule: return {'success': False, 'error': 'Rule not found'}
@@ -657,7 +667,7 @@ class RuleLogicService:
             
             await s.commit()
             if rule.source_chat:
-                self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+                self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
                 
             return {'success': True, 'new_value': new_val}
 
@@ -668,7 +678,7 @@ class RuleLogicService:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             stmt = select(ForwardRule).options(selectinload(ForwardRule.media_extensions)).filter_by(id=int(rule_id))
             rule = (await s.execute(stmt)).scalar_one_or_none()
             if not rule: return {'success': False, 'error': 'Rule not found'}
@@ -699,7 +709,7 @@ class RuleLogicService:
             
             await s.commit()
             if rule.source_chat:
-                self.container.rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
+                self._rule_repo.clear_cache(int(rule.source_chat.telegram_chat_id))
                 
             return {'success': True, 'added': added}
 
@@ -709,7 +719,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'Config not found'}
             if not hasattr(config, field):
@@ -736,8 +746,8 @@ class RuleLogicService:
                         setattr(target_config, field, new_val)
             
             await s.commit()
-            self.container.rule_repo.clear_cache()
-            bus = getattr(self.container, "bus", None)
+            self._rule_repo.clear_cache()
+            bus = self._bus
             if bus:
                 await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
             return {'success': True, 'new_value': new_val}
@@ -748,7 +758,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config:
                 return {'success': False, 'error': 'Config not found'}
@@ -775,7 +785,7 @@ class RuleLogicService:
         from models.models import RuleSync
         from sqlalchemy import select, delete
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             # 检查是否已存在
             stmt = select(RuleSync).filter_by(rule_id=source_rule_id, sync_rule_id=target_rule_id)
             existing = (await s.execute(stmt)).scalar_one_or_none()
@@ -797,7 +807,7 @@ class RuleLogicService:
     async def set_current_source_chat(self, chat_id: int, source_telegram_id: str) -> Dict[str, Any]:
         """设置当前聊天正在管理的源聊天 ID (用于 UI 切换)"""
         from models.models import Chat
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             chat = await s.get(Chat, chat_id)
             if not chat:
                 return {'success': False, 'error': 'Chat not found'}
@@ -813,7 +823,7 @@ class RuleLogicService:
         from models.models import ForwardRule, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule:
                 return {'success': False, 'error': 'Rule not found'}
@@ -838,17 +848,17 @@ class RuleLogicService:
                             rules_to_reschedule.append(target.id)
             
             await s.commit()
-            self.container.rule_repo.clear_cache()
-            bus = getattr(self.container, "bus", None)
+            self._rule_repo.clear_cache()
+            bus = self._bus
             if bus:
                 await bus.publish("RULE_UPDATED", {"rule_id": int(rule_id), "field": field, "action": "update"})
             
             # 触发调度更新 (副作用)
-            scheduler = getattr(self.container, "scheduler", None)
+            scheduler = self._scheduler
             if rules_to_reschedule and scheduler:
                 for rid in rules_to_reschedule:
                     # 获取最新 DTO 传给调度器 (保持解耦)
-                    latest_rule_dto = await self.container.rule_repo.get_by_id(rid)
+                    latest_rule_dto = await self._rule_repo.get_by_id(rid)
                     if latest_rule_dto:
                          # 调度器目前可能直接收 DTO 或 ORM，取决于实现
                          # 这里调用 container.scheduler.schedule_rule
@@ -859,11 +869,11 @@ class RuleLogicService:
     @handle_errors(default_return={'success': False, 'error': 'Immediate summary task failed'})
     async def summary_now(self, rule_id: int) -> Dict[str, Any]:
         """立即为规则执行 AI 总结"""
-        rule_dto = await self.container.rule_repo.get_by_id(rule_id)
+        rule_dto = await self._rule_repo.get_by_id(rule_id)
         if not rule_dto:
             return {'success': False, 'error': 'Rule not found'}
             
-        if not self.container.scheduler:
+        if not self._scheduler:
             return {'success': False, 'error': 'Scheduler not initialized'}
             
         # 启动异步任务
@@ -873,16 +883,16 @@ class RuleLogicService:
         from models.models import ForwardRule, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
             
             # 使用现有 Repository/DBOps 逻辑切换
-            success, msg = await self.container.rule_repo.toggle_media_type(s, rule.id, media_type)
+            success, msg = await self._rule_repo.toggle_media_type(s, rule.id, media_type)
             if not success: return {'success': False, 'error': msg}
             
             # 获取新状态
-            _, _, media_types_obj = await self.container.rule_repo.get_media_types(s, rule.id)
+            _, _, media_types_obj = await self._rule_repo.get_media_types(s, rule.id)
             new_status = getattr(media_types_obj, media_type)
             
             # 同步
@@ -891,7 +901,7 @@ class RuleLogicService:
                 results = await s.execute(sync_stmt)
                 for sync_obj in results.scalars().all():
                     # 强制设置同步目标的该类型状态与主规则一致
-                    await self.container.rule_repo.set_media_type_status(s, sync_obj.sync_rule_id, media_type, new_status)
+                    await self._rule_repo.set_media_type_status(s, sync_obj.sync_rule_id, media_type, new_status)
             
             await s.commit()
             return {'success': True, 'new_status': new_status}
@@ -902,24 +912,24 @@ class RuleLogicService:
         from models.models import ForwardRule, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             rule = await s.get(ForwardRule, int(rule_id))
             if not rule: return {'success': False, 'error': 'Rule not found'}
             
             # 获取当前状态
-            exts = await self.container.rule_repo.get_media_extensions(s, rule.id)
+            exts = await self._rule_repo.get_media_extensions(s, rule.id)
             is_selected = any(e['extension'] == extension for e in exts)
             
             if is_selected:
                 # 移除
                 ext_id = next((e['id'] for e in exts if e['extension'] == extension), None)
                 if ext_id:
-                    success, msg = await self.container.rule_repo.delete_media_extensions(s, rule.id, [ext_id])
+                    success, msg = await self._rule_repo.delete_media_extensions(s, rule.id, [ext_id])
                 else:
                     success, msg = True, "Already removed"
             else:
                 # 添加
-                success, msg = await self.container.rule_repo.add_media_extensions(s, rule.id, [extension])
+                success, msg = await self._rule_repo.add_media_extensions(s, rule.id, [extension])
                 
             if not success: return {'success': False, 'error': msg}
             
@@ -929,9 +939,9 @@ class RuleLogicService:
                 results = await s.execute(sync_stmt)
                 for sync_obj in results.scalars().all():
                     if is_selected:
-                        await self.container.rule_repo.remove_extension_from_rule(s, sync_obj.sync_rule_id, extension)
+                        await self._rule_repo.remove_extension_from_rule(s, sync_obj.sync_rule_id, extension)
                     else:
-                        await self.container.rule_repo.add_media_extensions(s, sync_obj.sync_rule_id, [extension])
+                        await self._rule_repo.add_media_extensions(s, sync_obj.sync_rule_id, [extension])
             
             await s.commit()
             return {'success': True}
@@ -942,7 +952,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'PushConfig not found'}
             
@@ -970,7 +980,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'PushConfig not found'}
             
@@ -998,7 +1008,7 @@ class RuleLogicService:
         from models.models import ForwardRule, PushConfig, RuleSync
         from sqlalchemy import select
         
-        async with self.container.db.get_session() as s:
+        async with self._db.get_session() as s:
             config = await s.get(PushConfig, int(config_id))
             if not config: return {'success': False, 'error': 'PushConfig not found'}
             if not hasattr(config, field):
@@ -1019,8 +1029,8 @@ class RuleLogicService:
                         setattr(target_config, field, value)
             
             await s.commit()
-            self.container.rule_repo.clear_cache()
-            bus = getattr(self.container, "bus", None)
+            self._rule_repo.clear_cache()
+            bus = self._bus
             if bus:
                 await bus.publish("RULE_UPDATED", {"rule_id": int(config.rule_id), "field": field, "action": "update"})
             return {'success': True}
