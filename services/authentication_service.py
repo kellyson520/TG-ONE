@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
-import jwt
 from sqlalchemy.orm import selectinload
 from core.config import settings
 from models.models import User, ActiveSession
@@ -9,12 +8,12 @@ from sqlalchemy import select, delete, desc
 import logging
 import hashlib
 import uuid
-import pyotp
-import qrcode
-import io
-import base64
 import secrets
 import json
+from core.helpers.lazy_import import LazyImport
+
+# Lazy-loaded heavy modules (deferred until first use)
+_jwt = LazyImport("jwt")
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ class AuthenticationService:
             "type": "access",
             "jti": secrets.token_hex(8) # Add nonce for uniqueness
         })
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        return _jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
         """Create long-lived refresh token."""
@@ -70,13 +69,13 @@ class AuthenticationService:
             "type": "refresh",
             "jti": secrets.token_hex(16) # Add stronger nonce for refresh tokens
         })
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        return _jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     def create_pre_auth_token(self, user_id: int) -> str:
         """Create short-lived pre-auth token for 2FA verification."""
         expire = datetime.utcnow() + timedelta(minutes=5)
         to_encode = {"sub": str(user_id), "type": "pre_auth", "exp": expire}
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        return _jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
     async def create_session(self, user_id: int, ip_address: str, user_agent: str) -> Tuple[str, str]:
@@ -132,14 +131,14 @@ class AuthenticationService:
         Implements Rotation: Generates a new refresh token and replaces the old one.
         """
         try:
-            payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            payload = _jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "refresh":
                 return None
             user_id_str = payload.get("sub")
             if not user_id_str:
                 return None
             user_id = int(user_id_str)
-        except (jwt.InvalidTokenError, ValueError):
+        except (_jwt.InvalidTokenError, ValueError):
             return None
 
         from core.container import container
@@ -205,7 +204,7 @@ class AuthenticationService:
     async def get_user_from_token(self, token: str) -> Optional[UserDTO]:
         """Decode access token and return User object."""
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            payload = _jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "access": # Enforce type check
                 return None
             user_id = payload.get("sub")
@@ -251,6 +250,7 @@ class AuthenticationService:
         Generate a new TOTP secret for the user.
         Returns (secret, otpauth_url, qr_code_base64)
         """
+        import pyotp
         secret = pyotp.random_base32()
         
         from core.container import container
@@ -271,13 +271,16 @@ class AuthenticationService:
              provisioning_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.username, issuer_name=issuer_name)
              
              # Generate QR Code image
+             import qrcode
              qr = qrcode.QRCode(version=1, box_size=10, border=5)
              qr.add_data(provisioning_uri)
              qr.make(fit=True)
              img = qr.make_image(fill_color="black", back_color="white")
              
+             import io
              buffered = io.BytesIO()
              img.save(buffered, format="PNG")
+             import base64
              qr_b64 = base64.b64encode(buffered.getvalue()).decode()
              
              return secret, provisioning_uri, qr_b64

@@ -85,7 +85,7 @@ class TestUserRepository:
 
     async def test_registration_settings(self, user_repo):
         # 注意：这里涉及到 config_service 的 mock 或真实调用
-        # UserRepository 内部使用了 __import__ 动态加载
+        # UserRepository 使用延迟导入（本地 import）进行动态加载
         original = await user_repo.get_allow_registration()
         
         await user_repo.set_allow_registration(not original)

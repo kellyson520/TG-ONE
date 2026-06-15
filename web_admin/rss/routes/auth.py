@@ -5,9 +5,7 @@ from fastapi.templating import Jinja2Templates
 from models.models import get_session, get_read_session, User
 from repositories.db_operations import DBOperations
 from core.cache.unified_cache import cached
-import jwt
 from datetime import datetime, timedelta
-import pytz
 from core.constants import DEFAULT_TIMEZONE
 from typing import Optional
 import secrets
@@ -52,12 +50,14 @@ def init_db_ops():
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
+    import pytz
     tz = pytz.timezone(DEFAULT_TIMEZONE)
     if expires_delta:
         expire = datetime.now(tz) + expires_delta
     else:
         expire = datetime.now(tz) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
+    import jwt
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -68,6 +68,7 @@ async def get_current_user(request: Request):
     if not token:
         return None
     try:
+        import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:

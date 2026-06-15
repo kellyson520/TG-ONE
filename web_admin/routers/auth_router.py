@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 
 from core.config import settings
-import jwt
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -272,6 +271,7 @@ async def login_2fa(
     Complete login with 2FA token.
     """
     # Verify pre_auth_token
+    import jwt
     try:
         payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         if payload.get("type") != "pre_auth":
@@ -746,6 +746,7 @@ async def login_with_recovery_code(
     当用户丢失 Authenticator 时使用
     """
     # Verify pre_auth_token
+    import jwt
     try:
         payload = jwt.decode(verify_data.pre_auth_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         if payload.get("type") != "pre_auth":

@@ -1,5 +1,6 @@
-import builtins
 import logging
+import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,6 +8,24 @@ import pytest
 
 from services import system_service as system_module
 from core.bootstrap import Bootstrap
+
+
+class _ImportBlocker(types.ModuleType):
+    """Module proxy that raises ImportError on any public attribute access.
+
+    Used to simulate missing optional modules in tests without
+    monkeypatching builtins.__import__.
+    """
+
+    def __init__(self, name: str, error_msg: str = ""):
+        super().__init__(name)
+        self.__dict__["_error_msg"] = error_msg
+        self.__path__ = []  # mark as a package to prevent sub-module lookup
+
+    def __getattr__(self, attr: str):
+        if attr.startswith("_") and attr != "__path__":
+            raise AttributeError(attr)
+        raise ImportError(self._error_msg)
 
 
 class FakeShutdownCoordinator:
@@ -30,15 +49,18 @@ def test_register_shutdown_hooks_logs_missing_web_stop_hook(
     bootstrap.user_client = None
     bootstrap.bot_client = None
     bootstrap.coordinator = FakeShutdownCoordinator()
-    original_import = builtins.__import__
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "web_admin.fastapi_app":
-            raise ImportError("web admin unavailable")
-        return original_import(name, globals, locals, fromlist, level)
+    # Simulate missing web_admin module via sys.modules instead of
+    # monkeypatching builtins.__import__.
+    blocker = _ImportBlocker("web_admin.fastapi_app", "web admin unavailable")
+    monkeypatch.setitem(sys.modules, "web_admin.fastapi_app", blocker)
+    monkeypatch.setitem(
+        sys.modules,
+        "web_admin",
+        _ImportBlocker("web_admin", "web admin unavailable"),
+    )
 
     monkeypatch.setattr("core.bootstrap.settings.WEB_ENABLED", True)
-    monkeypatch.setattr(builtins, "__import__", fake_import)
     caplog.set_level(logging.DEBUG, logger="core.bootstrap")
 
     bootstrap._register_shutdown_hooks()

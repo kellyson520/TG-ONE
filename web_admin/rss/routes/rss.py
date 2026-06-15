@@ -17,7 +17,6 @@ import base64
 import re
 from core.helpers.common import get_db_ops
 from core.cache.unified_cache import cached
-import aiohttp
 from core.constants import RSS_HOST, RSS_PORT, RSS_BASE_URL
 
 # 配置日志
@@ -276,6 +275,7 @@ async def delete_rss(rule_id: int, user=Depends(get_current_user)):
                 # 构建删除API的URL
                 rss_url = f"http://{RSS_HOST}:{RSS_PORT}/api/rule/{rule_id}"
                 # 调用删除API
+                import aiohttp
                 timeout = aiohttp.ClientTimeout(total=10)
                 async with aiohttp.ClientSession(timeout=timeout) as client_session:
                     async with client_session.delete(rss_url) as response:

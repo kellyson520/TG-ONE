@@ -1,11 +1,30 @@
 import logging
 import asyncio
-import builtins
+import sys
+import types
 
 import pytest
 
 import core.db_factory as db_factory
 from core.database import Database
+
+
+class _ImportBlocker(types.ModuleType):
+    """Module proxy that raises ImportError on any public attribute access.
+
+    Used to simulate missing optional modules in tests without
+    monkeypatching builtins.__import__.
+    """
+
+    def __init__(self, name: str, error_msg: str = ""):
+        super().__init__(name)
+        self.__dict__["_error_msg"] = error_msg
+        self.__path__ = []  # mark as a package to prevent sub-module lookup
+
+    def __getattr__(self, attr: str):
+        if attr.startswith("_") and attr != "__path__":
+            raise AttributeError(attr)
+        raise ImportError(self._error_msg)
 
 
 class RollbackFailingSession:
@@ -107,7 +126,6 @@ async def test_async_cleanup_old_logs_logs_missing_stats_manager(
     caplog,
 ):
     session = CleanupSession()
-    original_import = builtins.__import__
 
     class ComparableColumn:
         def __lt__(self, other):
@@ -120,31 +138,30 @@ async def test_async_cleanup_old_logs_logs_missing_stats_manager(
         def where(self, condition):
             return self
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "sqlalchemy" and "delete" in fromlist:
-            class FakeSqlAlchemy:
-                @staticmethod
-                def delete(model):
-                    return FakeDelete()
+    # Provide a fake sqlalchemy.delete so the function can build statements
+    import sqlalchemy as _sa
 
-            return FakeSqlAlchemy()
-        if name == "models.models":
-            class FakeModels:
-                RuleLog = FakeLogModel
-                ErrorLog = FakeLogModel
-                AuditLog = FakeLogModel
+    monkeypatch.setattr(_sa, "delete", lambda model: FakeDelete())
 
-            return FakeModels()
-        if name == "core.stats_manager":
-            raise ImportError("stats manager unavailable")
-        return original_import(name, globals, locals, fromlist, level)
+    # Provide fake models.models with the required log model classes
+    fake_models_mod = types.ModuleType("models.models")
+    fake_models_mod.RuleLog = FakeLogModel
+    fake_models_mod.ErrorLog = FakeLogModel
+    fake_models_mod.AuditLog = FakeLogModel
+    monkeypatch.setitem(sys.modules, "models.models", fake_models_mod)
+
+    # Simulate missing core.stats_manager via sys.modules
+    monkeypatch.setitem(
+        sys.modules,
+        "core.stats_manager",
+        _ImportBlocker("core.stats_manager", "stats manager unavailable"),
+    )
 
     monkeypatch.setattr(
         db_factory,
         "AsyncSessionManager",
         lambda *args, **kwargs: FakeAsyncSessionContext(session),
     )
-    monkeypatch.setattr(builtins, "__import__", fake_import)
     caplog.set_level(logging.DEBUG, logger="core.db_factory")
 
     deleted = await db_factory.async_cleanup_old_logs(days=7)

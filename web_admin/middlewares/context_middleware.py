@@ -1,7 +1,6 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 from core.context import user_id_var, username_var, ip_address_var, user_agent_var, request_id_var, trace_id_var
-import jwt
 from core.config import settings
 import uuid
 import logging
@@ -44,6 +43,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
         
         if token:
             try:
+                import jwt
                 # We trust the signature for Logging Context purposes.
                 # Actual security enforcement happens in route dependencies.
                 payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])

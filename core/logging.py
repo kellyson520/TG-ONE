@@ -19,7 +19,11 @@ import atexit
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, List, Callable
 
-import structlog
+from core.helpers.lazy_import import LazyImport
+
+# Lazy-loaded heavy modules
+_structlog = LazyImport("structlog")
+
 # 导入 settings
 from core.config import settings
 # from services.network.log_push import install_log_push_handlers (Moved to bootstrap/main)
@@ -368,7 +372,7 @@ class _ConsolidatedFilter(logging.Filter):
             return True
 
 
-class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
+class SafeLoggerFactory(_structlog.stdlib.LoggerFactory):
     """确保 logger name 永远是字符串"""
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         if args:
@@ -382,20 +386,20 @@ class SafeLoggerFactory(structlog.stdlib.LoggerFactory):
 
 def configure_structlog() -> None:
     """配置 structlog 以对接标准 logging 系统"""
-    structlog.configure(
+    _structlog.configure(
         processors=[
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.stdlib.render_to_log_kwargs,
+            _structlog.stdlib.filter_by_level,
+            _structlog.stdlib.add_logger_name,
+            _structlog.stdlib.add_log_level,
+            _structlog.stdlib.PositionalArgumentsFormatter(),
+            _structlog.processors.StackInfoRenderer(),
+            _structlog.processors.format_exc_info,
+            _structlog.processors.UnicodeDecoder(),
+            _structlog.stdlib.render_to_log_kwargs,
         ],
         context_class=dict,
         logger_factory=SafeLoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
+        wrapper_class=_structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
@@ -482,7 +486,7 @@ def setup_logging() -> logging.Logger:
         root_logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
 
     # Log Startup
-    logger = structlog.get_logger()
+    logger = _structlog.get_logger()
     try:
         eff = logging.getLevelName(root_logger.level)
         logger.info(

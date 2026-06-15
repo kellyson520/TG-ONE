@@ -22,7 +22,6 @@ except ImportError:
 
 from web_admin.middlewares.metrics_middleware import MetricsMiddleware
 from datetime import datetime, timedelta
-import jwt
 import asyncio
 
 
@@ -225,6 +224,7 @@ def _issue_token(user_id: int) -> str:
     expire = datetime.utcnow() + expires_delta
     to_encode = {"sub": str(user_id), "exp": expire, "type": "access"}
     
+    import jwt
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 

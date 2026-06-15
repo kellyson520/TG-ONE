@@ -31,12 +31,14 @@ from typing import List
 import logging
 import os
 from pathlib import Path
-import markdown
 import re
 import json
 from models.models import get_session, RSSConfig
 from core.constants import DEFAULT_TIMEZONE
-import pytz
+from core.helpers.lazy_import import LazyImport
+
+# Lazy-loaded heavy modules
+_pytz = LazyImport("pytz")
 
 logger = logging.getLogger(__name__)
 
@@ -393,11 +395,11 @@ class FeedService:
                 except ValueError:
                     # 如果时间格式无效，使用当前时间
                     try:
-                        tz = pytz.timezone(DEFAULT_TIMEZONE)
+                        tz = _pytz.timezone(DEFAULT_TIMEZONE)
                         fe.published(datetime.now(tz))
                     except Exception as tz_error:
                         logger.warning(f"时区设置错误: {str(tz_error)}，使用UTC时区")
-                        fe.published(datetime.now(pytz.UTC))
+                        fe.published(datetime.now(_pytz.UTC))
                 # 设置作者和链接
                 if entry.author:
                     fe.author(name=entry.author)
@@ -442,6 +444,7 @@ class FeedService:
                 processed_lines.append(line + "  ")  # 添加两个空格确保换行
             text = "\n".join(processed_lines)
             # 使用markdown模块转换
+            import markdown
             html = markdown.markdown(text, extensions=["extra"])
             # 处理特殊标记，确保段落分层
             html = html.replace("<p><!-- paragraph --></p>", "</p><p>")
@@ -500,10 +503,10 @@ class FeedService:
         fg.link(href=feed_url)
         # 处理时区
         try:
-            tz = pytz.timezone(DEFAULT_TIMEZONE)
+            tz = _pytz.timezone(DEFAULT_TIMEZONE)
         except Exception as tz_error:
             logger.warning(f"时区设置错误: {str(tz_error)}，使用UTC时区")
-            tz = pytz.UTC
+            tz = _pytz.UTC
         # # 只添加一条测试条目
         # try:
         #     fe = fg.add_entry()

@@ -3,6 +3,7 @@
 Handler 测试专用 conftest
 完全禁用全局 conftest 的数据库初始化
 """
+import importlib.util
 import sys
 from unittest.mock import MagicMock, AsyncMock
 
@@ -12,9 +13,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 # Mock C 扩展库和异步库
 for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "pandas", "apprise", "psutil"]:
-    try:
-        __import__(lib)
-    except ImportError:
+    if importlib.util.find_spec(lib) is None:
         sys.modules[lib] = MagicMock()
         sys.modules[f"{lib}.fuzz"] = MagicMock()
 
