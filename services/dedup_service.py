@@ -19,19 +19,19 @@ class DeduplicationService:
         self.db = db
         self.coordinator = None
         self._repo = None
+        self._stats_repo = None
+
+    def set_repos(self, dedup_repo, stats_repo):
+        """注入仓储依赖 (由 Container 调用，打破循环依赖)"""
+        self._repo = dedup_repo
+        self._stats_repo = stats_repo
 
     @property
     def repo(self):
-        if self._repo is None:
-            from core.container import container
-            self._repo = container.dedup_repo
         return self._repo
 
     @property
     def stats_repo(self):
-        if not hasattr(self, '_stats_repo') or self._stats_repo is None:
-            from core.container import container
-            self._stats_repo = container.stats_repo
         return self._stats_repo
 
     def set_coordinator(self, coordinator):

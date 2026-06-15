@@ -16,11 +16,13 @@ class RuleManagementService:
     def __init__(self):
         self.crud = RuleCRUDService()
         self.logic = RuleLogicService()
-    
-    @property
-    def container(self):
-        from core.container import container
-        return container
+        self._db = None
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+        self.crud.set_db(db)
+        self.logic.set_db(db)
 
     # --- CRUD Delegates ---
     async def get_rule_list(self, page: int = 0, page_size: int = 10, search_query: str = None) -> Dict[str, Any]:

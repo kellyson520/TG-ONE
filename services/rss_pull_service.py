@@ -6,7 +6,6 @@ from typing import Optional
 from sqlalchemy import select
 from telethon import TelegramClient
 
-from core.container import container
 from models.models import RSSSubscription
 from core.algorithms.aimd import AIMDScheduler
 from services.network.timing_wheel import HashedTimingWheel
@@ -25,11 +24,21 @@ class RSSPullService:
     def __init__(self, user_client: TelegramClient, bot_client: TelegramClient):
         self.user_client = user_client
         self.bot_client = bot_client
+        self._db = None
+        self._http_session = None
         # 初始化时间轮：1秒一刻，3600个槽位（支持1小时内的精确调度）
         self.timing_wheel = HashedTimingWheel(tick_ms=1000, slots=3600)
         self.schedulers = {}  # subscription_id -> AIMDScheduler
         self.breakers = {}    # subscription_id -> CircuitBreaker (容灾熔断)
         self._running = False
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+
+    def set_http_session(self, session):
+        """注入 HTTP 会话"""
+        self._http_session = session
 
     async def start(self):
         """启动服务"""
@@ -40,7 +49,7 @@ class RSSPullService:
         await self.timing_wheel.start()
         
         # 加载所有活跃订阅
-        async with container.db.get_session() as session:
+        async with self._db.get_session() as session:
             stmt = select(RSSSubscription).where(RSSSubscription.is_active == True)
             result = await session.execute(stmt)
             subscriptions = result.scalars().all()
@@ -97,7 +106,7 @@ class RSSPullService:
 
         has_new_content = False
         try:
-            async with container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 sub = await session.get(RSSSubscription, sub_id)
                 if not sub or not sub.is_active:
                     return
@@ -120,7 +129,7 @@ class RSSPullService:
             logger.error(f"RSS Pull {sub_id} 任务执行出错: {e}", exc_info=True)
             # 即使出错也重新排期，使用惩罚性延迟，但不创建额外 sleeper。
             if self._running:
-                async with container.db.get_session() as session:
+                async with self._db.get_session() as session:
                     sub = await session.get(RSSSubscription, sub_id)
                     if sub:
                         await self.schedule_subscription(
@@ -151,8 +160,7 @@ class RSSPullService:
 
     async def _do_pull_internal(self, sub: RSSSubscription) -> bool:
         """实际的 HTTP 请求逻辑"""
-        from core.container import container
-        session = container.http_session
+        session = self._http_session
         if not session or session.closed:
             # Fallback if container session is not ready (e.g. standalone tests)
             import aiohttp
@@ -229,7 +237,7 @@ class RSSPullService:
         asyncio.create_task(self._add_sub_worker(sub_id))
 
     async def _add_sub_worker(self, sub_id: int):
-        async with container.db.get_session() as session:
+        async with self._db.get_session() as session:
             sub = await session.get(RSSSubscription, sub_id)
             if sub:
                 await self.schedule_subscription(sub)

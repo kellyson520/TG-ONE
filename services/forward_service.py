@@ -16,15 +16,21 @@ logger = logging.getLogger(__name__)
 class ForwardService:
     """转发管理业务逻辑服务"""
     
+    def __init__(self):
+        self._db = None
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+
+    @property
+    def db(self):
+        return self._db
+    
     async def forward_single_message(self, source_chat_id: int, target_chat_id: int, message_id: int, rule_id: int, forward_type: str) -> bool:
         """[Legacy Compatibility] 模拟转发单个消息"""
         logger.info(f"Mock forwarding message {message_id} from {source_chat_id} to {target_chat_id} for rule {rule_id}")
         return True
-
-    @property
-    def container(self):
-        from core.container import container
-        return container
     
     async def get_forward_stats(self) -> Dict[str, Any]:
         """获取转发统计数据 (组合版)"""
@@ -92,7 +98,7 @@ class ForwardService:
         try:
             logger.info(f"📋 [转发服务] 获取转发规则列表: 页码={page}, 每页大小={page_size}")
             
-            async with self.container.db.get_session() as session:
+            async with self.db.get_session() as session:
                 # 获取总数
                 count_stmt = select(func.count(ForwardRule.id))
                 total_count = (await session.execute(count_stmt)).scalar() or 0
@@ -145,7 +151,7 @@ class ForwardService:
         try:
             logger.info(f"📝 [转发服务] 开始创建转发规则: 源ChatID={source_chat_id}, 目标ChatID={target_chat_id}, 配置={kwargs}")
             
-            async with self.container.db.get_session() as session:
+            async with self.db.get_session() as session:
                 # 验证聊天是否存在
                 source_stmt = select(Chat).filter_by(telegram_chat_id=str(source_chat_id))
                 target_stmt = select(Chat).filter_by(telegram_chat_id=str(target_chat_id))
@@ -213,7 +219,7 @@ class ForwardService:
                     'error': f"非法更新字段: {', '.join(sorted(invalid_fields))}"
                 }
             
-            async with self.container.db.get_session() as session:
+            async with self.db.get_session() as session:
                 # [Fix] 预加载关联以获取聊天ID
                 stmt = select(ForwardRule).options(
                     selectinload(ForwardRule.source_chat),
@@ -256,7 +262,7 @@ class ForwardService:
         try:
             logger.info(f"🗑️ [转发服务] 开始删除转发规则: 规则ID={rule_id}")
             
-            async with self.container.db.get_session() as session:
+            async with self.db.get_session() as session:
                 # [Fix] 预加载关联以获取聊天ID
                 stmt = select(ForwardRule).options(
                     selectinload(ForwardRule.source_chat),

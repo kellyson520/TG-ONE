@@ -17,16 +17,18 @@ from enums.enums import ForwardMode
 logger = logging.getLogger(__name__)
 
 class RuleCRUDService:
-    @property
-    def container(self):
-        from core.container import container
-        return container
+    def __init__(self):
+        self._db = None
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
     
     @handle_errors(default_return={'rules': [], 'total': 0, 'page': 0, 'page_size': 10})
     @log_execution()
     async def get_rule_list(self, page: int = 0, page_size: int = 10, search_query: str = None) -> Dict[str, Any]:
         """获取规则列表 (Updated to use standard Repo or direct DTO construction)"""
-        async with self.container.db.get_session() as session:
+        async with self._db.get_session() as session:
             # Note: Repository get_all is strict pagination, but search query is complex dynamic.
             # For now, we keep manual construction but align output format.
             stmt = select(ForwardRule).options(
@@ -176,7 +178,7 @@ class RuleCRUDService:
         # This writes to DB, so Repo should handle validation
     
         try:
-            async with self.container.db.get_session() as session:
+            async with self._db.get_session() as session:
                 # 验证源聊天和目标聊天是否存在
                 # Use Repo find_chat
                 source_chat_dto = await self.container.rule_repo.find_chat(source_chat_id)
@@ -224,7 +226,7 @@ class RuleCRUDService:
 
     @handle_errors(default_return={'success': False, 'error': 'Rule update failed'})
     async def update_rule(self, rule_id: int, **settings) -> Dict[str, Any]:
-        async with self.container.db.get_session() as session:
+        async with self._db.get_session() as session:
             stmt = select(ForwardRule).options(
                 selectinload(ForwardRule.source_chat),
                 selectinload(ForwardRule.target_chat)
@@ -261,7 +263,7 @@ class RuleCRUDService:
 
     @handle_errors(default_return={'success': False, 'error': 'Rule deletion failed'})
     async def delete_rule(self, rule_id: int) -> Dict[str, Any]:
-         async with self.container.db.get_session() as session:
+         async with self._db.get_session() as session:
             stmt = select(ForwardRule).options(
                 selectinload(ForwardRule.source_chat),
                 selectinload(ForwardRule.target_chat)

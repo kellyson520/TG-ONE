@@ -15,10 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 class RuleLogicService:
-    @property
-    def container(self):
-        from core.container import container
-        return container
+    def __init__(self):
+        self._db = None
+        self._rule_repo = None
+
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+
+    def set_rule_repo(self, rule_repo):
+        """注入规则仓储"""
+        self._rule_repo = rule_repo
         
     @handle_errors(default_return={'success': False, 'error': 'Rule copy failed'})
     async def copy_rule(self, source_rule_id: int, target_rule_id: Optional[int] = None) -> Dict[str, Any]:
