@@ -13,7 +13,11 @@ from unittest.mock import MagicMock, AsyncMock
 
 # Mock C 扩展库和异步库
 for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "pandas", "apprise", "psutil"]:
-    if importlib.util.find_spec(lib) is None:
+    try:
+        _spec = importlib.util.find_spec(lib)
+    except (ValueError, ModuleNotFoundError):
+        _spec = None
+    if _spec is None:
         sys.modules[lib] = MagicMock()
         sys.modules[f"{lib}.fuzz"] = MagicMock()
 

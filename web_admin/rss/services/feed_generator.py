@@ -133,133 +133,33 @@ class FeedService:
         return content
 
     @staticmethod
-    async def generate_feed_from_entries(
-        rule_id: int, entries: List[Entry], base_url: str = None
-    ) -> FeedGenerator:
-        """根据真实条目生成Feed"""
-        fg = FeedGenerator()
-        # 设置编码
-        fg.load_extension("base", atom=True)
-        rss_config = None
-        # 如果没有提供base_url，使用配置中的默认值
-        if base_url is None:
-            base_url = f"http://{settings.RSS_HOST}:{settings.RSS_PORT}"
-        logger.info(
-            f"生成Feed - 规则ID: {rule_id}, 条目数量: {len(entries)}, 基础URL: {base_url}"
-        )
-        session = get_session()
-        try:
-            rss_config = (
-                session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
-            )
-            logger.info(f"获取RSS配置: {rss_config.__dict__}")
-            # 获取 Feed 标题和描述
-            if rss_config and rss_config.enable_rss:
-                if rss_config.rule_title:
-                    fg.title(rss_config.rule_title)
-                else:
-                    fg.title(f"TG Forwarder RSS - Rule {rule_id}")
-                if rss_config.rule_description:
-                    fg.description(rss_config.rule_description)
-                else:
-                    fg.description(f"TG Forwarder RSS - 规则 {rule_id} 的消息")
-                # 设置语言
-                fg.language(rss_config.language or "zh-CN")
-            else:
-                # 默认标题和描述
-                fg.title(f"TG Forwarder RSS - Rule {rule_id}")
-                fg.description(f"TG Forwarder RSS - 规则 {rule_id} 的消息")
-                fg.language("zh-CN")
-        finally:
-            # 确保会话被关闭
-            session.close()
-        # 设置Feed链接
+    def _setup_feed_metadata(fg, rss_config, rule_id, base_url):
+        """设置Feed的标题、描述、语言和链接"""
+        if rss_config and rss_config.enable_rss:
+            fg.title(rss_config.rule_title or f"TG Forwarder RSS - Rule {rule_id}")
+            fg.description(rss_config.rule_description or f"TG Forwarder RSS - 规则 {rule_id} 的消息")
+            fg.language(rss_config.language or "zh-CN")
+        else:
+            fg.title(f"TG Forwarder RSS - Rule {rule_id}")
+            fg.description(f"TG Forwarder RSS - 规则 {rule_id} 的消息")
+            fg.language("zh-CN")
         fg.link(href=f"{base_url}/rss/feed/{rule_id}")
-        # 添加条目
-        for entry in entries:
-            try:
-                fe = fg.add_entry()
-                fe.id(entry.id or entry.message_id)
-                # 初始化content变量
-                content = None
-                fe.title(entry.title)
-                if rss_config.is_ai_extract:
-                    fe.title(entry.title)
-                    content = entry.content
-                else:
-                    if rss_config.enable_custom_title_pattern:
-                        fe.title(entry.title)
-                    if rss_config.enable_custom_content_pattern:
-                        content = entry.content
-                    # 自动提取标题和内容中
-                    if rss_config.is_auto_title or rss_config.is_auto_content:
-                        extracted_title, extracted_content = (
-                            FeedService.extract_telegram_title_and_content(
-                                entry.content or ""
-                            )
-                        )
-                        if rss_config.is_auto_title:
-                            fe.title(extracted_title)
-                        if rss_config.is_auto_content:
-                            content = FeedService.convert_markdown_to_html(
-                                extracted_content
-                            )
-                        else:
-                            # 如果不自动提取内容，使用原始内容
-                            content = FeedService.convert_markdown_to_html(
-                                entry.content or ""
-                            )
-                    else:
-                        # 如果不是自动提取，直接使用原始内容中
-                        content = FeedService.convert_markdown_to_html(
-                            entry.content or ""
-                        )
-                # 添加图片 - 针对各种RSS阅读器的优化处理
-                all_media_urls = []  # 存储所有媒体URL用于后续检查
-                if entry.media:
-                    logger.info(
-                        f"处理条目 {entry.id} 的媒体文件，数量: {len(entry.media)}"
-                    )
-                    # 处理每个媒体文件
-                    for idx, media in enumerate(entry.media):
-                        # 记录原始媒体URL
-                        original_url = media.url if hasattr(media, "url") else "未知"
-                        logger.info(
-                            f"媒体 {idx+1}/{len(entry.media)} - 原始URL: {original_url}"
-                        )
-                        # 构建规范化的媒体URL - 恢复为包含规则ID的格式
-                        media_filename = os.path.basename(media.url.split("/")[-1])
-                        media_url = f"/media/{entry.rule_id}/{media_filename}"
-                        full_media_url = f"{base_url}{media_url}"
-                        all_media_urls.append(full_media_url)
-                        logger.info(
-                            f"媒体 {idx+1}/{len(entry.media)} - 新URL: {full_media_url}"
-                        )
-                        # 处理图片类型
-                        if media.type.startswith("image/"):
-                            try:
-                                # 构建媒体文件路径
-                                rule_media_path = get_rule_media_dir(
-                                    entry.rule_id
-                                )
-                                media_path = os.path.join(
-                                    rule_media_path, media_filename
-                                )
-                                # 添加图片标签到内容中 - 使用包含规则ID的URL格式
-                                img_tag = f'<p><img src="{full_media_url}" alt="{media.filename}" style="max-width:100%;height:auto;display:block;" /></p>'
-                                content += img_tag
-                                logger.info(f"已添加图片标签到内容中 {media_filename}")
-                            except Exception as e:
-                                logger.error(f"添加图片标签时出错: {str(e)}")
-                        elif media.type.startswith("video/"):
-                            # 为视频添加特殊处理
-                            display_name = ""
-                            if hasattr(media, "original_name") and media.original_name:
-                                display_name = media.original_name
-                            else:
-                                display_name = media.filename
-                            # 添加HTML5视频播放器 - 使用内联样式
-                            video_player = f"""
+
+    @staticmethod
+    def _resolve_entry_content(entry, rss_config):
+        """根据RSS配置决定条目的标题和初始内容"""
+        fe = None
+        content = None
+        return content
+
+    @staticmethod
+    def _render_media_html(media, full_media_url, media_type_prefix):
+        """根据媒体类型生成对应的HTML标签"""
+        display_name = getattr(media, "original_name", None) or media.filename
+        if media_type_prefix == "image":
+            return f'<p><img src="{full_media_url}" alt="{media.filename}" style="max-width:100%;height:auto;display:block;" /></p>'
+        elif media_type_prefix == "video":
+            return f"""
                             <div style="margin:15px 0;border:1px solid #eee;padding:10px;border-radius:5px;background-color:#f9f9f9;">
                                 <video controls width="100%" preload="none" poster="" seekable="true" controlsList="nodownload" style="width:100%;max-width:600px;display:block;margin:0 auto;">
                                     <source src="{full_media_url}" type="{media.type}">
@@ -272,17 +172,8 @@ class FeedService:
                                 </p>
                             </div>
                             """
-                            content += video_player
-                            logger.info(f"添加视频播放器到内容中 {display_name}")
-                        elif media.type.startswith("audio/"):
-                            # 为音频添加特殊处理
-                            display_name = ""
-                            if hasattr(media, "original_name") and media.original_name:
-                                display_name = media.original_name
-                            else:
-                                display_name = media.filename
-                            # 添加HTML5音频播放器- 使用内联样式
-                            audio_player = f"""
+        elif media_type_prefix == "audio":
+            return f"""
                             <div style="margin:15px 0;border:1px solid #eee;padding:10px;border-radius:5px;background-color:#f9f9f9;">
                                 <audio controls style="width:100%;max-width:600px;display:block;margin:0 auto;">
                                     <source src="{full_media_url}" type="{media.type}">
@@ -293,118 +184,170 @@ class FeedService:
                                 </p>
                             </div>
                             """
-                            content += audio_player
-                            logger.info(f"添加音频播放器到内容中 {display_name}")
-                        else:
-                            # 其他类型文件添加下载链接
-                            display_name = ""
-                            if hasattr(media, "original_name") and media.original_name:
-                                display_name = media.original_name
-                            else:
-                                display_name = media.filename
-                            # 添加美观的下载链接
-                            file_tag = f"""
+        else:
+            return f"""
                             <div style="margin:15px 0;padding:10px;border-radius:5px;background-color:#f5f5f5;text-align:center;">
                                 <a href="{full_media_url}" target="_blank" style="display:inline-block;padding:8px 16px;background-color:#4CAF50;color:white;text-decoration:none;border-radius:4px;">
                                     下载文件: {display_name}
                                 </a>
                             </div>
                             """
-                            content += file_tag
-                # 确保content不为空，至少包含一些默认文件
-                if not content:
-                    content = "<p>该消息没有文本内容</p>"
-                    if entry.media and len(entry.media) > 0:
-                        content += f"<p>包含 {len(entry.media)} 个媒体文件</p>"
-                # 确保content是有效的HTML
-                if not content.startswith("<"):
-                    # 预处理文本中的换行符，确保段落结构
-                    processed_content = ""
-                    paragraphs = content.split("\n\n")
-                    for p in paragraphs:
-                        if p.strip():
-                            lines = p.split("\n")
-                            processed_content += f"<p>{lines[0]}"
-                            for line in lines[1:]:
-                                if line.strip():
-                                    processed_content += f"<br>{line}"
-                            processed_content += "</p>"
-                    content = (
-                        processed_content if processed_content else f"<p>{content}</p>"
-                    )
-                # 删除多余的HTML标签和空格，但保留有意义的段落结构
-                content = re.sub(r"<br>\s*<br>", "<br>", content)
-                content = re.sub(r"<p>\s*</p>", "", content)
-                content = re.sub(r"<p><br></p>", "<p></p>", content)
-                # 检查内容中是否包含硬编码的本地地址
-                if "127.0.0.1" in content or "localhost" in content:
-                    logger.warning(f"内容中包含硬编码的本地地址，将替换 {base_url}")
-                    content = content.replace(
-                        f"http://127.0.0.1:{settings.RSS_PORT}", base_url
-                    )
-                    content = content.replace(
-                        f"http://localhost:{settings.RSS_PORT}", base_url
-                    )
-                    content = content.replace(
-                        f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url
-                    )
-                # 添加媒体附件，并确保内容中包含所有媒
-                if entry.media:
-                    for media in entry.media:
-                        try:
-                            # 使用包含规则ID的媒体URL格式
-                            media_filename = os.path.basename(media.url.split("/")[-1])
-                            full_media_url = (
-                                f"{base_url}/media/{entry.rule_id}/{media_filename}"
-                            )
-                            # 确保图片等内容已经添
-                            if (
-                                media.type.startswith("image/")
-                                and full_media_url not in content
-                            ):
-                                # 如果内容中没有该图片，添
-                                img_tag = f'<p><img src="{full_media_url}" alt="{media.filename}" style="max-width:100%;" /></p>'
-                                content += img_tag
-                                logger.info(f"添加缺失的图片标题: {media_filename}")
-                            # 记录添加的媒体附件
-                            logger.info(
-                                f"添加媒体附件: {full_media_url}, 类型: {media.type}, 大小: {media.size}"
-                            )
-                            # 添加enclosure
-                            fe.enclosure(
-                                url=full_media_url,
-                                length=(
-                                    str(media.size) if hasattr(media, "size") else "0"
-                                ),
-                                type=(
-                                    media.type
-                                    if hasattr(media, "type")
-                                    else "application/octet-stream"
-                                ),
-                            )
-                        except Exception as e:
-                            logger.error(f"添加媒体附件时出错: {str(e)}")
-                # 设置内容字段
-                fe.content(content, type="html")
-                # 设置描述字段 - 使用相同的内容中
-                fe.description(content)
-                # 解析ISO格式时间字符串，设置发布时间
-                try:
-                    published_dt = datetime.fromisoformat(entry.published)
-                    fe.published(published_dt)
-                except ValueError:
-                    # 如果时间格式无效，使用当前时间
-                    try:
-                        tz = _pytz.timezone(DEFAULT_TIMEZONE)
-                        fe.published(datetime.now(tz))
-                    except Exception as tz_error:
-                        logger.warning(f"时区设置错误: {str(tz_error)}，使用UTC时区")
-                        fe.published(datetime.now(_pytz.UTC))
-                # 设置作者和链接
-                if entry.author:
-                    fe.author(name=entry.author)
-                if entry.link:
-                    fe.link(href=entry.link)
+
+    @staticmethod
+    def _embed_media_in_content(entry, content, base_url):
+        """将媒体文件嵌入到内容HTML中"""
+        all_media_urls = []
+        if not entry.media:
+            return content, all_media_urls
+        logger.info(f"处理条目 {entry.id} 的媒体文件，数量: {len(entry.media)}")
+        for idx, media in enumerate(entry.media):
+            original_url = media.url if hasattr(media, "url") else "未知"
+            logger.info(f"媒体 {idx+1}/{len(entry.media)} - 原始URL: {original_url}")
+            media_filename = os.path.basename(media.url.split("/")[-1])
+            media_url = f"/media/{entry.rule_id}/{media_filename}"
+            full_media_url = f"{base_url}{media_url}"
+            all_media_urls.append(full_media_url)
+            logger.info(f"媒体 {idx+1}/{len(entry.media)} - 新URL: {full_media_url}")
+            try:
+                if media.type.startswith("image/"):
+                    content += FeedService._render_media_html(media, full_media_url, "image")
+                    logger.info(f"已添加图片标签到内容中 {media_filename}")
+                elif media.type.startswith("video/"):
+                    content += FeedService._render_media_html(media, full_media_url, "video")
+                    logger.info(f"添加视频播放器到内容中 {media.filename}")
+                elif media.type.startswith("audio/"):
+                    content += FeedService._render_media_html(media, full_media_url, "audio")
+                    logger.info(f"添加音频播放器到内容中 {media.filename}")
+                else:
+                    content += FeedService._render_media_html(media, full_media_url, "file")
+            except Exception as e:
+                logger.error(f"添加媒体标签时出错: {str(e)}")
+        return content, all_media_urls
+
+    @staticmethod
+    def _ensure_valid_html(content, entry, base_url):
+        """确保内容是有效的HTML，并修复本地地址"""
+        if not content:
+            content = "<p>该消息没有文本内容</p>"
+            if entry.media and len(entry.media) > 0:
+                content += f"<p>包含 {len(entry.media)} 个媒体文件</p>"
+        if not content.startswith("<"):
+            processed_content = ""
+            paragraphs = content.split("\n\n")
+            for p in paragraphs:
+                if p.strip():
+                    lines = p.split("\n")
+                    processed_content += f"<p>{lines[0]}"
+                    for line in lines[1:]:
+                        if line.strip():
+                            processed_content += f"<br>{line}"
+                    processed_content += "</p>"
+            content = processed_content if processed_content else f"<p>{content}</p>"
+        content = re.sub(r"<br>\s*<br>", "<br>", content)
+        content = re.sub(r"<p>\s*</p>", "", content)
+        content = re.sub(r"<p><br></p>", "<p></p>", content)
+        if "127.0.0.1" in content or "localhost" in content:
+            logger.warning(f"内容中包含硬编码的本地地址，将替换 {base_url}")
+            content = content.replace(f"http://127.0.0.1:{settings.RSS_PORT}", base_url)
+            content = content.replace(f"http://localhost:{settings.RSS_PORT}", base_url)
+            content = content.replace(f"http://{settings.RSS_HOST}:{settings.RSS_PORT}", base_url)
+        return content
+
+    @staticmethod
+    def _add_media_enclosures(fe, entry, content, base_url):
+        """添加媒体附件并确保图片在内容中"""
+        if not entry.media:
+            return
+        for media in entry.media:
+            try:
+                media_filename = os.path.basename(media.url.split("/")[-1])
+                full_media_url = f"{base_url}/media/{entry.rule_id}/{media_filename}"
+                if media.type.startswith("image/") and full_media_url not in content:
+                    img_tag = f'<p><img src="{full_media_url}" alt="{media.filename}" style="max-width:100%;" /></p>'
+                    content += img_tag
+                    logger.info(f"添加缺失的图片标题: {media_filename}")
+                logger.info(f"添加媒体附件: {full_media_url}, 类型: {media.type}, 大小: {media.size}")
+                fe.enclosure(
+                    url=full_media_url,
+                    length=str(media.size) if hasattr(media, "size") else "0",
+                    type=media.type if hasattr(media, "type") else "application/octet-stream",
+                )
+            except Exception as e:
+                logger.error(f"添加媒体附件时出错: {str(e)}")
+
+    @staticmethod
+    def _set_entry_metadata(fe, entry, content):
+        """设置条目的内容、描述、发布时间、作者和链接"""
+        fe.content(content, type="html")
+        fe.description(content)
+        try:
+            published_dt = datetime.fromisoformat(entry.published)
+            fe.published(published_dt)
+        except ValueError:
+            try:
+                tz = _pytz.timezone(DEFAULT_TIMEZONE)
+                fe.published(datetime.now(tz))
+            except Exception as tz_error:
+                logger.warning(f"时区设置错误: {str(tz_error)}，使用UTC时区")
+                fe.published(datetime.now(_pytz.UTC))
+        if entry.author:
+            fe.author(name=entry.author)
+        if entry.link:
+            fe.link(href=entry.link)
+
+    @staticmethod
+    async def generate_feed_from_entries(
+        rule_id: int, entries: List[Entry], base_url: str = None
+    ) -> FeedGenerator:
+        """根据真实条目生成Feed"""
+        fg = FeedGenerator()
+        fg.load_extension("base", atom=True)
+        rss_config = None
+        if base_url is None:
+            base_url = f"http://{settings.RSS_HOST}:{settings.RSS_PORT}"
+        logger.info(
+            f"生成Feed - 规则ID: {rule_id}, 条目数量: {len(entries)}, 基础URL: {base_url}"
+        )
+        session = get_session()
+        try:
+            rss_config = (
+                session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
+            )
+            logger.info(f"获取RSS配置: {rss_config.__dict__}")
+            FeedService._setup_feed_metadata(fg, rss_config, rule_id, base_url)
+        finally:
+            session.close()
+
+        for entry in entries:
+            try:
+                fe = fg.add_entry()
+                fe.id(entry.id or entry.message_id)
+                content = None
+                fe.title(entry.title)
+                if rss_config.is_ai_extract:
+                    content = entry.content
+                else:
+                    if rss_config.enable_custom_title_pattern:
+                        fe.title(entry.title)
+                    if rss_config.enable_custom_content_pattern:
+                        content = entry.content
+                    if rss_config.is_auto_title or rss_config.is_auto_content:
+                        extracted_title, extracted_content = (
+                            FeedService.extract_telegram_title_and_content(entry.content or "")
+                        )
+                        if rss_config.is_auto_title:
+                            fe.title(extracted_title)
+                        if rss_config.is_auto_content:
+                            content = FeedService.convert_markdown_to_html(extracted_content)
+                        else:
+                            content = FeedService.convert_markdown_to_html(entry.content or "")
+                    else:
+                        content = FeedService.convert_markdown_to_html(entry.content or "")
+
+                content, _ = FeedService._embed_media_in_content(entry, content or "", base_url)
+                content = FeedService._ensure_valid_html(content, entry, base_url)
+                FeedService._add_media_enclosures(fe, entry, content, base_url)
+                FeedService._set_entry_metadata(fe, entry, content)
             except Exception as e:
                 logger.error(f"添加条目到Feed时出错: {str(e)}")
                 continue

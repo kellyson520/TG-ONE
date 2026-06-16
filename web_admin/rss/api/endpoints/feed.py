@@ -239,105 +239,241 @@ async def get_media(rule_id: int, filename: str, request: Request):
     return FileResponse(path=media_path, media_type=mime_type, filename=filename)
 
 
+async def _get_rss_config(rule_id: int):
+    """获取RSS配置和最大条目数"""
+    async with AsyncSessionManager(readonly=True) as session:
+        result = await session.execute(
+            select(RSSConfig).filter(RSSConfig.rule_id == rule_id)
+        )
+        rss_config = result.scalars().first()
+    return rss_config, rss_config.max_items
+
+
+def _validate_media_files(entry_data: Dict[str, Any]):
+    """验证媒体文件是否存在，收集文件名"""
+    media_filenames = []
+    for m in entry_data.get("media", []):
+        if isinstance(m, dict):
+            media_filenames.append(m.get("filename", "未知"))
+            filename = m.get("filename", "")
+        else:
+            media_filenames.append(getattr(m, "filename", "未知"))
+            filename = getattr(m, "filename", "")
+        media_path = os.path.join(settings.RSS_MEDIA_DIR, filename)
+        if not os.path.exists(media_path):
+            logger.warning(f"媒体文件不存 {media_path}")
+    return media_filenames
+
+
+def _delete_entry_media(entry, rule_id: int):
+    """删除条目关联的媒体文件"""
+    if hasattr(entry, "media") and entry.media:
+        logger.info(f"条目 {entry.id} 包含 {len(entry.media)} 个媒体文件，将一并删除")
+        media_dir = Path(get_rule_media_dir(rule_id))
+        for media in entry.media:
+            if hasattr(media, "filename"):
+                media_path = media_dir / media.filename
+                if media_path.exists():
+                    try:
+                        os.remove(media_path)
+                        logger.info(f"已删除媒体文件 {media_path}")
+                    except Exception as e:
+                        logger.error(f"删除媒体文件失败: {media_path}, 错误: {str(e)}")
+
+
+async def _prune_old_entries(rule_id: int, max_items: int):
+    """当条目数量接近限制时删除最旧的条目"""
+    current_entries = await get_entries(rule_id)
+    if len(current_entries) < max_items - 1:
+        return
+    to_delete_count = len(current_entries) - (max_items - 1)
+    if to_delete_count <= 0:
+        return
+    logger.info(
+        f"当前条目数量({len(current_entries)})将超过限制({max_items})，需要删除 {to_delete_count} 个最早的条目"
+    )
+    sorted_entries = sorted(
+        current_entries,
+        key=lambda e: (
+            datetime.fromisoformat(e.published)
+            if hasattr(e, "published")
+            else datetime.now()
+        ),
+    )
+    for entry in sorted_entries[:to_delete_count]:
+        try:
+            _delete_entry_media(entry, rule_id)
+            success = await delete_entry(rule_id, entry.id)
+            if success:
+                logger.info(f"已删除条目 {entry.id}")
+            else:
+                logger.warning(f"删除条目失败: {entry.id}")
+        except Exception as e:
+            logger.error(f"处理过期条目时出错 {str(e)}")
+
+
+async def _apply_ai_extraction(entry, rule_id: int, rss_config):
+    """使用AI提取标题和内容"""
+    if not rss_config.is_ai_extract:
+        return
+    try:
+        async with AsyncSessionManager(readonly=True) as session:
+            result = await session.execute(
+                select(ForwardRule).filter(ForwardRule.id == rule_id)
+            )
+            rule = result.scalars().first()
+        provider = await get_ai_provider(rule.ai_model)
+        json_text = await provider.process_message(
+            message=entry.content or "",
+            prompt=rss_config.ai_extract_prompt,
+            model=rule.ai_model,
+        )
+        logger.info(f"AI提取内容: {json_text}")
+        if "```" in json_text:
+            json_text = re.sub(r"```(\w+)\n", "", json_text)
+            json_text = re.sub(r"\n```", "", json_text)
+            json_text = json_text.strip()
+            logger.info(f"去除代码块标记后的内 {json_text}")
+        try:
+            json_data = json.loads(json_text)
+            logger.info(f"解析后的JSON数据: {json_data}")
+            entry.title = json_data.get("title", "")
+            entry.content = json_data.get("content", "")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析错误: {str(e)}, 原始文本: {json_text}")
+            try:
+                json_match = re.search(r"\{.*\}", json_text, re.DOTALL)
+                if json_match:
+                    clean_json = json_match.group(0)
+                    logger.info(f"尝试提取JSON: {clean_json}")
+                    json_data = json.loads(clean_json)
+                    entry.title = json_data.get("title", "")
+                    entry.content = json_data.get("content", "")
+                    logger.info(f"成功从文本中提取JSON数据")
+                else:
+                    logger.error("无法从AI响应中提取有效JSON")
+            except Exception as inner_e:
+                logger.error(f"尝试二次解析JSON时出 {str(inner_e)}")
+        except Exception as e:
+            logger.error(f"处理JSON数据时出 {str(e)}")
+    except Exception as e:
+        logger.error(f"AI提取内容时出 {str(e)}")
+
+
+async def _apply_custom_patterns(entry, rss_config):
+    """应用自定义正则模式提取标题和内容"""
+    if not (rss_config.enable_custom_title_pattern or rss_config.enable_custom_content_pattern):
+        return
+    try:
+        original_content = entry.content or ""
+        original_title = entry.title
+
+        if rss_config.enable_custom_title_pattern:
+            async with AsyncSessionManager(readonly=True) as session:
+                result = await session.execute(
+                    select(RSSPattern)
+                    .filter_by(rss_config_id=rss_config.id, pattern_type="title")
+                    .order_by(RSSPattern.priority)
+                )
+                title_patterns = result.scalars().all()
+            logger.info(f"找到 {len(title_patterns)} 个标题模")
+            processing_content = original_content
+            for pattern in title_patterns:
+                logger.info(f"开始尝试标题模 {pattern.pattern}")
+                try:
+                    match = re.search(pattern.pattern, processing_content)
+                    if match and match.groups():
+                        entry.title = match.group(1)
+                        logger.info(f"使用标题模式 '{pattern.pattern}' 提取到标 {entry.title}")
+                    elif match:
+                        logger.warning(f"模式 '{pattern.pattern}' 匹配成功但没有捕获组")
+                    else:
+                        logger.info(f"模式 '{pattern.pattern}' 未找到匹")
+                except Exception as e:
+                    logger.error(f"应用标题正则表达'{pattern.pattern}' 时出 {str(e)}")
+                    logger.exception("详细错误信息:")
+
+        if rss_config.enable_custom_content_pattern:
+            async with AsyncSessionManager(readonly=True) as session:
+                result = await session.execute(
+                    select(RSSPattern)
+                    .filter_by(rss_config_id=rss_config.id, pattern_type="content")
+                    .order_by(RSSPattern.priority)
+                )
+                content_patterns = result.scalars().all()
+            logger.info(f"找到 {len(content_patterns)} 个内容模")
+            processing_content = original_content
+            for i, pattern in enumerate(content_patterns):
+                try:
+                    logger.info(f"[步骤 {i+1}/{len(content_patterns)}] 对内容应用正则表达式: {pattern.pattern}")
+                    match = re.search(pattern.pattern, processing_content)
+                    if match and match.groups():
+                        extracted_content = match.group(1)
+                        processing_content = extracted_content
+                        entry.content = extracted_content
+                        logger.info(f"使用内容模式 '{pattern.pattern}' 提取到内容，长度: {len(extracted_content)}")
+                    else:
+                        logger.info(f"模式 '{pattern.pattern}' 未找到匹配或没有捕获组，内容保持不变")
+                except Exception as e:
+                    logger.error(f"应用内容正则表达'{pattern.pattern}' 时出 {str(e)}")
+
+        if not entry.title and original_title:
+            entry.title = original_title
+            logger.info(f"恢复原标题 {entry.title}")
+    except Exception as e:
+        logger.error(f"使用正则表达式提取标题和内容时出 {str(e)}")
+
+
+def _append_sender_info(entry):
+    """附加发送者信息到内容"""
+    if entry.sender_info:
+        entry.sender_info = entry.sender_info.strip()
+        entry.content = entry.sender_info + ":" + "\n\n" + entry.content
+
+
+def _append_original_link(entry):
+    """附加原始链接到内容"""
+    if not entry.original_link:
+        return
+    clean_link = entry.original_link.replace("原始消息:", "").strip()
+    clean_link = clean_link.replace("\n", "").replace("\r", "")
+    clean_link = re.sub(r"\s+", " ", clean_link).strip()
+    if clean_link.startswith("http"):
+        if entry.author:
+            entry.content += f"\n\n[来源: {entry.author}]({clean_link})"
+        else:
+            entry.content += f"\n\n[来源]({clean_link})"
+        logger.info(f"已添加清理后的链接 (Markdown格式)): {clean_link}")
+    else:
+        logger.warning(f"链接格式不正确，跳过添加: {clean_link}")
+
+
 @router.post("/api/entries/{rule_id}/add", dependencies=[Depends(verify_local_access)])
 async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
     """添加新的条目 (仅限本地访问)"""
     try:
-        # 记录接收到的数据摘要
         media_count = len(entry_data.get("media", []))
         has_context = "context" in entry_data and entry_data["context"] is not None
         logger.info(
             f"接收到新条目数据: 规则ID={rule_id}, 标题='{entry_data.get('title', '无标题')}', 媒体数量={media_count}, 包含上下文={has_context}"
         )
-        # 获取 RSS 配置信息，确定最大条目数
-        max_items = None
-        rss_config = None
-        async with AsyncSessionManager(readonly=True) as session:
-            result = await session.execute(
-                select(RSSConfig).filter(RSSConfig.rule_id == rule_id)
-            )
-            rss_config = result.scalars().first()
-            max_items = rss_config.max_items
-        # 验证媒体数据
-        if media_count > 0:
-            media_filenames = []
-            # 检查当前条目数量，如果接近限制则删除最旧的条目
-            current_entries = await get_entries(rule_id)
-            for m in entry_data.get("media", []):
-                if isinstance(m, dict):
-                    media_filenames.append(m.get("filename", "未知"))
-                else:
-                    media_filenames.append(getattr(m, "filename", "未知"))
-                to_delete_count = len(current_entries) - (max_items - 1)
 
-            # 确保媒体文件存在
-            for media in entry_data.get("media", []):
-                if isinstance(media, dict):
-                    filename = media.get("filename", "")
-                else:
-                    filename = getattr(media, "filename", "")
-                media_path = os.path.join(settings.RSS_MEDIA_DIR, filename)
-                if not os.path.exists(media_path):
-                    logger.warning(f"媒体文件不存 {media_path}")
-        # 记录上下文信息
+        rss_config, max_items = await _get_rss_config(rule_id)
+
+        if media_count > 0:
+            _validate_media_files(entry_data)
+
         if has_context:
             logger.info(
                 f"条目包含原始上下文对象，属性: {', '.join(entry_data['context'].keys()) if hasattr(entry_data['context'], 'keys') else '无法获取属性'}"
             )
-        # 确保必要的字段存在
+
         entry_data["rule_id"] = rule_id
         if not entry_data.get("message_id"):
             entry_data["message_id"] = entry_data.get("id", "")
-        # 检查当前条目数量，如果接近限制则删除最旧的条目
-        current_entries = await get_entries(rule_id)
-        if len(current_entries) >= max_items - 1:
-            # 计算需要删除除的条目数量，确保添加新条目后总数不超过最大限额
-            to_delete_count = len(current_entries) - (max_items - 1)
-            if to_delete_count > 0:
-                logger.info(
-                    f"当前条目数量({len(current_entries)})将超过限制({max_items})，需要删除 {to_delete_count} 个最早的条目"
-                )
-                # 对条目按发布时间排序（从早到晚）
-                sorted_entries = sorted(
-                    current_entries,
-                    key=lambda e: (
-                        datetime.fromisoformat(e.published)
-                        if hasattr(e, "published")
-                        else datetime.now()
-                    ),
-                )
-                # 获取要删除的条目
-                entries_to_delete = sorted_entries[:to_delete_count]
-                # 删除多余条目
-                for entry in entries_to_delete:
-                    try:
-                        # 删除条目前先处理其媒体文
-                        if hasattr(entry, "media") and entry.media:
-                            logger.info(
-                                f"条目 {entry.id} 包含 {len(entry.media)} 个媒体文件，将一并删除"
-                            )
-                            # 删除媒体文件
-                            media_dir = Path(get_rule_media_dir(rule_id))
-                            for media in entry.media:
-                                if hasattr(media, "filename"):
-                                    media_path = media_dir / media.filename
-                                    if media_path.exists():
-                                        try:
-                                            os.remove(media_path)
-                                            logger.info(f"已删除媒体文件 {media_path}")
-                                        except Exception as e:
-                                            logger.error(
-                                                f"删除媒体文件失败: {media_path}, 错误: {str(e)}"
-                                            )
-                        # 删除条目
-                        success = await delete_entry(rule_id, entry.id)
-                        if success:
-                            logger.info(f"已删除条目 {entry.id}")
-                        else:
-                            logger.warning(f"删除条目失败: {entry.id}")
-                    except Exception as e:
-                        logger.error(f"处理过期条目时出错 {str(e)}")
-        # 转换为Entry对象
+
+        await _prune_old_entries(rule_id, max_items)
+
         entry = Entry(
             rule_id=rule_id,
             message_id=entry_data.get("message_id", entry_data.get("id", "")),
@@ -350,201 +486,19 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
             original_link=entry_data.get("original_link"),
             sender_info=entry_data.get("sender_info"),
         )
-        # 使用AI提取内容
-        if rss_config.is_ai_extract:
-            try:
-                async with AsyncSessionManager(readonly=True) as session:
-                    result = await session.execute(
-                        select(ForwardRule).filter(ForwardRule.id == rule_id)
-                    )
-                    rule = result.scalars().first()
-                provider = await get_ai_provider(rule.ai_model)
-                json_text = await provider.process_message(
-                    message=entry.content or "",
-                    prompt=rss_config.ai_extract_prompt,
-                    model=rule.ai_model,
-                )
-                logger.info(f"AI提取内容: {json_text}")
-                # 去除代码块标记，如果有的
-                if "```" in json_text:
-                    # 移除所有代码块标记，包括语言标识和结束标记
-                    json_text = re.sub(
-                        r"```(\w+)\n", "", json_text
-                    )  # 开始标记（带可选的语言标识
-                    json_text = re.sub(r"\n```", "", json_text)  # 结束标记记
-                    json_text = json_text.strip()
-                    logger.info(f"去除代码块标记后的内 {json_text}")
-                # 解析JSON数据
-                try:
-                    json_data = json.loads(json_text)
-                    logger.info(f"解析后的JSON数据: {json_data}")
-                    # 提取标题和内
-                    title = json_data.get("title", "")
-                    content = json_data.get("content", "")
-                    entry.title = title
-                    entry.content = content
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON解析错误: {str(e)}, 原始文本: {json_text}")
-                    # 尝试其他清理方式
-                    try:
-                        # 匹配大括号之间的JSON内容
-                        json_match = re.search(r"\{.*\}", json_text, re.DOTALL)
-                        if json_match:
-                            clean_json = json_match.group(0)
-                            logger.info(f"尝试提取JSON: {clean_json}")
-                            json_data = json.loads(clean_json)
-                            # 提取标题和内
-                            title = json_data.get("title", "")
-                            content = json_data.get("content", "")
-                            entry.title = title
-                            entry.content = content
-                            logger.info(f"成功从文本中提取JSON数据")
-                        else:
-                            logger.error("无法从AI响应中提取有效JSON")
-                    except Exception as inner_e:
-                        logger.error(f"尝试二次解析JSON时出 {str(inner_e)}")
-                except Exception as e:
-                    logger.error(f"处理JSON数据时出 {str(e)}")
-            except Exception as e:
-                logger.error(f"AI提取内容时出 {str(e)}")
+
+        await _apply_ai_extraction(entry, rule_id, rss_config)
+
         logger.info(
             f"启用自定义标题模 {rss_config.enable_custom_title_pattern}, 启用自定义内容模 {rss_config.enable_custom_content_pattern}"
         )
-        if (
-            rss_config.enable_custom_title_pattern
-            or rss_config.enable_custom_content_pattern
-        ):
-            try:
-                # 获取原始内容
-                original_content = entry.content or ""
-                original_title = entry.title
-                # 如果启用了标题正则表达式提取
-                if rss_config.enable_custom_title_pattern:
-                    # 直接使用会话查询标题模式并按优先级排
-                    async with AsyncSessionManager(readonly=True) as session:
-                        result = await session.execute(
-                            select(RSSPattern)
-                            .filter_by(rss_config_id=rss_config.id, pattern_type="title")
-                            .order_by(RSSPattern.priority)
-                        )
-                        title_patterns = result.scalars().all()
-                    logger.info(f"找到 {len(title_patterns)} 个标题模")
-                    # 设置初始处理文本
-                    processing_content = original_content
-                    logger.info(
-                        f"标题提取初始文本: {processing_content[:100]}..."
-                        if len(processing_content) > 100
-                        else processing_content
-                    )
-                    # 依次应用每个模式，每次处理后的结果作为下一个模式的输入
-                    for pattern in title_patterns:
-                        logger.info(f"开始尝试标题模 {pattern.pattern}")
-                        try:
-                            logger.info(f"对内容应用正则表达式: {pattern.pattern}")
-                            match = re.search(pattern.pattern, processing_content)
-                            if match:
-                                logger.info(f"找到匹配: {match.groups()}")
-                                if match.groups():
-                                    entry.title = match.group(1)
-                                    logger.info(
-                                        f"使用标题模式 '{pattern.pattern}' 提取到标 {entry.title}"
-                                    )
-                                else:
-                                    logger.warning(
-                                        f"模式 '{pattern.pattern}' 匹配成功但没有捕获组"
-                                        ""
-                                    )
-                            else:
-                                logger.info(f"模式 '{pattern.pattern}' 未找到匹")
-                        except Exception as e:
-                            logger.error(
-                                f"应用标题正则表达'{pattern.pattern}' 时出 {str(e)}"
-                            )
-                            logger.exception("详细错误信息:")
-                # 如果启用了内容正则表达式提取
-                if rss_config.enable_custom_content_pattern:
-                    # 直接使用会话查询内容模式并按优先级排
-                    async with AsyncSessionManager(readonly=True) as session:
-                        result = await session.execute(
-                            select(RSSPattern)
-                            .filter_by(rss_config_id=rss_config.id, pattern_type="content")
-                            .order_by(RSSPattern.priority)
-                        )
-                        content_patterns = result.scalars().all()
-                    logger.info(f"找到 {len(content_patterns)} 个内容模")
-                    # 设置初始处理文本
-                    processing_content = original_content
-                    logger.info(
-                        f"内容提取初始文本: {processing_content[:100]}..."
-                        if len(processing_content) > 100
-                        else processing_content
-                    )
-                    # 依次应用每个模式，每次处理后的结果作为下一个模式的输入
-                    for i, pattern in enumerate(content_patterns):
-                        try:
-                            logger.info(
-                                f"[步骤 {i+1}/{len(content_patterns)}] 对内容应用正则表达式: {pattern.pattern}"
-                            )
-                            logger.info(
-                                f"处理前的内容长度: {len(processing_content)}, 预览: {processing_content[:150]}..."
-                                if len(processing_content) > 150
-                                else processing_content
-                            )
-                            match = re.search(pattern.pattern, processing_content)
-                            if match and match.groups():
-                                extracted_content = match.group(1)
-                                processing_content = (
-                                    extracted_content  # 更新处理内容为提取结果
-                                )
-                                entry.content = extracted_content
-                                logger.info(
-                                    f"使用内容模式 '{pattern.pattern}' 提取到内容，长度: {len(extracted_content)}"
-                                )
-                                logger.info(
-                                    f"处理后的内容长度: {len(processing_content)}, 预览: {processing_content[:150]}..."
-                                    if len(processing_content) > 150
-                                    else processing_content
-                                )
-                            else:
-                                logger.info(
-                                    f"模式 '{pattern.pattern}' 未找到匹配或没有捕获组，内容保持不变"
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"应用内容正则表达'{pattern.pattern}' 时出 {str(e)}"
-                            )
-                # 如果执行到这里但没有提取到标题，则恢复原标题
-                if not entry.title and original_title:
-                    entry.title = original_title
-                    logger.info(f"恢复原标题 {entry.title}")
-            except Exception as e:
-                logger.error(f"使用正则表达式提取标题和内容时出 {str(e)}")
-        if entry.sender_info:
-            # 清楚空格和换
-            entry.sender_info = entry.sender_info.strip()
-            entry.content = entry.sender_info + ":" + "\n\n" + entry.content
-        # 添加原始链接
-        if entry.original_link:
-            # 清理链接中的前缀、换行符和多余空格
-            clean_link = entry.original_link.replace("原始消息:", "").strip()
-            # 删除链接中的所有换行符
-            clean_link = clean_link.replace("\n", "").replace("\r", "")
-            # 处理链接中的多余空格
-            clean_link = re.sub(r"\s+", " ", clean_link).strip()
-            # 确保链接是URL格式
-            if clean_link.startswith("http"):
-                if entry.author:
-                    # 使用Markdown格式的链
-                    entry.content += f"\n\n[来源: {entry.author}]({clean_link})"
-                else:
-                    # 使用Markdown格式的链
-                    entry.content += f"\n\n[来源]({clean_link})"
-                logger.info(f"已添加清理后的链接 (Markdown格式)): {clean_link}")
-            else:
-                logger.warning(f"链接格式不正确，跳过添加: {clean_link}")
-        # 处理后的消息
+        await _apply_custom_patterns(entry, rss_config)
+
+        _append_sender_info(entry)
+        _append_original_link(entry)
+
         logger.info(f"处理后的消息: {entry.content}")
-        # 添加条目
+
         success = await create_entry(entry)
         if success:
             return {
