@@ -313,7 +313,7 @@ async def login_2fa(
         value=access_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     response.set_cookie(
@@ -321,7 +321,7 @@ async def login_2fa(
         value=refresh_token,
         httponly=True,
         samesite="lax", 
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     
@@ -499,7 +499,7 @@ async def get_active_sessions(
 # ==================== Security APIs ====================
 
 @router.get("/lockout_status", response_class=JSONResponse)
-async def get_lockout_status(username: str = Query(...)):
+async def get_lockout_status(username: str = Query(...), user = Depends(admin_required)):
     """
     Check account lockout status
     """
@@ -601,7 +601,6 @@ async def revoke_user_sessions(
         status="success"
     )
     return {"success": True, "message": f"All sessions for user {user_id} revoked"}
-    return {"success": True, "message": f"All sessions for user {user_id} revoked"}
 
 @router.post("/2fa/setup", response_model=Setup2FAResponse)
 async def setup_2fa(user = Depends(login_required)):
@@ -636,9 +635,12 @@ async def enable_2fa(
     return {"success": True, "message": "2FA enabled successfully"}
 
 @router.post("/2fa/disable")
-async def disable_2fa(user = Depends(login_required)):
-    """Disable 2FA."""
-    # In production, might want to require password confirmation here
+async def disable_2fa(verify_data: Verify2FASetupRequest, user = Depends(login_required)):
+    """Disable 2FA. Requires current TOTP code for security."""
+    # Verify the TOTP code before allowing disable
+    is_valid = await authentication_service.verify_2fa_login(user.id, verify_data.token)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid TOTP code. Current code required to disable 2FA.")
     success = await authentication_service.disable_2fa(user.id)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to disable 2FA")
@@ -787,7 +789,7 @@ async def login_with_recovery_code(
         value=access_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     response.set_cookie(
@@ -795,7 +797,7 @@ async def login_with_recovery_code(
         value=refresh_token,
         httponly=True,
         samesite="lax", 
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     

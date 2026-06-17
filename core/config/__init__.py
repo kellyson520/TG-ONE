@@ -30,6 +30,27 @@ def _load_rss_secret_key() -> Optional[str]:
         logger.warning(f"尝试读取 RSS 密钥文件失败: {e}")
     return rss_key
 
+# 从文件加载JWT密钥的辅助函数（持久化，重启后不变）
+def _load_secret_key() -> str:
+    """从文件加载JWT密钥，不存在则生成并持久化"""
+    try:
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        key_file = base_dir / "data" / ".secret_key"
+        if key_file.exists():
+            content = key_file.read_text(encoding='utf-8').strip()
+            if content:
+                return content
+        # Generate new key and persist
+        new_key = secrets.token_hex(32)
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_text(new_key, encoding='utf-8')
+        key_file.chmod(0o600)
+        logger.info("Generated and persisted new SECRET_KEY")
+        return new_key
+    except Exception as e:
+        logger.warning(f"Failed to load/persist SECRET_KEY: {e}, using ephemeral key")
+        return secrets.token_hex(32)
+
 class Settings(BaseSettings):
     """应用配置类，使用Pydantic v2实现类型安全的配置管理"""
     
@@ -721,8 +742,8 @@ class Settings(BaseSettings):
     
     # === Security / JWT Config ===
     SECRET_KEY: str = Field(
-        default_factory=lambda: secrets.token_hex(32),
-        description="JWT 密钥"
+        default_factory=_load_secret_key,
+        description="JWT 密钥（持久化到 data/.secret_key，重启后不变）"
     )
     JWT_ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)

@@ -131,6 +131,8 @@ async def login(
             value=access_token,
             httponly=True,
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=settings.COOKIE_SECURE,
         )
         return response
     finally:
@@ -159,6 +161,19 @@ async def register(request: Request):
             {"request": request, "error": "两次输入的密码不一致"},
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    # Password strength validation
+    if not password or len(password) < 8:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "密码长度至少为8个字符"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if password.lower() == username.lower():
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "密码不能与用户名相同"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     with get_session() as db_session:
         init_db_ops()
         user = await db_ops.create_user(db_session, username, password)
@@ -180,6 +195,8 @@ async def register(request: Request):
             value=access_token,
             httponly=True,
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=settings.COOKIE_SECURE,
         )
         return response
 

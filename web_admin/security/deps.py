@@ -5,6 +5,7 @@ from models.models import User
 from web_admin.security.exceptions import PageRedirect
 from typing import Optional
 import logging
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ async def get_current_user(
                 value=new_access_token,
                 httponly=True,
                 samesite="lax",
-                secure=False,
+                secure=settings.COOKIE_SECURE,
                 path="/"
             )
             response.set_cookie(
@@ -62,7 +63,7 @@ async def get_current_user(
                 value=new_refresh_token,
                 httponly=True,
                 samesite="lax",
-                secure=False,
+                secure=settings.COOKIE_SECURE,
                 path="/"
             )
             logger.info("Access & Refresh tokens rotated automatically via middleware")

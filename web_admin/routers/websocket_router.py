@@ -20,6 +20,9 @@ import time
 from datetime import datetime
 from collections import defaultdict
 
+import jwt
+from core.config import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +231,20 @@ async def websocket_endpoint(websocket: WebSocket):
     - {"action": "unsubscribe", "topic": "stats"} 取消订阅
     - {"action": "ping"}  心跳检测
     """
+    # Validate JWT token from query parameter before accepting connection
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+    try:
+        jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        await websocket.close(code=4001, reason="Token expired")
+        return
+    except jwt.InvalidTokenError:
+        await websocket.close(code=4003, reason="Invalid token")
+        return
+
     # 生成客户端ID
     client_id = f"client_{id(websocket)}_{datetime.utcnow().timestamp()}"
     

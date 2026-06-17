@@ -2,6 +2,7 @@ import secrets
 import logging
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 value=request.scope.get("csrf_token_new") or csrf_token,
                 httponly=False,
                 samesite="lax",
-                secure=False,
+                secure=settings.COOKIE_SECURE,
                 path="/"
             )
             

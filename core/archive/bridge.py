@@ -102,6 +102,14 @@ class UnifiedQueryBridge:
                 return await self.query_aggregate(table_name, sql_template, params, use_hot=True, use_cold=False)
             return []
 
+    # Allowed ORDER BY columns to prevent SQL injection
+    _ALLOWED_ORDER_BY = {
+        "created_at", "updated_at", "id", "status", "priority",
+        "task_type", "username", "action", "timestamp", "user_id"
+    }
+    _ORDER_BY_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*( (ASC|DESC))?$', re.IGNORECASE)
+    _WHERE_SAFE_RE = re.compile(r'^[\w\s\?\=\>\<\!\(\)\.\,\+\-\*\/\%\s,]+$')
+
     async def query_unified(
         self,
         table_name: str,
@@ -114,6 +122,15 @@ class UnifiedQueryBridge:
         use_cold: bool = True
     ) -> List[Dict[str, Any]]:
         """基础统一查询 (复用 query_aggregate)"""
+        # Validate order_by against injection
+        order_base = order_by.split()[0] if order_by.split() else ""
+        if not self._ORDER_BY_RE.match(order_by) or order_base not in self._ALLOWED_ORDER_BY:
+            raise ValueError(f"Invalid order_by clause: {order_by}")
+        # Validate where_sql doesn't contain dangerous SQL tokens
+        upper_where = where_sql.upper()
+        for token in ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "UNION ", "EXEC ", "--", ";"):
+            if token in upper_where:
+                raise ValueError(f"Disallowed SQL token in where_sql: {token.strip()}")
         sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT {limit} OFFSET {offset}"
         return await self.query_aggregate(table_name, sql, params, use_hot, use_cold)
 

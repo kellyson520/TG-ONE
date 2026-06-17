@@ -353,10 +353,13 @@ def migrate_db(engine):
                             # 简单的升级逻辑：如果存在且不是唯一的，则先删除
                             # SQLite 不支持 ALTER INDEX，只能先 DROP
                             # 注意：这里我们保守一点，如果失败说明可能已经存在唯一索引或者正在使用
-                            check_sql = f"SELECT sql FROM sqlite_master WHERE name='{idx_name}'"
-                            res = connection.execute(text(check_sql)).fetchone()
+                            check_sql = "SELECT sql FROM sqlite_master WHERE name=:name"
+                            res = connection.execute(text(check_sql), {"name": idx_name}).fetchone()
                             if res and 'UNIQUE' not in res[0].upper():
                                 logger.info(f"升级索引 {idx_name} 为 UNIQUE...")
+                                import re as _re
+                                if not _re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', idx_name):
+                                    raise ValueError(f"Invalid index name: {idx_name}")
                                 connection.execute(text(f"DROP INDEX {idx_name}"))
                         
                         connection.execute(text(sql))
