@@ -47,7 +47,122 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-@router.post("/login", response_model=None) # Response model varies (TokenResponse or JSONResponse for errors/2FA)
+async def _parse_login_credentials(request: Request):
+    """从请求中解析用户名和密码（支持JSON和Form）"""
+    username, password = "", ""
+    try:
+        if "application/json" in request.headers.get("content-type", ""):
+            body = await request.json()
+            username = body.get("username")
+            password = body.get("password")
+    except Exception as e:
+        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
+    if not username:
+        try:
+            form = await request.form()
+            username = form.get("username")
+            password = form.get("password")
+        except Exception as e:
+            pass
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username and password required"
+        )
+    return username, password
+
+
+async def _check_account_lockout(username: str, client_ip: str):
+    """检查账户是否被锁定"""
+    rate_limiter = get_rate_limiter()
+    if not rate_limiter.is_locked(username):
+        return None
+    lockout_info = rate_limiter.get_lockout_info(username)
+    remaining_minutes = lockout_info['remaining_minutes']
+    remaining_seconds = lockout_info['remaining_seconds'] % 60
+    logger.warning(f"Login refused (Account Locked): username={username}, ip={client_ip}")
+    await audit_service.log_event(
+        action="LOGIN_LOCKED", username=username, ip_address=client_ip,
+        status="failure", details={"reason": "account_locked"}
+    )
+    return JSONResponse({
+        'success': False,
+        'error': f'账户已锁定，请在 {remaining_minutes} 分 {remaining_seconds} 秒后重试',
+        'locked': True,
+        'unlock_at': lockout_info['unlock_at'],
+        'remaining_seconds': lockout_info['remaining_seconds']
+    }, status_code=429)
+
+
+async def _authenticate_user(username: str, password: str):
+    """认证用户，包含ENV回退逻辑"""
+    user = await authentication_service.authenticate_user(username, password)
+    if not user:
+        env_u = settings.WEB_ADMIN_USERNAME or ''
+        env_p = settings.WEB_ADMIN_PASSWORD or ''
+        if username == env_u and password == env_p and env_u and env_p:
+            u_repo = await container.user_repo.get_user_by_username(username)
+            if not u_repo:
+                user = await container.user_repo.create_user(env_u, env_p, is_admin=True)
+                logger.info(f"Created admin from ENV: {env_u}")
+    return user
+
+
+async def _handle_auth_failure(username: str, client_ip: str):
+    """处理认证失败：记录失败次数，可能锁定账户"""
+    rate_limiter = get_rate_limiter()
+    is_locked = rate_limiter.record_failure(username, client_ip)
+    if is_locked:
+        logger.error(f"Account Locked (Too many failures): username={username}, ip={client_ip}")
+        lockout_info = rate_limiter.get_lockout_info(username)
+        await audit_service.log_event(
+            action="LOGIN_LOCKOUT", username=username, ip_address=client_ip,
+            status="failure", details={"reason": "max_attempts_exceeded"}
+        )
+        return JSONResponse({
+            'success': False,
+            'error': f'登录失败次数过多，账户已锁定 {lockout_info["remaining_minutes"]} 分钟',
+            'locked': True,
+            'unlock_at': lockout_info['unlock_at']
+        }, status_code=429)
+    await audit_service.log_event(
+        action="LOGIN_FAILED", username=username, ip_address=client_ip,
+        status="failure", details={"reason": "invalid_credentials"}
+    )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect username or password",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def _create_login_response(user, request: Request, response: Response):
+    """创建登录成功响应：设置cookie和审计日志"""
+    ip = request.client.host if request.client else "unknown"
+    ua = request.headers.get("user-agent", "unknown")
+    access_token, refresh_token = await authentication_service.create_session(user.id, ip, ua)
+    secure = settings.COOKIE_SECURE
+    max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+    response.set_cookie(
+        key="access_token", value=access_token, httponly=True,
+        samesite="lax", secure=secure, path="/", max_age=max_age
+    )
+    response.set_cookie(
+        key="refresh_token", value=refresh_token, httponly=True,
+        samesite="lax", secure=secure, path="/", max_age=refresh_max_age
+    )
+    await audit_service.log_event(
+        action="LOGIN", user_id=user.id, username=user.username,
+        ip_address=ip, user_agent=ua, status="success"
+    )
+    return {
+        "access_token": access_token, "refresh_token": refresh_token,
+        "token_type": "bearer", "success": True, "message": "Login successful"
+    }
+
+
+@router.post("/login", response_model=None)
 async def login(
     request: Request,
     response: Response
@@ -56,136 +171,20 @@ async def login(
     Login with username and password. Supports both Form data (Swagger UI) and JSON.
     Includes Rate Limiting and Account Locking.
     """
-    username = ""
-    password = ""
-    
-    # 1. Try JSON
-    try:
-        if "application/json" in request.headers.get("content-type", ""):
-            body = await request.json()
-            username = body.get("username")
-            password = body.get("password")
-    except Exception as e:
-        logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-        
-    # 2. Try Form (if not found in JSON)
-    if not username:
-        try:
-            form = await request.form()
-            username = form.get("username")
-            password = form.get("password")
-        except Exception as e:
-            # logger.warning(f"Login form parsing failed: {e}")
-            pass
-
-    if not username or not password:
-         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and password required"
-        )
-
-    # --- Rate Limiting & Lockout Check ---
-    rate_limiter = get_rate_limiter()
+    username, password = await _parse_login_credentials(request)
     client_ip = request.client.host if request.client else "unknown"
-    
-    if rate_limiter.is_locked(username):
-        lockout_info = rate_limiter.get_lockout_info(username)
-        remaining_minutes = lockout_info['remaining_minutes']
-        remaining_seconds = lockout_info['remaining_seconds'] % 60
-        
-        logger.warning(f"Login refused (Account Locked): username={username}, ip={client_ip}")
-        
-        await audit_service.log_event(
-            action="LOGIN_LOCKED",
-            username=username,
-            ip_address=client_ip,
-            status="failure",
-            details={"reason": "account_locked"}
-        )
-        
-        return JSONResponse({
-            'success': False,
-            'error': f'账户已锁定，请在 {remaining_minutes} 分 {remaining_seconds} 秒后重试',
-            'locked': True,
-            'unlock_at': lockout_info['unlock_at'],
-            'remaining_seconds': lockout_info['remaining_seconds']
-        }, status_code=429)
 
-    # --- Authenticate ---
-    # We use authentication_service for user fetching, but we need to handle the password check manually 
-    # to integrate with rate_limiter failure recording (or pass rate-limiter logic into service, 
-    # but here we are doing it in the controller as per legacy fastapi_app logic).
-    
-    # Actually authentication_service.authenticate_user does checks.
-    # Let's verify if we should use valid user object or handle failure explicitly.
-    
-    user = await authentication_service.authenticate_user(username, password)
-    
-    # Fallback: Environment Admin Check (if DB empty or specific env set)
-    if not user:
-        # Check env (copied from fastapi_app.py)
-        # Check env (copied from fastapi_app.py)
-        env_u = settings.WEB_ADMIN_USERNAME or ''
-        env_p = settings.WEB_ADMIN_PASSWORD or ''
-        if username == env_u and password == env_p and env_u and env_p:
-            # Create/Get user logic could be complex here, assuming authenticate_user handles db users.
-            # If env user matches, we might just proceed or create it on the fly.
-            # For strictness, let's rely on container.user_repo inside authentication_service?
-            # authentication_service.authenticate_user uses user_repo.
-            # If env user is used, we should probably ensure it exists in DB.
-            # Logic from fastapi_app:
-            u_repo = await container.user_repo.get_user_by_username(username)
-            if not u_repo:
-                 user = await container.user_repo.create_user(env_u, env_p, is_admin=True)
-                 logger.info(f"Created admin from ENV: {env_u}")
-            else:
-                 # If user exists but password mismatch in authenticate_user (which checks hash),
-                 # checking env_p again is weird unless we want to reset it?
-                 # Let's stick to the behavior: if authenticate_user failed, WE FAIL.
-                 # The env check in fastapi_app was likely for *bootstrapping*.
-                 pass
+    lockout_response = await _check_account_lockout(username, client_ip)
+    if lockout_response:
+        return lockout_response
+
+    user = await _authenticate_user(username, password)
 
     if not user:
-        # Record Failure
-        is_locked = rate_limiter.record_failure(username, client_ip)
-        
-        if is_locked:
-            logger.error(f"Account Locked (Too many failures): username={username}, ip={client_ip}")
-            lockout_info = rate_limiter.get_lockout_info(username)
-            
-            await audit_service.log_event(
-                action="LOGIN_LOCKOUT",
-                username=username,
-                ip_address=client_ip,
-                status="failure",
-                details={"reason": "max_attempts_exceeded"}
-            )
+        return await _handle_auth_failure(username, client_ip)
 
-            return JSONResponse({
-                'success': False,
-                'error': f'登录失败次数过多，账户已锁定 {lockout_info["remaining_minutes"]} 分钟',
-                'locked': True,
-                'unlock_at': lockout_info['unlock_at']
-            }, status_code=429)
-        
-        await audit_service.log_event(
-            action="LOGIN_FAILED",
-            username=username,
-            ip_address=client_ip,
-            status="failure",
-            details={"reason": "invalid_credentials"}
-        )
+    get_rate_limiter().record_success(username)
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # --- Success ---
-    rate_limiter.record_success(username)
-    
-    # Check 2FA
     if getattr(user, 'is_2fa_enabled', False):
         pre_auth_token = authentication_service.create_pre_auth_token(user.id)
         return JSONResponse(
@@ -197,54 +196,7 @@ async def login(
             }
         )
 
-    # Get IP and UA
-    ip = request.client.host if request.client else "unknown"
-    ua = request.headers.get("user-agent", "unknown")
-
-    # Create session
-    access_token, refresh_token = await authentication_service.create_session(user.id, ip, ua)
-    
-    # Set cookies for web access
-    secure = settings.COOKIE_SECURE
-    max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
-
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        samesite="lax",
-        secure=secure, 
-        path="/",
-        max_age=max_age
-    )
-    response.set_cookie(
-        key="refresh_token", 
-        value=refresh_token,
-        httponly=True,
-        samesite="lax", 
-        secure=secure,
-        path="/",
-        max_age=refresh_max_age
-    )
-
-    # Audit Log
-    await audit_service.log_event(
-        action="LOGIN",
-        user_id=user.id,
-        username=user.username,
-        ip_address=ip,
-        user_agent=ua,
-        status="success"
-    )
-
-    return {
-        "access_token": access_token, 
-        "refresh_token": refresh_token, 
-        "token_type": "bearer",
-        "success": True,
-        "message": "Login successful"
-    }
+    return await _create_login_response(user, request, response)
 
 @router.get("/me")
 async def get_current_user_profile(user = Depends(login_required)):
