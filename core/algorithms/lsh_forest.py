@@ -23,7 +23,7 @@ Reference: Bawa et al., "LSH Forest: Self-Tuning Indexes for Similarity Search"
 
 import bisect
 from typing import List, Tuple
-import pickle
+import json
 import os
 import logging
 
@@ -178,8 +178,14 @@ class LSHForest:
 
     def save(self, filepath: str) -> None:
         try:
-            with open(filepath, 'wb') as f:
-                pickle.dump(self.trees, f)
+            # Serialize trees as JSON-compatible lists of [permuted_hash, doc_id] pairs
+            serializable = [[[int(h), str(d)] for h, d in tree] for tree in self.trees]
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "num_trees": self.num_trees,
+                    "prefix_length": self.prefix_length,
+                    "trees": serializable,
+                }, f)
             logger.info(f"LSH Forest saved to {filepath}")
         except Exception as e:
             logger.error(f"Failed to save LSH Forest: {e}")
@@ -187,8 +193,20 @@ class LSHForest:
     def load(self, filepath: str) -> None:
         if os.path.exists(filepath):
             try:
-                with open(filepath, 'rb') as f:
-                    self.trees = pickle.load(f)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # Support both old format (just trees list) and new format (dict with metadata)
+                if isinstance(data, dict) and "trees" in data:
+                    self.num_trees = data.get("num_trees", self.num_trees)
+                    self.prefix_length = data.get("prefix_length", self.prefix_length)
+                    raw_trees = data["trees"]
+                elif isinstance(data, list):
+                    raw_trees = data
+                else:
+                    logger.error("LSH Forest file has unknown format")
+                    return
+                # Convert [hash, doc_id] lists back to tuples for bisect compatibility
+                self.trees = [[(int(h), str(d)) for h, d in tree] for tree in raw_trees]
                 logger.info(f"LSH Forest loaded from {filepath}")
             except Exception as e:
                 logger.error(f"Failed to load LSH Forest: {e}")
