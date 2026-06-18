@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 import pytz
 from core.constants import DEFAULT_TIMEZONE
 from typing import Optional
-import secrets
-from pathlib import Path
 
 router = APIRouter()
 templates = Jinja2Templates(directory="rss/app/templates")
@@ -19,6 +17,7 @@ db_ops = None
 
 
 from core.config import settings
+from web_admin.security.rate_limiter import get_rate_limiter
 
 # JWT 配置
 # 优先使用 Settings 中的配置（已包含环境变量和文件读取逻辑）
@@ -26,22 +25,20 @@ def _load_or_create_secret_key() -> str:
     if settings.RSS_SECRET_KEY:
         return settings.RSS_SECRET_KEY
     
-    # 彻底兜底：如果 Settings 也由于某种原因没拿到，则尝试生成
-    try:
-        key_path = Path("rss") / "secret.key"
-        # 生成并持久化
-        generated = secrets.token_hex(32)
-        key_path.parent.mkdir(parents=True, exist_ok=True)
-        key_path.write_text(generated, encoding="utf-8")
-        return generated
-    except Exception:
-        # 内存秘钥（重启后会失效）
-        return secrets.token_hex(32)
+    # 回退到主 SECRET_KEY（保证与系统一致且持久化）
+    if settings.SECRET_KEY:
+        return settings.SECRET_KEY
+    
+    # 两者都未配置，抛出运行时错误，防止使用不安全的临时密钥
+    raise RuntimeError(
+        "RSS_SECRET_KEY 和 SECRET_KEY 均未配置。"
+        "请在环境变量或 .env 文件中设置 RSS_SECRET_KEY 或 SECRET_KEY。"
+    )
 
 
 SECRET_KEY = _load_or_create_secret_key()
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24小时
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 60分钟
 
 
 def init_db_ops():
@@ -106,6 +103,16 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     response: Response = None,
 ):
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limiter = get_rate_limiter()
+    if rate_limiter.is_ip_locked(client_ip):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "登录尝试过多，请稍后再试"},
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     db_session = get_read_session()
     try:
         init_db_ops()
@@ -113,11 +120,15 @@ async def login(
             db_session, form_data.username, form_data.password
         )
         if not user:
+            # Record failed attempt
+            rate_limiter.record_failure(form_data.username, ip_address=client_ip)
             return templates.TemplateResponse(
                 "login.html",
                 {"request": request, "error": "用户名或密码错误"},
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
+        # Login success, clear failure records
+        rate_limiter.record_success(form_data.username, ip_address=client_ip)
         access_token = create_access_token(
             data={"sub": user.username},
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -151,6 +162,16 @@ async def register_page(request: Request):
 
 @router.post("/register")
 async def register(request: Request):
+    # Rate limiting check for registration (prevent registration spam)
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limiter = get_rate_limiter()
+    if rate_limiter.is_ip_locked(client_ip):
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "请求过多，请稍后再试"},
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     form_data = await request.form()
     username = form_data.get("username")
     password = form_data.get("password")
