@@ -36,7 +36,11 @@ def _load_or_create_secret_key() -> str:
     )
 
 
-SECRET_KEY = _load_or_create_secret_key()
+def _get_secret_key() -> str:
+    """动态读取密钥，避免模块加载时缓存导致密钥轮换失效。"""
+    return _load_or_create_secret_key()
+
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 60分钟
 
@@ -55,7 +59,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.now(tz) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _get_secret_key(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -65,7 +69,7 @@ async def get_current_user(request: Request):
     if not token:
         return None
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _get_secret_key(), algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             return None
