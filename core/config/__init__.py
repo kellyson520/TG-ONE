@@ -746,6 +746,14 @@ class Settings(BaseSettings):
         description="JWT 密钥（持久化到 data/.secret_key，重启后不变）"
     )
     JWT_ALGORITHM: str = Field(default="HS256")
+
+    @field_validator("JWT_ALGORITHM")
+    @classmethod
+    def validate_jwt_algorithm(cls, v):
+        allowed = {"HS256", "HS384", "HS512"}
+        if v not in allowed:
+            raise ValueError(f"JWT_ALGORITHM must be one of {allowed}")
+        return v
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     MAX_ACTIVE_SESSIONS: int = Field(
