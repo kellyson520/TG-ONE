@@ -37,6 +37,12 @@ async def serve_spa(request: Request, path: str):
         return JSONResponse({"error": "Not Found"}, status_code=404)
     file_path = str(resolved)
 
+    # 文件扩展名白名单：仅允许常见的静态资源类型
+    ALLOWED_EXTENSIONS = {'.html', '.js', '.css', '.json', '.png', '.jpg', '.svg', '.ico', '.woff', '.woff2', '.ttf'}
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        return JSONResponse({"error": "Not Found"}, status_code=404)
+
     if os.path.isfile(file_path):
         return FileResponse(file_path)
     
