@@ -9,7 +9,7 @@ if __name__ == "__main__":
     sys.exit(1)
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
@@ -248,7 +248,13 @@ def _set_allow_registration(v: bool):
 
 # 健康检查路由
 @app.get("/healthz")
-async def healthz():
+async def healthz(request: Request, response: Response):
+    # 尝试认证：未认证只返回最小信息，避免信息泄露
+    from web_admin.security.deps import get_current_user
+    user = await get_current_user(request, response)
+    if not user:
+        return JSONResponse({'status': 'ok'})
+
     db = {}
     try:
         db = get_db_health()
