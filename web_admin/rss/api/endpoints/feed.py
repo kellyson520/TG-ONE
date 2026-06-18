@@ -4,6 +4,7 @@ from typing import Dict, Any
 import logging
 import os
 import json
+import ipaddress
 from pathlib import Path
 from ...services.feed_generator import FeedService
 from ...models.entry import Entry
@@ -94,16 +95,18 @@ async def verify_local_access(request: Request):
     """验证请求是否来自本地或Docker内部网络"""
     client_host = request.client.host if request.client else None
     configured_addresses = settings.parse_list_field(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
-    local_addresses = {*configured_addresses, "0.0.0.0"}
+    local_addresses = {*configured_addresses, "127.0.0.1", "::1"}
     if settings.RSS_HOST:
         local_addresses.add(settings.RSS_HOST)
-    # 检查是否是Docker内部网络IP (常见的私有网络范围
-    docker_ip = False
+    # 检查是否是RFC 1918私有网络IP（Docker默认网段均在此范围内）
+    is_private = False
     if client_host:
-        docker_prefixes = ["172.", "192.168.", "10."]
-        docker_ip = any(client_host.startswith(prefix) for prefix in docker_prefixes)
-    # 如果是本地地址或Docker内部网络IP，允许访问
-    if client_host in local_addresses or docker_ip:
+        try:
+            is_private = ipaddress.ip_address(client_host).is_private
+        except ValueError:
+            pass
+    # 如果是本地地址或私有网络IP，允许访问
+    if client_host in local_addresses or is_private:
         logger.debug(f"已验证访问权 {client_host}")
         return True
     # 拒绝来自外部网络的访问
