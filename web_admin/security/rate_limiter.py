@@ -37,6 +37,12 @@ class LoginRateLimiter:
         # {username: unlock_time}
         self.locked: Dict[str, datetime] = {}
         
+        # IP 维度限流 {ip: [timestamp1, timestamp2, ...]}
+        self.ip_attempts: Dict[str, List[datetime]] = defaultdict(list)
+        
+        # IP 锁定 {ip: unlock_time}
+        self.ip_locked: Dict[str, datetime] = {}
+        
         logger.info("登录限流器已初始化")
     
     def is_locked(self, username: str) -> bool:
@@ -71,6 +77,37 @@ class LoginRateLimiter:
                 del self.locked[username]
                 if username in self.attempts:
                     del self.attempts[username]
+        
+        return False
+
+    def is_ip_locked(self, ip_address: str) -> bool:
+        """
+        检查 IP 是否被锁定
+        
+        Args:
+            ip_address: IP 地址
+            
+        Returns:
+            bool: True=已锁定, False=未锁定
+        """
+        if not ip_address:
+            return False
+        
+        if ip_address in self.ip_locked:
+            unlock_time = self.ip_locked[ip_address]
+            now = datetime.now()
+            
+            if now < unlock_time:
+                remaining = (unlock_time - now).total_seconds()
+                logger.warning(
+                    f"IP {ip_address} 仍处于锁定状态，剩余 {remaining:.0f} 秒"
+                )
+                return True
+            else:
+                logger.info(f"IP {ip_address} 自动解锁")
+                del self.ip_locked[ip_address]
+                if ip_address in self.ip_attempts:
+                    del self.ip_attempts[ip_address]
         
         return False
     
@@ -116,7 +153,7 @@ class LoginRateLimiter:
         
         Args:
             username: 用户名
-            ip_address: IP地址（可选，用于日志）
+            ip_address: IP地址（可选，用于日志和IP维度限流）
             
         Returns:
             bool: True=触发锁定, False=仅记录
@@ -144,6 +181,8 @@ class LoginRateLimiter:
             f"attempts={attempt_count}/{self.MAX_ATTEMPTS}"
         )
         
+        locked = False
+        
         # 检查是否超过限制
         if attempt_count >= self.MAX_ATTEMPTS:
             # 触发锁定
@@ -153,17 +192,34 @@ class LoginRateLimiter:
             logger.error(
                 f"账户已锁定: username={username}, unlock_at={unlock_time.isoformat()}"
             )
-            
-            return True
+            locked = True
         
-        return False
+        # IP 维度限流
+        if ip_address:
+            self.ip_attempts[ip_address] = [
+                t for t in self.ip_attempts[ip_address]
+                if t > cutoff_time
+            ]
+            self.ip_attempts[ip_address].append(now)
+            ip_attempt_count = len(self.ip_attempts[ip_address])
+            
+            if ip_attempt_count >= self.MAX_ATTEMPTS:
+                unlock_time = now + self.LOCKOUT_DURATION
+                self.ip_locked[ip_address] = unlock_time
+                logger.error(
+                    f"IP 已锁定: ip={ip_address}, unlock_at={unlock_time.isoformat()}"
+                )
+                locked = True
+        
+        return locked
     
-    def record_success(self, username: str):
+    def record_success(self, username: str, ip_address: str = None):
         """
         记录登录成功，清除失败记录
         
         Args:
             username: 用户名
+            ip_address: IP地址（可选，用于清除IP维度记录）
         """
         if not username:
             return
@@ -177,6 +233,12 @@ class LoginRateLimiter:
         # 清除锁定状态
         if username in self.locked:
             del self.locked[username]
+        
+        # 清除IP维度记录
+        if ip_address and ip_address in self.ip_attempts:
+            del self.ip_attempts[ip_address]
+        if ip_address and ip_address in self.ip_locked:
+            del self.ip_locked[ip_address]
         
         logger.info(f"登录成功，已清除限流记录: username={username}")
     
@@ -221,6 +283,8 @@ class LoginRateLimiter:
             'locked_accounts': len(self.locked),
             'accounts_with_attempts': len(self.attempts),
             'total_attempts': sum(len(attempts) for attempts in self.attempts.values()),
+            'locked_ips': len(self.ip_locked),
+            'ips_with_attempts': len(self.ip_attempts),
             'config': {
                 'max_attempts': self.MAX_ATTEMPTS,
                 'time_window_minutes': self.TIME_WINDOW.total_seconds() / 60,
@@ -243,8 +307,21 @@ class LoginRateLimiter:
             if username in self.attempts:
                 del self.attempts[username]
         
+        # 清理过期的IP锁定
+        expired_ip_locks = [
+            ip for ip, unlock_time in self.ip_locked.items()
+            if now >= unlock_time
+        ]
+        
+        for ip in expired_ip_locks:
+            del self.ip_locked[ip]
+            if ip in self.ip_attempts:
+                del self.ip_attempts[ip]
+        
         if expired_locks:
             logger.info(f"已清理 {len(expired_locks)} 个过期锁定")
+        if expired_ip_locks:
+            logger.info(f"已清理 {len(expired_ip_locks)} 个过期IP锁定")
         
         # 清理所有时间窗口外的尝试记录
         cutoff_time = now - self.TIME_WINDOW
@@ -264,6 +341,18 @@ class LoginRateLimiter:
         
         if usernames_to_remove:
             logger.info(f"已清理 {len(usernames_to_remove)} 个用户的过期尝试记录")
+        
+        # 清理IP维度的时间窗口外记录
+        ips_to_remove = []
+        for ip, attempts in self.ip_attempts.items():
+            recent_attempts = [t for t in attempts if t > cutoff_time]
+            if recent_attempts:
+                self.ip_attempts[ip] = recent_attempts
+            else:
+                ips_to_remove.append(ip)
+        
+        for ip in ips_to_remove:
+            del self.ip_attempts[ip]
 
 
 # 全局单例（在fastapi_app.py中初始化）

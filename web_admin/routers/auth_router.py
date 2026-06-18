@@ -112,6 +112,24 @@ async def login(
             'remaining_seconds': lockout_info['remaining_seconds']
         }, status_code=429)
 
+    # --- IP 维度锁定检查 ---
+    if rate_limiter.is_ip_locked(client_ip):
+        logger.warning(f"Login refused (IP Locked): username={username}, ip={client_ip}")
+        
+        await audit_service.log_event(
+            action="LOGIN_IP_LOCKED",
+            username=username,
+            ip_address=client_ip,
+            status="failure",
+            details={"reason": "ip_locked"}
+        )
+        
+        return JSONResponse({
+            'success': False,
+            'error': '该 IP 登录失败次数过多，请稍后重试',
+            'locked': True
+        }, status_code=429)
+
     # --- Authenticate ---
     # We use authentication_service for user fetching, but we need to handle the password check manually 
     # to integrate with rate_limiter failure recording (or pass rate-limiter logic into service, 
@@ -161,7 +179,7 @@ async def login(
         )
     
     # --- Success ---
-    rate_limiter.record_success(username)
+    rate_limiter.record_success(username, client_ip)
     
     # Check 2FA
     if getattr(user, 'is_2fa_enabled', False):
