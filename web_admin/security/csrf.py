@@ -56,6 +56,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         return response
 
 from markupsafe import Markup
+from markupsafe import escape
 
 async def validate_csrf(request: Request):
     """
@@ -92,4 +93,4 @@ async def validate_csrf(request: Request):
 def csrf_token_input(request: Request) -> Markup:
     """生成 HTML 隐藏域，用于模板中的表单提交"""
     token = getattr(request.state, "csrf_token", "")
-    return Markup(f'<input type="hidden" name="csrf_token" value="{token}">')
+    return Markup(f'<input type="hidden" name="csrf_token" value="{escape(token)}">')

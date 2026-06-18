@@ -254,11 +254,10 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
         )
         # 获取 RSS 配置信息，确定最大条目数
         session = get_session()
-        max_items = None
         rss_config = (
             session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
         )
-        max_items = rss_config.max_items
+        max_items = rss_config.max_items if rss_config and rss_config.max_items else 50
         # 验证媒体数据
         if media_count > 0:
             media_filenames = []

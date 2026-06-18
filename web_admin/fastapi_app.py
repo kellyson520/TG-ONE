@@ -156,19 +156,27 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     # 根据请求类型返回
     if request.url.path.startswith("/api/"):
+        response_content = {
+            "success": False,
+            "error": "Internal Server Error",
+            "message": "服务器内部错误，请联系管理员",
+        }
+        # 仅在 DEBUG 模式下返回 trace_id
+        if settings.DEBUG:
+            response_content["trace_id"] = trace_id
         return JSONResponse(
             status_code=500,
-            content={
-                "success": False,
-                "error": "Internal Server Error",
-                "message": "服务器内部错误，请联系管理员",
-                "trace_id": trace_id
-            }
+            content=response_content
         )
     
-    # 页面请求
+    # 页面请求 - 仅在 DEBUG 模式下显示 trace_id
+    if settings.DEBUG:
+        return HTMLResponse(
+            content=f"<html><body><h1>500 Internal Server Error</h1><p>Trace ID: {trace_id}</p></body></html>",
+            status_code=500
+        )
     return HTMLResponse(
-        content=f"<html><body><h1>500 Internal Server Error</h1><p>Trace ID: {trace_id}</p></body></html>",
+        content="<html><body><h1>500 Internal Server Error</h1></body></html>",
         status_code=500
     )
 

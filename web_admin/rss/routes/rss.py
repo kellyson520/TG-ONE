@@ -455,17 +455,16 @@ async def test_regex(
         logger.info(f"测试正则表达式 {pattern}")
         logger.info(f"测试类型: {pattern_type}")
         logger.info(f"测试文本长度: {len(test_text)} 字符")
-        # 执行正则匹配
-        import signal
+        # 执行正则匹配（使用 asyncio 替代 SIGALRM，兼容非主线程）
+        import asyncio
 
-        def _timeout_handler(signum, frame):
-            raise TimeoutError("Regex execution timed out")
-
-        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(2)  # 2 second timeout
         try:
-            match = re.search(pattern, test_text)
-        except TimeoutError:
+            loop = asyncio.get_event_loop()
+            match = await asyncio.wait_for(
+                loop.run_in_executor(None, re.search, pattern, test_text),
+                timeout=2.0,
+            )
+        except asyncio.TimeoutError:
             return JSONResponse(
                 {"success": False, "message": "正则表达式执行超时，请检查模式是否过于复杂"},
                 status_code=400,
@@ -475,9 +474,6 @@ async def test_regex(
                 {"success": False, "message": f"正则表达式语法错误: {re_err}"},
                 status_code=400,
             )
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
         # 检查是否有匹配
         if not match:
             return JSONResponse(

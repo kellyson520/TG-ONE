@@ -24,6 +24,7 @@ from collections import defaultdict
 import jwt
 from core.config import settings
 from web_admin.security.deps import admin_required
+from services.authentication_service import authentication_service
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,9 @@ class ConnectionManager:
             self.subscriptions[topic].add(client_id)
         logger.debug(f"客户端 {client_id} 订阅主题: {topic}")
         return True
+
+    # 需要管理员权限的敏感主题
+    RESTRICTED_TOPICS = {"logs", "alerts", "system"}
     
     async def unsubscribe(self, client_id: str, topic: str) -> bool:
         """取消订阅"""
@@ -272,7 +276,17 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # 生成客户端ID
     client_id = f"client_{id(websocket)}_{datetime.utcnow().timestamp()}"
-    
+
+    # 通过 JWT 查询用户角色
+    user_is_admin = False
+    try:
+        user_id = int(payload.get("sub", 0))
+        user = await authentication_service.get_user_from_token(token)
+        if user and getattr(user, "is_admin", False):
+            user_is_admin = True
+    except Exception as e:
+        logger.warning(f"WebSocket 获取用户角色失败: {e}")
+
     try:
         await ws_manager.connect(websocket, client_id)
         
@@ -287,6 +301,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 if action == "subscribe":
                     topic = data.get("topic")
+                    # 敏感主题仅允许 admin 订阅
+                    if topic in ConnectionManager.RESTRICTED_TOPICS and not user_is_admin:
+                        await ws_manager.send_personal(client_id, {
+                            "type": "error",
+                            "message": f"权限不足，无法订阅主题: {topic}"
+                        })
+                        continue
                     success = await ws_manager.subscribe(client_id, topic)
                     await ws_manager.send_personal(client_id, {
                         "type": "subscription",
@@ -431,4 +452,3 @@ async def broadcast_event(event_name: str, event_data: Any):
         "event": event_name,
         "data": event_data
     }, topic=topic, throttle=throttle)
-
