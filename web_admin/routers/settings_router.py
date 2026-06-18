@@ -144,7 +144,7 @@ async def _get_full_settings_logic(config_service):
 async def _update_settings_logic(payload: Dict[str, Any], config_service):
     try:
         # 安全关键字段白名单：禁止通过 API 动态修改
-        BLOCKED_KEYS = {'SECRET_KEY', 'JWT_ALGORITHM', 'DATABASE_URL'}
+        BLOCKED_KEYS = {'SECRET_KEY', 'JWT_ALGORITHM', 'DATABASE_URL', 'RSS_SECRET_KEY', 'WEB_ADMIN_PASSWORD', 'BOT_TOKEN', 'API_HASH', 'API_ID'}
         for k in payload:
             if k in BLOCKED_KEYS:
                 return ResponseSchema(success=False, error=f'{k} 不能通过 API 修改')
