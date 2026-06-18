@@ -267,7 +267,7 @@ class Settings(BaseSettings):
     FORWARD_PACING_JITTER: float = Field(default=0.2)
     
     # === 监控与健康检查 ===
-    HEALTH_HOST: str = Field(default="0.0.0.0")
+    HEALTH_HOST: str = Field(default="127.0.0.1")
     HEALTH_PORT: int = Field(default=9000)
     
     # === 联网更新配置 ===
@@ -579,7 +579,7 @@ class Settings(BaseSettings):
         description="是否启用Web服务"
     )
     WEB_HOST: str = Field(
-        default="0.0.0.0",
+        default="127.0.0.1",
         description="Web服务监听地址"
     )
     WEB_PORT: int = Field(
