@@ -208,6 +208,18 @@ async def _update_settings_logic(payload: Dict[str, Any], config_service):
             
             updated[k] = v
             
+        # 审计日志：记录设置变更
+        try:
+            from services.audit_service import audit_service
+            await audit_service.log_event(
+                action="SETTINGS_UPDATE",
+                resource_type="settings",
+                details={"updated_keys": list(updated.keys())}
+            )
+        except Exception as audit_err:
+            logger.warning(f"审计日志写入失败（不影响设置更新）: {audit_err}")
+            logger.warning(f"[AUDIT] 设置变更: keys={list(updated.keys())}")
+
         return ResponseSchema(
             success=True, 
             data={
