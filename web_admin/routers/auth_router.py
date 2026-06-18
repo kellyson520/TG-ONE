@@ -513,7 +513,7 @@ async def unlock_account(
         return JSONResponse({'success': False, 'error': 'Internal server error'}, status_code=500)
 
 @router.post("/check_password_strength", response_class=JSONResponse)
-async def check_password_strength(password: str = Form(...)):
+async def check_password_strength(password: str = Form(...), user = Depends(login_required)):
     """
     Check password strength
     """
