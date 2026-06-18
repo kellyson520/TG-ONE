@@ -8,7 +8,7 @@ import ipaddress
 from pathlib import Path
 from ...services.feed_generator import FeedService
 from ...models.entry import Entry
-from core.config import settings
+from core.config import settings, Settings
 from core.constants import get_rule_media_dir, get_rule_data_dir
 from ...crud.entry import get_entries, create_entry, delete_entry
 from core.cache.unified_cache import cached
@@ -78,7 +78,7 @@ def _safe_headers_for_log(request: Request) -> Dict[str, str]:
 
 
 def _rss_local_base_urls() -> set[str]:
-    hosts = settings.parse_list_field(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
+    hosts = Settings.parse_list_fields(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
     if settings.RSS_HOST:
         hosts.append(settings.RSS_HOST)
     return {f"http://{host}:{settings.RSS_PORT}" for host in hosts if host}
@@ -94,7 +94,7 @@ def _replace_local_rss_urls(rss_xml: str, base_url: str) -> str:
 async def verify_local_access(request: Request):
     """验证请求是否来自本地或Docker内部网络"""
     client_host = request.client.host if request.client else None
-    configured_addresses = settings.parse_list_field(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
+    configured_addresses = Settings.parse_list_fields(settings.WEB_RATE_LIMIT_TRUSTED_IPS)
     local_addresses = {*configured_addresses, "127.0.0.1", "::1"}
     if settings.RSS_HOST:
         local_addresses.add(settings.RSS_HOST)
