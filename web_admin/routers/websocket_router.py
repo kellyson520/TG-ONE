@@ -233,8 +233,26 @@ async def websocket_endpoint(websocket: WebSocket):
     - {"action": "unsubscribe", "topic": "stats"} 取消订阅
     - {"action": "ping"}  心跳检测
     """
-    # Validate JWT token from query parameter before accepting connection
-    token = websocket.query_params.get("token")
+    # Validate JWT token - first try subprotocol header, then first message
+    token = None
+    # Check subprotocol header (some clients send token as a subprotocol)
+    subprotocols = websocket.headers.get("sec-websocket-protocol", "")
+    if subprotocols:
+        # Look for token in subprotocols (format: "access_token,<token>")
+        for proto in subprotocols.split(","):
+            proto = proto.strip()
+            if proto.startswith("access_token,"):
+                token = proto[len("access_token,"):]
+                break
+    
+    # If not found in subprotocol, read from first message
+    if not token:
+        try:
+            first_msg = await websocket.receive_json()
+            token = first_msg.get("token")
+        except Exception:
+            pass
+
     if not token:
         await websocket.close(code=4001, reason="Missing authentication token")
         return
