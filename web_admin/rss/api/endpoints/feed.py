@@ -21,8 +21,6 @@ import re
 from models.models import RSSPattern
 import shutil
 import time
-import subprocess
-import platform
 from pydantic import ValidationError
 from core.constants import RSS_MEDIA_BASE_URL
 
@@ -611,35 +609,13 @@ async def delete_rule_data(rule_id: int):
         def force_delete_directory(dir_path):
             if not dir_path.exists():
                 return True, "目录不存在"
-            # 方法1: 使用 shutil.rmtree
             try:
                 shutil.rmtree(dir_path, ignore_errors=True)
                 if not dir_path.exists():
                     return True, "使用 shutil.rmtree 成功删除"
             except Exception as e:
                 logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            # 方法2: 使用系统命令
-            try:
-                system = platform.system()
-                if system == "Windows":
-                    # Windows: 使用 rd /s /q
-                    subprocess.run(
-                        ["cmd", "/c", "rmdir", "/s", "/q", str(dir_path)],
-                        stderr=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                    )
-                else:
-                    # Linux/Mac: 使用 rm -rf
-                    subprocess.run(
-                        ["rm", "-rf", str(dir_path)],
-                        stderr=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                    )
-                if not dir_path.exists():
-                    return True, "使用系统命令成功删除"
-            except Exception as e:
-                logger.warning(f'已忽略预期内的异常: {e}' if 'e' in locals() else '已忽略静默异常')
-            # 方法3: 重命名后删除
+            # 方法2: 重命名后删除
             try:
                 temp_path = dir_path.parent / f"temp_delete_{time.time()}"
                 os.rename(dir_path, temp_path)
