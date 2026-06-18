@@ -707,7 +707,8 @@ class UpdateService:
                 normalized_url = normalized_url[:-4]
 
             if normalized_url != OFFICIAL_REPO:
-                logger.warning("⚠️ [安全提示] 正在使用非官方仓库更新: %s (官方: %s)", _redact_url(url), OFFICIAL_REPO)
+                logger.warning("⚠️ [安全警报] 非官方仓库，拒绝更新: %s (官方: %s)", _redact_url(url), OFFICIAL_REPO)
+                return False
             
             return True
         except Exception as e:
