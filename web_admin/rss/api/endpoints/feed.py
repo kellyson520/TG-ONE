@@ -117,7 +117,7 @@ async def root():
     return {"status": "ok", "service": "TG Forwarder RSS"}
 
 
-@router.get("/rss/feed/{rule_id}")
+@router.get("/rss/feed/{rule_id}", dependencies=[Depends(login_required)])
 @cached(cache_name="rss.get_feed", ttl=30)
 async def get_feed(rule_id: int, request: Request):
     """返回规则对应的RSS Feed"""
@@ -200,7 +200,7 @@ async def get_feed(rule_id: int, request: Request):
             session.close()
 
 
-@router.get("/media/{rule_id}/{filename}")
+@router.get("/media/{rule_id}/{filename}", dependencies=[Depends(login_required)])
 async def get_media(rule_id: int, filename: str, request: Request):
     """返回媒体文件"""
     # 记录请求信息
