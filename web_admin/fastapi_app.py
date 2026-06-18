@@ -161,7 +161,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             content={
                 "success": False,
                 "error": "Internal Server Error",
-                "message": str(exc) if settings.DEBUG else "服务器内部错误，请联系管理员",
+                "message": "服务器内部错误，请联系管理员",
                 "trace_id": trace_id
             }
         )

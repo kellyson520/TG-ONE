@@ -68,8 +68,8 @@ async def add_acl_rule(
         return ResponseSchema(success=True, message="Rule added successfully")
 
     except Exception as e:
-        logger.error(f"Failed to add ACL rule: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to add ACL rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.delete("/acl/{ip_address}")
 async def delete_acl_rule(
@@ -94,5 +94,5 @@ async def delete_acl_rule(
         return ResponseSchema(success=True, message="Rule deleted successfully")
 
     except Exception as e:
-        logger.error(f"Failed to delete ACL rule: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to delete ACL rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

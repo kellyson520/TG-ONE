@@ -47,7 +47,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             response.set_cookie(
                 key=CSRF_COOKIE_NAME,
                 value=request.scope.get("csrf_token_new") or csrf_token,
-                httponly=False,
+                httponly=True,
                 samesite="lax",
                 secure=settings.COOKIE_SECURE,
                 path="/"

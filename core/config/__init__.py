@@ -175,7 +175,7 @@ class Settings(BaseSettings):
     # === Web Admin Defaults ===
     WEB_ADMIN_USERNAME: Optional[str] = Field(default=None)
     WEB_ADMIN_PASSWORD: Optional[str] = Field(default=None)
-    COOKIE_SECURE: bool = Field(default=False)
+    COOKIE_SECURE: bool = Field(default=True)
     ALLOW_REGISTRATION: bool = Field(
         default=False, 
         description="是否允许 Web 用户注册"

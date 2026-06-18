@@ -122,29 +122,6 @@ async def login(
     
     user = await authentication_service.authenticate_user(username, password)
     
-    # Fallback: Environment Admin Check (if DB empty or specific env set)
-    if not user:
-        # Check env (copied from fastapi_app.py)
-        # Check env (copied from fastapi_app.py)
-        env_u = settings.WEB_ADMIN_USERNAME or ''
-        env_p = settings.WEB_ADMIN_PASSWORD or ''
-        if username == env_u and password == env_p and env_u and env_p:
-            # Create/Get user logic could be complex here, assuming authenticate_user handles db users.
-            # If env user matches, we might just proceed or create it on the fly.
-            # For strictness, let's rely on container.user_repo inside authentication_service?
-            # authentication_service.authenticate_user uses user_repo.
-            # If env user is used, we should probably ensure it exists in DB.
-            # Logic from fastapi_app:
-            u_repo = await container.user_repo.get_user_by_username(username)
-            if not u_repo:
-                 user = await container.user_repo.create_user(env_u, env_p, is_admin=True)
-                 logger.info(f"Created admin from ENV: {env_u}")
-            else:
-                 # If user exists but password mismatch in authenticate_user (which checks hash),
-                 # checking env_p again is weird unless we want to reset it?
-                 # Let's stick to the behavior: if authenticate_user failed, WE FAIL.
-                 # The env check in fastapi_app was likely for *bootstrapping*.
-                 pass
 
     if not user:
         # Record Failure
@@ -512,8 +489,8 @@ async def get_lockout_status(username: str = Query(...), user = Depends(admin_re
         else:
             return JSONResponse({'success': True, 'data': None})
     except Exception as e:
-        logger.error(f"Failed to check lockout status: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+        logger.error(f"Failed to check lockout status: {e}", exc_info=True)
+        return JSONResponse({'success': False, 'error': 'Internal server error'}, status_code=500)
 
 @router.post("/unlock_account", response_class=JSONResponse)
 async def unlock_account(
@@ -532,8 +509,8 @@ async def unlock_account(
         
         return JSONResponse({'success': True, 'message': f'账户 {username} 已解锁'})
     except Exception as e:
-        logger.error(f"Failed to unlock account: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+        logger.error(f"Failed to unlock account: {e}", exc_info=True)
+        return JSONResponse({'success': False, 'error': 'Internal server error'}, status_code=500)
 
 @router.post("/check_password_strength", response_class=JSONResponse)
 async def check_password_strength(password: str = Form(...)):
@@ -544,8 +521,8 @@ async def check_password_strength(password: str = Form(...)):
         strength_info = get_password_strength(password)
         return JSONResponse({'success': True, 'data': strength_info})
     except Exception as e:
-        logger.error(f"Failed to check password strength: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+        logger.error(f"Failed to check password strength: {e}", exc_info=True)
+        return JSONResponse({'success': False, 'error': 'Internal server error'}, status_code=500)
 
 @router.get("/rate_limiter_stats", response_class=JSONResponse)
 async def get_rate_limiter_stats(user = Depends(admin_required)):
@@ -557,8 +534,8 @@ async def get_rate_limiter_stats(user = Depends(admin_required)):
         stats = rate_limiter.get_stats()
         return JSONResponse({'success': True, 'data': stats})
     except Exception as e:
-        logger.error(f"Failed to get rate limiter stats: {str(e)}")
-        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+        logger.error(f"Failed to get rate limiter stats: {e}", exc_info=True)
+        return JSONResponse({'success': False, 'error': 'Internal server error'}, status_code=500)
 
 @router.delete("/sessions/{session_id}")
 async def revoke_session_by_id(

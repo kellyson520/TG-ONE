@@ -456,7 +456,28 @@ async def test_regex(
         logger.info(f"测试类型: {pattern_type}")
         logger.info(f"测试文本长度: {len(test_text)} 字符")
         # 执行正则匹配
-        match = re.search(pattern, test_text)
+        import signal
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("Regex execution timed out")
+
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(2)  # 2 second timeout
+        try:
+            match = re.search(pattern, test_text)
+        except TimeoutError:
+            return JSONResponse(
+                {"success": False, "message": "正则表达式执行超时，请检查模式是否过于复杂"},
+                status_code=400,
+            )
+        except re.error as re_err:
+            return JSONResponse(
+                {"success": False, "message": f"正则表达式语法错误: {re_err}"},
+                status_code=400,
+            )
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
         # 检查是否有匹配
         if not match:
             return JSONResponse(

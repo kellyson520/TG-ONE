@@ -122,16 +122,21 @@ class UnifiedQueryBridge:
         use_cold: bool = True
     ) -> List[Dict[str, Any]]:
         """基础统一查询 (复用 query_aggregate)"""
+        if params is None:
+            params = []
         # Validate order_by against injection
         order_base = order_by.split()[0] if order_by.split() else ""
         if not self._ORDER_BY_RE.match(order_by) or order_base not in self._ALLOWED_ORDER_BY:
             raise ValueError(f"Invalid order_by clause: {order_by}")
-        # Validate where_sql doesn't contain dangerous SQL tokens
-        upper_where = where_sql.upper()
-        for token in ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "UNION ", "EXEC ", "--", ";"):
-            if token in upper_where:
-                raise ValueError(f"Disallowed SQL token in where_sql: {token.strip()}")
-        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT {limit} OFFSET {offset}"
+        # Validate where_sql: only allow safe column=? / AND / OR / IS NULL patterns
+        # Reject any SQL that is not a simple conjunction of "column = ?" / "column IS NULL" etc.
+        if not self._WHERE_SAFE_RE.match(where_sql):
+            raise ValueError(f"Invalid where_sql clause (whitelist rejection): {where_sql}")
+        # Ensure no string literals (no quotes) that could bypass parameterization
+        if "'" in where_sql or '"' in where_sql or "`" in where_sql:
+            raise ValueError(f"where_sql must not contain string literals: {where_sql}")
+        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT ? OFFSET ?"
+        params = list(params) + [limit, offset]
         return await self.query_aggregate(table_name, sql, params, use_hot, use_cold)
 
     async def get_task_detail(self, task_id: int) -> Optional[Dict[str, Any]]:
