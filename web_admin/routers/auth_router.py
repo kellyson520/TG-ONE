@@ -89,8 +89,8 @@ async def login(
     rate_limiter = get_rate_limiter()
     client_ip = request.client.host if request.client else "unknown"
     
-    if rate_limiter.is_locked(username):
-        lockout_info = rate_limiter.get_lockout_info(username)
+    if await rate_limiter.is_locked_async(username):
+        lockout_info = await rate_limiter.get_lockout_info_async(username)
         remaining_minutes = lockout_info['remaining_minutes']
         remaining_seconds = lockout_info['remaining_seconds'] % 60
         
@@ -113,7 +113,7 @@ async def login(
         }, status_code=429)
 
     # --- IP 维度锁定检查 ---
-    if rate_limiter.is_ip_locked(client_ip):
+    if await rate_limiter.is_ip_locked_async(client_ip):
         logger.warning(f"Login refused (IP Locked): username={username}, ip={client_ip}")
         
         await audit_service.log_event(
@@ -143,11 +143,11 @@ async def login(
 
     if not user:
         # Record Failure
-        is_locked = rate_limiter.record_failure(username, client_ip)
+        is_locked = await rate_limiter.record_failure_async(username, client_ip)
         
         if is_locked:
             logger.error(f"Account Locked (Too many failures): username={username}, ip={client_ip}")
-            lockout_info = rate_limiter.get_lockout_info(username)
+            lockout_info = await rate_limiter.get_lockout_info_async(username)
             
             await audit_service.log_event(
                 action="LOGIN_LOCKOUT",
@@ -179,7 +179,7 @@ async def login(
         )
     
     # --- Success ---
-    rate_limiter.record_success(username, client_ip)
+    await rate_limiter.record_success_async(username, client_ip)
     
     # Check 2FA
     if getattr(user, 'is_2fa_enabled', False):
@@ -500,7 +500,7 @@ async def get_lockout_status(username: str = Query(...), user = Depends(admin_re
     """
     try:
         rate_limiter = get_rate_limiter()
-        lockout_info = rate_limiter.get_lockout_info(username)
+        lockout_info = await rate_limiter.get_lockout_info_async(username)
         
         if lockout_info:
             return JSONResponse({'success': True, 'data': lockout_info})
@@ -521,7 +521,7 @@ async def unlock_account(
     """
     try:
         rate_limiter = get_rate_limiter()
-        rate_limiter.unlock(username)
+        await rate_limiter.unlock_async(username)
         
         logger.info(f"Admin {user.username} unlocked account: {username}")
         
@@ -549,7 +549,7 @@ async def get_rate_limiter_stats(user = Depends(admin_required)):
     """
     try:
         rate_limiter = get_rate_limiter()
-        stats = rate_limiter.get_stats()
+        stats = await rate_limiter.get_stats_async()
         return JSONResponse({'success': True, 'data': stats})
     except Exception as e:
         logger.error(f"Failed to get rate limiter stats: {e}", exc_info=True)

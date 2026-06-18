@@ -17,6 +17,7 @@
 
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
+import asyncio
 import logging
 import sqlite3
 import threading
@@ -408,6 +409,43 @@ class LoginRateLimiter:
         
         if expired:
             logger.info(f"已清理 {len(expired)} 个过期锁定")
+
+    # ---------- 异步包装方法 (避免阻塞事件循环) ----------
+
+    async def is_locked_async(self, username: str) -> bool:
+        """异步版本: 检查账户是否被锁定"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.is_locked, username)
+
+    async def is_ip_locked_async(self, ip_address: str) -> bool:
+        """异步版本: 检查 IP 是否被锁定"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.is_ip_locked, ip_address)
+
+    async def get_lockout_info_async(self, username: str) -> Optional[Dict]:
+        """异步版本: 获取锁定信息"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get_lockout_info, username)
+
+    async def record_failure_async(self, username: str, ip_address: str = None) -> bool:
+        """异步版本: 记录登录失败"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.record_failure, username, ip_address)
+
+    async def record_success_async(self, username: str, ip_address: str = None):
+        """异步版本: 记录登录成功"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.record_success, username, ip_address)
+
+    async def unlock_async(self, username: str):
+        """异步版本: 手动解锁账户"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.unlock, username)
+
+    async def get_stats_async(self) -> Dict:
+        """异步版本: 获取统计信息"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get_stats)
 
 
 # 全局单例（在fastapi_app.py中初始化）
