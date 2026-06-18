@@ -179,8 +179,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allowed_origins,
     allow_credentials="*" not in cors_allowed_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Context Middleware (Initialize security context)
