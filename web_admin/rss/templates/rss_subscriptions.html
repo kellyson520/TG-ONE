@@ -130,6 +130,12 @@
             loadSubscriptions();
         });
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
         async function loadSubscriptions() {
             try {
                 const res = await fetch('/rss/api/subscriptions/');
@@ -141,8 +147,8 @@
                     const row = `
                         <tr>
                             <td>${sub.id}</td>
-                            <td><a href="${sub.url}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">${sub.url}</a></td>
-                            <td>${sub.target_chat_id}</td>
+                            <td><a href="${escapeHtml(sub.url)}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">${escapeHtml(sub.url)}</a></td>
+                            <td>${escapeHtml(sub.target_chat_id)}</td>
                              <td>
                                 <span class="badge bg-${sub.is_active ? 'success' : 'secondary'}">
                                     ${sub.is_active ? 'Active' : 'Paused'}

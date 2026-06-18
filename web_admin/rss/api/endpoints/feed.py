@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from fastapi.responses import Response, FileResponse
 from typing import Dict, Any
+import asyncio
 import logging
 import os
 import json
@@ -438,7 +439,15 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                         logger.info(f"开始尝试标题模 {pattern.pattern}")
                         try:
                             logger.info(f"对内容应用正则表达式: {pattern.pattern}")
-                            match = re.search(pattern.pattern, processing_content)
+                            try:
+                                loop = asyncio.get_event_loop()
+                                match = await asyncio.wait_for(
+                                    loop.run_in_executor(None, re.search, pattern.pattern, processing_content),
+                                    timeout=2.0,
+                                )
+                            except asyncio.TimeoutError:
+                                logger.warning(f"正则执行超时，跳过: {pattern.pattern}")
+                                continue
                             if match:
                                 logger.info(f"找到匹配: {match.groups()}")
                                 if match.groups():
@@ -486,7 +495,15 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                                 if len(processing_content) > 150
                                 else processing_content
                             )
-                            match = re.search(pattern.pattern, processing_content)
+                            try:
+                                loop = asyncio.get_event_loop()
+                                match = await asyncio.wait_for(
+                                    loop.run_in_executor(None, re.search, pattern.pattern, processing_content),
+                                    timeout=2.0,
+                                )
+                            except asyncio.TimeoutError:
+                                logger.warning(f"正则执行超时，跳过: {pattern.pattern}")
+                                continue
                             if match and match.groups():
                                 extracted_content = match.group(1)
                                 processing_content = (

@@ -1,5 +1,8 @@
 import asyncio
+import ipaddress
 import logging
+import urllib.parse
+import socket
 from datetime import datetime
 from typing import Optional
 
@@ -163,6 +166,18 @@ class RSSPullService:
             should_close = False
 
         try:
+            # SSRF 防护：校验 URL 不指向内网地址
+            parsed = urllib.parse.urlsplit(sub.url)
+            try:
+                ip = socket.gethostbyname(parsed.hostname)
+                addr = ipaddress.ip_address(ip)
+                if addr.is_private or addr.is_loopback or addr.is_link_local:
+                    logger.warning(f"拒绝 SSRF 目标: {sub.url} -> {ip}")
+                    return False
+            except (socket.gaierror, ValueError):
+                logger.warning(f"无法解析主机名: {parsed.hostname}")
+                return False
+
             headers = {}
             if sub.last_etag: headers['If-None-Match'] = sub.last_etag
             if sub.last_modified: headers['If-Modified-Since'] = sub.last_modified

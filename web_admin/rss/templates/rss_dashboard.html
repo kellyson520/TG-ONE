@@ -1352,15 +1352,23 @@
 
                 titlePatterns.forEach((pattern, index) => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td><code>${pattern.pattern}</code></td>
-                        <td>${pattern.priority}</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" onclick="removePattern('${pattern.id}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    `;
+                    const td1 = document.createElement('td');
+                    const code1 = document.createElement('code');
+                    code1.textContent = pattern.pattern;
+                    td1.appendChild(code1);
+                    const td2 = document.createElement('td');
+                    td2.textContent = pattern.priority;
+                    const td3 = document.createElement('td');
+                    const btn1 = document.createElement('button');
+                    btn1.className = 'btn btn-sm btn-danger';
+                    btn1.onclick = () => removePattern(pattern.id);
+                    const icon1 = document.createElement('i');
+                    icon1.className = 'bi bi-trash';
+                    btn1.appendChild(icon1);
+                    td3.appendChild(btn1);
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    tr.appendChild(td3);
                     titleTbody.appendChild(tr);
                 });
             } else {
@@ -1378,15 +1386,23 @@
 
                 contentPatterns.forEach((pattern, index) => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td><code>${pattern.pattern}</code></td>
-                        <td>${pattern.priority}</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" onclick="removePattern('${pattern.id}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    `;
+                    const td1 = document.createElement('td');
+                    const code1 = document.createElement('code');
+                    code1.textContent = pattern.pattern;
+                    td1.appendChild(code1);
+                    const td2 = document.createElement('td');
+                    td2.textContent = pattern.priority;
+                    const td3 = document.createElement('td');
+                    const btn1 = document.createElement('button');
+                    btn1.className = 'btn btn-sm btn-danger';
+                    btn1.onclick = () => removePattern(pattern.id);
+                    const icon1 = document.createElement('i');
+                    icon1.className = 'bi bi-trash';
+                    btn1.appendChild(icon1);
+                    td3.appendChild(btn1);
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    tr.appendChild(td3);
                     contentTbody.appendChild(tr);
                 });
             } else {
