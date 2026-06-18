@@ -252,13 +252,10 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
         # 获取 RSS 配置信息，确定最大条目数
         session = get_session()
         max_items = None
-        try:
-            rss_config = (
-                session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
-            )
-            max_items = rss_config.max_items
-        finally:
-            session.close()
+        rss_config = (
+            session.query(RSSConfig).filter(RSSConfig.rule_id == rule_id).first()
+        )
+        max_items = rss_config.max_items
         # 验证媒体数据
         if media_count > 0:
             media_filenames = []
@@ -406,9 +403,6 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
                     logger.error(f"处理JSON数据时出 {str(e)}")
             except Exception as e:
                 logger.error(f"AI提取内容时出 {str(e)}")
-            finally:
-                if session:
-                    session.close()
         logger.info(
             f"启用自定义标题模 {rss_config.enable_custom_title_pattern}, 启用自定义内容模 {rss_config.enable_custom_content_pattern}"
         )
@@ -560,6 +554,9 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
     except Exception as e:
         logger.error(f"添加条目时出 {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if session:
+            session.close()
 
 
 @router.delete(
