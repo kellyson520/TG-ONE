@@ -6,11 +6,16 @@ from typing import List
 from models.models import get_async_session, RSSSubscription
 from web_admin.rss.models.schemas import RSSSubscriptionCreate, RSSSubscriptionUpdate, RSSSubscriptionResponse
 from core.container import container
+from web_admin.security.deps import login_required
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/subscriptions", tags=["rss_subscriptions"])
+router = APIRouter(
+    prefix="/api/subscriptions",
+    tags=["rss_subscriptions"],
+    dependencies=[Depends(login_required)],
+)
 
 @router.get("/", response_model=List[RSSSubscriptionResponse])
 async def list_subscriptions(

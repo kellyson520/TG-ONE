@@ -681,10 +681,10 @@ class UpdateService:
                     return False
                 else:
                     logger.warning(f"交叉验证跳过: 无法连接官方 API ({resp.status_code})")
-                    return True 
+                    return False
         except Exception as e:
             logger.warning(f"交叉验证异常: {e}")
-            return True
+            return False
 
     def _verify_repo_safety(self, url: str) -> bool:
         """验证远程仓库地址的安全性"""
@@ -698,8 +698,8 @@ class UpdateService:
             # 2. 检查是否为 GitHub (目前主要支持 GitHub)
             hostname = parsed.hostname or ""
             if hostname != "github.com":
-                logger.warning("⚠️ [安全提示] 更新源非 GitHub 官方域: %s", hostname)
-                # 暂时允许非 GitHub 但记录警告 (根据用户需求，这里可以更严格)
+                logger.warning("⚠️ [安全警报] 非 GitHub 官方域，拒绝更新: %s", hostname)
+                return False
 
             # 3. 官方仓库比对
             normalized_url = parsed.path.lstrip("/")

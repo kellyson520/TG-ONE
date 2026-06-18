@@ -11,6 +11,7 @@ from core.config import settings
 from core.constants import get_rule_media_dir, get_rule_data_dir
 from ...crud.entry import get_entries, create_entry, delete_entry
 from core.cache.unified_cache import cached
+from web_admin.security.deps import login_required
 import mimetypes
 from models.models import get_read_session as get_session, RSSConfig
 from datetime import datetime
@@ -112,7 +113,7 @@ async def verify_local_access(request: Request):
     raise HTTPException(status_code=403, detail="此API端点仅允许本地或内部网络访问")
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(login_required)])
 async def root():
     """服务状态检查"""
     return {"status": "ok", "service": "TG Forwarder RSS"}
@@ -240,7 +241,7 @@ async def get_media(rule_id: int, filename: str, request: Request):
     return FileResponse(path=media_path, media_type=mime_type, filename=filename)
 
 
-@router.post("/api/entries/{rule_id}/add", dependencies=[Depends(verify_local_access)])
+@router.post("/api/entries/{rule_id}/add", dependencies=[Depends(verify_local_access), Depends(login_required)])
 async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
     """添加新的条目 (仅限本地访问)"""
     try:
@@ -564,7 +565,7 @@ async def add_entry(rule_id: int, entry_data: Dict[str, Any] = Body(...)):
 
 
 @router.delete(
-    "/api/entries/{rule_id}/{entry_id}", dependencies=[Depends(verify_local_access)]
+    "/api/entries/{rule_id}/{entry_id}", dependencies=[Depends(verify_local_access), Depends(login_required)]
 )
 async def delete_entry_api(rule_id: int, entry_id: str):
     """删除条目 (仅限本地访问)"""
@@ -579,7 +580,7 @@ async def delete_entry_api(rule_id: int, entry_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/api/entries/{rule_id}")
+@router.get("/api/entries/{rule_id}", dependencies=[Depends(login_required)])
 async def list_entries(rule_id: int, limit: int = 20, offset: int = 0):
     """列出规则对应的所有条目目"""
     try:
@@ -595,7 +596,7 @@ async def list_entries(rule_id: int, limit: int = 20, offset: int = 0):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/api/rule/{rule_id}", dependencies=[Depends(verify_local_access)])
+@router.delete("/api/rule/{rule_id}", dependencies=[Depends(verify_local_access), Depends(login_required)])
 async def delete_rule_data(rule_id: int):
     """删除规则相关的所有数据和媒体文件 (仅限本地访问)"""
     try:

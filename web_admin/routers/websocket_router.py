@@ -12,6 +12,7 @@ Phase G.3: 增强广播智能化
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import Depends
 from typing import Dict, Set, List, Optional, Any
 import asyncio
 import json
@@ -22,6 +23,7 @@ from collections import defaultdict
 
 import jwt
 from core.config import settings
+from web_admin.security.deps import admin_required
 
 
 logger = logging.getLogger(__name__)
@@ -302,7 +304,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await ws_manager.disconnect(client_id)
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(admin_required)])
 async def get_websocket_stats():
     """获取 WebSocket 连接统计"""
     return ws_manager.get_stats()

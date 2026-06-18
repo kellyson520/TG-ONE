@@ -438,7 +438,7 @@ async def refresh_token(request: Request, response: Response):
         value=new_access_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     response.set_cookie(
@@ -446,7 +446,7 @@ async def refresh_token(request: Request, response: Response):
         value=new_refresh_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
     
