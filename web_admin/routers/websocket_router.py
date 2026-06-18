@@ -239,12 +239,17 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=4001, reason="Missing authentication token")
         return
     try:
-        jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
         await websocket.close(code=4001, reason="Token expired")
         return
     except jwt.InvalidTokenError:
         await websocket.close(code=4003, reason="Invalid token")
+        return
+
+    # 只允许 access_token 建立 WebSocket 连接，禁止 refresh_token
+    if payload.get("type") != "access":
+        await websocket.close(code=4003, reason="Invalid token type")
         return
 
     # 生成客户端ID
