@@ -9,7 +9,7 @@ import time
 from telethon import TelegramClient
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.functions.users import GetUsersRequest
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from core.helpers.entity_validator import get_entity_validator
 from core.helpers.error_handler import handle_errors
@@ -28,13 +28,19 @@ class TelegramAPIOptimizer:
 
     # 负反馈缓存 TTL（秒）：超时 chat_id 冷却期，防止重复消耗信号量
     _NEGATIVE_CACHE_TTL: float = 120.0
+    # [FIX] 反复失败的 chat_id（已退群/私有频道）指数退避，最长 6 小时再试一次。
+    # 线上日志：定时任务每 600s 跑一轮，而旧冷却只有 120s，等于每次都重试，
+    # 每次都赔 5 秒 get_entity 超时 → 每轮白等 30 秒。
+    _NEGATIVE_CACHE_MAX_TTL: float = 21600.0
 
     def __init__(self, client: TelegramClient):
         self.client = client
         # 全局 API 并发信号量，限制同时进行的官方 API 请求数，防止惊群与触发 Flood Wait
         self._api_semaphore = asyncio.Semaphore(10)
-        # 负反馈缓存：{ str(chat_id): last_fail_timestamp }，超时/永久失效的 ID 进入此缓存
-        self._negative_cache: Dict[str, float] = {}
+        # 负反馈缓存：{ str(chat_id): (last_fail_timestamp, ttl) }，超时/永久失效的 ID 进入此缓存
+        self._negative_cache: Dict[str, Tuple[float, float]] = {}
+        # 连续失败次数，用来算指数退避的档位
+        self._neg_fail_counts: Dict[str, int] = {}
 
     @cached(cache_name="chat_statistics", ttl=300)  # 缓存5分钟
     @log_performance("获取聊天统计", threshold_seconds=5.0)
@@ -63,14 +69,14 @@ class TelegramAPIOptimizer:
 
         # ── 负反馈缓存检查：避免对已知超时 ID 重复消耗信号量 ──────────────
         chat_id_key = str(chat_id)
-        neg_fail_time = self._negative_cache.get(chat_id_key)
-        if neg_fail_time is not None:
-            if time.time() - neg_fail_time < self._NEGATIVE_CACHE_TTL:
-                logger.debug(f"[NegCache] chat_id={chat_id} 在冷却期内，跳过")
+        neg_entry = self._negative_cache.get(chat_id_key)
+        if neg_entry is not None:
+            neg_fail_time, neg_ttl = neg_entry
+            if time.time() - neg_fail_time < neg_ttl:
+                logger.debug(f"[NegCache] chat_id={chat_id} 在冷却期内（{neg_ttl:.0f}s），跳过")
                 return {}
-            else:
-                # 冷却期已过，清除旧记录重新尝试
-                del self._negative_cache[chat_id_key]
+            # 冷却期已过，清除旧记录重新尝试（失败计数保留，用于继续升档）
+            del self._negative_cache[chat_id_key]
 
         # ... (checking logic remains)
 
@@ -80,9 +86,15 @@ class TelegramAPIOptimizer:
                 self.client.get_entity(chat_id), timeout=5.0
             )
         except asyncio.TimeoutError:
-            # 写入负反馈缓存，120s 内不再重试该 chat_id
-            self._negative_cache[chat_id_key] = time.time()
-            logger.warning(f"获取聊天实体超时: {chat_id}，已加入冷却缓存 {self._NEGATIVE_CACHE_TTL:.0f}s")
+            # [FIX] 指数退避：连续失败越多次，冷却越久（120s 起，上限 6h），
+            # 这样已退群/私有的 chat_id 不会每轮定时任务都赔一次 5 秒超时。
+            fails = self._neg_fail_counts.get(chat_id_key, 0) + 1
+            self._neg_fail_counts[chat_id_key] = fails
+            ttl = min(self._NEGATIVE_CACHE_TTL * (2 ** (fails - 1)), self._NEGATIVE_CACHE_MAX_TTL)
+            self._negative_cache[chat_id_key] = (time.time(), ttl)
+            logger.warning(
+                f"获取聊天实体超时: {chat_id}（连续第 {fails} 次），冷却 {ttl:.0f}s"
+            )
             return {}
         except Exception as e:
             # 分析错误类型
@@ -98,6 +110,10 @@ class TelegramAPIOptimizer:
                 # 临时错误记录警告级别
                 logger.warning(f"聊天统计获取临时失败 {chat_id}: {error_type}")
             return {}
+
+        # 实体拿到了：清掉这个 chat_id 的失败计数，退避档位归零
+        self._neg_fail_counts.pop(chat_id_key, None)
+        self._negative_cache.pop(chat_id_key, None)
 
         full_chat = None
         try:

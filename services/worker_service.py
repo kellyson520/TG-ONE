@@ -464,6 +464,19 @@ class WorkerService:
 
         messages = await get_messages_queued(self.client, chat_id, ids=all_message_ids)
 
+        # [FIX] 区分「调用没成功」和「消息确实不存在」：
+        # run_guarded_operation 在熔断/超时/限速用尽后会返回 None，而 Telethon 对已删除
+        # 的消息返回 [None, None]。原来两者都落到 "Source message not found" 永久失败，
+        # 于是可重试的传输故障被当成数据不存在——线上 ~150 条/小时。
+        if messages is None:
+            logger.warning(
+                f"[Fetch] 取消息未成功（返回 None，可重试）chat={chat_id} "
+                f"ids={len(all_message_ids)} 任务={len(all_related_tasks)}"
+            )
+            raise TransientError(
+                f"get_messages returned None for chat={chat_id} ids={len(all_message_ids)}"
+            )
+
         valid_messages = []
         if isinstance(messages, list):
             valid_messages = [m for m in messages if m]
@@ -471,7 +484,10 @@ class WorkerService:
             valid_messages = [messages]
 
         if not valid_messages:
-            log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
+            logger.warning(
+                f"[Fetch] 源消息确实不存在 chat={chat_id} ids={len(all_message_ids)} "
+                f"原始返回={type(messages).__name__} 条目={len(messages) if isinstance(messages, list) else 1}"
+            )
             await self._fail_group(all_related_tasks, "Source message not found")
             return ([], [])
 

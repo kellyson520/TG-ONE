@@ -313,6 +313,14 @@ def get_persistent_cache() -> BasePersistentCache:
         
     url = settings.REDIS_URL
     if url:
+        # [FIX] 配置里给了 REDIS_URL 但环境里没装 redis 包时，别每轮启动都报 warning：
+        # 先探模块，没装就用 info 交代一句，直接走 SQLite 持久化缓存。
+        try:
+            import redis  # noqa: F401
+        except ImportError:
+            logger.info("redis 模块未安装，跳过 Redis 缓存，使用 SQLite 持久化缓存")
+            url = None
+    if url:
         try:
             _persistent_cache = RedisPersistentCache(url)
             return _persistent_cache
