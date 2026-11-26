@@ -188,7 +188,16 @@ class StatsRepository:
                 await session.commit()
                 logger.debug(f"Flushed {len(db_entries)} logs to DB")
         except Exception as e:
-            logger.error(f"Failed to flush logs to DB: {e}")
+            # [FIX] 原来是先 clear() 再写库：这一步失败，这批日志就永久消失，
+            # 外层只留一行 error（审查 #13）。放回缓冲，交给下一轮重试，
+            # 同时按硬上限截断，避免失败风暴把内存吃光。
+            hard_cap = int(getattr(settings, "STATS_LOG_BUFFER_HARD_CAP", 5000) or 5000)
+            async with self._buffer_lock:
+                restored = logs_to_insert + self._log_buffer
+                self._log_buffer = restored[-hard_cap:]
+            logger.error(
+                f"Failed to flush logs to DB: {e}；已放回缓冲 {len(logs_to_insert)} 条待重试"
+            )
 
     @async_db_retry(max_retries=5)
     async def flush_stats(self):

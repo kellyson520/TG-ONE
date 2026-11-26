@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 
-from sqlalchemy import update
+from sqlalchemy import bindparam, or_, update
 from models.system import TaskQueue
 
 logger = logging.getLogger(__name__)
@@ -204,26 +204,34 @@ class TaskStatusSink:
                             {
                                 "b_id": cmd["id"],
                                 "b_err": str(cmd["error_message"]),
+                                "b_status": 'failed',
+                                "b_now": now,
                             }
                             for cmd in failed_commands
                         ]
-                        # 独立循环让单条 SQL 失败更容易定位。
-                        for params in update_params:
-                            result = await session.execute(
-                                update(TaskQueue)
-                                .where(TaskQueue.id == params["b_id"])
-                                .where(
-                                    TaskQueue.status.in_(
-                                        ['running', 'pending']
-                                    )
-                                )
-                                .values(
-                                    status='failed',
-                                    error_message=params["b_err"],
-                                    updated_at=now,
-                                )
-                            )
-                            total_affected += result.rowcount
+                        # [FIX] 原来是「每条一次 execute」：一批最多 500 条失败，
+                        # 等于同一事务里 500 次往返，长写事务会把 WAL 和连接池一起拖住
+                        # （审查 #9）。改成 executemany，一条语句带一组参数。
+                        # 走 Core 表对象：ORM 实体 + 参数列表会走「按主键批量更新」，
+                        # 要求每个 dict 带 PK，否则报 No primary key value supplied。
+                        _t = TaskQueue.__table__
+                        result = await session.execute(
+                            _t.update()
+                            .where(_t.c.id == bindparam("b_id"))
+                            # IN (...) 会生成 expanding 参数，和 executemany 冲突
+                            # （InvalidRequestError: 'expanding' not supported）。
+                            # 拆成两个等值条件的 OR，executemany 就能走。
+                            .where(or_(_t.c.status == 'running', _t.c.status == 'pending'))
+                            # 全部走 bindparam：executemany 下不允许混入字面量
+                            # （否则 SQLAlchemy 要求 literal_execute，直接 InvalidRequestError）
+                            .values(
+                                status=bindparam("b_status"),
+                                error_message=bindparam("b_err"),
+                                updated_at=bindparam("b_now"),
+                            ),
+                            update_params,
+                        )
+                        total_affected += result.rowcount or 0
 
                     await session.commit()
                     if total_affected > 0:

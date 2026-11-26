@@ -104,4 +104,3 @@ web_admin/frontend_legacy/*
 data.zip
 *.bak
 !requirements-gui.txt
-tgone-*.tar.gz
