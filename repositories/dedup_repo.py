@@ -11,9 +11,37 @@ logger = logging.getLogger(__name__)
 
 class DedupRepository:
     """去重数据仓库"""
-    
-    def __init__(self, db):
-        self.db = db
+
+    def __init__(self, db=None):
+        self._db = db
+        if db is None:
+            # [FIX] 原来 db=None 会被无声咽下去：每个方法都抛
+            # AttributeError: 'NoneType' object has no attribute 'get_session'，
+            # 外层 except Exception 一吞，去重配置就静默降级成默认值。
+            # 现在把构造栈打出来，并允许首次使用时回落到 container.db。
+            try:
+                import traceback
+                stack = " | ".join(
+                    "%s:%d" % (f.filename.rsplit("/", 1)[-1], f.lineno)
+                    for f in traceback.extract_stack()[-6:-1]
+                )
+            except Exception:
+                stack = "?"
+            logger.warning("[DedupRepo] 以 db=None 构造，稍后惰性绑定；构造栈: %s", stack)
+
+    @property
+    def db(self):
+        """惰性绑定：db 为空时回落到当前 container.db。"""
+        if self._db is None:
+            from core.container import container as _container
+            fallback = getattr(_container, "db", None)
+            if fallback is None:
+                raise RuntimeError(
+                    "DedupRepository 未绑定 Database：构造时 db=None，且 container.db 也不可用"
+                )
+            self._db = fallback
+            logger.info("[DedupRepo] db 已惰性绑定到 container.db")
+        return self._db
 
     async def archive_old_signatures(self, hot_days: int = 60, batch_size: int = 10000) -> dict:
         """归档旧媒体签名记录。"""

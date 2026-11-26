@@ -9,6 +9,21 @@ import platform
 import signal
 import sys
 
+# [FIX] SQLite 的临时文件（PRAGMA temp_store=FILE）默认落在 TMPDIR/系统 /tmp。
+# 这台机器 /tmp 是 100MB 的 tmpfs，而热词表去重重建要对 60 万行做 GROUP BY+排序，
+# 一溢写就 SQLITE_FULL —— 日志里的 "database or disk is full"，也是
+# uq_hot_period_word 从来没建成、每次开机都白跑一遍全表重建的原因。
+# 必须在任何 sqlite 连接建立之前设置。
+_APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+_DATA_TEMP = os.path.join(_APP_ROOT, "data", "temp")
+_SQLITE_TMP = os.path.join(_DATA_TEMP, "sqlite")
+try:
+    os.makedirs(_SQLITE_TMP, exist_ok=True)
+    os.environ["SQLITE_TMPDIR"] = _SQLITE_TMP
+    os.environ.setdefault("TMPDIR", _DATA_TEMP)
+except Exception:  # 目录不可写时不要拦住启动，交给 SQLite 自己报错
+    pass
+
 
 
 if platform.system() == 'Windows':
