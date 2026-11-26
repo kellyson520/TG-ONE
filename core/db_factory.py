@@ -211,7 +211,33 @@ class DbFactory:
         return cls._hot_async_engine
 
     @classmethod
-    def get_hotword_session_factory(cls) -> async_sessionmaker[AsyncSession]:
+    def get_hotword_read_engine(cls) -> AsyncEngine:
+        """热词库的只读引擎（不启用 BEGIN IMMEDIATE）。
+
+        [FIX] 原来热词库只有一个引擎，且 setup_sqlite_performance 默认
+        enable_immediate=True —— 连纯 SELECT 都要先拿写锁，628k 行的榜单查询
+        彼此排队（审查 #2）。WAL 下读本来就能和写并发，所以给只读路径单开引擎。
+        """
+        if getattr(cls, "_hot_read_engine", None) is None:
+            settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            cls._hot_read_engine = create_async_engine(
+                settings.HOT_DATABASE_URL,
+                pool_size=settings.DB_POOL_SIZE,
+                max_overflow=settings.DB_MAX_OVERFLOW,
+                connect_args={"check_same_thread": False, "timeout": 60}
+            )
+            from core.helpers.sqlite_config import setup_sqlite_performance
+            setup_sqlite_performance(cls._hot_read_engine, enable_immediate=False)
+        return cls._hot_read_engine
+
+    @classmethod
+    def get_hotword_session_factory(cls, readonly: bool = False) -> async_sessionmaker[AsyncSession]:
+        if readonly:
+            if getattr(cls, "_hot_read_factory", None) is None:
+                cls._hot_read_factory = async_sessionmaker(
+                    cls.get_hotword_read_engine(), expire_on_commit=False, class_=AsyncSession
+                )
+            return cls._hot_read_factory
         if cls._hot_session_factory is None:
             engine = cls.get_hotword_async_engine()
             cls._hot_session_factory = async_sessionmaker(

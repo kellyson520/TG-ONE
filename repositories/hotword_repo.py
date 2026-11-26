@@ -25,6 +25,8 @@ class HotwordRepository:
     
     def __init__(self):
         self.session_factory = DbFactory.get_hotword_session_factory()
+        # [FIX] 只读方法走不带 BEGIN IMMEDIATE 的引擎，避免榜单查询互相抢写锁
+        self.read_session_factory = DbFactory.get_hotword_session_factory(readonly=True)
 
     def _parse_period_key(self, filename_or_period: str) -> tuple[str, str]:
         """Parse the trailing period/date token without inspecting channel names."""
@@ -89,7 +91,7 @@ class HotwordRepository:
         如果是 'channel_temp.json' -> 读取 HotRawStats
         如果是 'channel_day_xxx.json' -> 读取 HotPeriodStats
         """
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             if self._is_temp_key(filename_or_period):
                 # 读取实时表
                 stmt = select(HotRawStats).where(HotRawStats.channel == channel)
@@ -112,7 +114,7 @@ class HotwordRepository:
 
     async def get_channel_dirs(self) -> List[str]:
         """获取所有有数据的频道 (DB 版本)"""
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             stmt = select(HotRawStats.channel).distinct()
             result = await session.execute(stmt)
             channels = set(result.scalars().all())
@@ -131,7 +133,7 @@ class HotwordRepository:
         - 有当日归档或 raw 的频道，使用当日归档 + raw。
         - 当日没有数据的频道，回退到该频道最近一次 day 归档。
         """
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             raw_channels_result = await session.execute(
                 select(HotRawStats.channel).where(HotRawStats.channel != "global").distinct()
             )
@@ -217,7 +219,7 @@ class HotwordRepository:
 
     async def load_period_summary(self, channel: str, period: str, date_prefix: str) -> Dict[str, Any]:
         """按 date_key 前缀聚合周期数据，用于当前月/年实时榜单。"""
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             stmt = select(
                 HotPeriodStats.word,
                 func.sum(HotPeriodStats.score).label("score"),
@@ -232,7 +234,7 @@ class HotwordRepository:
 
     async def load_latest_period(self, channel: str, period: str) -> Dict[str, Any]:
         """读取指定频道最近一次归档周期，避免当前周期尚未聚合时榜单为空。"""
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             stmt = (
                 select(HotPeriodStats.date_key)
                 .where(
@@ -251,7 +253,7 @@ class HotwordRepository:
 
     async def load_config(self, name: str) -> Dict[str, float]:
         """从 DB 加载配置项"""
-        async with self.session_factory() as session:
+        async with self.read_session_factory() as session:
             stmt = select(HotConfig).where(HotConfig.name == name)
             result = await session.execute(stmt)
             cfg = result.scalar_one_or_none()

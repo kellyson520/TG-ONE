@@ -204,25 +204,39 @@ class TaskRepository:
         # 2. 第二步：若存在 grouped_id，扩展并确定最终任务集合 (Read Phase - 不加锁)
         if group_ids:
             max_group_expansion = max(1, int(getattr(settings, "TASK_FETCH_GROUP_EXPANSION_MAX", 20) or 20))
+            unique_groups = set(group_ids)
             async with AsyncSessionManager(readonly=True) as session:
-                for group_id in set(group_ids):
-                    stmt_groups = (
-                        select(TaskQueue.id)
-                        .where(TaskQueue.grouped_id == group_id)
-                        .where(
-                            (TaskQueue.status == 'pending') |
-                            (
-                                (TaskQueue.status == 'running') &
-                                (TaskQueue.locked_until != None) &
-                                (TaskQueue.locked_until <= now)
-                            )
+                # [FIX] 原来是「按 group 逐个 execute」：N 个 group 就是 N 次往返，
+                # 128 个 worker 每秒各 fetch 一次时，多余的往返量相当可观（审查 #6）。
+                # 现在一条 IN 查询取回所有候选，再在内存里按 group 各截前 N 条，
+                # 语义（每个 group 按 priority/created_at 取前 max_group_expansion）不变。
+                stmt_groups = (
+                    select(TaskQueue.id, TaskQueue.grouped_id)
+                    .where(TaskQueue.grouped_id.in_(unique_groups))
+                    .where(
+                        (TaskQueue.status == 'pending') |
+                        (
+                            (TaskQueue.status == 'running') &
+                            (TaskQueue.locked_until != None) &
+                            (TaskQueue.locked_until <= now)
                         )
-                        .order_by(TaskQueue.priority.desc(), TaskQueue.created_at.asc())
-                        .limit(max_group_expansion)
                     )
-                    group_result = await session.execute(stmt_groups)
-                    for row in group_result:
-                        final_task_ids.add(row[0])
+                    .order_by(
+                        TaskQueue.grouped_id,
+                        TaskQueue.priority.desc(),
+                        TaskQueue.created_at.asc(),
+                    )
+                    .limit(len(unique_groups) * max_group_expansion)
+                )
+                group_result = await session.execute(stmt_groups)
+                kept_per_group = {}
+                for row in group_result:
+                    gid = row.grouped_id
+                    used = kept_per_group.get(gid, 0)
+                    if used >= max_group_expansion:
+                        continue
+                    kept_per_group[gid] = used + 1
+                    final_task_ids.add(row.id)
 
         final_task_ids = list(final_task_ids)
         
@@ -524,8 +538,11 @@ class TaskRepository:
 
         async with self.db.get_session(readonly=True) as session:
             stmt = select(TaskQueue).where(history_filter)
+            # [FIX] 原来 COUNT 走 select_from(stmt.subquery())，等于把过滤后的
+            # 整行（含 task_data 这种大 JSON）物化一遍再数；而 task_data LIKE '%…%'
+            # 本身已是全表扫，等于白扫两次（审查 #7）。改成直接 count(id)。
             total = (
-                await session.execute(select(func.count()).select_from(stmt.subquery()))
+                await session.execute(select(func.count(TaskQueue.id)).where(history_filter))
             ).scalar() or 0
 
             result = await session.execute(
