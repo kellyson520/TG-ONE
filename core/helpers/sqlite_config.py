@@ -21,6 +21,10 @@ def setup_sqlite_performance(engine, enable_immediate: bool = True):
             cursor.execute("PRAGMA busy_timeout=15000")  # 避免锁等待把低内存 VPS 卡住太久
             cursor.execute("PRAGMA journal_size_limit=20000000")  # 20MB
             cursor.execute("PRAGMA temp_store=FILE")
+            # [FIX] 兜住 WAL 增长：原来只有 forward.db 在 db_init 里设了自动 checkpoint，
+            # 热词库等引擎没有，WAL 顶到 journal_size_limit 后就不再回收
+            # （线上见过 hotwords.db-wal = 134MB 恰好等于上限）。
+            cursor.execute("PRAGMA wal_autocheckpoint=1000")
             cursor.execute("PRAGMA mmap_size=33554432")   # 32MB，兼顾读取性能和 1G RAM VPS
         except Exception as e:
             logger.error(f"[SQLiteConfig] 设置 PRAGMA 失败: {e}")
