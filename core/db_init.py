@@ -77,18 +77,37 @@ async def init_hotword_db() -> None:
     from core.db_factory import DbFactory
     from models.hotword import Base as HotwordBase
     from core.config import settings
+    from sqlalchemy import text
 
     settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     engine = DbFactory.get_hotword_async_engine()
     try:
+        # [FIX] 拆成短事务。原来建表 / 建索引 / 去重重建全挤在一个 engine.begin() 里：
+        # 每次开机都要把 60 万行 hot_period_stats 全表 GROUP BY 后 DELETE+INSERT，
+        # 这期间一直持着写锁 → 启动期 "database is locked"、WAL 顶到 journal_size_limit
+        # (128MB)、甚至 "database or disk is full"，前置耗时以分钟计。
         async with engine.begin() as conn:
-            # 创建所有表 (PRAGMA 已通过 DbFactory 配置)
             await conn.run_sync(HotwordBase.metadata.create_all, checkfirst=True)
-            
-            # [Migration] 确保热词表索引存在 (由于 create_all 不会自动补充缺失索引)
-            from sqlalchemy import text
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hotword_date_word ON hot_period_stats(date_key, word)"))
+
+        async with engine.connect() as conn:
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_hotword_date_word ON hot_period_stats(date_key, word)"
+            ))
+            await conn.commit()
+
+        # 唯一索引存在 = 表里不可能有重复行 → 整段去重重建可以跳过（查 sqlite_master，O(1)）
+        async with engine.connect() as conn:
+            has_unique = (await conn.execute(text(
+                "SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_hot_period_word'"
+            ))).first() is not None
+
+        if has_unique:
+            logger.info("[HotwordDB] uq_hot_period_word 已存在，跳过热词表去重重建")
+            return
+
+        logger.warning("[HotwordDB] 唯一索引缺失，执行一次性去重重建（本次启动会持写锁）")
+        async with engine.begin() as conn:
             await conn.execute(text("DROP TABLE IF EXISTS hot_period_stats_dedup"))
             await conn.execute(text("""
                 CREATE TEMP TABLE hot_period_stats_dedup AS
@@ -114,7 +133,7 @@ async def init_hotword_db() -> None:
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_hot_period_word "
                 "ON hot_period_stats(channel, word, period, date_key)"
             ))
-            
+
         logger.info("Hotword database tables and indexes verified/created successfully.")
     except Exception as e:
         logger.error(f"Hotword database initialization failed: {e}")

@@ -184,57 +184,50 @@ class DatabaseIndexOptimizer:
             ("push_configs", ["rule_id", "enable_push_channel"], "idx_pc_rule_enabled"),
         ]
 
+        # [FIX] 原来 25 条 DDL 挤在同一个 BEGIN IMMEDIATE 事务里，任何一条报错
+        # （"database is locked"）就整批回滚，日志里 13 次 locked、复合索引从未建成。
+        # 现在先只读摸清 schema，再给每条索引开一个独立短事务，互不牵连。
         try:
-            # 使用事务上下文，自动提交DDL，避免手动commit导致兼容性问题
-            with self.engine.begin() as conn:
-                # 检查现有索引
-                existing = self._get_existing_index_names()
-
-                for table_name, columns, index_name in recommended_indexes:
-                    if index_name not in existing or force:
-                        try:
-                            # 检查表是否存在
-                            table_exists = conn.execute(
-                                text(
-                                    "SELECT name FROM sqlite_master WHERE type='table' AND name=:name"
-                                ),
-                                {"name": table_name},
-                            ).fetchone()
-
-                            if not table_exists:
-                                logger.warning(
-                                    f"Table {table_name} does not exist, skipping index {index_name}"
-                                )
-                                continue
-
-                            # 检查列是否存在
-                            columns_info = conn.execute(
-                                text(f"PRAGMA table_info({table_name})")
-                            ).fetchall()
-                            existing_columns = {col[1] for col in columns_info}
-
-                            if not all(col in existing_columns for col in columns):
-                                logger.warning(
-                                    f"Some columns {columns} do not exist in {table_name}, skipping index {index_name}"
-                                )
-                                continue
-
-                            # 创建索引
-                            columns_str = ", ".join(columns)
-                            create_sql = f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_str})"
-                            conn.execute(text(create_sql))
-
-                            created_indexes.append(index_name)
-                            logger.info(
-                                f"Created index: {index_name} on {table_name}({columns_str})"
-                            )
-
-                        except Exception as e:
-                            logger.error(f"Failed to create index {index_name}: {e}")
-                            continue
-
+            existing = set() if force else self._get_existing_index_names()
+            schema = {}
+            with self.engine.connect() as conn:
+                for table_name in {t for t, _, _ in recommended_indexes}:
+                    found = conn.execute(
+                        text("SELECT name FROM sqlite_master WHERE type='table' AND name=:name"),
+                        {"name": table_name},
+                    ).fetchone()
+                    if not found:
+                        schema[table_name] = None
+                        continue
+                    cols = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+                    schema[table_name] = {c[1] for c in cols}
         except Exception as e:
-            logger.error(f"Failed to create optimized indexes: {e}")
+            logger.error(f"Failed to inspect schema before creating indexes: {e}")
+            return created_indexes
+
+        for table_name, columns, index_name in recommended_indexes:
+            if index_name in existing:
+                continue
+            known_columns = schema.get(table_name)
+            if known_columns is None:
+                logger.warning(f"Table {table_name} does not exist, skipping index {index_name}")
+                continue
+            if not all(col in known_columns for col in columns):
+                logger.warning(
+                    f"Some columns {columns} do not exist in {table_name}, skipping index {index_name}"
+                )
+                continue
+
+            columns_str = ", ".join(columns)
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_str})"
+                    ))
+                created_indexes.append(index_name)
+                logger.info(f"Created index: {index_name} on {table_name}({columns_str})")
+            except Exception as e:
+                logger.error(f"Failed to create index {index_name}: {e}")
 
         return created_indexes
 

@@ -4,6 +4,8 @@ from typing import AsyncIterator, Optional
 import asyncio
 import logging
 
+from core.exceptions import TransientError
+
 logger = logging.getLogger(__name__)
 
 class Database:
@@ -87,25 +89,26 @@ class Database:
             yield session
             
             if not readonly and session.in_transaction():
-                # SQLite 锁竞态自适应重试 (Jitter Exponential Backoff)
-                max_retries = 3
-                current_sleep = 0.5
-                for attempt in range(max_retries):
-                    try:
-                        await session.commit()
-                        logger.debug(f"[Database] 事务提交成功: {id(session)}")
-                        break
-                    except Exception as commit_err:
-                        err_str = str(commit_err).lower()
-                        if 'database is locked' in err_str and attempt < max_retries - 1:
-                            import random
-                            jitter = random.uniform(0.8, 1.2)
-                            sleep_time = current_sleep * jitter
-                            logger.warning(f"⚠️ [Database] Write Lock Contention: SQLite 写入竞争，正在退避重发 ({attempt+1}/{max_retries}), sleep {sleep_time:.2f}s")
-                            await asyncio.sleep(sleep_time)
-                            current_sleep *= 2.0
-                        else:
-                            raise
+                # [FIX] 原来的"退避重试"是假的：commit 抛错后 session 已进入失效态，
+                # 再 commit 只会抛 PendingRollbackError，被下一轮当成"还是锁"继续睡；
+                # 真到某轮"成功"时也没写进去 —— 日志里是提交成功，库里是丢的。
+                # 而且 sleep 期间会话仍占着池连接（DB_POOL_SIZE 才 16，worker 128 个）。
+                # 现在：撞锁 → 立即回滚归还连接 → 抛 TransientError，
+                # 由持有完整上下文的 worker 重跑整个工作单元，那才是真重试。
+                try:
+                    await session.commit()
+                    logger.debug(f"[Database] 事务提交成功: {id(session)}")
+                except Exception as commit_err:
+                    if 'database is locked' in str(commit_err).lower():
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_err:
+                            logger.debug(f"[Database] 锁竞争回滚失败（可忽略）: {rollback_err}")
+                        logger.warning(
+                            f"⚠️ [Database] 提交遇锁竞争，已回滚并交由上层重跑: {id(session)}"
+                        )
+                        raise TransientError("commit failed: database is locked") from commit_err
+                    raise
         except asyncio.CancelledError:
             # CancelledError 是控制流信号 (BaseException 子类)，必须标记后在 finally 中重抛
             cancelled = True
