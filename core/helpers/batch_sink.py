@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 
-from sqlalchemy import update
+from sqlalchemy import bindparam, or_, update
 from models.system import TaskQueue
 
 logger = logging.getLogger(__name__)
@@ -204,26 +204,31 @@ class TaskStatusSink:
                             {
                                 "b_id": cmd["id"],
                                 "b_err": str(cmd["error_message"]),
+                                "b_status": 'failed',
+                                "b_now": now,
                             }
                             for cmd in failed_commands
                         ]
-                        # 独立循环让单条 SQL 失败更容易定位。
-                        for params in update_params:
-                            result = await session.execute(
-                                update(TaskQueue)
-                                .where(TaskQueue.id == params["b_id"])
-                                .where(
-                                    TaskQueue.status.in_(
-                                        ['running', 'pending']
-                                    )
-                                )
-                                .values(
-                                    status='failed',
-                                    error_message=params["b_err"],
-                                    updated_at=now,
-                                )
-                            )
-                            total_affected += result.rowcount
+                        # [FIX] 原来是「每条一次 execute」：一批最多 500 条失败，
+                        # 等于同一事务里 500 次往返，长写事务把 WAL 和连接池一起拖住
+                        # （审查 #9）。改成 executemany，一条语句带一组参数。
+                        # 两个坑：① ORM 实体 + 参数列表会走「按主键批量更新」，
+                        # 要求每行带 PK → 必须用 Core 表对象；
+                        # ② executemany 不允许 expanding/literal 参数 → IN (...) 要拆成
+                        # 等值 OR，.values() 里的字面量也要全部 bindparam。
+                        _t = TaskQueue.__table__
+                        result = await session.execute(
+                            _t.update()
+                            .where(_t.c.id == bindparam("b_id"))
+                            .where(or_(_t.c.status == 'running', _t.c.status == 'pending'))
+                            .values(
+                                status=bindparam("b_status"),
+                                error_message=bindparam("b_err"),
+                                updated_at=bindparam("b_now"),
+                            ),
+                            update_params,
+                        )
+                        total_affected += result.rowcount or 0
 
                     await session.commit()
                     if total_affected > 0:
