@@ -104,3 +104,6 @@ web_admin/frontend_legacy/*
 data.zip
 *.bak
 !requirements-gui.txt
+
+# 部署用打包文件（45MB），不入库
+tgone-*.tar.gz
