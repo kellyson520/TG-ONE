@@ -369,238 +369,275 @@ class WorkerService:
                 log.error("task_invalid_json", error=str(e), task_data=task.task_data)
                 await self._fail_group([task] + group_tasks, f"Invalid Task JSON: {e}")
                 return
-            
-            # [Optimization] 处理不需要预取消息的任务类型
-            if task.task_type == "message_delete":
-                chat_id = payload.get('chat_id')
-                message_ids = payload.get('message_ids', [])
-                if not chat_id or not message_ids:
-                    log.error("delete_task_invalid_payload", payload=payload)
-                    await self._fail_group([task] + group_tasks, "Invalid Delete Payload")
-                    return
-                
-                try:
-                    log.info(f"🗑️ [Worker] 执行删除消息任务: Chat={chat_id}, IDs={message_ids}")
-                    await self.client.delete_messages(chat_id, message_ids)
-                    await self._complete_group([task] + group_tasks)
-                    return
-                except Exception as e:
-                    log.error(f"delete_messages_failed", error=str(e))
-                    await self._retry_group([task] + group_tasks, e, log)
-                    return
 
-            if task.task_type == "custom_task":
-                log.info(f"⚙️ [Worker] 处理自定义任务: {payload.get('action')}")
-                # TODO: 以后可扩展基于 action 的路由
-                await self._complete_group([task] + group_tasks)
+            # Simple tasks that don't need message fetching
+            if task.task_type in ("message_delete", "custom_task"):
+                await self._process_simple_task(task, payload, log, group_tasks)
                 return
 
-            # --- 以下是需要获取原始消息的任务类型 (process_message, download_file, manual_download) ---
+            # --- Tasks requiring the original message (process_message, download_file, manual_download) ---
             chat_id = payload.get('chat_id')
             msg_id = payload.get('message_id')
-            
-            # [优化] 获取聊天显示名称
-            from core.helpers.id_utils import get_display_name_async
-            chat_display = await get_display_name_async(chat_id)
-            
-            log.info(f"🔄 [Worker] 开始处理任务 {short_id(task.id)}: 来源={chat_display}({chat_id}), 消息ID={msg_id}")
-            grouped_id = payload.get('grouped_id') # 获取 grouped_id
-            
+            grouped_id = payload.get('grouped_id')
+
             if not chat_id or not msg_id:
                 log.error("task_invalid_payload", task_data=task.task_data)
                 await self._fail_group([task] + group_tasks, "Invalid Payload")
                 return
 
-            if group_tasks:
-                log.info(f"aggregated_group_tasks", count=len(group_tasks), grouped_id=grouped_id)
-            
-            # 收集所有相关任务（当前任务 + 同组任务）
-            all_message_ids = [msg_id]
-            
-            # 解析同组任务的 message_id
-            if group_tasks:
-                valid_group_tasks = []
-                for t in group_tasks:
-                    try:
-                        p = json.loads(t.task_data or "{}")
-                        if p.get('message_id'):
-                            all_message_ids.append(p.get('message_id'))
-                            valid_group_tasks.append(t)
-                        else:
-                            await self.repo.fail(t.id, "Invalid Payload (Group)")
-                    except Exception as ex:
-                        logger.warning(f"Failed to parse group task data: {ex}")
-                        await self.repo.fail(t.id, f"Invalid Task JSON (Group): {ex}")
-                group_tasks = valid_group_tasks
-
-            all_related_tasks = [task] + group_tasks
-            
-            # 关键点：从 Telethon 获取真实消息对象 (批量获取)
-            # 如果消息已过期或被删，这里会返回 None
-            messages = await get_messages_queued(self.client, chat_id, ids=all_message_ids)
-            
-            # 过滤掉 None (有些消息可能已被删)
-            valid_messages = []
-            if isinstance(messages, list):
-                valid_messages = [m for m in messages if m]
-            elif messages:
-                    valid_messages = [messages]
-
+            all_related_tasks, valid_messages = await self._fetch_group_messages(
+                task, chat_id, msg_id, group_tasks, log
+            )
             if not valid_messages:
-                log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
-                # 消息不存在，标记为失败
-                await self._fail_group(all_related_tasks, "Source message not found")
-                return
-            
+                return  # _fetch_group_messages already failed the tasks
+
             primary_message = valid_messages[0]
+            from core.helpers.id_utils import get_display_name_async
+            chat_display = await get_display_name_async(chat_id)
+            log.info(f"🔄 [Worker] 开始处理任务 {short_id(task.id)}: 来源={chat_display}({chat_id}), 消息ID={msg_id}")
             logger.debug(f"📥 [Worker] 成功获取消息对象: ID={primary_message.id}, 内容预览={primary_message.text[:20] if primary_message.text else 'No Text'}")
-            
-            # === 进入处理管道 ===
-            if task.task_type == "process_message":
-                # 走完整管道
-                ctx = MessageContext(
-                    client=self.client,
-                    task_id=task.id,
-                    chat_id=chat_id,
-                    message_id=msg_id,
-                    message_obj=primary_message,
-                    # 注入媒体组信息
-                    is_group=bool(grouped_id),
-                    group_messages=valid_messages if grouped_id else [],
-                    related_tasks=group_tasks
-                )
-                # [关键] 注入目标规则 ID (用于历史任务或转发历史)
-                if payload.get('rule_id'):
-                    ctx.metadata['target_rule_id'] = int(payload['rule_id'])
-                
-                # 注入历史任务标记
-                if payload.get('is_history'):
-                    ctx.metadata['is_history'] = True
-                # 执行管道 (Middleware Chain)
-                try:
-                    await self.pipeline.execute(ctx)
-                except FloodWaitException as e:
-                    # 捕获FloodWaitException，将其转化为我们定义的 TransientError
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except TransientError as e:
-                    # 处理自定义瞬态错误
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except PermanentError as e:
-                    # 处理自定义永久错误
-                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self._fail_group(all_related_tasks, str(e))
-                    return
-            
-            elif task.task_type == "download_file":
-                # 直接调用下载服务，绕过 RuleLoader 和 Filter
-                # 这是一个"特权"任务
-                if not self.downloader:
-                    log.error("downloader_not_initialized")
-                    await self._fail_group(all_related_tasks, "Downloader not initialized")
-                    return
-                
-                sub_folder = str(chat_id)
-                try:
-                    await self.downloader.push_to_queue(primary_message, sub_folder)
-                except FloodWaitException as e:
-                    # 捕获FloodWaitException，将其转化为我们定义的 TransientError
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except TransientError as e:
-                    # 处理自定义瞬态错误
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except PermanentError as e:
-                    # 处理自定义永久错误
-                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self._fail_group(all_related_tasks, str(e))
-                    return
-            
-            elif task.task_type == "manual_download":
-                # 处理手动下载任务，直接调用DownloadService
-                # 可以指定一个特殊的下载目录，如 "./downloads/manual"
-                if not self.downloader:
-                    log.error("downloader_not_initialized")
-                    await self._fail_group(all_related_tasks, "Downloader not initialized")
-                    return
-                
-                # 使用"manual"作为子文件夹，区分手动下载和自动下载
-                try:
-                    path = await self.downloader.push_to_queue(
-                        primary_message, 
-                        sub_folder="manual"
-                    )
-                    log.info("manual_download_completed", path=path)
-                    
-                    # [Scheme 7 Feature] 如果有目标ID，则执行转发
-                    target_id = payload.get('target_chat_id')
-                    if target_id:
-                        try:
-                            await send_file_queued(
-                                self.client,
-                                target_id,
-                                path,
-                                caption=primary_message.text or ""
-                            )
-                            log.info(f"manual_forward_completed", target_id=target_id)
-                        except (FloodWaitException, TransientError):
-                            raise
-                        except Exception as e:
-                            log.error(f"manual_forward_failed", target_id=target_id, error=str(e))
-                            # 注意：这里我们只记录错误，不抛出异常，因为下载已经成功了
-                except FloodWaitException as e:
-                    # 捕获FloodWaitException，使用统一的重试逻辑
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except TransientError as e:
-                    # 处理自定义瞬态错误
-                    await self._retry_group(all_related_tasks, e, log)
-                    return
-                except PermanentError as e:
-                    # 处理自定义永久错误
-                    log.error("task_permanent_error", error=str(e), error_type="Permanent")
-                    await self._fail_group(all_related_tasks, str(e))
-                    return
-            
-            # === 任务成功 ===
-            # [Fix] 必须完成所有相关的媒体组任务，否则它们会被其他 Worker 重复获取
-            await self._complete_group(all_related_tasks)
-            if group_tasks:
-                logger.debug(f"task_completed_with_group: count={len(group_tasks)}")
-            else:
-                logger.debug("task_completed")
+
+            await self._dispatch_fetched_task(
+                task, payload, chat_id, primary_message,
+                valid_messages, grouped_id, group_tasks,
+                all_related_tasks, log
+            )
 
         except Exception as e:
-            if isinstance(e, RescheduleTaskException):
-                    # [非阻塞延迟处理]
-                    # 捕获 RescheduleTaskException，将任务以指定延迟重新放入队列
-                    log.info("task_delay_requested", delay_seconds=e.delay_seconds)
-                    
-                    next_run = datetime.utcnow() + timedelta(seconds=e.delay_seconds)
-                    await self.repo.reschedule(task.id, next_run)
-                    
-                    # 如果有同组任务，也一起延迟
-                    if group_tasks and 'group_tasks' in locals():
-                        for t in group_tasks:
-                            await self.repo.reschedule(t.id, next_run)
-                    return
-                    
-            if isinstance(e, (FloodWaitException, TransientError)):
-                # 捕获FloodWaitException或TransientError，使用统一的重试逻辑
-                log.warning(f"任务遇到瞬态错误，将重试: 类型={type(e).__name__}, 错误={str(e)}")
-                await self._retry_group([task] + group_tasks, e, log)
-            elif isinstance(e, PermanentError):
-                # 处理自定义永久错误
-                log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
-                await self._fail_group([task] + group_tasks, str(e))
-            else:
-                from core.helpers.id_utils import get_display_name_async
-                chat_display = await get_display_name_async(chat_id) if chat_id else "unknown"
-                log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
-                # 记录具体的错误信息到数据库
-                await self._fail_group([task] + group_tasks, f"Unhandled: {str(e)}")
+            await self._handle_task_exception(e, task, chat_id, msg_id, group_tasks, log)
+
+    # ------------------------------------------------------------------
+    # Helper: handle simple tasks that don't require message fetching
+    # ------------------------------------------------------------------
+    async def _process_simple_task(self, task, payload, log, group_tasks):
+        """Handle message_delete and custom_task types."""
+        all_tasks = [task] + group_tasks
+
+        if task.task_type == "message_delete":
+            chat_id = payload.get('chat_id')
+            message_ids = payload.get('message_ids', [])
+            if not chat_id or not message_ids:
+                log.error("delete_task_invalid_payload", payload=payload)
+                await self._fail_group(all_tasks, "Invalid Delete Payload")
+                return
+            try:
+                log.info(f"🗑️ [Worker] 执行删除消息任务: Chat={chat_id}, IDs={message_ids}")
+                await self.client.delete_messages(chat_id, message_ids)
+                await self._complete_group(all_tasks)
+            except Exception as e:
+                log.error(f"delete_messages_failed", error=str(e))
+                await self._retry_group(all_tasks, e, log)
+
+        elif task.task_type == "custom_task":
+            log.info(f"⚙️ [Worker] 处理自定义任务: {payload.get('action')}")
+            await self._complete_group(all_tasks)
+
+    # ------------------------------------------------------------------
+    # Helper: fetch messages for the current task and its media group
+    # ------------------------------------------------------------------
+    async def _fetch_group_messages(self, task, chat_id, msg_id, group_tasks, log):
+        """Fetch and validate messages for the task and its media-group siblings.
+
+        Returns (all_related_tasks, valid_messages).
+        If no valid messages remain, fails the tasks and returns ([], []).
+        """
+        if group_tasks:
+            log.info(f"aggregated_group_tasks", count=len(group_tasks))
+
+        all_message_ids = [msg_id]
+
+        # Parse sibling task message IDs
+        valid_group_tasks = []
+        for t in group_tasks:
+            try:
+                p = json.loads(t.task_data or "{}")
+                if p.get('message_id'):
+                    all_message_ids.append(p.get('message_id'))
+                    valid_group_tasks.append(t)
+                else:
+                    await self.repo.fail(t.id, "Invalid Payload (Group)")
+            except Exception as ex:
+                logger.warning(f"Failed to parse group task data: {ex}")
+                await self.repo.fail(t.id, f"Invalid Task JSON (Group): {ex}")
+
+        all_related_tasks = [task] + valid_group_tasks
+
+        messages = await get_messages_queued(self.client, chat_id, ids=all_message_ids)
+
+        valid_messages = []
+        if isinstance(messages, list):
+            valid_messages = [m for m in messages if m]
+        elif messages:
+            valid_messages = [messages]
+
+        if not valid_messages:
+            log.debug("task_source_message_not_found", chat_id=chat_id, message_ids=all_message_ids)
+            await self._fail_group(all_related_tasks, "Source message not found")
+            return ([], [])
+
+        return (all_related_tasks, valid_messages)
+
+    # ------------------------------------------------------------------
+    # Helper: dispatch to the correct task-type handler
+    # ------------------------------------------------------------------
+    async def _dispatch_fetched_task(
+        self, task, payload, chat_id, primary_message,
+        valid_messages, grouped_id, group_tasks,
+        all_related_tasks, log
+    ):
+        """Route a task (with fetched messages) to the appropriate handler."""
+        if task.task_type == "process_message":
+            await self._execute_process_message(
+                task, payload, chat_id, primary_message,
+                valid_messages, grouped_id, group_tasks, all_related_tasks, log
+            )
+        elif task.task_type == "download_file":
+            await self._execute_download_file(
+                task, chat_id, primary_message, all_related_tasks, log
+            )
+        elif task.task_type == "manual_download":
+            await self._execute_manual_download(
+                task, payload, primary_message, all_related_tasks, log
+            )
+
+        # 任务成功
+        await self._complete_group(all_related_tasks)
+        if group_tasks:
+            logger.debug(f"task_completed_with_group: count={len(group_tasks)}")
+        else:
+            logger.debug("task_completed")
+
+    # ------------------------------------------------------------------
+    # Helper: process_message pipeline execution
+    # ------------------------------------------------------------------
+    async def _execute_process_message(
+        self, task, payload, chat_id, primary_message,
+        valid_messages, grouped_id, group_tasks, all_related_tasks, log
+    ):
+        """Execute the full middleware pipeline for a process_message task."""
+        ctx = MessageContext(
+            client=self.client,
+            task_id=task.id,
+            chat_id=chat_id,
+            message_id=primary_message.id,
+            message_obj=primary_message,
+            is_group=bool(grouped_id),
+            group_messages=valid_messages if grouped_id else [],
+            related_tasks=group_tasks
+        )
+        if payload.get('rule_id'):
+            ctx.metadata['target_rule_id'] = int(payload['rule_id'])
+        if payload.get('is_history'):
+            ctx.metadata['is_history'] = True
+
+        try:
+            await self.pipeline.execute(ctx)
+        except FloodWaitException as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except TransientError as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except PermanentError as e:
+            log.error("task_permanent_error", error=str(e), error_type="Permanent")
+            await self._fail_group(all_related_tasks, str(e))
+            return
+
+    # ------------------------------------------------------------------
+    # Helper: download_file task
+    # ------------------------------------------------------------------
+    async def _execute_download_file(
+        self, task, chat_id, primary_message, all_related_tasks, log
+    ):
+        """Execute a direct download task, bypassing the rule pipeline."""
+        if not self.downloader:
+            log.error("downloader_not_initialized")
+            await self._fail_group(all_related_tasks, "Downloader not initialized")
+            return
+
+        sub_folder = str(chat_id)
+        try:
+            await self.downloader.push_to_queue(primary_message, sub_folder)
+        except FloodWaitException as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except TransientError as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except PermanentError as e:
+            log.error("task_permanent_error", error=str(e), error_type="Permanent")
+            await self._fail_group(all_related_tasks, str(e))
+            return
+
+    # ------------------------------------------------------------------
+    # Helper: manual_download task (with optional forwarding)
+    # ------------------------------------------------------------------
+    async def _execute_manual_download(
+        self, task, payload, primary_message, all_related_tasks, log
+    ):
+        """Execute a manual download, optionally forwarding to a target chat."""
+        if not self.downloader:
+            log.error("downloader_not_initialized")
+            await self._fail_group(all_related_tasks, "Downloader not initialized")
+            return
+
+        try:
+            path = await self.downloader.push_to_queue(
+                primary_message, sub_folder="manual"
+            )
+            log.info("manual_download_completed", path=path)
+
+            target_id = payload.get('target_chat_id')
+            if target_id:
+                try:
+                    await send_file_queued(
+                        self.client, target_id, path,
+                        caption=primary_message.text or ""
+                    )
+                    log.info(f"manual_forward_completed", target_id=target_id)
+                except (FloodWaitException, TransientError):
+                    raise
+                except Exception as e:
+                    log.error(f"manual_forward_failed", target_id=target_id, error=str(e))
+        except FloodWaitException as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except TransientError as e:
+            await self._retry_group(all_related_tasks, e, log)
+            return
+        except PermanentError as e:
+            log.error("task_permanent_error", error=str(e), error_type="Permanent")
+            await self._fail_group(all_related_tasks, str(e))
+            return
+
+    # ------------------------------------------------------------------
+    # Helper: unified exception handling for the outer try/except
+    # ------------------------------------------------------------------
+    async def _handle_task_exception(self, e, task, chat_id, msg_id, group_tasks, log):
+        """Handle exceptions raised during task processing."""
+        all_tasks = [task] + group_tasks
+
+        if isinstance(e, RescheduleTaskException):
+            log.info("task_delay_requested", delay_seconds=e.delay_seconds)
+            next_run = datetime.utcnow() + timedelta(seconds=e.delay_seconds)
+            await self.repo.reschedule(task.id, next_run)
+            if group_tasks:
+                for t in group_tasks:
+                    await self.repo.reschedule(t.id, next_run)
+            return
+
+        if isinstance(e, (FloodWaitException, TransientError)):
+            log.warning(f"任务遇到瞬态错误，将重试: 类型={type(e).__name__}, 错误={str(e)}")
+            await self._retry_group(all_tasks, e, log)
+        elif isinstance(e, PermanentError):
+            log.error(f"任务永久失败: 错误={str(e)}, 类型=Permanent, 规则ID={task.rule_id if hasattr(task, 'rule_id') else 'N/A'}", exc_info=True)
+            await self._fail_group(all_tasks, str(e))
+        else:
+            from core.helpers.id_utils import get_display_name_async
+            chat_display = await get_display_name_async(chat_id) if chat_id else "unknown"
+            log.exception(f"任务未处理错误: 错误={str(e)}, 任务ID={short_id(task.id)}, 任务类型={task.task_type}, 来源={chat_display}({chat_id}), 消息ID={msg_id}")
+            await self._fail_group(all_tasks, f"Unhandled: {str(e)}")
+
 
     # ... Helper methods stay same ...
 

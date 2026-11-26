@@ -2,10 +2,9 @@ from typing import List, Dict, Any, Optional, Union
 import logging
 import re
 from datetime import datetime, timedelta
-from core.helpers.lazy_import import LazyImport
-duckdb = LazyImport("duckdb")
 from core.config import settings
-from repositories.archive_store import ARCHIVE_ROOT, _configure_httpfs_and_s3
+from repositories.archive_store import ARCHIVE_ROOT
+from repositories.duckdb_connection import get_connection as _get_shared_connection
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +16,42 @@ _ALLOWED_TABLES = frozenset({
     "task_queue",
 })
 _TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_ORDER_BY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*(\s+(ASC|DESC))?(,\s*[A-Za-z_][A-Za-z0-9_.]*(\s+(ASC|DESC))?)*$", re.IGNORECASE)
+_WHERE_SQL_FORBIDDEN_RE = re.compile(
+    r";|/\*|\*/|--\s|(?<!\w)(UNION|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|GRANT|REVOKE|TRUNCATE)\s",
+    re.IGNORECASE,
+)
 
 
 def _validate_table_name(table_name: str) -> None:
     if table_name not in _ALLOWED_TABLES or not _TABLE_NAME_RE.fullmatch(table_name):
         raise ValueError(f"Unsupported archive table: {table_name!r}")
+
+
+def _validate_order_by(order_by: str) -> str:
+    """Whitelist-check ORDER BY clause: only column refs + ASC/DESC."""
+    if not _ORDER_BY_RE.fullmatch(order_by.strip()):
+        raise ValueError(f"Invalid ORDER BY clause: {order_by!r}")
+    return order_by
+
+
+def _validate_where_sql(where_sql: str) -> str:
+    """Reject obviously dangerous patterns in raw WHERE fragments."""
+    if _WHERE_SQL_FORBIDDEN_RE.search(where_sql):
+        raise ValueError(f"Rejected potentially dangerous WHERE clause: {where_sql!r}")
+    return where_sql
+
+
+def _validate_parquet_path(path: str) -> str:
+    """Ensure constructed parquet path does not contain traversal or injection sequences."""
+    # Reject path traversal
+    if ".." in path:
+        raise ValueError(f"Path traversal detected in parquet path: {path!r}")
+    # For local paths, reject shell metacharacters
+    if not ("://" in path):
+        if any(c in path for c in (";", "`", "$", "\n", "\r")):
+            raise ValueError(f"Unsafe characters in parquet path: {path!r}")
+    return path
 
 
 class UnifiedQueryBridge:
@@ -34,10 +64,7 @@ class UnifiedQueryBridge:
 
     def _get_connection(self):
         if self._con is None:
-            self._con = duckdb.connect(database=':memory:')
-            # 配置 S3/HTTP 访问
-            _configure_httpfs_and_s3(self._con)
-            # 安装并加载 sqlite 扩展
+            self._con = _get_shared_connection()
             self._con.execute("INSTALL sqlite; LOAD sqlite;")
         return self._con
 
@@ -56,6 +83,7 @@ class UnifiedQueryBridge:
         
         sqlite_table = f"sqlite_scan('{self.db_path}', '{table_name}')"
         parquet_path = f"{self.archive_root}/{table_name}/**/*.parquet"
+        _validate_parquet_path(parquet_path)
         
         # 确定可用数据源
         has_cold = False
@@ -102,14 +130,6 @@ class UnifiedQueryBridge:
                 return await self.query_aggregate(table_name, sql_template, params, use_hot=True, use_cold=False)
             return []
 
-    # Allowed ORDER BY columns to prevent SQL injection
-    _ALLOWED_ORDER_BY = {
-        "created_at", "updated_at", "id", "status", "priority",
-        "task_type", "username", "action", "timestamp", "user_id"
-    }
-    _ORDER_BY_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*( (ASC|DESC))?$', re.IGNORECASE)
-    _WHERE_SAFE_RE = re.compile(r'^[\w\s\?\=\>\<\!\(\)\.\,\+\-\*\/\%\s,]+$')
-
     async def query_unified(
         self,
         table_name: str,
@@ -122,21 +142,9 @@ class UnifiedQueryBridge:
         use_cold: bool = True
     ) -> List[Dict[str, Any]]:
         """基础统一查询 (复用 query_aggregate)"""
-        if params is None:
-            params = []
-        # Validate order_by against injection
-        order_base = order_by.split()[0] if order_by.split() else ""
-        if not self._ORDER_BY_RE.match(order_by) or order_base not in self._ALLOWED_ORDER_BY:
-            raise ValueError(f"Invalid order_by clause: {order_by}")
-        # Validate where_sql: only allow safe column=? / AND / OR / IS NULL patterns
-        # Reject any SQL that is not a simple conjunction of "column = ?" / "column IS NULL" etc.
-        if not self._WHERE_SAFE_RE.match(where_sql):
-            raise ValueError(f"Invalid where_sql clause (whitelist rejection): {where_sql}")
-        # Ensure no string literals (no quotes) that could bypass parameterization
-        if "'" in where_sql or '"' in where_sql or "`" in where_sql:
-            raise ValueError(f"where_sql must not contain string literals: {where_sql}")
-        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT ? OFFSET ?"
-        params = list(params) + [limit, offset]
+        _validate_where_sql(where_sql)
+        _validate_order_by(order_by)
+        sql = f"SELECT * FROM {{table}} WHERE {where_sql} ORDER BY {order_by} LIMIT {int(limit)} OFFSET {int(offset)}"
         return await self.query_aggregate(table_name, sql, params, use_hot, use_cold)
 
     async def get_task_detail(self, task_id: int) -> Optional[Dict[str, Any]]:

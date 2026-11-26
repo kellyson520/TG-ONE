@@ -77,11 +77,11 @@ async def init_hotword_db() -> None:
     from core.db_factory import DbFactory
     from models.hotword import Base as HotwordBase
     from core.config import settings
-    from sqlalchemy import text
 
     settings.HOT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     engine = DbFactory.get_hotword_async_engine()
+    from sqlalchemy import text
     try:
         # [FIX] 拆成短事务。原来建表 / 建索引 / 去重重建全挤在一个 engine.begin() 里：
         # 每次开机都要把 60 万行 hot_period_stats 全表 GROUP BY 后 DELETE+INSERT，

@@ -9,7 +9,7 @@ if __name__ == "__main__":
     sys.exit(1)
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
@@ -22,7 +22,6 @@ except ImportError:
 
 from web_admin.middlewares.metrics_middleware import MetricsMiddleware
 from datetime import datetime, timedelta
-import jwt
 import asyncio
 
 
@@ -156,27 +155,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     # 根据请求类型返回
     if request.url.path.startswith("/api/"):
-        response_content = {
-            "success": False,
-            "error": "Internal Server Error",
-            "message": "服务器内部错误，请联系管理员",
-        }
-        # 仅在 DEBUG 模式下返回 trace_id
-        if settings.DEBUG:
-            response_content["trace_id"] = trace_id
         return JSONResponse(
             status_code=500,
-            content=response_content
+            content={
+                "success": False,
+                "error": "Internal Server Error",
+                "message": str(exc) if settings.DEBUG else "服务器内部错误，请联系管理员",
+                "trace_id": trace_id
+            }
         )
     
-    # 页面请求 - 仅在 DEBUG 模式下显示 trace_id
-    if settings.DEBUG:
-        return HTMLResponse(
-            content=f"<html><body><h1>500 Internal Server Error</h1><p>Trace ID: {trace_id}</p></body></html>",
-            status_code=500
-        )
+    # 页面请求
     return HTMLResponse(
-        content="<html><body><h1>500 Internal Server Error</h1></body></html>",
+        content=f"<html><body><h1>500 Internal Server Error</h1><p>Trace ID: {trace_id}</p></body></html>",
         status_code=500
     )
 
@@ -187,8 +178,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allowed_origins,
     allow_credentials="*" not in cors_allowed_origins,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Context Middleware (Initialize security context)
@@ -233,6 +224,7 @@ def _issue_token(user_id: int) -> str:
     expire = datetime.utcnow() + expires_delta
     to_encode = {"sub": str(user_id), "exp": expire, "type": "access"}
     
+    import jwt
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -248,13 +240,7 @@ def _set_allow_registration(v: bool):
 
 # 健康检查路由
 @app.get("/healthz")
-async def healthz(request: Request, response: Response):
-    # 尝试认证：未认证只返回最小信息，避免信息泄露
-    from web_admin.security.deps import get_current_user
-    user = await get_current_user(request, response)
-    if not user:
-        return JSONResponse({'status': 'ok'})
-
+async def healthz():
     db = {}
     try:
         db = get_db_health()

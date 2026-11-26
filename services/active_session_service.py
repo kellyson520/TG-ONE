@@ -2,7 +2,6 @@ from typing import List, Dict, Optional, Any
 from sqlalchemy import select, delete, desc
 from sqlalchemy.orm import selectinload
 from models.models import ActiveSession
-from werkzeug.user_agent import UserAgent
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +17,7 @@ class ActiveSessionService:
         """Parse User-Agent string to human readable device info"""
         if not ua_string:
             return "Unknown Device"
+        from werkzeug.user_agent import UserAgent
         try:
             ua = UserAgent(ua_string)
             browser = ua.browser

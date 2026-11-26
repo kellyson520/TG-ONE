@@ -143,12 +143,6 @@ async def _get_full_settings_logic(config_service):
 
 async def _update_settings_logic(payload: Dict[str, Any], config_service):
     try:
-        # 安全关键字段白名单：禁止通过 API 动态修改
-        BLOCKED_KEYS = {'SECRET_KEY', 'JWT_ALGORITHM', 'DATABASE_URL', 'RSS_SECRET_KEY', 'WEB_ADMIN_PASSWORD', 'BOT_TOKEN', 'API_HASH', 'API_ID'}
-        for k in payload:
-            if k in BLOCKED_KEYS:
-                return ResponseSchema(success=False, error=f'{k} 不能通过 API 修改')
-
         # 定义需要重启的配置项
         restart_keys = {
             'LOG_DIR', 'FORWARD_RECORDER_DIR', 'RSS_SECRET_KEY', 'SECRET_KEY', 
@@ -208,18 +202,6 @@ async def _update_settings_logic(payload: Dict[str, Any], config_service):
             
             updated[k] = v
             
-        # 审计日志：记录设置变更
-        try:
-            from services.audit_service import audit_service
-            await audit_service.log_event(
-                action="SETTINGS_UPDATE",
-                resource_type="settings",
-                details={"updated_keys": list(updated.keys())}
-            )
-        except Exception as audit_err:
-            logger.warning(f"审计日志写入失败（不影响设置更新）: {audit_err}")
-            logger.warning(f"[AUDIT] 设置变更: keys={list(updated.keys())}")
-
         return ResponseSchema(
             success=True, 
             data={

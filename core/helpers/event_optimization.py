@@ -77,8 +77,8 @@ class EventOptimizer:
                 self.event_stats["events_handled"] += 1
 
                 # 实时更新用户信息缓存
-                mod = __import__('services.batch_user_service', fromlist=['get_batch_user_service'])
-                batch_service = mod.get_batch_user_service()
+                from services.batch_user_service import get_batch_user_service
+                batch_service = get_batch_user_service()
 
                 if hasattr(event, "user_id") and event.user_id:
                     # 异步更新用户信息
@@ -99,8 +99,8 @@ class EventOptimizer:
                 self.event_stats["events_handled"] += 1
 
                 # 使用官方API实时更新聊天统计
-                mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
-                api_optimizer = mod.get_api_optimizer()
+                from services.network.api_optimization import get_api_optimizer
+                api_optimizer = get_api_optimizer()
 
                 if api_optimizer and event.chat_id:
                     # 异步更新聊天统计
@@ -200,8 +200,8 @@ class EventDrivenMonitor:
                     await asyncio.sleep(600)
 
                     # 使用官方API获取聊天统计
-                    mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
-                    api_optimizer = mod.get_api_optimizer()
+                    from services.network.api_optimization import get_api_optimizer
+                    api_optimizer = get_api_optimizer()
 
                     if api_optimizer:
                         # 获取活跃聊天列表（从数据库）

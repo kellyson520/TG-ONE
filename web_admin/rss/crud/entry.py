@@ -75,20 +75,20 @@ async def create_entry(entry: Entry) -> bool:
         entries.append(entry.dict())
         # 获取规则的RSS配置，获取最大条目数量
         try:
-            from models.models import get_read_session as get_session, RSSConfig
+            from models.models import RSSConfig
+            from sqlalchemy import select
+            from core.db_factory import AsyncSessionManager
 
-            session = get_session()
-            rss_config = (
-                session.query(RSSConfig)
-                .filter(RSSConfig.rule_id == entry.rule_id)
-                .first()
-            )
-            max_items = (
-                rss_config.max_items
-                if rss_config and hasattr(rss_config, "max_items")
-                else 50
-            )
-            session.close()
+            async with AsyncSessionManager(readonly=True) as session:
+                result = await session.execute(
+                    select(RSSConfig).filter(RSSConfig.rule_id == entry.rule_id)
+                )
+                rss_config = result.scalars().first()
+                max_items = (
+                    rss_config.max_items
+                    if rss_config and hasattr(rss_config, "max_items")
+                    else 50
+                )
         except Exception as e:
             logger.warning(f"获取RSS配置失败，使用默认最大条目数量50: {str(e)}")
             max_items = 50

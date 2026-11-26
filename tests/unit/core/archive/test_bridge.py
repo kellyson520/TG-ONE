@@ -33,18 +33,17 @@ class TestUnifiedQueryBridgeUnit:
                 return b
 
     def test_get_connection_lazy_init(self, bridge):
-        """_get_connection 应懒初始化 DuckDB 连接"""
+        """_get_connection 应懒初始化并复用共享连接"""
         assert bridge._con is None
-        with patch("core.archive.bridge.duckdb") as mock_duckdb:
+        with patch("core.archive.bridge._get_shared_connection") as mock_get:
             mock_con = MagicMock()
-            mock_duckdb.connect.return_value = mock_con
+            mock_get.return_value = mock_con
             con = bridge._get_connection()
             assert con is mock_con
             assert bridge._con is mock_con
-            # 第二次调用应复用同一连接
             con2 = bridge._get_connection()
             assert con2 is mock_con
-            mock_duckdb.connect.assert_called_once()
+            mock_get.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_query_aggregate_rejects_unsupported_table_name(self, bridge):

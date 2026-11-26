@@ -2,7 +2,6 @@ import secrets
 import logging
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
-from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +46,15 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             response.set_cookie(
                 key=CSRF_COOKIE_NAME,
                 value=request.scope.get("csrf_token_new") or csrf_token,
-                httponly=True,
+                httponly=False,
                 samesite="lax",
-                secure=settings.COOKIE_SECURE,
+                secure=False,
                 path="/"
             )
             
         return response
 
 from markupsafe import Markup
-from markupsafe import escape
 
 async def validate_csrf(request: Request):
     """
@@ -93,4 +91,4 @@ async def validate_csrf(request: Request):
 def csrf_token_input(request: Request) -> Markup:
     """生成 HTML 隐藏域，用于模板中的表单提交"""
     token = getattr(request.state, "csrf_token", "")
-    return Markup(f'<input type="hidden" name="csrf_token" value="{escape(token)}">')
+    return Markup(f'<input type="hidden" name="csrf_token" value="{token}">')

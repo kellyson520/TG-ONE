@@ -334,5 +334,7 @@ async def get_audit_logs(
             }
         )
     except Exception as e:
-        logger.error(f"Error fetching audit logs: {e}", exc_info=True)
-        return ResponseSchema(success=False, error=str(e))
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error(f"Error fetching audit logs: {error_detail}")
+        return ResponseSchema(success=False, error=str(e), meta={'traceback': error_detail})

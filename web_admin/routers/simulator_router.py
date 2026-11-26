@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -9,7 +9,6 @@ from middlewares.dedup import DedupMiddleware
 from middlewares.filter import FilterMiddleware
 from middlewares.sender import SenderMiddleware
 from web_admin.schemas.response import ResponseSchema
-from web_admin.security.deps import admin_required
 import logging
 
 
@@ -32,7 +31,7 @@ class TraceItem(BaseModel):
     timestamp: float
 
 @router.post("/simulate", response_model=ResponseSchema)
-async def simulate_message(req: SimulationRequest, user = Depends(admin_required)):
+async def simulate_message(req: SimulationRequest):
 
     """
     Simulate message processing through the pipeline

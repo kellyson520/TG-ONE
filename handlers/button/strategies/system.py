@@ -53,174 +53,125 @@ class SystemMenuStrategy(BaseMenuHandler):
 
         extra_data = kwargs.get("extra_data", [])
 
-        # 1. Main Navigation
-        if action in ["main_menu", "main"]:
+        if action in ("main_menu", "main"):
             await menu_controller.show_main_menu(event)
-        
         elif action == "main_menu_refresh":
             await menu_controller.show_main_menu(event, force_refresh=True)
             await event.answer("✅ 数据看板已刷新")
-
-        elif action == "forward_hub":
-            await menu_controller.show_forward_hub(event)
-        
-        elif action == "refresh_forward_hub":
-            await menu_controller.show_forward_hub(event, force_refresh=True)
-            await event.answer("✅ 转发中心已刷新")
-
-        elif action == "dedup_hub":
-            await menu_controller.show_dedup_hub(event)
-        
-        elif action == "analytics_hub":
-            await menu_controller.show_analytics_hub(event)
-        
-        elif action == "system_hub":
-            await menu_controller.show_system_hub(event)
-
-        elif action == "detailed_analytics":
-            await menu_controller.show_detailed_analytics(event)
-
-        elif action == "performance_analysis":
-            await menu_controller.show_performance_analysis(event)
-
-        elif action == "anomaly_detection":
-            await menu_controller.show_anomaly_detection(event)
-
-        elif action in ["export_csv", "export_csv_report"]:
-            await menu_controller.export_csv_report(event)
-            
-        elif action == "export_error_logs":
-            await menu_controller.export_error_logs(event)
-
-        elif action == "failure_analysis":
-            await menu_controller.show_failure_analysis(event)
-
-        # 2. Help & Support
-        elif action == "help_guide":
-            await menu_controller.show_help_guide(event)
-        
-        elif action == "detailed_docs":
-            await menu_controller.show_detailed_docs(event)
-        
-        elif action == "faq":
-            await menu_controller.show_faq(event)
-        
-        elif action == "tech_support":
-            await event.answer("🛠️ 技术支持联系方式: @SupportBot", alert=True)
-
-        # 3. Utility
-        elif action in ["exit", "close"]:
+        elif action in ("exit", "close"):
             await event.delete()
-        
         elif action == "forward_search":
             await new_menu_system.show_forward_search(event)
-
-        # 4. System Settings & Maintenance
-        elif action == "system_settings":
-            await new_menu_system.show_system_settings(event)
-
-        elif action == "system_overview":
-            await new_menu_system.show_system_overview(event)
-
-        elif action == "cache_cleanup":
-            await menu_controller.show_cache_cleanup(event)
-        
-        elif action == "do_cleanup":
-            await new_menu_system.do_cache_cleanup(event)
-        
+        elif action == "tech_support":
+            await event.answer("🛠️ 技术支持联系方式: @SupportBot", alert=True)
         elif action == "refresh_main_menu":
             await menu_controller.show_main_menu(event, force_refresh=True)
             await event.answer("✅ 主菜单已刷新")
-        
-        elif action == "log_viewer":
-            await menu_controller.show_system_logs(event)
-        
-        elif action == "system_logs":
-            await menu_controller.show_system_logs(event)
-        
+        else:
+            await self._handle_hub_and_analytics(event, action, extra_data, menu_controller, new_menu_system)
+
+    async def _handle_hub_and_analytics(self, event, action, extra_data, mc, nms):
+        if action == "forward_hub":
+            await mc.show_forward_hub(event)
+        elif action == "refresh_forward_hub":
+            await mc.show_forward_hub(event, force_refresh=True)
+            await event.answer("✅ 转发中心已刷新")
+        elif action == "dedup_hub":
+            await mc.show_dedup_hub(event)
+        elif action == "analytics_hub":
+            await mc.show_analytics_hub(event)
+        elif action == "system_hub":
+            await mc.show_system_hub(event)
+        elif action == "detailed_analytics":
+            await mc.show_detailed_analytics(event)
+        elif action == "performance_analysis":
+            await mc.show_performance_analysis(event)
+        elif action == "anomaly_detection":
+            await mc.show_anomaly_detection(event)
+        elif action in ("export_csv", "export_csv_report"):
+            await mc.export_csv_report(event)
+        elif action == "export_error_logs":
+            await mc.export_error_logs(event)
+        elif action == "failure_analysis":
+            await mc.show_failure_analysis(event)
+        elif action == "help_guide":
+            await mc.show_help_guide(event)
+        elif action == "detailed_docs":
+            await mc.show_detailed_docs(event)
+        elif action == "faq":
+            await mc.show_faq(event)
+        else:
+            await self._handle_system_maintenance(event, action, extra_data, mc, nms)
+
+    async def _handle_system_maintenance(self, event, action, extra_data, mc, nms):
+        if action == "system_settings":
+            await nms.show_system_settings(event)
+        elif action == "system_overview":
+            await nms.show_system_overview(event)
+        elif action == "cache_cleanup":
+            await mc.show_cache_cleanup(event)
+        elif action == "do_cleanup":
+            await nms.do_cache_cleanup(event)
+        elif action in ("log_viewer", "system_logs"):
+            await mc.show_system_logs(event)
         elif action == "system_status":
-            await new_menu_system.show_system_status(event)
-        
+            await nms.show_system_status(event)
         elif action == "db_archive_once":
-            await menu_controller.run_db_archive_once(event)
-
+            await mc.run_db_archive_once(event)
         elif action == "db_archive_center":
-            # 引导至专用 Archive Hub
-            await menu_controller.show_db_archive_center(event)
-        
+            await mc.show_db_archive_center(event)
         elif action == "session_management":
-            await menu_controller.show_session_management(event)
-
-        # 6. Database Optimization & Performance
+            await mc.show_session_management(event)
         elif action == "db_optimization_center":
-            await menu_controller.show_db_optimization_center(event)
-        
+            await mc.show_db_optimization_center(event)
         elif action == "db_performance_monitor":
-            await menu_controller.show_db_performance_monitor(event)
-        
+            await mc.show_db_performance_monitor(event)
         elif action == "refresh_db_performance":
-            await menu_controller.refresh_db_performance(event)
-        
+            await mc.refresh_db_performance(event)
         elif action == "db_query_analysis":
-            await menu_controller.show_db_query_analysis(event)
-        
+            await mc.show_db_query_analysis(event)
         elif action == "db_performance_trends":
-            await menu_controller.show_db_performance_trends(event)
-        
+            await mc.show_db_performance_trends(event)
         elif action == "db_alert_management":
-            await menu_controller.show_db_alert_management(event)
-        
+            await mc.show_db_alert_management(event)
         elif action == "run_db_optimization_check":
-            await menu_controller.run_db_optimization_check(event)
-        
+            await mc.run_db_optimization_check(event)
         elif action == "db_reindex":
-            await menu_controller.run_db_reindex(event)
-        
+            await mc.run_db_reindex(event)
         elif action == "db_optimization_config":
-            await menu_controller.show_db_optimization_config(event)
-        
+            await mc.show_db_optimization_config(event)
         elif action == "clear_dedup_cache":
-            await menu_controller.clear_dedup_cache(event)
-
+            await mc.clear_dedup_cache(event)
         elif action == "run_archive_once":
-            await new_menu_system.run_archive_once(event)
-
+            await nms.run_archive_once(event)
         elif action == "run_archive_force":
-            await new_menu_system.run_archive_force(event)
-
+            await nms.run_archive_force(event)
         elif action == "rebuild_bloom":
-            await new_menu_system.rebuild_bloom(event)
-
+            await nms.rebuild_bloom(event)
         elif action == "compact_archive":
-            await new_menu_system.compact_archive(event)
-
+            await nms.compact_archive(event)
         elif action == "db_index_analysis":
-            await menu_controller.show_db_index_analysis(event)
-
+            await mc.show_db_index_analysis(event)
         elif action == "db_cache_management":
-            await menu_controller.show_db_cache_management(event)
+            await mc.show_db_cache_management(event)
+        else:
+            await self._handle_backup_restore(event, action, extra_data, mc, nms)
 
-        # 5. Backup & Restore
-        elif action == "db_backup":
-            await menu_controller.show_db_backup(event)
-        
+    async def _handle_backup_restore(self, event, action, extra_data, mc, nms):
+        if action == "db_backup":
+            await mc.show_db_backup(event)
         elif action == "backup_current":
-            await new_menu_system.confirm_backup(event)
-        
+            await nms.confirm_backup(event)
         elif action == "do_backup":
-            await new_menu_system.do_backup(event)
-        
+            await nms.do_backup(event)
         elif action == "view_backups":
-            await new_menu_system.show_backup_history(event)
-        
+            await nms.show_backup_history(event)
         elif action == "backup_page":
             page = int(extra_data[0]) if extra_data else 0
-            await new_menu_system.show_backup_history(event, page)
-        
+            await nms.show_backup_history(event, page)
         elif action == "restore_backup":
             backup_id = int(extra_data[0]) if extra_data else 0
-            await new_menu_system.confirm_restore_backup(event, backup_id)
-        
+            await nms.confirm_restore_backup(event, backup_id)
         elif action == "do_restore":
             backup_id = int(extra_data[0]) if extra_data else 0
-            await new_menu_system.do_restore(event, backup_id)
+            await nms.do_restore(event, backup_id)

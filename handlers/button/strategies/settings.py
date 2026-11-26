@@ -58,211 +58,46 @@ class SettingsMenuStrategy(BaseMenuHandler):
         return action in self.ACTIONS
 
     async def handle(self, event, action: str, **kwargs):
-        from handlers.button.new_menu_system import new_menu_system
-        from services.forward_settings_service import forward_settings_service
-
         extra_data = kwargs.get("extra_data", [])
 
         if action == "toggle_setting":
             setting_key = extra_data[0] if extra_data else ""
             await self._handle_toggle_setting(event, setting_key)
-
         elif action == "toggle_extension_mode":
             await self._handle_toggle_extension_mode(event)
-
         elif action == "toggle_media_type":
-            # toggle_media_type:{type} or toggle_media_type:{type}:history
             mtype = extra_data[0] if extra_data else ""
             is_history = len(extra_data) > 1 and extra_data[1] == "history"
             await self._handle_toggle_media_type(event, mtype, is_history)
-
         elif action == "toggle_media_duration":
             await self._handle_toggle_media_duration(event)
-
         elif action == "set_duration_range":
-            # 进入先选起始或结束的分流菜单
-            buttons = [
-                [Button.inline("设置起始时长", "new_menu:set_duration_start")],
-                [Button.inline("设置结束时长(0视为∞)", "new_menu:set_duration_end")],
-                [Button.inline("👈 返回上一级", "new_menu:media_duration_settings")],
-            ]
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            text = f"请选择要设置的时长边界：\n\n更新时间: {timestamp}"
-            await event.edit(text, buttons=buttons)
-
+            await self._show_duration_range_menu(event)
         elif action == "set_duration_start":
+            from handlers.button.new_menu_system import new_menu_system
             await new_menu_system.show_duration_range_picker(event, "min")
-
         elif action == "set_duration_end":
+            from handlers.button.new_menu_system import new_menu_system
             await new_menu_system.show_duration_range_picker(event, "max")
-
         elif action == "media_duration_settings":
+            from handlers.button.new_menu_system import new_menu_system
             await new_menu_system.show_media_duration_settings(event)
-
         elif action == "open_duration_picker":
-            side = extra_data[0] if len(extra_data) > 0 else "min"
-            unit = extra_data[1] if len(extra_data) > 1 else "seconds"
-            current_value = await self._get_duration_component(side, unit)
-            await new_menu_system.show_single_unit_duration_picker(event, side, unit, current_value)
-
+            await self._handle_open_duration_picker(event, extra_data)
         elif action == "pick_duration_unit":
-            if len(extra_data) < 3:
-                await event.answer("参数不足", alert=True)
-                return
-            side, unit, value = extra_data[0], extra_data[1], int(extra_data[2])
-            await self._set_duration_component(side, unit, value)
-            await event.answer("✅ 已更新时长")
-            await new_menu_system.show_single_unit_duration_picker(event, side, unit, value)
-
+            await self._handle_pick_duration_unit(event, extra_data)
         elif action == "confirm_duration_value":
             await event.answer("✅ 时长设置已保存")
+            from handlers.button.new_menu_system import new_menu_system
             await new_menu_system.show_media_duration_settings(event)
-
         elif action == "save_duration_settings":
             await event.answer("✅ 时长设置已自动保存")
-
         elif action == "toggle_media_size_filter":
             await self._handle_toggle_media_size_filter(event)
-
         elif action == "toggle_media_size_alert":
             await self._handle_toggle_media_size_alert(event)
-            
-        # --- Expanded Handlers ---
-        elif action in ["allow_text", "filter_allow_text", "toggle_allow_text", "history_toggle_allow_text"]:
-            await self._handle_toggle_setting(event, "allow_text")
-
-        elif action == "toggle_media_extension":
-            await self._handle_toggle_setting(event, "media_extension_enabled")
-            
-        elif action == "filter_media_extension":
-            await new_menu_system.show_media_extension_settings(event)
-
-        elif action == "media_extensions":
-            await new_menu_system.show_media_extension_settings(event)
-            
-        elif action == "filter_media_size":
-            await new_menu_system.show_media_size_settings(event)
-
-        elif action == "set_media_size_limit":
-            await self._handle_set_media_size_limit(event, extra_data)
-
-        elif action == "toggle_ext":
-            if not extra_data:
-                await event.answer("参数不足", alert=True)
-                return
-            ok = await forward_settings_service.toggle_media_extension(extra_data[0])
-            await event.answer("✅ 已更新扩展名" if ok is not None else "操作失败")
-            await new_menu_system.show_media_extension_settings(event)
-        
-        elif action == "filter_media_duration":
-             await new_menu_system.show_media_duration_settings(event)
-
-        elif action == "save_message_filter":
-            # 占位：此处可落库保存筛选配置，当前仅提示成功并返回
-            try:
-                await event.answer("✅ 已保存筛选配置")
-            except Exception as e:
-                logger.warning(f"保存筛选配置提示发送失败: {e}")
-            await new_menu_system.show_delete_session_messages_menu(event)
-            
-        elif action == "toggle_allow_emoji":
-            await self._handle_toggle_setting(event, "allow_emoji")
-
-        elif action == "toggle_dedup_enabled":
-            await self._handle_toggle_setting(event, "dedup_enabled")
-
-        elif action == "toggle_dedup_mode":
-            await self._handle_toggle_setting(event, "dedup_mode")
-            
-        elif action == "filter_settings":
-            await new_menu_system.show_filter_settings(event)
-            
-        elif action == "media_types" or action == "filter_media_types":
-            await new_menu_system.show_media_types(event)
-            
-        elif action == "message_filter":
-            await new_menu_system.show_message_filter_menu(event)
-            
-        # Media Type Toggles with Alias
-        elif "toggle_image" in action:
-            await self._handle_toggle_media_type(event, "image", is_history="history" in action)
-        elif "toggle_video" in action:
-             await self._handle_toggle_media_type(event, "video", is_history="history" in action)
-        elif "toggle_music" in action:
-             await self._handle_toggle_media_type(event, "audio", is_history="history" in action)
-        elif "toggle_voice" in action:
-             await self._handle_toggle_media_type(event, "voice", is_history="history" in action)
-        elif "toggle_document" in action:
-             await self._handle_toggle_media_type(event, "document", is_history="history" in action)
-        
-        # Dedup Time Window Settings
-        elif action == "toggle_time_window":
-            # toggle_time_window:{true|false}
-            enabled = extra_data[0] if extra_data else "true"
-            enabled_bool = enabled.lower() in ["true", "1", "yes"]
-            from services.dedup_service import dedup_service
-            await dedup_service.set_time_window_enabled(enabled_bool)
-            await event.answer(f"✅ 去重时间窗口已{'开启' if enabled_bool else '关闭'}")
-            from controllers.menu_controller import menu_controller
-            await menu_controller.show_dedup_config(event)
-        
-        elif action == "set_time_window":
-            # set_time_window:{hours}
-            hours = int(extra_data[0]) if extra_data else 24
-            from services.dedup_service import dedup_service
-            await dedup_service.set_time_window_hours(hours)
-            window_text = "永久" if hours == 0 else f"{hours}小时"
-            await event.answer(f"✅ 时间窗口已设为 {window_text}")
-            from controllers.menu_controller import menu_controller
-            await menu_controller.show_dedup_config(event)
-        
-        elif action == "toggle_similarity":
-            # toggle_similarity:{true|false}
-            enabled = extra_data[0] if extra_data else "true"
-            enabled_bool = enabled.lower() in ["true", "1", "yes"]
-            from services.dedup_service import dedup_service
-            await dedup_service.toggle_feature("smart_similarity", enabled_bool)
-            await event.answer(f"✅ 智能相似度检测已{'开启' if enabled_bool else '关闭'}")
-            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
-            await smart_dedup_menu.show_dedup_similarity(event)
-        
-        elif action == "set_similarity":
-            # set_similarity:{threshold}
-            threshold = float(extra_data[0]) if extra_data else 0.85
-            from services.dedup_service import dedup_service
-            await dedup_service.set_similarity_threshold(threshold)
-            await event.answer(f"✅ 相似度阈值已设为 {threshold:.0%}")
-            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
-            await smart_dedup_menu.show_dedup_similarity(event)
-        
-        elif action == "toggle_content_hash":
-            # toggle_content_hash:{true|false}
-            enabled = extra_data[0] if extra_data else "true"
-            enabled_bool = enabled.lower() in ["true", "1", "yes"]
-            from services.dedup_service import dedup_service
-            await dedup_service.toggle_feature("content_hash", enabled_bool)
-            await event.answer(f"✅ 内容哈希去重已{'开启' if enabled_bool else '关闭'}")
-            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
-            await smart_dedup_menu.show_dedup_content_hash(event)
-        
-        # Performance Monitoring
-        elif action == "db_performance_refresh":
-            from controllers.menu_controller import menu_controller
-            await menu_controller.show_db_performance_monitor(event)
-            await event.answer("✅ 数据库性能面板已刷新")
-        
-        elif action == "detailed_performance":
-            from controllers.menu_controller import menu_controller
-            await menu_controller.show_performance_analysis(event)
-        
-        elif action == "performance_tuning":
-            from controllers.menu_controller import menu_controller
-            await menu_controller.show_db_optimization_center(event)
-        
-        # Misc
-        elif action == "create_rule":
-            from controllers.menu_controller import menu_controller
-            await menu_controller.enter_create_rule_state(event)
+        else:
+            await self._handle_extended_actions(event, action, extra_data)
 
     # --- Internal Handlers (Migrated from menu_entrypoint.py) ---
 
@@ -421,6 +256,139 @@ class SettingsMenuStrategy(BaseMenuHandler):
             [Button.inline("👈 返回", "new_menu:filter_media_size")],
         ]
         await event.edit("📐 **媒体大小限制**\n\n请选择最大允许文件大小：", buttons=buttons)
+
+    async def _show_duration_range_menu(self, event):
+        buttons = [
+            [Button.inline("设置起始时长", "new_menu:set_duration_start")],
+            [Button.inline("设置结束时长(0视为∞)", "new_menu:set_duration_end")],
+            [Button.inline("👈 返回上一级", "new_menu:media_duration_settings")],
+        ]
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        text = f"请选择要设置的时长边界：\n\n更新时间: {timestamp}"
+        await event.edit(text, buttons=buttons)
+
+    async def _handle_open_duration_picker(self, event, extra_data):
+        from handlers.button.new_menu_system import new_menu_system
+        side = extra_data[0] if len(extra_data) > 0 else "min"
+        unit = extra_data[1] if len(extra_data) > 1 else "seconds"
+        current_value = await self._get_duration_component(side, unit)
+        await new_menu_system.show_single_unit_duration_picker(event, side, unit, current_value)
+
+    async def _handle_pick_duration_unit(self, event, extra_data):
+        from handlers.button.new_menu_system import new_menu_system
+        if len(extra_data) < 3:
+            await event.answer("参数不足", alert=True)
+            return
+        side, unit, value = extra_data[0], extra_data[1], int(extra_data[2])
+        await self._set_duration_component(side, unit, value)
+        await event.answer("✅ 已更新时长")
+        await new_menu_system.show_single_unit_duration_picker(event, side, unit, value)
+
+    async def _handle_extended_actions(self, event, action, extra_data):
+        from handlers.button.new_menu_system import new_menu_system
+        from services.forward_settings_service import forward_settings_service
+
+        if action in ["allow_text", "filter_allow_text", "toggle_allow_text", "history_toggle_allow_text"]:
+            await self._handle_toggle_setting(event, "allow_text")
+        elif action == "toggle_media_extension":
+            await self._handle_toggle_setting(event, "media_extension_enabled")
+        elif action == "filter_media_extension":
+            await new_menu_system.show_media_extension_settings(event)
+        elif action == "media_extensions":
+            await new_menu_system.show_media_extension_settings(event)
+        elif action == "filter_media_size":
+            await new_menu_system.show_media_size_settings(event)
+        elif action == "set_media_size_limit":
+            await self._handle_set_media_size_limit(event, extra_data)
+        elif action == "toggle_ext":
+            if not extra_data:
+                await event.answer("参数不足", alert=True)
+                return
+            ok = await forward_settings_service.toggle_media_extension(extra_data[0])
+            await event.answer("✅ 已更新扩展名" if ok is not None else "操作失败")
+            await new_menu_system.show_media_extension_settings(event)
+        elif action == "filter_media_duration":
+            await new_menu_system.show_media_duration_settings(event)
+        elif action == "save_message_filter":
+            try:
+                await event.answer("✅ 已保存筛选配置")
+            except Exception as e:
+                logger.warning(f"保存筛选配置提示发送失败: {e}")
+            await new_menu_system.show_delete_session_messages_menu(event)
+        elif action == "toggle_allow_emoji":
+            await self._handle_toggle_setting(event, "allow_emoji")
+        elif action == "toggle_dedup_enabled":
+            await self._handle_toggle_setting(event, "dedup_enabled")
+        elif action == "toggle_dedup_mode":
+            await self._handle_toggle_setting(event, "dedup_mode")
+        elif action == "filter_settings":
+            await new_menu_system.show_filter_settings(event)
+        elif action in ("media_types", "filter_media_types"):
+            await new_menu_system.show_media_types(event)
+        elif action == "message_filter":
+            await new_menu_system.show_message_filter_menu(event)
+        elif "toggle_image" in action:
+            await self._handle_toggle_media_type(event, "image", is_history="history" in action)
+        elif "toggle_video" in action:
+            await self._handle_toggle_media_type(event, "video", is_history="history" in action)
+        elif "toggle_music" in action:
+            await self._handle_toggle_media_type(event, "audio", is_history="history" in action)
+        elif "toggle_voice" in action:
+            await self._handle_toggle_media_type(event, "voice", is_history="history" in action)
+        elif "toggle_document" in action:
+            await self._handle_toggle_media_type(event, "document", is_history="history" in action)
+        else:
+            await self._handle_dedup_and_misc(event, action, extra_data)
+
+    async def _handle_dedup_and_misc(self, event, action, extra_data):
+        from controllers.menu_controller import menu_controller
+
+        if action == "toggle_time_window":
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.set_time_window_enabled(enabled_bool)
+            await event.answer(f"✅ 去重时间窗口已{'开启' if enabled_bool else '关闭'}")
+            await menu_controller.show_dedup_config(event)
+        elif action == "set_time_window":
+            hours = int(extra_data[0]) if extra_data else 24
+            from services.dedup_service import dedup_service
+            await dedup_service.set_time_window_hours(hours)
+            window_text = "永久" if hours == 0 else f"{hours}小时"
+            await event.answer(f"✅ 时间窗口已设为 {window_text}")
+            await menu_controller.show_dedup_config(event)
+        elif action == "toggle_similarity":
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.toggle_feature("smart_similarity", enabled_bool)
+            await event.answer(f"✅ 智能相似度检测已{'开启' if enabled_bool else '关闭'}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_similarity(event)
+        elif action == "set_similarity":
+            threshold = float(extra_data[0]) if extra_data else 0.85
+            from services.dedup_service import dedup_service
+            await dedup_service.set_similarity_threshold(threshold)
+            await event.answer(f"✅ 相似度阈值已设为 {threshold:.0%}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_similarity(event)
+        elif action == "toggle_content_hash":
+            enabled = extra_data[0] if extra_data else "true"
+            enabled_bool = enabled.lower() in ["true", "1", "yes"]
+            from services.dedup_service import dedup_service
+            await dedup_service.toggle_feature("content_hash", enabled_bool)
+            await event.answer(f"✅ 内容哈希去重已{'开启' if enabled_bool else '关闭'}")
+            from handlers.button.modules.smart_dedup_menu import smart_dedup_menu
+            await smart_dedup_menu.show_dedup_content_hash(event)
+        elif action == "db_performance_refresh":
+            await menu_controller.show_db_performance_monitor(event)
+            await event.answer("✅ 数据库性能面板已刷新")
+        elif action == "detailed_performance":
+            await menu_controller.show_performance_analysis(event)
+        elif action == "performance_tuning":
+            await menu_controller.show_db_optimization_center(event)
+        elif action == "create_rule":
+            await menu_controller.enter_create_rule_state(event)
 
     def _duration_key(self, side: str) -> str:
         return "duration_min_seconds" if side == "min" else "duration_max_seconds"

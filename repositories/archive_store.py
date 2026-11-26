@@ -75,84 +75,13 @@ def _archive_json_temp_file():
     )
 
 
-def _duckdb_string_literal(value: str) -> str:
-    return "'" + str(value).replace("'", "''") + "'"
-
-
-def _configure_httpfs_and_s3(con: "duckdb.DuckDBPyConnection") -> None:
-    """按需启用 httpfs 并配置 S3 访问。
-    通过环境变量传入凭据：
-      - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
-      - AWS_REGION or S3_REGION
-      - S3_ENDPOINT (可选，兼容 MinIO 等)
-    """
-    try:
-        logger.debug("安装并加载 httpfs 扩展")
-        con.execute("INSTALL httpfs; LOAD httpfs;")
-    except Exception as e:
-        logger.warning(f"安装或加载 httpfs 扩展失败: {e}")
-        logger.debug("安装或加载 httpfs 扩展失败详细信息", exc_info=True)
-        return
-    # 仅当归档根为 S3/HTTP(S) 时设置参数
-    root = ARCHIVE_ROOT.lower()
-    if not (
-        root.startswith("s3://")
-        or root.startswith("http://")
-        or root.startswith("https://")
-    ):
-        logger.debug("归档根路径不是 S3/HTTP(S)，跳过 S3 配置")
-        return
-    try:
-        logger.debug("配置 S3 访问参数")
-        # 区域
-        region = settings.AWS_REGION or settings.S3_REGION
-        if region:
-            logger.debug(f"设置 S3 区域: {region}")
-            con.execute(f"SET s3_region={_duckdb_string_literal(region)};")
-        # endpoint（如 MinIO）
-        endpoint = settings.S3_ENDPOINT
-        if endpoint:
-            logger.debug(f"设置 S3 endpoint: {endpoint}")
-            con.execute(f"SET s3_endpoint={_duckdb_string_literal(endpoint)};")
-        # 凭据
-        ak = settings.AWS_ACCESS_KEY_ID
-        sk = settings.AWS_SECRET_ACCESS_KEY
-        st = settings.AWS_SESSION_TOKEN
-        if ak and sk:
-            logger.debug("设置 S3 访问密钥")
-            con.execute(f"SET s3_access_key_id={_duckdb_string_literal(ak)};")
-            con.execute(f"SET s3_secret_access_key={_duckdb_string_literal(sk)};")
-        if st:
-            logger.debug("设置 S3 会话令牌")
-            con.execute(f"SET s3_session_token={_duckdb_string_literal(st)};")
-        # 允许 SSL 验证开关（默认开启）
-        verify = settings.S3_SSL_ENABLE
-        logger.debug(f"设置 S3 SSL 验证: {verify}")
-        con.execute(f"SET s3_use_ssl={'true' if verify else 'false'};")
-    except Exception as e:
-        logger.warning(f"S3 配置失败: {e}")
-        logger.debug("S3 配置失败详细信息", exc_info=True)
-
-
-def _configure_duckdb_resource_limits(
-    con: "duckdb.DuckDBPyConnection", context: str
-) -> None:
-    """按配置限制 DuckDB 资源；失败只降级并记录原因。"""
-    try:
-        threads = int(settings.DUCKDB_THREADS)
-        con.execute(f"PRAGMA threads={max(1, threads)}")
-    except Exception as e:
-        logger.warning(f"配置 DuckDB 线程数失败: context={context}, error={e}")
-        logger.debug("配置 DuckDB 线程数失败详细信息", exc_info=True)
-
-    try:
-        mem_limit = settings.DUCKDB_MEMORY_LIMIT
-        if mem_limit:
-            safe_mem_limit = str(mem_limit).replace("'", "''")
-            con.execute(f"PRAGMA memory_limit='{safe_mem_limit}'")
-    except Exception as e:
-        logger.warning(f"配置 DuckDB 内存限制失败: context={context}, error={e}")
-        logger.debug("配置 DuckDB 内存限制失败详细信息", exc_info=True)
+# Re-export shared connection helpers for backward compatibility
+from repositories.duckdb_connection import (  # noqa: F401
+    _duckdb_string_literal,
+    configure_httpfs_and_s3 as _configure_httpfs_and_s3,
+    configure_duckdb_resource_limits as _configure_duckdb_resource_limits,
+    get_connection,
+)
 
 
 def _remove_file_best_effort(path: str, context: str) -> bool:
@@ -218,16 +147,12 @@ def write_parquet(
     os.close(fd) # Windows 必须立即关闭 fd
     
     # DuckDB 需要正斜杠路径且转义单引号
-    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+    safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
     logger.debug(f"输出文件: {out_file}, 临时文件: {tmp_file}")
 
     try:
-        con = duckdb.connect(database=":memory:")
+        con = get_connection()
         try:
-            logger.debug("配置 DuckDB 连接")
-            _configure_duckdb_resource_limits(con, context="write_parquet")
-            _configure_httpfs_and_s3(con)
-
             success = False
             # 方案A：优先使用 pandas DataFrame
             try:
@@ -235,7 +160,7 @@ def write_parquet(
                 df = pd.DataFrame(rows)
                 con.register("df_rows", df)
                 con.execute(
-                    f"COPY df_rows TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
+                    f"COPY df_rows TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})"
                 )
                 success = True
             except Exception as e:
@@ -252,7 +177,7 @@ def write_parquet(
                     try:
                         # 使用参数绑定 (?) 代替字符串拼接，自动处理路径中的空格和特殊字符
                         con.execute(
-                            f"COPY (SELECT * FROM read_json_auto(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                            f"COPY (SELECT * FROM read_json_auto(?)) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                             [json_tmp_path]
                         )
                         success = True
@@ -273,8 +198,7 @@ def write_parquet(
                 shutil.move(tmp_file, out_file)
                 
         finally:
-            con.close()
-
+            pass  # shared connection — do not close
         if not os.path.exists(out_file):
             raise IOError(f"目标文件缺失: {out_file}")
 
@@ -295,10 +219,10 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
     
     fd, tmp_file = _archive_temp_file(suffix=".parquet.tmp")
     os.close(fd)
-    safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
+    safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
     
     try:
-        con = duckdb.connect(database=":memory:")
+        con = get_connection()
         try:
             import json
             with _archive_json_temp_file() as fjson:
@@ -306,16 +230,15 @@ def _write_parquet_chunk(out_dir: str, rows: List[Dict[str, Any]]) -> None:
                 json_tmp_path = fjson.name
             
             try:
-                safe_json_path = json_tmp_path.replace("\\", "/").replace("'", "''")
+                safe_json_path = _duckdb_string_literal(json_tmp_path.replace("\\", "/"))
                 con.execute(
-                    f"COPY (SELECT * FROM read_json_auto('{safe_json_path}')) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                    f"COPY (SELECT * FROM read_json_auto({safe_json_path})) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                 )
             finally:
                 if os.path.exists(json_tmp_path):
                     os.remove(json_tmp_path)
         finally:
-            con.close()
-
+            pass  # shared connection — do not close
         shutil.move(tmp_file, out_file)
         logger.debug(f"写入 Parquet 分块完成: {out_file}")
 
@@ -402,12 +325,8 @@ def query_parquet_duckdb(
         except Exception as e:
             logger.warning(f"记录查询日志时出错: {e}")
             logger.debug("记录查询日志详细信息", exc_info=True)
-    con = duckdb.connect(database=":memory:")
+    con = get_connection()
     try:
-        logger.debug("配置 DuckDB 连接")
-        _configure_duckdb_resource_limits(con, context="query_parquet_duckdb")
-        _configure_httpfs_and_s3(con)
-        
         logger.debug("执行查询")
         if files_param:
             cur = con.execute(sql, [files_param] + params)
@@ -424,9 +343,7 @@ def query_parquet_duckdb(
         logger.debug("查询 Parquet 文件详细信息", exc_info=True)
         return []
     finally:
-        con.close()
-
-
+        pass  # shared connection — do not close
 def _list_day_partitions(table: str) -> List[str]:
     logger.debug(f"列出日分区: table={table}")
     base = os.path.join(ARCHIVE_ROOT, table)
@@ -456,17 +373,16 @@ def compact_small_files(table: str, min_files: int = 10) -> List[Tuple[str, int]
             fd, tmp_file = _archive_temp_file(suffix=".parquet.compact.tmp")
             os.close(fd)
             
-            safe_tmp_path = tmp_file.replace("\\", "/").replace("'", "''")
-            con = duckdb.connect(database=":memory:")
+            safe_tmp_path = _duckdb_string_literal(tmp_file.replace("\\", "/"))
+            con = get_connection()
             try:
                 # 使用通配模式仅读取 part-*.parquet
                 con.execute(
-                    f"COPY (SELECT * FROM read_parquet(?)) TO '{safe_tmp_path}' (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
+                    f"COPY (SELECT * FROM read_parquet(?)) TO {safe_tmp_path} (FORMAT PARQUET, COMPRESSION {_PARQUET_COMPRESSION}, ROW_GROUP_SIZE {_ROW_GROUP_SIZE_INT})",
                     [pattern]
                 )
             finally:
-                con.close()
-            
+                pass  # shared connection — do not close
             shutil.move(tmp_file, out_file)
             
             # 删除已合并的小文件

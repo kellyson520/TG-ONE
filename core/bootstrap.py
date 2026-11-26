@@ -207,6 +207,17 @@ class Bootstrap:
         except Exception as e:
              logger.error(f"事件驱动监控优化启用失败: {e}")
 
+        # 数据库索引优化
+        try:
+            from repositories.db_index_optimizer import db_optimizer
+            created = await asyncio.to_thread(db_optimizer.create_optimized_indexes)
+            if created:
+                logger.info(f"数据库索引优化完成，创建了 {len(created)} 个索引")
+            else:
+                logger.info("数据库索引已是最新")
+        except Exception as e:
+            logger.error(f"数据库索引优化失败: {e}")
+
     async def _setup_listeners(self) -> None:
         # 普通监听器
         await setup_listeners(self.user_client, self.bot_client)

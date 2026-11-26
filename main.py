@@ -24,6 +24,9 @@ try:
 except Exception:  # 目录不可写时不要拦住启动，交给 SQLite 自己报错
     pass
 
+# 事件循环异常处理器重入标志（模块级，handler 内用 global 访问）
+_HANDLER_BUSY = False
+
 
 
 if platform.system() == 'Windows':
@@ -149,25 +152,42 @@ if __name__ == '__main__':
     asyncio.set_event_loop(loop)
     
     # 设置自定义异常处理器以减少退出时的噪音
+    # [FIX] 这个处理器自己会 log，而 log 会触发 log_push 推送，推送失败又回到这个
+    # 处理器 —— log -> push -> error -> handler -> log 无限递归，实机上是 RecursionError。
+    # 用模块级重入标志掐断（旧补丁在模块作用域写 `nonlocal _handler_busy`，
+    # Python 直接 SyntaxError，所以从来没生效过）。
     def _loop_exception_handler(loop, context):
-        msg = context.get("message")
-        exception = context.get("exception")
-        
-        # 常见退出噪音：任务被销毁、事件循环已关闭、取消异常、传输错误
-        noise_keywords = ["Task was destroyed", "Event loop is closed", "CancelledError", "Fatal error on transport"]
-        
-        is_noise = False
-        if msg and any(x in msg for x in noise_keywords):
-            is_noise = True
-        elif exception and any(x in str(exception) for x in noise_keywords):
-            is_noise = True
-            
-        if is_noise:
-            # 退出阶段只记录为 debug，不作为 error 记录
-            logger.debug(f"已忽略退出阶段的事件循环噪音: {context}")
+        global _HANDLER_BUSY
+        if _HANDLER_BUSY:
             return
-            
-        logger.error(f"事件循环未处理异常: {context}")
+        _HANDLER_BUSY = True
+        try:
+            msg = context.get("message")
+            exception = context.get("exception")
+
+            # 常见退出噪音：任务被销毁、事件循环已关闭、取消异常、传输错误
+            noise_keywords = ["Task was destroyed", "Event loop is closed", "CancelledError", "Fatal error on transport"]
+
+            is_noise = False
+            if msg and any(x in msg for x in noise_keywords):
+                is_noise = True
+            elif exception and any(x in str(exception) for x in noise_keywords):
+                is_noise = True
+
+            if is_noise:
+                # 退出阶段只记录为 debug，不作为 error 记录
+                try:
+                    logger.debug(f"已忽略退出阶段的事件循环噪音: {str(context)[:300]}")
+                except Exception:
+                    pass
+                return
+
+            try:
+                logger.error(f"事件循环未处理异常: {str(context)[:800]}")
+            except Exception:
+                pass
+        finally:
+            _HANDLER_BUSY = False
         
     loop.set_exception_handler(_loop_exception_handler)
     

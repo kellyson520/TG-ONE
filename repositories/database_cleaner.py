@@ -50,8 +50,8 @@ class DatabaseCleaner:
         }
 
         try:
-            mod = __import__('services.network.api_optimization', fromlist=['get_api_optimizer'])
-            api_optimizer = mod.get_api_optimizer()
+            from services.network.api_optimization import get_api_optimizer
+            api_optimizer = get_api_optimizer()
         except ImportError:
             api_optimizer = None
         if not api_optimizer:

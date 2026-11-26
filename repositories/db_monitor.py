@@ -284,7 +284,8 @@ class DatabaseMonitor:
             engine = get_engine()
             pool = engine.pool
             return pool.checkedout() if hasattr(pool, "checkedout") else 0
-        except Exception:
+        except Exception as e:
+            logger.warning("[DBMonitor] _get_connection_count失败，返回默认值0: %s", e)
             return 0
 
     def _get_cache_hit_ratio(self) -> float:
@@ -296,7 +297,8 @@ class DatabaseMonitor:
                 if stats and stats[0] > 0:
                     return 0.85  # 估算值
                 return 0.0
-        except Exception:
+        except Exception as e:
+            logger.warning("[DBMonitor] _get_cache_hit_ratio失败，返回默认值0.0: %s", e)
             return 0.0
 
     def get_metrics_summary(self, hours: int = 1) -> Dict[str, Any]:

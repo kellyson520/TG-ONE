@@ -484,214 +484,155 @@ async def create_settings_text(rule):
     return text
 
 
+def _create_basic_rule_buttons(rule):
+    """创建基础规则按钮：启用、关键字模式、用户信息过滤"""
+    is_current = rule.target_chat.current_add_id == source_chat.telegram_chat_id if (source_chat := rule.source_chat) else False
+    buttons = [
+        [Button.inline(
+            f"{'✅ ' if rule.target_chat.current_add_id == rule.source_chat.telegram_chat_id else ''}应用当前规则",
+            f"toggle_current:{rule.id}",
+        )],
+        [Button.inline(
+            f"是否启用规则: {RULE_SETTINGS['enable_rule']['values'][rule.enable_rule]}",
+            f"toggle_enable_rule:{rule.id}",
+        )],
+        [Button.inline(
+            f"当前关键字添加模式: {RULE_SETTINGS['add_mode']['values'][rule.add_mode]}",
+            f"toggle_add_mode:{rule.id}",
+        )],
+        [Button.inline(
+            f"过滤关键字时是否附带发送者名称和ID: {RULE_SETTINGS['is_filter_user_info']['values'][rule.is_filter_user_info]}",
+            f"toggle_filter_user_info:{rule.id}",
+        )],
+    ]
+    return buttons
+
+
+def _create_handle_mode_buttons(rule):
+    """创建处理模式按钮（含RSS相关）"""
+    if RSS_ENABLED == "false":
+        return [[Button.inline(
+            f"⚙️ 处理模式: {RULE_SETTINGS['handle_mode']['values'][rule.handle_mode]}",
+            f"toggle_handle_mode:{rule.id}",
+        )]]
+    return [[
+        Button.inline(
+            f"⚙️ 处理模式: {RULE_SETTINGS['handle_mode']['values'][rule.handle_mode]}",
+            f"toggle_handle_mode:{rule.id}",
+        ),
+        Button.inline(
+            f"⚠️ 只转发到RSS: {RULE_SETTINGS['only_rss']['values'][rule.only_rss]}",
+            f"toggle_only_rss:{rule.id}",
+        ),
+    ]]
+
+
+def _create_bot_mode_buttons(rule):
+    """创建机器人模式下的按钮组"""
+    buttons = []
+    buttons.append([
+        Button.inline(
+            f"🚚 强制纯转发: {RULE_SETTINGS['force_pure_forward']['values'][rule.force_pure_forward]}",
+            f"toggle_force_pure_forward:{rule.id}",
+        ),
+        Button.inline(
+            f"🧹 开启去重: {RULE_SETTINGS['enable_dedup']['values'][rule.enable_dedup]}",
+            f"toggle_enable_dedup:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline("🔎 扫描重复媒体", f"dedup_scan_now:{rule.id}"),
+        Button.inline("⚙️ 去重高级设置", f"new_menu:dedup_settings:{rule.id}")
+    ])
+    buttons.append([
+        Button.inline(
+            f"🔄 替换模式: {RULE_SETTINGS['is_replace']['values'][rule.is_replace]}",
+            f"toggle_replace:{rule.id}",
+        ),
+        Button.inline(
+            f"📝 消息格式: {RULE_SETTINGS['message_mode']['values'][rule.message_mode]}",
+            f"toggle_message_mode:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline(
+            f"👁 预览模式: {RULE_SETTINGS['is_preview']['values'][rule.is_preview]}",
+            f"toggle_preview:{rule.id}",
+        ),
+        Button.inline(
+            f"🔗 原始链接: {RULE_SETTINGS['is_original_link']['values'][rule.is_original_link]}",
+            f"toggle_original_link:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline(
+            f"👤 原始发送者: {RULE_SETTINGS['is_original_sender']['values'][rule.is_original_sender]}",
+            f"toggle_original_sender:{rule.id}",
+        ),
+        Button.inline(
+            f"⏰ 发送时间: {RULE_SETTINGS['is_original_time']['values'][rule.is_original_time]}",
+            f"toggle_original_time:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline(
+            f"🗑 删除原消息: {RULE_SETTINGS['is_delete_original']['values'][rule.is_delete_original]}",
+            f"toggle_delete_original:{rule.id}",
+        ),
+        Button.inline(
+            f"💬 评论区按钮: {RULE_SETTINGS['enable_comment_button']['values'][rule.enable_comment_button]}",
+            f"toggle_enable_comment_button:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline(
+            f"⏱️ 延迟处理: {RULE_SETTINGS['enable_delay']['values'][rule.enable_delay]}",
+            f"toggle_enable_delay:{rule.id}",
+        ),
+        Button.inline(
+            f"⌛ 延迟秒数: {rule.delay_seconds or 5}秒",
+            f"set_delay_time:{rule.id}",
+        ),
+    ])
+    buttons.append([
+        Button.inline(
+            f"🔄 同步规则: {RULE_SETTINGS['enable_sync']['values'][rule.enable_sync]}",
+            f"toggle_enable_sync:{rule.id}",
+        ),
+        Button.inline(f"📡 同步设置", f"set_sync_rule:{rule.id}"),
+    ])
+    if UFB_ENABLED == "true":
+        buttons.append([Button.inline(
+            f"☁️ UFB同步: {RULE_SETTINGS['is_ufb']['values'][rule.is_ufb]}",
+            f"toggle_ufb:{rule.id}",
+        )])
+    buttons.append([
+        Button.inline("🤖 AI设置", f"ai_settings:{rule.id}"),
+        Button.inline("🎬 媒体设置", f"media_settings:{rule.id}"),
+        Button.inline("➕ 其他设置", f"other_settings:{rule.id}"),
+    ])
+    buttons.append([Button.inline("🔔 推送设置", f"push_settings:{rule.id}")])
+    buttons.append([
+        Button.inline("👈 返回", "new_menu:forward_management"),
+        Button.inline("❌ 关闭", "close_settings"),
+    ])
+    return buttons
+
+
 async def create_buttons(rule, _back_callback="settings"):
     """创建规则设置按钮"""
-    buttons = []
+    buttons = _create_basic_rule_buttons(rule)
+    buttons.append([Button.inline(
+        f"📥 过滤模式: {RULE_SETTINGS['forward_mode']['values'][rule.forward_mode]}",
+        f"toggle_forward_mode:{rule.id}",
+    ), Button.inline(
+        f"🤖 转发方式: {RULE_SETTINGS['use_bot']['values'][rule.use_bot]}",
+        f"toggle_bot:{rule.id}",
+    )])
 
-    # 直接使用rule对象中的关联属性，避免同步数据库操作
-    target_chat = rule.target_chat
-    source_chat = rule.source_chat
-
-    # 添加规则切换按钮
-    is_current = target_chat.current_add_id == source_chat.telegram_chat_id
-    buttons.append(
-        [
-            Button.inline(
-                f"{'✅ ' if is_current else ''}应用当前规则",
-                f"toggle_current:{rule.id}",
-            )
-        ]
-    )
-
-    buttons.append(
-        [
-            Button.inline(
-                f"是否启用规则: {RULE_SETTINGS['enable_rule']['values'][rule.enable_rule]}",
-                f"toggle_enable_rule:{rule.id}",
-            )
-        ]
-    )
-
-    # 当前关键字添加模式
-    buttons.append(
-        [
-            Button.inline(
-                f"当前关键字添加模式: {RULE_SETTINGS['add_mode']['values'][rule.add_mode]}",
-                f"toggle_add_mode:{rule.id}",
-            )
-        ]
-    )
-
-    # 是否过滤用户信息
-    buttons.append(
-        [
-            Button.inline(
-                f"过滤关键字时是否附带发送者名称和ID: {RULE_SETTINGS['is_filter_user_info']['values'][rule.is_filter_user_info]}",
-                f"toggle_filter_user_info:{rule.id}",
-            )
-        ]
-    )
-
-    if RSS_ENABLED == "false":
-        # 处理模式
-        buttons.append(
-            [
-                Button.inline(
-                    f"⚙️ 处理模式: {RULE_SETTINGS['handle_mode']['values'][rule.handle_mode]}",
-                    f"toggle_handle_mode:{rule.id}",
-                )
-            ]
-        )
-    else:
-        # 处理模式
-        buttons.append(
-            [
-                Button.inline(
-                    f"⚙️ 处理模式: {RULE_SETTINGS['handle_mode']['values'][rule.handle_mode]}",
-                    f"toggle_handle_mode:{rule.id}",
-                ),
-                Button.inline(
-                    f"⚠️ 只转发到RSS: {RULE_SETTINGS['only_rss']['values'][rule.only_rss]}",
-                    f"toggle_only_rss:{rule.id}",
-                ),
-            ]
-        )
-
-    buttons.append(
-        [
-            Button.inline(
-                f"📥 过滤模式: {RULE_SETTINGS['forward_mode']['values'][rule.forward_mode]}",
-                f"toggle_forward_mode:{rule.id}",
-            ),
-            Button.inline(
-                f"🤖 转发方式: {RULE_SETTINGS['use_bot']['values'][rule.use_bot]}",
-                f"toggle_bot:{rule.id}",
-            ),
-        ]
-    )
-
-    if rule.use_bot:  # 只在使用机器人时显示这些设置
-        # 纯转发与去重
-        buttons.append(
-            [
-                Button.inline(
-                    f"🚚 强制纯转发: {RULE_SETTINGS['force_pure_forward']['values'][rule.force_pure_forward]}",
-                    f"toggle_force_pure_forward:{rule.id}",
-                ),
-                Button.inline(
-                    f"🧹 开启去重: {RULE_SETTINGS['enable_dedup']['values'][rule.enable_dedup]}",
-                    f"toggle_enable_dedup:{rule.id}",
-                ),
-            ]
-        )
-        # 去重快捷操作与高级设置
-        buttons.append([
-            Button.inline("🔎 扫描重复媒体", f"dedup_scan_now:{rule.id}"),
-            Button.inline("⚙️ 去重高级设置", f"new_menu:dedup_settings:{rule.id}")
-        ])
-        buttons.append(
-            [
-                Button.inline(
-                    f"🔄 替换模式: {RULE_SETTINGS['is_replace']['values'][rule.is_replace]}",
-                    f"toggle_replace:{rule.id}",
-                ),
-                Button.inline(
-                    f"📝 消息格式: {RULE_SETTINGS['message_mode']['values'][rule.message_mode]}",
-                    f"toggle_message_mode:{rule.id}",
-                ),
-            ]
-        )
-
-        buttons.append(
-            [
-                Button.inline(
-                    f"👁 预览模式: {RULE_SETTINGS['is_preview']['values'][rule.is_preview]}",
-                    f"toggle_preview:{rule.id}",
-                ),
-                Button.inline(
-                    f"🔗 原始链接: {RULE_SETTINGS['is_original_link']['values'][rule.is_original_link]}",
-                    f"toggle_original_link:{rule.id}",
-                ),
-            ]
-        )
-
-        buttons.append(
-            [
-                Button.inline(
-                    f"👤 原始发送者: {RULE_SETTINGS['is_original_sender']['values'][rule.is_original_sender]}",
-                    f"toggle_original_sender:{rule.id}",
-                ),
-                Button.inline(
-                    f"⏰ 发送时间: {RULE_SETTINGS['is_original_time']['values'][rule.is_original_time]}",
-                    f"toggle_original_time:{rule.id}",
-                ),
-            ]
-        )
-
-        buttons.append(
-            [
-                Button.inline(
-                    f"🗑 删除原消息: {RULE_SETTINGS['is_delete_original']['values'][rule.is_delete_original]}",
-                    f"toggle_delete_original:{rule.id}",
-                ),
-                Button.inline(
-                    f"💬 评论区按钮: {RULE_SETTINGS['enable_comment_button']['values'][rule.enable_comment_button]}",
-                    f"toggle_enable_comment_button:{rule.id}",
-                ),
-            ]
-        )
-
-        # 添加延迟过滤器按钮
-        buttons.append(
-            [
-                Button.inline(
-                    f"⏱️ 延迟处理: {RULE_SETTINGS['enable_delay']['values'][rule.enable_delay]}",
-                    f"toggle_enable_delay:{rule.id}",
-                ),
-                Button.inline(
-                    f"⌛ 延迟秒数: {rule.delay_seconds or 5}秒",
-                    f"set_delay_time:{rule.id}",
-                ),
-            ]
-        )
-
-        # 添加同步规则相关按钮
-        buttons.append(
-            [
-                Button.inline(
-                    f"🔄 同步规则: {RULE_SETTINGS['enable_sync']['values'][rule.enable_sync]}",
-                    f"toggle_enable_sync:{rule.id}",
-                ),
-                Button.inline(f"📡 同步设置", f"set_sync_rule:{rule.id}"),
-            ]
-        )
-
-        if UFB_ENABLED == "true":
-            buttons.append(
-                [
-                    Button.inline(
-                        f"☁️ UFB同步: {RULE_SETTINGS['is_ufb']['values'][rule.is_ufb]}",
-                        f"toggle_ufb:{rule.id}",
-                    )
-                ]
-            )
-
-        buttons.append(
-            [
-                Button.inline("🤖 AI设置", f"ai_settings:{rule.id}"),
-                Button.inline("🎬 媒体设置", f"media_settings:{rule.id}"),
-                Button.inline("➕ 其他设置", f"other_settings:{rule.id}"),
-            ]
-        )
-
-        buttons.append([Button.inline("🔔 推送设置", f"push_settings:{rule.id}")])
-
-        buttons.append(
-            [
-                Button.inline("👈 返回", "new_menu:forward_management"),
-                Button.inline("❌ 关闭", "close_settings"),
-            ]
-        )
+    if rule.use_bot:
+        buttons.extend(_create_handle_mode_buttons(rule))
+        buttons.extend(_create_bot_mode_buttons(rule))
 
     return buttons
 

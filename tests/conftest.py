@@ -74,6 +74,7 @@ try:
 except ImportError as e:
     print(f"WARNING: Failed to pre-import web_admin: {e}")
 
+import importlib.util
 from unittest.mock import MagicMock, AsyncMock
 import unittest.mock
 
@@ -81,9 +82,7 @@ import unittest.mock
 # PHASE 1: Mock 缺失的 C 扩展库 (仅当无法导入时)
 # ============================================================
 for lib in ["rapidfuzz", "numba", "duckdb", "pyarrow", "pandas", "apprise"]:
-    try:
-        __import__(lib)
-    except ImportError:
+    if importlib.util.find_spec(lib) is None:
         m = MagicMock()
         m.__version__ = "99.9.9"
         sys.modules[lib] = m

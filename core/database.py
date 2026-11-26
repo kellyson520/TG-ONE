@@ -4,9 +4,8 @@ from typing import AsyncIterator, Optional
 import asyncio
 import logging
 
-from core.exceptions import TransientError
-
 logger = logging.getLogger(__name__)
+from core.exceptions import TransientError
 
 class Database:
     def __init__(self, db_url: Optional[str] = None, engine: Optional[AsyncEngine] = None) -> None:
@@ -89,6 +88,7 @@ class Database:
             yield session
             
             if not readonly and session.in_transaction():
+                # SQLite 锁竞态自适应重试 (Jitter Exponential Backoff)
                 # [FIX] 原来的"退避重试"是假的：commit 抛错后 session 已进入失效态，
                 # 再 commit 只会抛 PendingRollbackError，被下一轮当成"还是锁"继续睡；
                 # 真到某轮"成功"时也没写进去 —— 日志里是提交成功，库里是丢的。

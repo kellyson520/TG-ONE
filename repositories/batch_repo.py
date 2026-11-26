@@ -21,6 +21,23 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# SQL注入防护：表名白名单
+ALLOWED_TABLE_NAMES = frozenset({
+    'access_control_list', 'active_sessions', 'audit_logs', 'chat_statistics',
+    'chats', 'error_logs', 'forward_mappings', 'forward_rules', 'hot_config',
+    'hot_period_stats', 'hot_raw_stats', 'keywords', 'media_extensions',
+    'media_signatures', 'media_types', 'push_configs', 'replace_rules',
+    'rss_configs', 'rss_patterns', 'rss_subscriptions', 'rule_logs',
+    'rule_statistics', 'rule_syncs', 'system_configurations', 'task_queue', 'users',
+})
+
+
+def _validate_table_name(name: str) -> str:
+    """校验表名，防止SQL注入"""
+    if name not in ALLOWED_TABLE_NAMES:
+        raise ValueError(f"Invalid table name: {name!r}")
+    return name
+
 
 @dataclass
 class BatchOperation:
@@ -444,26 +461,16 @@ class AsyncBatchProcessor:
 
         for operation in operations:
             start_time = time.time()
-            processed_count = 0
-            error_count = 0
-            errors = []
 
             try:
-                for item in operation.data:
-                    try:
-                        await self._execute_single_update(operation.table_name, item)
-                        processed_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        errors.append(str(e))
-
+                await self._execute_batch_update(operation.table_name, operation.data)
                 result = BatchResult(
                     operation_id=operation.operation_id,
-                    success=error_count == 0,
-                    processed_count=processed_count,
-                    error_count=error_count,
+                    success=True,
+                    processed_count=len(operation.data),
+                    error_count=0,
                     duration=time.time() - start_time,
-                    errors=errors,
+                    errors=[],
                 )
 
             except Exception as e:
@@ -568,6 +575,7 @@ class AsyncBatchProcessor:
                     placeholders = ", ".join([f":{col}" for col in columns])
                     columns_str = ", ".join(columns)
 
+                    _validate_table_name(table_name)
                     sql = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
                     session.execute(text(sql), data)
 
@@ -596,6 +604,7 @@ class AsyncBatchProcessor:
             update_data = {k: v for k, v in data.items() if k != "id"}
 
             if update_data:
+                _validate_table_name(table_name)
                 set_clause = ", ".join([f"{k} = :{k}" for k in update_data.keys()])
                 sql = f"UPDATE {table_name} SET {set_clause} WHERE id = :id"
 
@@ -609,16 +618,48 @@ class AsyncBatchProcessor:
                 executor, lambda: self._run_with_session(_update_item)
             )
 
+    async def _execute_batch_update(self, table_name: str, data: List[Dict[str, Any]]):
+        """批量更新（单次session，按列结构分组执行executemany）"""
+        if not data:
+            return
+
+        _validate_table_name(table_name)
+
+        def _update_batch(session: Session):
+            groups: Dict[tuple, List[Dict[str, Any]]] = defaultdict(list)
+            for item in data:
+                if "id" not in item:
+                    raise ValueError("Update data must contain 'id' field")
+                cols = tuple(sorted(k for k in item if k != "id"))
+                groups[cols].append(item)
+
+            for cols, items in groups.items():
+                if not cols:
+                    continue
+                set_clause = ", ".join([f"{k} = :{k}" for k in cols])
+                sql = f"UPDATE {table_name} SET {set_clause} WHERE id = :id"
+                session.execute(text(sql), items)
+
+            session.commit()
+
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            await loop.run_in_executor(
+                executor, lambda: self._run_with_session(_update_batch)
+            )
+
     async def _execute_batch_delete(self, table_name: str, ids: List[int]):
         """执行批量删除"""
 
         def _delete_batch(session: Session):
             if len(ids) == 1:
+                _validate_table_name(table_name)
                 sql = f"DELETE FROM {table_name} WHERE id = :id"
                 session.execute(text(sql), {"id": ids[0]})
             else:
                 # 使用IN子句
                 placeholders = ", ".join([f":id_{i}" for i in range(len(ids))])
+                _validate_table_name(table_name)
                 sql = f"DELETE FROM {table_name} WHERE id IN ({placeholders})"
 
                 params = {f"id_{i}": id_val for i, id_val in enumerate(ids)}

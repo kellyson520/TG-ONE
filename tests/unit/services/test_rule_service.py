@@ -8,8 +8,10 @@ from services.rule_service import RuleQueryService
 class TestRuleQueryService:
     @pytest.fixture(autouse=True)
     def setup_mocks(self, monkeypatch):
+        from core.container import container
+        self.svc = container.rule_query_service
         # 清理缓存
-        RuleQueryService.invalidate_all_caches()
+        self.svc.invalidate_all_caches()
         # Mock persistent cache 避免报错
         mock_pc = MagicMock()
         mock_pc.get.return_value = None
@@ -28,7 +30,7 @@ class TestRuleQueryService:
         await db.commit()
         
         # 2. 调用 Service
-        rules = await RuleQueryService.get_rules_for_source_chat("-1001")
+        rules = await self.svc.get_rules_for_source_chat("-1001")
         
         # 3. 验证
         assert len(rules) == 1
@@ -56,7 +58,7 @@ class TestRuleQueryService:
         await db.commit()
         
         # 调用
-        rules = await RuleQueryService.get_rules_for_source_chat("-1001")
+        rules = await self.svc.get_rules_for_source_chat("-1001")
         assert len(rules) == 2
         tgt_ids = [r.target_chat.telegram_chat_id for r in rules]
         assert "-1002" in tgt_ids
@@ -65,7 +67,7 @@ class TestRuleQueryService:
     async def test_cache_logic(self, monkeypatch):
         # 测试缓存逻辑：验证缓存命中和失效
         # 使用唯一的 chat ID 避免与其他测试冲突
-        RuleQueryService.invalidate_all_caches()
+        self.svc.invalidate_all_caches()
         
         from core.container import container
         
@@ -77,7 +79,7 @@ class TestRuleQueryService:
             await session.commit()
             
             # 第一次查询：没有规则
-            rules1 = await RuleQueryService.get_rules_for_source_chat("-1999")
+            rules1 = await self.svc.get_rules_for_source_chat("-1999")
             assert len(rules1) == 0
             
             # 添加一个规则
@@ -86,12 +88,12 @@ class TestRuleQueryService:
             await session.commit()
         
         # 第二次查询：由于缓存，仍然返回 0
-        rules2 = await RuleQueryService.get_rules_for_source_chat("-1999")
+        rules2 = await self.svc.get_rules_for_source_chat("-1999")
         assert len(rules2) == 0  # 命中缓存
         
         # 清除缓存后查询：应该返回 1
-        RuleQueryService.invalidate_all_caches()
-        rules3 = await RuleQueryService.get_rules_for_source_chat("-1999")
+        self.svc.invalidate_all_caches()
+        rules3 = await self.svc.get_rules_for_source_chat("-1999")
         assert len(rules3) == 1  # 缓存失效，从数据库查询
     
     async def test_id_variant_matching(self, db):
@@ -106,8 +108,8 @@ class TestRuleQueryService:
         await db.commit()
         
         # 清理缓存确保从库查
-        RuleQueryService.invalidate_all_caches()
+        self.svc.invalidate_all_caches()
         
-        matches = await RuleQueryService.get_rules_for_source_chat("123456")
+        matches = await self.svc.get_rules_for_source_chat("123456")
         assert len(matches) == 1
         assert matches[0].source_chat.telegram_chat_id == "-100123456"

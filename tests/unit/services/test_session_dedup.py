@@ -15,7 +15,7 @@ def session_service():
 
 @pytest.fixture
 def mock_container():
-    with patch("services.session_service.container") as mock:
+    with patch("services.session_dedup.container") as mock:
         yield mock
 
 @pytest.mark.asyncio

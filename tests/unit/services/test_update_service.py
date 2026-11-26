@@ -217,9 +217,9 @@ async def test_http_update_rejects_oversized_download(update_service, monkeypatc
     update_service._is_git_repo = False
     update_service._git_available = False
 
-    monkeypatch.setattr("services.update_service.MAX_HTTP_UPDATE_DOWNLOAD_BYTES", 5)
-    monkeypatch.setattr("services.update_service.settings.UPDATE_REMOTE_URL", "https://github.com/kellyson520/TG-ONE.git")
-    monkeypatch.setattr("services.update_service.settings.UPDATE_BRANCH", "main")
+    monkeypatch.setattr("services.update_executor.MAX_HTTP_UPDATE_DOWNLOAD_BYTES", 5)
+    monkeypatch.setattr("services.update_executor.settings.UPDATE_REMOTE_URL", "https://github.com/kellyson520/TG-ONE.git")
+    monkeypatch.setattr("services.update_executor.settings.UPDATE_BRANCH", "main")
     monkeypatch.setattr("httpx.AsyncClient", FakeClient)
     monkeypatch.setattr(update_service, "_cross_verify_sha", AsyncMock(return_value=True))
 

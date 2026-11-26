@@ -30,27 +30,6 @@ def _load_rss_secret_key() -> Optional[str]:
         logger.warning(f"尝试读取 RSS 密钥文件失败: {e}")
     return rss_key
 
-# 从文件加载JWT密钥的辅助函数（持久化，重启后不变）
-def _load_secret_key() -> str:
-    """从文件加载JWT密钥，不存在则生成并持久化"""
-    try:
-        base_dir = Path(__file__).resolve().parent.parent.parent
-        key_file = base_dir / "data" / ".secret_key"
-        if key_file.exists():
-            content = key_file.read_text(encoding='utf-8').strip()
-            if content:
-                return content
-        # Generate new key and persist
-        new_key = secrets.token_hex(32)
-        key_file.parent.mkdir(parents=True, exist_ok=True)
-        key_file.write_text(new_key, encoding='utf-8')
-        key_file.chmod(0o600)
-        logger.info("Generated and persisted new SECRET_KEY")
-        return new_key
-    except Exception as e:
-        logger.warning(f"Failed to load/persist SECRET_KEY: {e}, using ephemeral key")
-        return secrets.token_hex(32)
-
 class Settings(BaseSettings):
     """应用配置类，使用Pydantic v2实现类型安全的配置管理"""
     
@@ -175,7 +154,7 @@ class Settings(BaseSettings):
     # === Web Admin Defaults ===
     WEB_ADMIN_USERNAME: Optional[str] = Field(default=None)
     WEB_ADMIN_PASSWORD: Optional[str] = Field(default=None)
-    COOKIE_SECURE: bool = Field(default=True)
+    COOKIE_SECURE: bool = Field(default=False)
     ALLOW_REGISTRATION: bool = Field(
         default=False, 
         description="是否允许 Web 用户注册"
@@ -267,7 +246,7 @@ class Settings(BaseSettings):
     FORWARD_PACING_JITTER: float = Field(default=0.2)
     
     # === 监控与健康检查 ===
-    HEALTH_HOST: str = Field(default="127.0.0.1")
+    HEALTH_HOST: str = Field(default="0.0.0.0")
     HEALTH_PORT: int = Field(default=9000)
     
     # === 联网更新配置 ===
@@ -579,7 +558,7 @@ class Settings(BaseSettings):
         description="是否启用Web服务"
     )
     WEB_HOST: str = Field(
-        default="127.0.0.1",
+        default="0.0.0.0",
         description="Web服务监听地址"
     )
     WEB_PORT: int = Field(
@@ -742,18 +721,10 @@ class Settings(BaseSettings):
     
     # === Security / JWT Config ===
     SECRET_KEY: str = Field(
-        default_factory=_load_secret_key,
-        description="JWT 密钥（持久化到 data/.secret_key，重启后不变）"
+        default_factory=lambda: secrets.token_hex(32),
+        description="JWT 密钥"
     )
     JWT_ALGORITHM: str = Field(default="HS256")
-
-    @field_validator("JWT_ALGORITHM")
-    @classmethod
-    def validate_jwt_algorithm(cls, v):
-        allowed = {"HS256", "HS384", "HS512"}
-        if v not in allowed:
-            raise ValueError(f"JWT_ALGORITHM must be one of {allowed}")
-        return v
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     MAX_ACTIVE_SESSIONS: int = Field(

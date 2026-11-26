@@ -19,19 +19,30 @@ class DeduplicationService:
         self.db = db
         self.coordinator = None
         self._repo = None
+        self._stats_repo = None
+
+    def set_repos(self, dedup_repo, stats_repo):
+        """注入仓储依赖 (由 Container 调用，打破循环依赖)"""
+        self._repo = dedup_repo
+        self._stats_repo = stats_repo
 
     @property
     def repo(self):
+        # [FIX] 只 return 注入值：set_repos 之前（或注入 None）时返回 None，
+        # 下游 ctx.repo.check_* 直接 AttributeError，被 except 吞成"无重复"。
         if self._repo is None:
-            from core.container import container
-            self._repo = container.dedup_repo
+            from core.container import container as _container
+            self._repo = getattr(_container, "dedup_repo", None)
         return self._repo
 
     @property
     def stats_repo(self):
-        if not hasattr(self, '_stats_repo') or self._stats_repo is None:
-            from core.container import container
-            self._stats_repo = container.stats_repo
+        # [FIX] 同上：None 传给 increment_stats 会抛
+        # "'NoneType' object has no attribute 'increment_stats'"，
+        # 统计静默丢失。惰性回落到 container.stats_repo 并缓存。
+        if self._stats_repo is None:
+            from core.container import container as _container
+            self._stats_repo = getattr(_container, "stats_repo", None)
         return self._stats_repo
 
     def set_coordinator(self, coordinator):

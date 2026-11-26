@@ -135,13 +135,10 @@ def check_dependencies() -> bool:
     # 检查DuckDB
     try:
         logger.debug("检查 DuckDB")
-        import duckdb
+        from repositories.duckdb_connection import get_connection
 
-        con = duckdb.connect(":memory:")
-        try:
-            con.execute("SELECT 1")
-        finally:
-            con.close()
+        con = get_connection()
+        con.execute("SELECT 1")
         dependencies.append(("DuckDB", True, ""))
     except Exception as e:
         dependencies.append(("DuckDB", False, str(e)))

@@ -43,6 +43,7 @@ class SmartDeduplicator:
         self.lsh_forests: Dict[str, Any] = {}
 
         # 懒加载组件
+        self._db = None
         self._repo = None
         self._pcache_repo = None
         self.bloom_filter = None
@@ -122,12 +123,15 @@ class SmartDeduplicator:
                 return None
         return self.lsh_forests.get(chat_id)
 
+    def set_db(self, db):
+        """注入数据库依赖 (由 Container 调用，打破循环依赖)"""
+        self._db = db
+
     @property
     def repo(self):
         if not self._repo:
             from repositories.dedup_repo import DedupRepository
-            from core.container import container
-            self._repo = DedupRepository(container.db)
+            self._repo = DedupRepository(self._db)
         return self._repo
 
     @property

@@ -30,8 +30,13 @@ def test_get_message_size_logs_metadata_access_failure(caplog):
 class TestDedupService:
     @pytest.fixture(autouse=True)
     async def setup_dedup(self):
+        from core.container import container
+        # Inject dependencies into the global dedup_service singleton
+        dedup_service.set_db(container.db)
+        dedup_service.set_repos(container.dedup_repo, container.stats_repo)
         # 确保每个测试都重置配置
         from services.dedup.engine import smart_deduplicator
+        smart_deduplicator.set_db(container.db)
         await smart_deduplicator.reset_to_defaults()
         smart_deduplicator.time_window_cache.clear()
         smart_deduplicator.content_hash_cache.clear()
