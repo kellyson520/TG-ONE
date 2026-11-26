@@ -37,9 +37,15 @@ class SenderMiddleware(Middleware):
                 push_tasks.append(asyncio.create_task(self._push_rule_to_buffer(ctx, rule)))
 
             results = await asyncio.gather(*push_tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, (FloodWaitException, TransientError)):
-                    raise result
+            errors = [r for r in results if isinstance(r, BaseException)]
+            for _err in errors:
+                logger.error(f"❌ [发送器] 规则推送失败: {_err!r}")
+            if errors:
+                # [FIX] 可重试的优先抛出，让 worker 走 retry；其余也必须抛，不能静默
+                for _err in errors:
+                    if isinstance(_err, (FloodWaitException, TransientError)):
+                        raise _err
+                raise errors[0]
 
         await next_call()
 
@@ -67,9 +73,9 @@ class SenderMiddleware(Middleware):
             )
 
         except Exception as e:
-            logger.error(f"❌ [发送器] 推入缓冲区失败: {e}")
-            if isinstance(e, (FloodWaitException, TransientError)):
-                raise
+            logger.error(f"❌ [发送器] 推入缓冲区失败: {e}", exc_info=True)
+            # [FIX] 任何异常都上抛，由 worker 决定 retry/fail；吞掉等于伪造成功
+            raise
 
     async def _execute_send(self, ctx, rule, message_ids, all_ctxs):
         """真正的发送执行逻辑"""
@@ -228,11 +234,27 @@ class SenderMiddleware(Middleware):
                 "duration": duration,
                 "ctx_task_id": getattr(ctx, 'task_id', None)
             }, wait=True)
+
+            # [FIX] 登记失败规则，供 DedupMiddleware 回滚去重锁
+            # （原来这个列表只有 filter.py 会写，且写的是 dict，导致回滚永远是死代码）
+            try:
+                if not hasattr(ctx, "failed_rules"):
+                    ctx.failed_rules = []
+                if rule.id not in ctx.failed_rules:
+                    ctx.failed_rules.append(rule.id)
+            except Exception:
+                pass
             
             if isinstance(e, (FloodWaitException, TransientError)):
                 raise
             if _is_retryable_send_error(e):
                 raise TransientError(str(e)) from e
+            # [FIX] 非可重试错误（400/403/ChatWriteForbidden/ChannelPrivate）必须上抛。
+            # 原来这里直接落到函数末尾隐式 return None，worker 会把任务标成 completed，
+            # 用户永远不知道这条消息没发出去。
+            raise PermanentError(
+                f"send failed rule={rule.id} target={target_id}: {e}"
+            ) from e
 
     async def _cleanup_source(self, ctx, message_ids):
         """清理源消息逻辑"""

@@ -77,7 +77,11 @@ class FilterMiddleware(Middleware):
                 # 记录失败原因到 ctx (可选)
                 if not hasattr(ctx, 'failed_rules'):
                     ctx.failed_rules = []
-                ctx.failed_rules.append({'rule_id': rule.id, 'errors': filter_context.errors})
+                # [FIX] MessageContext.failed_rules 的类型是 List[int]，
+                # 下游 dedup 用 `rule_id in ctx.failed_rules` 判断。
+                # 原来塞 dict 导致回滚永远不触发，发送失败的消息会被永久判重复。
+                ctx.failed_rules.append(rule.id)
+                ctx.metadata.setdefault('failed_rule_reasons', {})[rule.id] = filter_context.errors
         
         # 更新上下文规则
         ctx.rules = passed_rules

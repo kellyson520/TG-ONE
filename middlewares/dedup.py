@@ -101,7 +101,7 @@ class DedupMiddleware(Middleware):
                 # Check for specific failed rules reported by downstream
                 if hasattr(ctx, 'failed_rules') and ctx.failed_rules:
                     for target_id, rule_id in recorded_targets:
-                        if rule_id in ctx.failed_rules:
+                        if rule_id in {r for r in ctx.failed_rules if not isinstance(r, dict)}:
                             logger.info(f"⏪ [Pipeline-Dedup] 规则 {rule_id} 执行失败，回滚去重状态")
                             service = service or _get_dedup_service()
                             await service.rollback(target_id, ctx.message_obj)

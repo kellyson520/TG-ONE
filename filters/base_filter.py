@@ -22,7 +22,7 @@ class BaseFilter(ABC):
         """
         self.name = name or self.__class__.__name__
         
-    @handle_errors(default_return=False)
+    @handle_errors(default_return=False, reraise=True)
     @log_execution()
     async def process(self, context):
         """

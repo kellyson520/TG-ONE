@@ -3,6 +3,7 @@ import asyncio
 from typing import List, Protocol, runtime_checkable
 from filters.base_filter import BaseFilter
 from filters.context import MessageContext
+from core.exceptions import TransientError
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +35,17 @@ class FilterNode:
                 logger.info(f"过滤器 {self.filter.name} 中断了处理链")
                 return False
             return True
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as _te:
             logger.error(f"过滤器 {self.filter.name} 执行超时（30秒）")
             context.errors.append(f"过滤器 {self.filter.name} 执行超时")
-            return False
+            # [FIX] 超时是基础设施故障，不是「规则不匹配」，必须上抛让 worker 重试
+            raise TransientError(f"filter {self.filter.name} timeout") from _te
         except Exception as e:
             logger.error(f"过滤器 {self.filter.name} 处理出错: {e}", exc_info=True)
             context.errors.append(f"过滤器 {self.filter.name} 错误: {e}")
-            return False
+            # [FIX] False 的语义是「这条规则不该转发」。异常被翻译成 False 后，
+            # 上层当作正常拦截，不重试也不失败 —— 一次 DB 抖动就静默吃掉一条消息。
+            raise
 
 class ParallelNode:
     """并行执行的一组过滤器（仅限只读检查类过滤器）"""
