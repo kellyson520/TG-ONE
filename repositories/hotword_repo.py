@@ -393,16 +393,25 @@ class HotwordRepository:
                             )
                         )
 
-                        for word, s, u in rows:
-                            new_row = HotPeriodStats(
-                                channel=channel,
-                                word=word,
-                                period=target_period,
-                                date_key=target_date_key,
-                                score=s,
-                                user_count=u
+                        # [FIX] 原来是逐行 session.add()：一个频道一天上万行就是
+                        # 上万次 ORM 构造 + 单行 INSERT，写完才 commit，整段时间持写锁
+                        # （线上「解析热词批次 性能警告 2~8s」与它同源，审查 #10）。
+                        # 改成一次 executemany 批量插入。
+                        if rows:
+                            await session.execute(
+                                insert(HotPeriodStats),
+                                [
+                                    {
+                                        "channel": channel,
+                                        "word": word,
+                                        "period": target_period,
+                                        "date_key": target_date_key,
+                                        "score": s,
+                                        "user_count": u,
+                                    }
+                                    for word, s, u in rows
+                                ],
                             )
-                            session.add(new_row)
                         await session.commit()
                     except Exception as e:
                         await session.rollback()

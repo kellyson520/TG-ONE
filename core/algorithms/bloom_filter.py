@@ -103,15 +103,37 @@ class BloomFilter:
             return
         try:
             with open(self.filepath, 'rb') as f:
-                data = json.loads(f.read().decode('utf-8'))
-                if data.get('capacity') == self.capacity and data.get('error_rate') == self.error_rate:
-                    self.bit_array = bytearray.fromhex(data['bit_array'])
-                    self.count = data.get('count', 0)
-                    logger.info(f"Bloom Filter loaded from {self.filepath}. Count: {self.count}")
-                else:
-                    logger.warning("Bloom Filter params changed, initialization required.")
+                raw = f.read()
+            data = self._decode_payload(raw)
+            if data.get('capacity') == self.capacity and data.get('error_rate') == self.error_rate:
+                bits = data['bit_array']
+                # 旧格式存的是 bytes，新格式存的是 hex 字符串
+                self.bit_array = bytearray.fromhex(bits) if isinstance(bits, str) else bytearray(bits)
+                self.count = data.get('count', 0)
+                logger.info(f"Bloom Filter loaded from {self.filepath}. Count: {self.count}")
+            else:
+                logger.warning("Bloom Filter params changed, initialization required.")
         except Exception as e:
             logger.error(f"Failed to load Bloom Filter: {e}")
+
+    @staticmethod
+    def _decode_payload(raw: bytes) -> dict:
+        """识别落盘格式：旧版是 pickle（魔数 0x80），新版是 JSON。
+
+        [FIX] 线上 /data/dedup_bloom.dat 是旧版本写下的 pickle（80 04 95），
+        而 load() 只做 json.loads → 每次开机都失败、过滤器恒为空，
+        去重最便宜的一层等于没开。这里兼容两种格式，写回仍用 JSON。
+        """
+        if not raw:
+            raise ValueError("bloom file is empty")
+        if raw[:1] == b'\x80':
+            import pickle
+            data = pickle.loads(raw)
+        else:
+            data = json.loads(raw.decode('utf-8'))
+        if not isinstance(data, dict):
+            raise ValueError("unexpected bloom payload type: %s" % type(data).__name__)
+        return data
 
 class BloomFilterManager:
     """管理多个布隆过滤器单例"""

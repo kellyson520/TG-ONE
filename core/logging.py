@@ -9,6 +9,7 @@ import zlib
 import json
 import logging
 import re
+import os
 import time
 import uuid
 from contextlib import contextmanager
@@ -662,11 +663,26 @@ def get_structured_logger(name: str) -> StructuredLogger:
 
 
 # 性能监控装饰器 (Moved out of class for easy import)
+_PERF_THRESHOLD_CACHE: Optional[float] = None
+
+
+def _perf_threshold() -> float:
+    """性能日志告警阈值（秒）。经验：1.0s 会把正常的热词批次/统计调用全标成警告，
+    真出问题的 8s 反而被淹掉 —— 缺省放宽到 3.0s，可用 PERF_LOG_THRESHOLD_SECONDS 覆盖。"""
+    global _PERF_THRESHOLD_CACHE
+    if _PERF_THRESHOLD_CACHE is None:
+        try:
+            _PERF_THRESHOLD_CACHE = float(os.environ.get("PERF_LOG_THRESHOLD_SECONDS", "3.0"))
+        except (TypeError, ValueError):
+            _PERF_THRESHOLD_CACHE = 3.0
+    return _PERF_THRESHOLD_CACHE
+
+
 def log_performance(
     operation_name: Optional[str] = None,
     log_args: bool = False,
     _log_result: bool = False,
-    threshold_seconds: float = 1.0,
+    threshold_seconds: Optional[float] = None,
 ) -> Callable:
     def decorator(func: Any) -> Any:
         @functools.wraps(func)
@@ -686,7 +702,7 @@ def log_performance(
             try:
                 result = await func(*args, **kwargs)
                 duration = perf_logger.end_timer(operation_id, op_name)
-                if duration > threshold_seconds:
+                if duration > (threshold_seconds if threshold_seconds is not None else _perf_threshold()):
                     logger.log_operation(f"{op_name} 性能警告", details=f"Time: {duration}s", level="warning")
                 return result
             except Exception as e:

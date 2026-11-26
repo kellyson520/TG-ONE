@@ -6,7 +6,7 @@
 import uuid
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -53,6 +53,22 @@ class BatchResult:
 # 绝对禁止在 UserMessageHandler (消息接收) 和 TaskRepository (关键状态变更) 中使用 BatchProcessor。
 # 允许使用于 ChatStatistics、RuleStatistics 等丢几条数据无伤大雅的统计业务。
 class AsyncBatchProcessor:
+    # [FIX] 原来每次批量操作都 `with ThreadPoolExecutor(max_workers=1)`：即建即毁。
+    # 批量路径是热路径，线程反复创建/销毁既费 CPU 又各占一个线程栈（审查 #12）。
+    # 改成实例级复用；进程退出时由 shutdown_executor() 或 GC 收尾。
+    def _get_executor(self):
+        if getattr(self, "_executor", None) is None:
+            workers = max(1, int(getattr(self, "max_workers", 4) or 4))
+            self._executor = ThreadPoolExecutor(max_workers=workers,
+                                                thread_name_prefix="batch-repo")
+        return self._executor
+
+    def shutdown_executor(self) -> None:
+        executor = getattr(self, "_executor", None)
+        if executor is not None:
+            executor.shutdown(wait=False)
+            self._executor = None
+
     """异步批量处理器"""
 
     def __init__(
@@ -575,7 +591,7 @@ class AsyncBatchProcessor:
 
         # 在线程池中执行数据库操作
         loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with nullcontext(self._get_executor()) as executor:
             if table_name == "media_signatures":
                 await loop.run_in_executor(
                     executor, lambda: self._run_with_dedup_session(_insert_batch)
@@ -604,7 +620,7 @@ class AsyncBatchProcessor:
                 session.commit()
 
         loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with nullcontext(self._get_executor()) as executor:
             await loop.run_in_executor(
                 executor, lambda: self._run_with_session(_update_item)
             )
@@ -627,7 +643,7 @@ class AsyncBatchProcessor:
             session.commit()
 
         loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with nullcontext(self._get_executor()) as executor:
             await loop.run_in_executor(
                 executor, lambda: self._run_with_session(_delete_batch)
             )
